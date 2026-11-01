@@ -1,0 +1,105 @@
+:root {
+  --bg: #0a0b10;
+  --text: #f4f1ea;
+  --muted: #b9b4a8;
+  --gold: #f2d06b;
+  --income: #6fd9a8;
+  --expense: #ff8f82;
+  --transfer: #8fb8ff;
+  --glass-bg: rgba(255, 255, 255, 0.07);
+  --glass-border: rgba(255, 255, 255, 0.15);
+  --glass-highlight: rgba(255, 255, 255, 0.2);
+  --glass-radius: 20px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'IBM Plex Sans Thai', system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+.page {
+  position: relative;
+  overflow: hidden;
+  min-height: 100vh;
+  padding: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.glow { position: absolute; border-radius: 50%; filter: blur(110px); pointer-events: none; }
+.glow-gold { width: 520px; height: 520px; background: #d4af37; opacity: 0.34; top: -160px; left: 18%; }
+.glow-blue { width: 600px; height: 600px; background: #3b6fd4; opacity: 0.3; top: 260px; right: -180px; }
+.glow-green { width: 480px; height: 480px; background: #1f8a63; opacity: 0.28; bottom: -140px; left: 30%; }
+
+.glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+}
+
+.solid {
+  background: rgba(16, 17, 24, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--glass-radius);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass { background: #171822; backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+@supports not (backdrop-filter: blur(1px)) {
+  .glass { background: #171822; }
+}
+
+.sidebar { position: relative; flex: 0 0 248px; padding: 20px 16px; display: flex; flex-direction: column; gap: 24px; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 0 8px; }
+.brand-mark { width: 36px; height: 36px; border-radius: 12px; background: var(--gold); color: var(--bg); display: flex; align-items: center; justify-content: center; font-family: Fraunces, serif; font-size: 20px; }
+.brand-name { font-weight: 600; font-size: 17px; }
+nav { display: flex; flex-direction: column; gap: 4px; }
+.nav-item { min-height: 44px; padding: 0 12px; border-radius: 12px; border: 1px solid transparent; background: transparent; color: var(--muted); text-align: left; }
+.nav-item-active { background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.2); color: var(--text); font-weight: 600; }
+.sidebar-note { margin: auto 0 0; padding: 12px; border-radius: 14px; background: rgba(0, 0, 0, 0.25); font-size: 13px; color: var(--muted); }
+
+.content { position: relative; flex: 999 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 20px; }
+h1 { margin: 0; font-size: 30px; font-weight: 600; line-height: 1.2; }
+h2 { margin: 0 0 12px; font-size: 18px; font-weight: 600; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.num { font-variant-numeric: tabular-nums; }
+
+.row { display: flex; flex-wrap: wrap; gap: 20px; }
+.row > * { flex: 1 1 320px; min-width: 0; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.card { padding: 22px 24px; }
+.hero { flex: 2 1 420px; padding: 28px; }
+.hero-number { font-family: Fraunces, serif; font-weight: 500; font-size: 64px; line-height: 1.15; color: var(--gold); font-variant-numeric: tabular-nums; margin: 4px 0 8px; }
+.stat { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.income { color: var(--income); }
+.expense { color: var(--expense); }
+.ok { color: var(--income); font-size: 20px; font-weight: 600; margin-top: 6px; }
+.bad { color: var(--expense); font-size: 20px; font-weight: 600; margin-top: 6px; }
+
+.wallet { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; margin-bottom: 8px; border-radius: 14px; background: rgba(0, 0, 0, 0.22); }
+.recent { flex: 2 1 420px; }
+.tx { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.tx-income { color: var(--income); font-weight: 500; }
+.tx-expense { color: var(--expense); font-weight: 500; }
+.tx-transfer { color: var(--transfer); font-weight: 500; }
+
+@media (max-width: 720px) {
+  .stats { grid-template-columns: 1fr; }
+  .hero-number { font-size: 48px; }
+}
