@@ -1,6 +1,6 @@
 import { isValidIsoDate } from '../domain/ledger/entry';
-import type { Account, NewEntry } from '../domain/ledger/types';
-import { parseBahtToSatang } from '../domain/money/satang';
+import type { Account, Entry, NewEntry } from '../domain/ledger/types';
+import { parseBahtToSatang, satang, toBahtString } from '../domain/money/satang';
 
 export class EntryFormError extends Error {
   constructor(message: string) {
@@ -98,4 +98,35 @@ export function buildEntry(accounts: readonly Account[], form: EntryForm, id: st
         ],
       };
   }
+}
+
+/**
+ * แปลงรายการกลับเป็นฟอร์ม เพื่อแก้ไข
+ * คืน null เมื่อแก้ผ่านฟอร์มไม่ได้: รายการยอดยกมาของระบบ หรือรายการที่มีมากกว่า 2 บรรทัด
+ * (เช่น งวดหนี้ที่แยกต้นกับดอกเบี้ย ซึ่งจะมีหน้าจอเฉพาะใน M4)
+ */
+export function entryToForm(accounts: readonly Account[], entry: Entry): EntryForm | null {
+  if (entry.source === 'system' || entry.lines.length !== 2) return null;
+  const byId = new Map(accounts.map((a) => [a.id, a] as const));
+  const [first, second] = entry.lines;
+  if (!first || !second) return null;
+  const debit = first.amount > 0 ? first : second;
+  const credit = first.amount > 0 ? second : first;
+  const to = byId.get(debit.accountId);
+  const from = byId.get(credit.accountId);
+  if (!to || !from || to.currency !== 'THB' || from.currency !== 'THB') return null;
+  if (debit.amount <= 0 || debit.amount !== -credit.amount) return null;
+
+  const amount = toBahtString(satang(debit.amount));
+  const base = { date: entry.date, amount, memo: entry.memo };
+  if (to.type === 'expense' && from.type === 'asset') {
+    return { ...base, kind: 'expense', walletId: from.id, counterId: to.id };
+  }
+  if (to.type === 'asset' && from.type === 'income') {
+    return { ...base, kind: 'income', walletId: to.id, counterId: from.id };
+  }
+  if (to.type === 'asset' && from.type === 'asset') {
+    return { ...base, kind: 'transfer', walletId: from.id, counterId: to.id };
+  }
+  return null;
 }

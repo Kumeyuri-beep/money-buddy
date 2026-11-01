@@ -1,16 +1,26 @@
 import type { ReactNode } from 'react';
 
+export type ViewId = 'today' | 'ledger';
+
 interface ShellProps {
   children: ReactNode;
   /** แสดงเมนูหลักหรือไม่ (หน้าตั้งต้นไม่แสดง) */
   showNav?: boolean;
+  current?: ViewId;
+  onNavigate?: (view: ViewId) => void;
   /** ปุ่มด้านล่างแถบข้าง */
   footer?: ReactNode;
 }
 
-const NAV = ['วันนี้', 'รายการ', 'แผน', 'ความมั่งคั่ง', 'ภาษีและรายงาน'] as const;
+const NAV: { id: ViewId | null; label: string }[] = [
+  { id: 'today', label: 'วันนี้' },
+  { id: 'ledger', label: 'รายการ' },
+  { id: null, label: 'แผน' },
+  { id: null, label: 'ความมั่งคั่ง' },
+  { id: null, label: 'ภาษีและรายงาน' },
+];
 
-export function Shell({ children, showNav = true, footer }: ShellProps) {
+export function Shell({ children, showNav = true, current = 'today', onNavigate, footer }: ShellProps) {
   return (
     <div className="page">
       <div className="glow glow-gold" aria-hidden="true" />
@@ -24,15 +34,27 @@ export function Shell({ children, showNav = true, footer }: ShellProps) {
         </div>
         {showNav && (
           <nav aria-label="เมนูหลัก">
-            {NAV.map((label, i) => (
-              <button
-                key={label}
-                className={i === 0 ? 'nav-item nav-item-active' : 'nav-item'}
-                aria-current={i === 0 ? 'page' : undefined}
-              >
-                {label}
-              </button>
-            ))}
+            {NAV.map(({ id, label }) => {
+              if (id === null) {
+                return (
+                  <span key={label} className="nav-item nav-item-soon">
+                    {label}
+                    <span className="soon">เร็วๆ นี้</span>
+                  </span>
+                );
+              }
+              const active = id === current;
+              return (
+                <button
+                  key={id}
+                  className={active ? 'nav-item nav-item-active' : 'nav-item'}
+                  aria-current={active ? 'page' : undefined}
+                  onClick={() => onNavigate?.(id)}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </nav>
         )}
         <div className="sidebar-footer">{footer}</div>

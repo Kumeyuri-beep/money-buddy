@@ -12,6 +12,21 @@ export function monthRange(date: Date = new Date()): { from: string; to: string 
   return { from: `${prefix}-01`, to: `${prefix}-31` };
 }
 
+function fromIso(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number) as [number, number, number];
+  return new Date(y, m - 1, d ?? 1);
+}
+
+/** "อา. 1 พ.ย." สำหรับหัวข้อวันในหน้ารายการ */
+export function thaiDayLabel(iso: string): string {
+  return new Intl.DateTimeFormat('th-TH', { weekday: 'short', day: 'numeric', month: 'short' }).format(fromIso(iso));
+}
+
+/** 'YYYY-MM' -> "พฤศจิกายน 2569" */
+export function thaiMonthKeyLabel(monthKey: string): string {
+  return thaiMonthLabel(fromIso(`${monthKey}-01`));
+}
+
 /** "พฤศจิกายน 2569" */
 export function thaiMonthLabel(date: Date = new Date()): string {
   return new Intl.DateTimeFormat('th-TH', { month: 'long', year: 'numeric' }).format(date);

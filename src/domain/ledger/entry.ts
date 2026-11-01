@@ -73,5 +73,6 @@ export function createEntry(accounts: readonly Account[], input: NewEntry): Entr
     lines: input.lines.map((l) => ({ accountId: l.accountId, amount: l.amount })),
   };
   if (input.groupId !== undefined) entry.groupId = input.groupId;
+  if (input.createdAt !== undefined) entry.createdAt = input.createdAt;
   return entry;
 }

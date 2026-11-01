@@ -3,10 +3,20 @@ import { localIsoDate } from '../app/dates';
 import { describeEntry } from '../app/describe';
 import type { Entry } from '../domain/ledger/types';
 import { db } from '../storage/instance';
-import { deleteEntry, exportSnapshot, isEmpty, loadLedger, resetAll, type Ledger } from '../storage/repository';
+import {
+  appendEntry,
+  deleteEntry,
+  exportSnapshot,
+  isEmpty,
+  loadLedger,
+  resetAll,
+  updateEntry,
+  type Ledger,
+} from '../storage/repository';
 import { AddEntryDialog } from './AddEntryDialog';
+import { LedgerView } from './LedgerView';
 import { Setup } from './Setup';
-import { Shell } from './Shell';
+import { Shell, type ViewId } from './Shell';
 import { Toast } from './Toast';
 import { Today } from './Today';
 
@@ -16,10 +26,12 @@ type State =
   | { status: 'ready'; ledger: Ledger }
   | { status: 'error'; message: string };
 
+type DialogState = { mode: 'add' } | { mode: 'edit'; entry: Entry } | null;
+
 interface ToastState {
   message: string;
-  /** มีค่าเมื่อเลิกทำได้ */
-  undoEntryId?: string;
+  /** มีค่าเมื่อกดเลิกทำได้ */
+  undo?: () => Promise<void>;
 }
 
 const TOAST_MS = 10_000;
@@ -35,9 +47,12 @@ async function downloadBackup(): Promise<void> {
   URL.revokeObjectURL(url);
 }
 
+const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
 export function App() {
   const [state, setState] = useState<State>({ status: 'loading' });
-  const [adding, setAdding] = useState(false);
+  const [view, setView] = useState<ViewId>('today');
+  const [dialog, setDialog] = useState<DialogState>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
 
   const refresh = useCallback(async () => {
@@ -59,32 +74,24 @@ export function App() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  /** ทำงานหนึ่งอย่าง แล้วโหลดข้อมูลใหม่และแจ้งผล ถ้าพลาดแจ้งข้อความผิดพลาดแทน */
+  const run = async (action: () => Promise<ToastState>) => {
+    try {
+      const next = await action();
+      await refresh();
+      setToast(next);
+    } catch (e) {
+      await refresh();
+      setToast({ message: errorText(e) });
+    }
+  };
+
   const reset = async () => {
     const ok = window.confirm('ล้างข้อมูลทั้งหมดและเริ่มใหม่?\nการกระทำนี้ย้อนกลับไม่ได้ ควรกด "สำรองข้อมูล" ก่อน');
     if (!ok) return;
     await resetAll(db);
     setToast(null);
-    await refresh();
-  };
-
-  const saved = async (entry: Entry) => {
-    setAdding(false);
-    await refresh();
-    if (state.status === 'ready') {
-      const { amountText } = describeEntry(state.ledger.accounts, entry);
-      setToast({ message: `บันทึกแล้ว: ${entry.memo} ${amountText}`, undoEntryId: entry.id });
-    } else {
-      setToast({ message: `บันทึกแล้ว: ${entry.memo}`, undoEntryId: entry.id });
-    }
-  };
-
-  const undo = async (id: string) => {
-    try {
-      await deleteEntry(db, id);
-      setToast({ message: 'เลิกทำแล้ว รายการถูกลบ' });
-    } catch (e) {
-      setToast({ message: e instanceof Error ? e.message : String(e) });
-    }
+    setView('today');
     await refresh();
   };
 
@@ -116,13 +123,54 @@ export function App() {
     );
   }
 
-  const undoId = toast?.undoEntryId;
+  const { accounts } = state.ledger;
+  const label = (entry: Entry) => `${entry.memo} ${describeEntry(accounts, entry).amountText}`;
+
+  const saved = (entry: Entry, before?: Entry) => {
+    setDialog(null);
+    void run(async () =>
+      before
+        ? {
+            message: `แก้ไขแล้ว: ${label(entry)}`,
+            undo: () =>
+              run(async () => {
+                await updateEntry(db, before.id, before);
+                return { message: 'ย้อนการแก้ไขแล้ว' };
+              }),
+          }
+        : {
+            message: `บันทึกแล้ว: ${label(entry)}`,
+            undo: () =>
+              run(async () => {
+                await deleteEntry(db, entry.id);
+                return { message: 'เลิกทำแล้ว รายการถูกลบ' };
+              }),
+          },
+    );
+  };
+
+  const remove = (entry: Entry) =>
+    void run(async () => {
+      const removed = await deleteEntry(db, entry.id);
+      return {
+        message: `ลบแล้ว: ${label(removed)}`,
+        undo: () =>
+          run(async () => {
+            await appendEntry(db, removed);
+            return { message: 'กู้คืนรายการแล้ว' };
+          }),
+      };
+    });
+
+  const openAdd = () => setDialog({ mode: 'add' });
 
   return (
     <Shell
+      current={view}
+      onNavigate={setView}
       footer={
         <>
-          <button className="btn btn-primary" onClick={() => setAdding(true)}>
+          <button className="btn btn-primary" onClick={openAdd}>
             บันทึกรายการ
           </button>
           <button className="btn btn-ghost" onClick={() => void downloadBackup()}>
@@ -134,21 +182,32 @@ export function App() {
         </>
       }
     >
-      <Today ledger={state.ledger} onAdd={() => setAdding(true)} />
+      {view === 'today' ? (
+        <Today ledger={state.ledger} onAdd={openAdd} />
+      ) : (
+        <LedgerView
+          ledger={state.ledger}
+          onAdd={openAdd}
+          onEdit={(entry) => setDialog({ mode: 'edit', entry })}
+          onDelete={remove}
+        />
+      )}
 
-      {adding && (
+      {dialog && (
         <AddEntryDialog
-          accounts={state.ledger.accounts}
-          onClose={() => setAdding(false)}
-          onSaved={(entry) => void saved(entry)}
+          key={dialog.mode === 'edit' ? dialog.entry.id : 'add'}
+          accounts={accounts}
+          editing={dialog.mode === 'edit' ? dialog.entry : undefined}
+          onClose={() => setDialog(null)}
+          onSaved={saved}
         />
       )}
 
       {toast && (
         <Toast
           message={toast.message}
-          actionLabel={undoId ? 'เลิกทำ' : undefined}
-          onAction={undoId ? () => void undo(undoId) : undefined}
+          actionLabel={toast.undo ? 'เลิกทำ' : undefined}
+          onAction={toast.undo ? () => void toast.undo?.() : undefined}
           onDismiss={() => setToast(null)}
         />
       )}

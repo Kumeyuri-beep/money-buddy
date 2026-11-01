@@ -37,6 +37,8 @@ export interface Entry {
   source: EntrySource;
   /** เชื่อมหลาย Entry ที่เกิดจากการกระทำเดียว เช่น จ่ายงวดหนี้ */
   groupId?: string;
+  /** เวลาที่บันทึก (ISO) ใช้เรียงรายการวันเดียวกัน รายการเก่าที่ไม่มีค่านี้ถือว่าเก่าสุด */
+  createdAt?: string;
   lines: Line[];
 }
 

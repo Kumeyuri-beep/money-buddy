@@ -13,6 +13,28 @@ export interface Snapshot extends Ledger {
   exportedAt: string;
 }
 
+let lastStamp = 0;
+
+/** เวลาบันทึกที่เพิ่มขึ้นเสมอ (กดบันทึกติดกันใน 1 มิลลิวินาทีก็ยังเรียงถูก) */
+function nextCreatedAt(): string {
+  lastStamp = Math.max(Date.now(), lastStamp + 1);
+  return new Date(lastStamp).toISOString();
+}
+
+/**
+ * ลำดับรายการ: วันที่ก่อน ภายในวันเดียวกันยอดยกมาของระบบมาก่อน แล้วตามเวลาที่บันทึก
+ * (IndexedDB คืนค่าเรียงตามรหัส ซึ่งเป็นรหัสสุ่ม จึงต้องเรียงเองเสมอ)
+ */
+export function compareEntries(a: Entry, b: Entry): number {
+  if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+  const sys = Number(b.source === 'system') - Number(a.source === 'system');
+  if (sys !== 0) return sys;
+  const ca = a.createdAt ?? '';
+  const cb = b.createdAt ?? '';
+  if (ca !== cb) return ca < cb ? -1 : 1;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
 export class StorageError extends Error {
   constructor(message: string) {
     super(message);
@@ -26,7 +48,7 @@ export async function loadLedger(db: MoneyDB): Promise<Ledger> {
   // IndexedDB คืนค่าเรียงตามรหัส ("wallet-10" มาก่อน "wallet-2") จึงเรียงใหม่ตาม sortOrder
   const rank = (a: Account) => a.sortOrder ?? Number.MAX_SAFE_INTEGER;
   accounts.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, 'th'));
-  entries.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  entries.sort(compareEntries);
   return { accounts, entries };
 }
 
@@ -58,9 +80,31 @@ export async function saveInitialLedger(db: MoneyDB, ledger: Ledger): Promise<vo
 export async function appendEntry(db: MoneyDB, input: NewEntry): Promise<Entry> {
   return db.transaction('rw', db.accounts, db.entries, async () => {
     const accounts = await db.accounts.toArray();
-    const entry = createEntry(accounts, input);
+    // คง createdAt เดิมเมื่อกู้คืนรายการที่ลบ (เลิกทำการลบ) เพื่อให้กลับไปอยู่ตำแหน่งเดิม
+    const entry = createEntry(accounts, { ...input, createdAt: input.createdAt ?? nextCreatedAt() });
     await db.entries.add(entry); // id ซ้ำจะ error ไม่เขียนทับ
     return entry;
+  });
+}
+
+/**
+ * แก้ไขรายการเดิม (รหัสเดิม) ผ่าน createEntry เสมอ ห้ามแก้รายการยอดยกมาของระบบ
+ * คืนทั้งก่อนและหลังแก้ เพื่อให้ปุ่ม "เลิกทำ" ย้อนกลับได้
+ */
+export async function updateEntry(
+  db: MoneyDB,
+  id: string,
+  input: NewEntry,
+): Promise<{ before: Entry; after: Entry }> {
+  if (input.id !== id) throw new StorageError('รหัสรายการไม่ตรงกัน');
+  return db.transaction('rw', db.accounts, db.entries, async () => {
+    const before = await db.entries.get(id);
+    if (!before) throw new StorageError('ไม่พบรายการนี้ อาจถูกลบไปแล้ว');
+    if (before.source === 'system') throw new StorageError('แก้ไขรายการยอดยกมาไม่ได้');
+    // แก้ไขแล้วยังอยู่ตำแหน่งเดิมในวันนั้น
+    const after = createEntry(await db.accounts.toArray(), { ...input, createdAt: input.createdAt ?? before.createdAt });
+    await db.entries.put(after);
+    return { before, after };
   });
 }
 

@@ -13,6 +13,7 @@ import {
   resetAll,
   saveInitialLedger,
   StorageError,
+  updateEntry,
 } from '../../src/storage/repository';
 
 let db: MoneyDB;
@@ -160,6 +161,103 @@ describe('ที่เก็บข้อมูล (IndexedDB)', () => {
     expect(removed.memo).toBe('กาแฟ');
     expect(balanceOf('wallet-1', (await loadLedger(db)).entries)).toBe(540_841);
     await expect(deleteEntry(db, 'coffee')).rejects.toThrow(/ไม่พบรายการ/);
+  });
+
+  it('รายการวันเดียวกัน: ยอดยกมามาก่อน แล้วเรียงตามลำดับที่บันทึก แม้กดติดกันมากๆ', async () => {
+    await saveInitialLedger(db, setup());
+    const line = (amount: number) => [
+      { accountId: 'expense-food', amount },
+      { accountId: 'wallet-1', amount: -amount },
+    ];
+    // รหัสตั้งให้เรียงตามตัวอักษรกลับด้าน เพื่อพิสูจน์ว่าไม่ได้เรียงตามรหัส
+    for (const id of ['z', 'y', 'x', 'w']) {
+      await appendEntry(db, { id, date: '2026-11-01', memo: id, lines: line(100) });
+    }
+    const order = (await loadLedger(db)).entries.map((e) => e.id);
+    expect(order).toEqual(['opening-wallet-1', 'opening-wallet-2', 'z', 'y', 'x', 'w']);
+  });
+
+  it('แก้ไขและกู้คืนรายการ ยังอยู่ตำแหน่งเดิมในวันนั้น', async () => {
+    await saveInitialLedger(db, setup());
+    const input = (id: string, amount = 100) => ({
+      id,
+      date: '2026-11-01',
+      memo: id,
+      lines: [
+        { accountId: 'expense-food', amount },
+        { accountId: 'wallet-1', amount: -amount },
+      ],
+    });
+    for (const id of ['a', 'b', 'c']) await appendEntry(db, input(id));
+    await updateEntry(db, 'a', input('a', 999));
+    const removed = await deleteEntry(db, 'b');
+    await appendEntry(db, removed);
+    const order = (await loadLedger(db)).entries.filter((e) => e.source !== 'system').map((e) => e.id);
+    expect(order).toEqual(['a', 'b', 'c']);
+  });
+
+  it('updateEntry แก้รายการเดิม คืนก่อนและหลังแก้ และย้อนกลับได้', async () => {
+    await saveInitialLedger(db, setup());
+    const line = (amount: number) => [
+      { accountId: 'expense-food', amount },
+      { accountId: 'wallet-1', amount: -amount },
+    ];
+    await appendEntry(db, { id: 'c', date: '2026-11-01', memo: 'กาแฟ', source: 'quick', lines: line(6500) });
+
+    const { before, after } = await updateEntry(db, 'c', { id: 'c', date: '2026-11-02', memo: 'กาแฟเย็น', source: 'quick', lines: line(7500) });
+    expect(before.memo).toBe('กาแฟ');
+    expect(after).toMatchObject({ memo: 'กาแฟเย็น', date: '2026-11-02', source: 'quick' });
+    expect(await db.entries.count()).toBe(3); // แก้ทับ ไม่ได้เพิ่มรายการใหม่
+    expect(balanceOf('wallet-1', (await loadLedger(db)).entries)).toBe(540_841 - 7500);
+
+    await updateEntry(db, 'c', before); // เลิกทำ
+    expect(balanceOf('wallet-1', (await loadLedger(db)).entries)).toBe(540_841 - 6500);
+  });
+
+  it('updateEntry ปฏิเสธรายการไม่สมดุล ยอดยกมา รหัสไม่ตรง และรายการที่ไม่มี โดยไม่เขียนอะไร', async () => {
+    await saveInitialLedger(db, setup());
+    await appendEntry(db, {
+      id: 'c',
+      date: '2026-11-01',
+      memo: 'กาแฟ',
+      lines: [
+        { accountId: 'expense-food', amount: 6500 },
+        { accountId: 'wallet-1', amount: -6500 },
+      ],
+    });
+    const bad = {
+      id: 'c',
+      date: '2026-11-01',
+      memo: 'x',
+      lines: [
+        { accountId: 'expense-food', amount: 100 },
+        { accountId: 'wallet-1', amount: -99 },
+      ],
+    };
+    await expect(updateEntry(db, 'c', bad)).rejects.toThrow(LedgerError);
+    await expect(updateEntry(db, 'opening-wallet-1', { ...bad, id: 'opening-wallet-1' })).rejects.toThrow(/ยอดยกมา/);
+    await expect(updateEntry(db, 'c', { ...bad, id: 'other' })).rejects.toThrow(/ไม่ตรง/);
+    await expect(updateEntry(db, 'ghost', { ...bad, id: 'ghost' })).rejects.toThrow(/ไม่พบ/);
+    expect((await db.entries.get('c'))?.memo).toBe('กาแฟ');
+  });
+
+  it('ลบแล้วกู้คืน (เลิกทำการลบ) ได้รายการเดิมครบทุกช่อง', async () => {
+    await saveInitialLedger(db, setup());
+    await appendEntry(db, {
+      id: 'c',
+      date: '2026-11-01',
+      memo: 'กาแฟ',
+      source: 'ocr',
+      groupId: 'g1',
+      lines: [
+        { accountId: 'expense-food', amount: 6500 },
+        { accountId: 'wallet-1', amount: -6500 },
+      ],
+    });
+    const original = await db.entries.get('c');
+    const removed = await deleteEntry(db, 'c');
+    await appendEntry(db, removed);
+    expect(await db.entries.get('c')).toEqual(original);
   });
 
   it('deleteEntry ไม่ยอมลบรายการยอดยกมาของระบบ', async () => {

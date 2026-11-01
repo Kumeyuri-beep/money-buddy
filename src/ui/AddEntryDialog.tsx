@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { localIsoDate } from '../app/dates';
-import { buildEntry, counterOptions, walletOptions, type FormKind } from '../app/entryForm';
+import { buildEntry, counterOptions, entryToForm, walletOptions, type FormKind } from '../app/entryForm';
 import { newId } from '../app/ids';
 import type { Account, Entry } from '../domain/ledger/types';
 import { db } from '../storage/instance';
-import { appendEntry } from '../storage/repository';
+import { appendEntry, updateEntry } from '../storage/repository';
 
 interface Props {
   accounts: Account[];
+  /** มีค่า = โหมดแก้ไขรายการนี้ */
+  editing?: Entry;
   onClose: () => void;
-  onSaved: (entry: Entry) => void;
+  /** before มีค่าเมื่อเป็นการแก้ไข (ใช้ทำปุ่มเลิกทำ) */
+  onSaved: (entry: Entry, before?: Entry) => void;
 }
 
 const KINDS: { value: FormKind; label: string }[] = [
@@ -19,16 +22,17 @@ const KINDS: { value: FormKind; label: string }[] = [
 ];
 
 /** ฟอร์มบันทึกรายการ แสดงเป็น dialog ของเบราว์เซอร์ (กด Esc ปิดได้ และโฟกัสอยู่ในฟอร์ม) */
-export function AddEntryDialog({ accounts, onClose, onSaved }: Props) {
+export function AddEntryDialog({ accounts, editing, onClose, onSaved }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const wallets = walletOptions(accounts);
+  const [initial] = useState(() => (editing ? entryToForm(accounts, editing) : null));
 
-  const [kind, setKind] = useState<FormKind>('expense');
-  const [amount, setAmount] = useState('');
-  const [walletId, setWalletId] = useState(wallets[0]?.id ?? '');
-  const [chosenCounter, setChosenCounter] = useState('');
-  const [date, setDate] = useState(() => localIsoDate());
-  const [memo, setMemo] = useState('');
+  const [kind, setKind] = useState<FormKind>(initial?.kind ?? 'expense');
+  const [amount, setAmount] = useState(initial?.amount ?? '');
+  const [walletId, setWalletId] = useState(initial?.walletId ?? wallets[0]?.id ?? '');
+  const [chosenCounter, setChosenCounter] = useState(initial?.counterId ?? '');
+  const [date, setDate] = useState(() => initial?.date ?? localIsoDate());
+  const [memo, setMemo] = useState(initial?.memo ?? '');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -51,9 +55,16 @@ export function AddEntryDialog({ accounts, onClose, onSaved }: Props) {
     event.preventDefault();
     setSaving(true);
     try {
-      const input = buildEntry(accounts, { kind, date, amount, walletId, counterId, memo }, newId('e'));
-      const entry = await appendEntry(db, input);
-      onSaved(entry);
+      const form = { kind, date, amount, walletId, counterId, memo };
+      if (editing) {
+        // คงแหล่งที่มาเดิม (เช่น สแกนสลิป) และกลุ่มเดิมไว้
+        const input = { ...buildEntry(accounts, form, editing.id), source: editing.source, groupId: editing.groupId };
+        const { before, after } = await updateEntry(db, editing.id, input);
+        onSaved(after, before);
+      } else {
+        const entry = await appendEntry(db, buildEntry(accounts, form, newId('e')));
+        onSaved(entry);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setSaving(false);
@@ -72,7 +83,7 @@ export function AddEntryDialog({ accounts, onClose, onSaved }: Props) {
       onCancel={onClose}
     >
       <form onSubmit={submit} className="entry-form">
-        <h2 id="entry-dialog-title">บันทึกรายการ</h2>
+        <h2 id="entry-dialog-title">{editing ? 'แก้ไขรายการ' : 'บันทึกรายการ'}</h2>
 
         <fieldset className="seg">
           <legend className="sr-only">ประเภทรายการ</legend>
@@ -184,7 +195,7 @@ export function AddEntryDialog({ accounts, onClose, onSaved }: Props) {
             ยกเลิก
           </button>
           <button type="submit" className="btn btn-primary" disabled={saving}>
-            บันทึก
+            {editing ? 'บันทึกการแก้ไข' : 'บันทึก'}
           </button>
         </div>
       </form>
