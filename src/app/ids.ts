@@ -1,0 +1,8 @@
+/** id ไม่ซ้ำสำหรับรายการใหม่ (crypto.randomUUID ใช้ได้บน https และ localhost) */
+export function newId(prefix: string): string {
+  const random =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return `${prefix}-${random}`;
+}

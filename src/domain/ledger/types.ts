@@ -19,6 +19,8 @@ export interface Account {
   name: string;
   currency: Currency;
   archived?: boolean;
+  /** ลำดับแสดงผล (น้อยมาก่อน) ไม่มีค่า = ไว้ท้ายสุด */
+  sortOrder?: number;
 }
 
 export interface Line {

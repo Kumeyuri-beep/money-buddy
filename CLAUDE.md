@@ -26,6 +26,8 @@ Commit ต้องระบุกฎที่แตะ เช่น `[R1,R8,R16
 
 - `src/domain/money/` สตางค์ ปัดเศษ micro-units (BigInt) ไม่แตะ DOM หรือฐานข้อมูล
 - `src/domain/ledger/` สมุดบัญชีคู่ ยอดคงเหลือ รายรับรายจ่าย Integrity Check
+- `src/storage/` IndexedDB (Dexie) เขียนผ่าน `repository.ts` เท่านั้น เปลี่ยนโครงสร้างต้องเพิ่ม `version(n)` ใน `db.ts`
+- `src/app/` ขั้นตอนใช้งาน (use case) เช่น `setup.ts` ที่ประกอบ domain เข้าด้วยกัน ไม่แตะ React
 - `src/ui/` หน้าจอ React (ห้ามมีสูตรเงินในคอมโพเนนต์ ให้เรียก domain เท่านั้น)
 - `tests/unit/` เทสต์สูตรเงิน (ทุกฟังก์ชันเงินต้องมีเทสต์ขอบเขต: ยอด 0, น้อยมาก, วันสิ้นเดือน)
 
