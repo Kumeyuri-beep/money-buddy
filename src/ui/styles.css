@@ -18,7 +18,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: 'IBM Plex Sans Thai', system-ui, sans-serif;
+  font-family: 'IBM Plex Sans Thai', system-ui, sans-'IBM Plex Sans Thai';
   font-size: 15px;
   line-height: 1.5;
 }
@@ -66,7 +66,7 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
 .sidebar { position: relative; flex: 0 0 248px; padding: 20px 16px; display: flex; flex-direction: column; gap: 24px; }
 .brand { display: flex; align-items: center; gap: 10px; padding: 0 8px; }
-.brand-mark { width: 36px; height: 36px; border-radius: 12px; background: var(--gold); color: var(--bg); display: flex; align-items: center; justify-content: center; font-family: Fraunces, serif; font-size: 20px; }
+.brand-mark { width: 36px; height: 36px; border-radius: 12px; background: var(--gold); color: var(--bg); display: flex; align-items: center; justify-content: center; font-family: Fraunces, 'IBM Plex Sans Thai'; font-size: 20px; }
 .brand-name { font-weight: 600; font-size: 17px; }
 nav { display: flex; flex-direction: column; gap: 4px; }
 .nav-item { min-height: 44px; padding: 0 12px; border-radius: 12px; border: 1px solid transparent; background: transparent; color: var(--muted); text-align: left; }
@@ -85,7 +85,7 @@ h2 { margin: 0 0 12px; font-size: 18px; font-weight: 600; }
 .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
 .card { padding: 22px 24px; }
 .hero { flex: 2 1 420px; padding: 28px; }
-.hero-number { font-family: Fraunces, serif; font-weight: 500; font-size: 64px; line-height: 1.15; color: var(--gold); font-variant-numeric: tabular-nums; margin: 4px 0 8px; }
+.hero-number { font-family: Fraunces, 'IBM Plex Sans Thai'; font-weight: 500; font-size: 64px; line-height: 1.15; color: var(--gold); font-variant-numeric: tabular-nums; margin: 4px 0 8px; }
 .stat { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .income { color: var(--income); }
 .expense { color: var(--expense); }
