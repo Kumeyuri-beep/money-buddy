@@ -39,3 +39,24 @@ Commit ต้องระบุกฎที่แตะ เช่น `[R1,R8,R16
 ## ความปลอดภัย
 
 ห้ามนำข้อมูลการเงินจริงมาใช้เป็นตัวอย่างหรือส่งออกนอกเครื่อง เก็บ token ใน `.env` ที่อยู่ใน `.gitignore`
+ตั้งแต่ M2 เป็นเว็บหลายผู้ใช้ (ดู `docs/decisions/2026-11-02-multi-user.md`): ข้อมูลแต่ละคนแยกด้วย RLS เสมอ
+ห้ามใส่ service_role key ในโค้ดฝั่งเว็บ ห้าม `git push` จนกว่าเจ้าของจะยืนยัน
+
+## ทีมผู้ช่วย
+
+คุณ (session หลัก) เป็นหัวหน้า: คุยกับเจ้าของ เขียนโค้ด และตัดสินใจรวม ผู้ช่วยใน `.claude/agents/` อ่านอย่างเดียว เรียกเมื่อจำเป็นเท่านั้น
+- product-advisor: เจ้าของลังเลเรื่องฟีเจอร์หรือลำดับงาน
+- money-auditor: หลังแก้โค้ดเงิน/บัญชี/SQL ที่คำนวณยอด
+- security-auditor: หลังแตะล็อกอิน, Supabase, RLS, `.env`, นำเข้า/ส่งออก
+- design-critic: หลังแก้หน้าจอ
+Skill: `/grill-me` ซักแผนก่อนลงมือ, `money-rules` ใช้อัตโนมัติเมื่อแตะเงิน, `/ship` ตรวจแล้วรอยืนยันก่อน push
+
+## Superpowers (plugin)
+
+ใช้ได้ แต่กติกาในไฟล์นี้มาก่อน skill ของ Superpowers เสมอ
+- ฟีเจอร์ใหม่หรือ Ticket ใหญ่: ใช้ `brainstorming` → `writing-plans` (ถามเจ้าของทีละข้อ ภาษาไทย) · ไอเดียเล็กใช้ `/grill-me` แทนได้
+- เขียนโค้ด: ใช้ `test-driven-development` และ `executing-plans` (ทำเองใน session นี้)
+  **ห้ามใช้ `subagent-driven-development` / `dispatching-parallel-agents`** เว้นแต่เจ้าของสั่ง เพราะกินโควตามาก
+- บั๊ก: ใช้ `systematic-debugging` · ก่อนบอกว่าเสร็จ: `verification-before-completion`
+- Git: ทำงานบน branch `main` ไม่ต้องสร้าง worktree · ห้าม merge, push หรือเปิด PR เอง ใช้ `/ship` แล้วรอเจ้าของยืนยัน
+- แผนที่เขียนให้เก็บไว้ที่ `docs/plans/` (เปิดดูใน Obsidian ได้)
