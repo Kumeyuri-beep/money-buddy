@@ -15,6 +15,7 @@ import {
 } from '../storage/repository';
 import { AddEntryDialog } from './AddEntryDialog';
 import { LedgerView } from './LedgerView';
+import { QuickAdd } from './QuickAdd';
 import { Setup } from './Setup';
 import { Shell, type ViewId } from './Shell';
 import { Toast } from './Toast';
@@ -182,6 +183,8 @@ export function App() {
         </>
       }
     >
+      <QuickAdd ledger={state.ledger} onSaved={(entry) => saved(entry)} />
+
       {view === 'today' ? (
         <Today ledger={state.ledger} onAdd={openAdd} />
       ) : (

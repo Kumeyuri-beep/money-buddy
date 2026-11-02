@@ -31,3 +31,12 @@ export function thaiMonthKeyLabel(monthKey: string): string {
 export function thaiMonthLabel(date: Date = new Date()): string {
   return new Intl.DateTimeFormat('th-TH', { month: 'long', year: 'numeric' }).format(date);
 }
+
+/** เลื่อนวันที่ YYYY-MM-DD ไปข้างหน้า (บวก) หรือย้อนหลัง (ลบ) ด้วยการคำนวณแบบ UTC จึงไม่เพี้ยนเพราะเขตเวลา */
+export function addDays(iso: string, days: number): string {
+  const [y, m, d] = iso.split('-').map(Number) as [number, number, number];
+  const t = new Date(Date.UTC(y, m - 1, d + days));
+  const mm = String(t.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(t.getUTCDate()).padStart(2, '0');
+  return `${t.getUTCFullYear()}-${mm}-${dd}`;
+}
