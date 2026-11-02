@@ -199,13 +199,37 @@ describe('monthOverMonth: เทียบช่วงเดียวกันข
     const entries = [spend('2026-10-05', 'w1', 1000), spend('2026-11-03', 'w1', 500), spend('2026-11-20', 'w1', 9000)];
     expect(monthOverMonth(accounts, entries, '2026-11-10')).toBe(-5000);
   });
-  it('29 ก.พ. เทียบ 1-29 ม.ค. (30-31 ม.ค. ไม่นับ)', () => {
-    const entries = [spend('2028-01-29', 'w1', 1000), spend('2028-01-31', 'w1', 9000), spend('2028-02-29', 'w1', 1000)];
-    expect(monthOverMonth(accounts, entries, '2028-02-29')).toBe(0);
+  it('28 ก.พ. ปีอธิกสุรทิน (ยังไม่ใช่วันสุดท้าย) เทียบ 1-28 ม.ค. (29-31 ม.ค. ไม่นับ)', () => {
+    const entries = [spend('2028-01-28', 'w1', 1000), spend('2028-01-29', 'w1', 9000), spend('2028-02-28', 'w1', 1000)];
+    expect(monthOverMonth(accounts, entries, '2028-02-28')).toBe(0);
   });
-  it('30 เม.ย. เทียบ 1-30 มี.ค. (31 มี.ค. ไม่นับ)', () => {
+  it('29 เม.ย. (ไม่ใช่วันสุดท้าย) เทียบ 1-29 มี.ค. (30-31 มี.ค. ไม่นับ)', () => {
+    const entries = [spend('2026-03-29', 'w1', 1000), spend('2026-03-30', 'w1', 9000), spend('2026-04-29', 'w1', 1500)];
+    expect(monthOverMonth(accounts, entries, '2026-04-29')).toBe(5000);
+  });
+  it('วันสุดท้ายของเดือน 30 พ.ย. เทียบ ต.ค. ทั้งเดือน (รวม 31 ต.ค.)', () => {
+    const entries = [spend('2026-10-15', 'w1', 1000), spend('2026-10-31', 'w1', 1000), spend('2026-11-30', 'w1', 1000)];
+    expect(monthOverMonth(accounts, entries, '2026-11-30')).toBe(-5000);
+  });
+  it('วันสุดท้ายของเดือน 30 เม.ย. เทียบ มี.ค. ทั้งเดือน (รวม 31 มี.ค.)', () => {
     const entries = [spend('2026-03-30', 'w1', 1000), spend('2026-03-31', 'w1', 9000), spend('2026-04-30', 'w1', 1500)];
-    expect(monthOverMonth(accounts, entries, '2026-04-30')).toBe(5000);
+    expect(monthOverMonth(accounts, entries, '2026-04-30')).toBe(-8500);
+  });
+  it('วันสุดท้ายของเดือน 29 ก.พ. ปีอธิกสุรทิน เทียบ ม.ค. ทั้งเดือน', () => {
+    const entries = [spend('2028-01-29', 'w1', 1000), spend('2028-01-31', 'w1', 9000), spend('2028-02-29', 'w1', 1000)];
+    expect(monthOverMonth(accounts, entries, '2028-02-29')).toBe(-9000);
+  });
+  it('วันสุดท้ายของเดือน 28 ก.พ. ปีปกติ เทียบ ม.ค. ทั้งเดือน', () => {
+    const entries = [spend('2026-01-31', 'w1', 4000), spend('2026-02-28', 'w1', 1000)];
+    expect(monthOverMonth(accounts, entries, '2026-02-28')).toBe(-7500);
+  });
+  it('วันสุดท้ายของเดือนมกราคม 31 ม.ค. เทียบ ธ.ค. ทั้งเดือน (ข้ามปี)', () => {
+    const entries = [spend('2026-12-31', 'w1', 1000), spend('2027-01-31', 'w1', 3000)];
+    expect(monthOverMonth(accounts, entries, '2027-01-31')).toBe(20000);
+  });
+  it('วันก่อนวันสุดท้าย 29 พ.ย. ยังตัดช่วงเดียวกัน (31 ต.ค. ไม่นับ)', () => {
+    const entries = [spend('2026-10-29', 'w1', 1000), spend('2026-10-31', 'w1', 9000), spend('2026-11-29', 'w1', 1000)];
+    expect(monthOverMonth(accounts, entries, '2026-11-29')).toBe(0);
   });
   it('วันที่ 1: เทียบวันที่ 1 ของเดือนก่อนวันเดียว', () => {
     const entries = [spend('2026-10-01', 'w1', 1000), spend('2026-10-02', 'w1', 9000), spend('2026-11-01', 'w1', 2000)];
@@ -228,10 +252,6 @@ describe('ตัวหารติดลบ (เครดิตคืนเข�
   it('monthOverMonth: เดือนนี้รายจ่ายสุทธิติดลบ (เครดิตคืนเกิน) ได้ต่ำกว่า -10000', () => {
     const entries = [spend('2026-10-05', 'w1', 1000), e('2026-11-05', [['w1', 500], ['food', -500]])];
     expect(monthOverMonth(accounts, entries, '2026-11-30')).toBe(-15000);
-  });
-  it('monthOverMonth: 28 ก.พ. เทียบ 1-28 ม.ค. (29-31 ม.ค. ไม่นับ)', () => {
-    const entries = [spend('2026-01-28', 'w1', 1000), spend('2026-01-31', 'w1', 9000), spend('2026-02-28', 'w1', 2000)];
-    expect(monthOverMonth(accounts, entries, '2026-02-28')).toBe(10000);
   });
   it('monthOverMonth: ส่วนต่างใหญ่เกินช่วงปลอดภัยต้อง throw ไม่คืนค่าผิด', () => {
     const entries = [spend('2026-10-05', 'w1', 1), spend('2026-11-05', 'w1', 1_000_000_000_000)];
@@ -365,6 +385,14 @@ describe('incomeChannels', () => {
     const entries = [earn('2026-11-01', 'w1', 1000), e('2026-11-02', [['salary', 400], ['w1', -400]])];
     expect(incomeChannels(accounts, entries, '2026-11')).toMatchObject({ count: 1, topWalletId: 'w1', topWalletAmount: 600 });
   });
+  it('through: ไม่นับรายรับที่ลงวันหลังวันที่กำหนด', () => {
+    const entries = [earn('2026-11-03', 'w1', 1000), earn('2026-11-20', 'w2', 9000, 'other-inc')];
+    expect(incomeChannels(accounts, entries, '2026-11', '2026-11-10')).toEqual({
+      count: 1,
+      topWalletId: 'w1',
+      topWalletAmount: 1000,
+    });
+  });
   it('ยอดเท่ากัน เลือกกระเป๋าที่เรียงก่อน (sortOrder)', () => {
     const entries = [earn('2026-11-01', 'w2', 100), earn('2026-11-02', 'w1', 100)];
     expect(incomeChannels(accounts, entries, '2026-11').topWalletId).toBe('w1');
@@ -420,6 +448,34 @@ describe('buildOverview: สถานะการ์ด (value / needs-setup / w
     const o = buildOverview(accounts, entries, '2026-11-02');
     expect(o.savingsRate.kind).toBe('waiting-data');
     expect(o.surplus).toMatchObject({ kind: 'value', net: -700 });
+  });
+
+  it('รายการลงวันล่วงหน้าไม่นับทุกการ์ดของเดือนนี้ จนกว่าจะถึงวันนั้น', () => {
+    const entries = [
+      opening('2026-10-01', 'w1', baht('10000')),
+      spend('2026-10-05', 'w1', 1000),
+      spend('2026-11-03', 'w1', 500),
+      spend('2026-11-20', 'w1', 9000), // ล่วงหน้า
+      earn('2026-11-25', 'w1', 5000), // ล่วงหน้า
+    ];
+    const o = buildOverview(accounts, entries, '2026-11-10');
+    expect(o.outgoing).toMatchObject({ total: 500 });
+    expect(o.income).toMatchObject({ total: 0, channels: 0, topWalletId: null });
+    expect(o.surplus).toMatchObject({ net: -500 });
+    expect(o.savingsRate.kind).toBe('waiting-data');
+    expect(o.vsLastMonth).toMatchObject({ kind: 'value', bps: -5000 });
+    expect(o.netWorth).toMatchObject({ kind: 'value', value: baht('10000') - 1000 - 500 });
+  });
+
+  it('ถึงวันนั้นแล้วรายการจึงเริ่มนับ (วันที่ตรงกับ today นับ)', () => {
+    const entries = [opening('2026-11-01', 'w1', 10000), spend('2026-11-20', 'w1', 700)];
+    expect(buildOverview(accounts, entries, '2026-11-19').outgoing).toMatchObject({ total: 0 });
+    expect(buildOverview(accounts, entries, '2026-11-20').outgoing).toMatchObject({ total: 700 });
+  });
+
+  it('วันสุดท้ายของเดือน: VS LAST MONTH เทียบเดือนก่อนทั้งเดือน', () => {
+    const entries = [spend('2026-10-31', 'w1', 1000), spend('2026-11-30', 'w1', 500)];
+    expect(buildOverview(accounts, entries, '2026-11-30').vsLastMonth).toMatchObject({ bps: -5000 });
   });
 
   it('runway ไม่นับกระเป๋าเก็บถาวรในเงินสด', () => {

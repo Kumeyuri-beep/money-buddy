@@ -33,8 +33,8 @@ export interface Overview {
 /** ประกอบการ์ดสรุปของเดือนที่ `today` (YYYY-MM-DD) อยู่ ไม่มีสูตรเงินของตัวเอง เรียก domain เท่านั้น */
 export function buildOverview(accounts: readonly Account[], entries: readonly Entry[], today: string): Overview {
   const month = today.slice(0, 7);
-  const totals = periodTotals(accounts, entries, { from: `${month}-01`, to: `${month}-31` }, 'THB');
-  const channels = incomeChannels(accounts, entries, month);
+  const totals = periodTotals(accounts, entries, { from: `${month}-01`, to: today }, 'THB');
+  const channels = incomeChannels(accounts, entries, month, today);
 
   const series = netWorthMonthlySeries(accounts, entries, today);
   const last = series[series.length - 1];

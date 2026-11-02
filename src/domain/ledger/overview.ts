@@ -123,6 +123,7 @@ function daysInMonth(month: string): number {
 /**
  * รายจ่ายตั้งแต่วันที่ 1 ถึงวันที่ asOf ของเดือนนี้ เทียบ "ช่วงเดียวกัน" ของเดือนก่อน เป็น bps (ลดลง = ติดลบ)
  * เดือนก่อนสั้นกว่าให้ตัดที่วันสุดท้ายของเดือนนั้น (เช่น 31 มี.ค. เทียบ 1-28 ก.พ.)
+ * ถ้า asOf เป็นวันสุดท้ายของเดือน เทียบกับเดือนก่อนทั้งเดือน (เช่น 30 พ.ย. เทียบ 1-31 ต.ค.)
  * ช่วงเดียวกันของเดือนก่อนไม่มีรายจ่ายสุทธิ (0 หรือติดลบ) = null
  */
 export function monthOverMonth(
@@ -133,7 +134,9 @@ export function monthOverMonth(
   const month = monthOf(asOf);
   const prevMonth = shiftMonth(month, -1);
   const day = Number(asOf.slice(8, 10));
-  const prevDay = String(Math.min(day, daysInMonth(prevMonth))).padStart(2, '0');
+  const prevLength = daysInMonth(prevMonth);
+  const isLastDay = day === daysInMonth(month);
+  const prevDay = String(isLastDay ? prevLength : Math.min(day, prevLength)).padStart(2, '0');
   const previous = periodTotals(accounts, entries, { from: `${prevMonth}-01`, to: `${prevMonth}-${prevDay}` }, CURRENCY).expense;
   if (previous <= 0) return null; // 0 หรือติดลบ (เครดิตคืนเกินรายจ่าย) เทียบเป็นร้อยละไม่มีความหมาย
   const current = periodTotals(accounts, entries, { from: `${month}-01`, to: asOf }, CURRENCY).expense;
@@ -197,14 +200,16 @@ export interface IncomeChannels {
   topWalletAmount: number;
 }
 
-/** ช่องทางรายรับของเดือน และกระเป๋าที่รับเงินจากรายรับมากสุด (เท่ากันเลือกตามลำดับบัญชี) */
+/** ช่องทางรายรับของเดือน และกระเป๋าที่รับเงินจากรายรับมากสุด (เท่ากันเลือกตามลำดับบัญชี) นับถึงวัน `through` (รวมวันนั้น) ไม่ระบุ = ทั้งเดือน */
 export function incomeChannels(
   accounts: readonly Account[],
   entries: readonly Entry[],
   month: string,
+  through?: string,
 ): IncomeChannels {
   const byId = indexAccounts(accounts);
-  const { from, to } = monthRange(month);
+  const { from } = monthRange(month);
+  const to = through ?? monthEnd(month);
   const incomeNet = new Map<string, number>();
   const walletIn = new Map<string, number>();
 
