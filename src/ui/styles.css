@@ -89,6 +89,12 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
   border-radius: var(--solid-radius);
 }
 
+/* เบราว์เซอร์ไม่รองรับ backdrop-filter: กระจกแท้เป็นพื้นทึบ (ตามแผน A1) */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass { background: var(--surface-fallback); }
+  .glass::before { display: none; }
+}
+
 /* ผู้ใช้ตั้งค่าลดความโปร่งใส: ทั้งสามแบบเป็นพื้นทึบ */
 @media (prefers-reduced-transparency: reduce) {
   .glass, .glass-lite { background: var(--surface-fallback); backdrop-filter: none; -webkit-backdrop-filter: none; }
@@ -244,7 +250,27 @@ select { font: inherit; }
 .quick-date { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); }
 .quick-memo { font-size: 14px; }
 
+/* การ์ดสรุป 8 ใบ (กระจกแท้) แถวละ 4 บนเดสก์ท็อป
+ * ตัวเลขใหญ่ (>= 28px) ใช้สีความหมายได้บนกระจก ตัวเล็กใช้สีปกติ + สัญลักษณ์ (▲ ▼ ⚠ ✓) ตามหมายเหตุ AA ด้านบน */
+.summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; }
+.summary-card { display: flex; flex-direction: column; gap: 6px; min-height: 168px; padding: 20px 22px; }
+.summary-label { font-size: 13px; letter-spacing: 0.02em; font-weight: 600; line-height: 1.4; }
+.summary-value { font-size: 28px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; overflow-wrap: break-word; }
+.value-income { color: var(--income); }
+.value-expense { color: var(--expense); }
+.value-warn { color: var(--warn); }
+.summary-empty { font-size: 17px; font-weight: 600; line-height: 1.4; color: var(--text); }
+.summary-sub { margin: 0; }
+.spark { width: 100%; height: 32px; stroke: var(--gold); stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.spark path { vector-effect: non-scaling-stroke; }
+.meter { position: relative; height: 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.14); overflow: hidden; }
+.meter-fill { height: 100%; border-radius: 999px; background: var(--gold); }
+.card-link { align-self: flex-start; min-width: 44px; margin-top: auto; min-height: 44px; padding: 0 4px; border: 0; background: transparent; color: var(--gold); font-size: 13px; font-weight: 500; }
+.card-link:hover { text-decoration: underline; }
+@media (max-width: 1520px) { .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
 @media (max-width: 720px) {
+  .summary-grid { grid-template-columns: 1fr; }
   .stats { grid-template-columns: 1fr; }
   .ledger-tx { grid-template-columns: minmax(0, 1fr) auto; }
   .tx-actions { grid-column: 1 / -1; justify-content: flex-start; min-width: 0; }

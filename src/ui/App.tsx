@@ -194,7 +194,7 @@ export function App() {
       {integrity && <IntegrityBanner report={integrity} />}
 
       {view === 'today' ? (
-        <Today ledger={state.ledger} onAdd={openAdd} />
+        <Today ledger={state.ledger} onAdd={openAdd} onOpenLedger={() => setView('ledger')} />
       ) : (
         <LedgerView
           ledger={state.ledger}

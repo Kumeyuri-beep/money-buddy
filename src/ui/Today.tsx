@@ -1,20 +1,21 @@
 import { useMemo } from 'react';
-import { monthRange, thaiMonthLabel } from '../app/dates';
+import { localIsoDate } from '../app/dates';
 import { describeEntry } from '../app/describe';
-import { balanceOf, periodTotals } from '../domain/ledger/balance';
+import { balanceOf } from '../domain/ledger/balance';
 import { formatBaht, satang } from '../domain/money/satang';
 import type { Ledger } from '../storage/repository';
+import { SummaryCards } from './overview/SummaryCards';
 
 interface TodayProps {
   ledger: Ledger;
   onAdd: () => void;
+  onOpenLedger: () => void;
 }
 
-export function Today({ ledger, onAdd }: TodayProps) {
+export function Today({ ledger, onAdd, onOpenLedger }: TodayProps) {
   const { accounts, entries } = ledger;
-  const now = useMemo(() => new Date(), []);
+  const today = useMemo(() => localIsoDate(new Date()), []);
 
-  const totals = useMemo(() => periodTotals(accounts, entries, monthRange(now)), [accounts, entries, now]);
   const wallets = useMemo(
     () =>
       accounts
@@ -22,7 +23,6 @@ export function Today({ ledger, onAdd }: TodayProps) {
         .map((a) => ({ id: a.id, name: a.name, balance: balanceOf(a.id, entries) })),
     [accounts, entries],
   );
-  const walletTotal = wallets.reduce((sum, w) => sum + w.balance, 0);
   const recent = useMemo(
     () =>
       entries
@@ -36,31 +36,11 @@ export function Today({ ledger, onAdd }: TodayProps) {
 
   return (
     <>
-      <section className="row">
-        <div className="glass card hero">
-          <div className="muted">เงินในกระเป๋าทั้งหมด · {thaiMonthLabel(now)}</div>
-          <div className="hero-number">{formatBaht(satang(walletTotal))}</div>
-          <div className="muted">คำนวณจากผลรวมรายการในสมุดบัญชี ไม่ได้เก็บยอดไว้ตรงๆ</div>
-        </div>
-      </section>
-
-      <section className="stats">
-        <div className="glass card">
-          <div className="muted">รายรับเดือนนี้</div>
-          <div className="stat income">{formatBaht(satang(totals.income))}</div>
-        </div>
-        <div className="glass card">
-          <div className="muted">รายจ่ายเดือนนี้</div>
-          <div className="stat expense">{formatBaht(satang(totals.expense))}</div>
-        </div>
-        <div className="glass card">
-          <div className="muted">คงเหลือสุทธิเดือนนี้</div>
-          <div className="stat">{formatBaht(satang(totals.net))}</div>
-        </div>
-      </section>
+      <SummaryCards accounts={accounts} entries={entries} today={today} onOpenLedger={onOpenLedger} />
 
       <section className="row">
-        <div className="glass card wallets">
+        {/* A5 จะปรับกระเป๋า/รายการล่าสุดใหม่ ตอนนี้เปลี่ยนเป็น glass-lite เพื่อไม่ให้กระจกแท้เกิน 8 ใบ */}
+        <div className="glass-lite card wallets">
           <h2>กระเป๋าเงิน</h2>
           {wallets.map((w) => (
             <div className="wallet" key={w.id}>
