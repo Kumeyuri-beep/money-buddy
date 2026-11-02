@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { localIsoDate } from '../app/dates';
 import { describeEntry } from '../app/describe';
+import { runIntegrityCheck } from '../domain/ledger/integrity';
 import type { Entry } from '../domain/ledger/types';
 import { db } from '../storage/instance';
 import {
@@ -14,8 +15,9 @@ import {
   type Ledger,
 } from '../storage/repository';
 import { AddEntryDialog } from './AddEntryDialog';
+import { Header } from './Header';
+import { IntegrityBanner, IntegrityStatus } from './Integrity';
 import { LedgerView } from './LedgerView';
-import { QuickAdd } from './QuickAdd';
 import { Setup } from './Setup';
 import { Shell, type ViewId } from './Shell';
 import { Toast } from './Toast';
@@ -68,6 +70,12 @@ export function App() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // ผลตรวจความถูกต้องของสมุดบัญชี คำนวณใหม่เมื่อข้อมูลเปลี่ยนเท่านั้น
+  const integrity = useMemo(
+    () => (state.status === 'ready' ? runIntegrityCheck(state.ledger.accounts, state.ledger.entries) : null),
+    [state],
+  );
 
   useEffect(() => {
     if (!toast) return;
@@ -169,11 +177,9 @@ export function App() {
     <Shell
       current={view}
       onNavigate={setView}
+      status={integrity ? <IntegrityStatus report={integrity} /> : null}
       footer={
         <>
-          <button className="btn btn-primary" onClick={openAdd}>
-            บันทึกรายการ
-          </button>
           <button className="btn btn-ghost" onClick={() => void downloadBackup()}>
             สำรองข้อมูล
           </button>
@@ -183,7 +189,9 @@ export function App() {
         </>
       }
     >
-      <QuickAdd ledger={state.ledger} onSaved={(entry) => saved(entry)} />
+      <Header ledger={state.ledger} onAdd={openAdd} onQuickSaved={(entry) => saved(entry)} />
+
+      {integrity && <IntegrityBanner report={integrity} />}
 
       {view === 'today' ? (
         <Today ledger={state.ledger} onAdd={openAdd} />

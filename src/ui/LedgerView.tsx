@@ -46,15 +46,11 @@ export function LedgerView({ ledger, onAdd, onEdit, onDelete }: LedgerViewProps)
 
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>รายการ</h1>
-          <p className="muted">{filter.month === 'all' ? 'ทุกเดือน' : thaiMonthKeyLabel(filter.month)}</p>
-        </div>
-        <button className="btn btn-primary" onClick={onAdd}>
-          บันทึกรายการ
-        </button>
-      </header>
+      {/* ปุ่มเพิ่มรายการอยู่ที่หัวหน้าส่วนกลางแล้ว หัวข้อหน้านี้จึงเป็น h2 (h1 คือคำทักทายในหัวหน้า) */}
+      <div className="page-header">
+        <h2 className="page-title">รายรับ-รายจ่าย</h2>
+        <p className="muted">{filter.month === 'all' ? 'ทุกเดือน' : thaiMonthKeyLabel(filter.month)}</p>
+      </div>
 
       <section className="glass card filters" aria-label="ตัวกรอง">
         <div className="field">

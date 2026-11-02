@@ -77,7 +77,7 @@ export function QuickAdd({ ledger, onSaved }: QuickAddProps) {
   const walletLabel = form?.kind === 'income' ? 'เข้ากระเป๋า' : form?.kind === 'transfer' ? 'จากกระเป๋า' : 'จากกระเป๋า';
 
   return (
-    <form className="glass quick" onSubmit={submit}>
+    <form className="quick" onSubmit={submit}>
       <div className="quick-input">
         <label htmlFor="quick-text" className="sr-only">
           พิมพ์รายการสั้นๆ

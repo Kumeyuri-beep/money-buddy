@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import { monthRange, thaiMonthLabel } from '../app/dates';
 import { describeEntry } from '../app/describe';
 import { balanceOf, periodTotals } from '../domain/ledger/balance';
-import { runIntegrityCheck } from '../domain/ledger/integrity';
 import { formatBaht, satang } from '../domain/money/satang';
 import type { Ledger } from '../storage/repository';
 
@@ -24,7 +23,6 @@ export function Today({ ledger, onAdd }: TodayProps) {
     [accounts, entries],
   );
   const walletTotal = wallets.reduce((sum, w) => sum + w.balance, 0);
-  const integrity = useMemo(() => runIntegrityCheck(accounts, entries), [accounts, entries]);
   const recent = useMemo(
     () =>
       entries
@@ -38,27 +36,11 @@ export function Today({ ledger, onAdd }: TodayProps) {
 
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>วันนี้</h1>
-          <p className="muted">{thaiMonthLabel(now)}</p>
-        </div>
-        <button className="btn btn-primary" onClick={onAdd}>
-          บันทึกรายการ
-        </button>
-      </header>
-
       <section className="row">
         <div className="glass card hero">
-          <div className="muted">เงินในกระเป๋าทั้งหมด</div>
+          <div className="muted">เงินในกระเป๋าทั้งหมด · {thaiMonthLabel(now)}</div>
           <div className="hero-number">{formatBaht(satang(walletTotal))}</div>
           <div className="muted">คำนวณจากผลรวมรายการในสมุดบัญชี ไม่ได้เก็บยอดไว้ตรงๆ</div>
-        </div>
-        <div className="glass card">
-          <div className="muted">ตรวจความถูกต้อง</div>
-          <div className={integrity.ok ? 'ok' : 'bad'}>
-            {integrity.ok ? `ผ่านทั้งหมด (${integrity.checkedEntries} รายการ)` : `พบ ${integrity.issues.length} ปัญหา`}
-          </div>
         </div>
       </section>
 
