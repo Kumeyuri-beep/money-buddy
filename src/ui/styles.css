@@ -15,6 +15,7 @@
   --transfer: #8fb8ff;
   --warn: #ffb86b;
   --glass-border: rgba(255, 255, 255, 0.16);
+  --glass-highlight: rgba(255, 255, 255, 0.4);
   --glass-radius: 28px;
   --solid-radius: 24px;
   --surface-fallback: #171a26;
@@ -156,8 +157,21 @@ h2 { margin: 0 0 12px; font-size: 18px; font-weight: 600; }
 .ok { color: var(--income); font-size: 20px; font-weight: 600; margin-top: 6px; }
 .bad { color: var(--expense); font-size: 20px; font-weight: 600; margin-top: 6px; }
 
-.wallet { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; margin-bottom: 8px; border-radius: 14px; background: rgba(0, 0, 0, 0.22); }
-.recent { flex: 2 1 420px; }
+.wallet-list, .tx-list { list-style: none; margin: 0; padding: 0; }
+.wallet { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; margin-bottom: 8px; border-radius: 14px; background: rgba(0, 0, 0, 0.22); }
+.wallet-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.wallet-balance { font-weight: 600; }
+.wallet-meter { height: 6px; }
+.empty-panel { display: flex; flex-direction: column; gap: 8px; }
+.empty-panel h2 { margin-bottom: 4px; }
+.empty-panel p { margin: 0; }
+.recent { flex: 2 1 420px; display: flex; flex-direction: column; }
+.recent .tx-main { flex: 1; }
+.tx-group + .tx-group { margin-top: 8px; }
+.tx-day { margin: 8px 0 0; font-size: 13px; font-weight: 600; color: var(--muted); }
+.tx-icon { flex: none; }
+.tx-list .tx { justify-content: flex-start; }
+.tx-list .tx > .num { margin-left: auto; }
 .tx { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid rgba(255, 255, 255, 0.08); }
 .tx-income { color: var(--income); font-weight: 500; }
 .tx-expense { color: var(--expense); font-weight: 500; }
@@ -167,6 +181,7 @@ input { font: inherit; }
 .field { display: flex; flex-direction: column; gap: 6px; flex: 1 1 200px; min-width: 0; }
 .field label { font-size: 13px; color: var(--muted); }
 .field input { min-height: 44px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(0, 0, 0, 0.25); color: var(--text); padding: 0 14px; }
+.field input::placeholder { color: rgba(244, 245, 250, 0.6); }
 .field input:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
 .btn { min-height: 44px; padding: 0 18px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.08); font-size: 14px; font-weight: 500; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -276,3 +291,14 @@ select { font: inherit; }
   .tx-actions { grid-column: 1 / -1; justify-content: flex-start; min-width: 0; }
   .hero-number { font-size: 48px; }
 }
+
+/* Cash Flow Sankey (glass-lite ไม่มี blur) ตัวหนังสืออยู่ข้างแท่ง ไม่ซ้อนบนแถบสี ขนาด >= 13px ที่ความกว้างเต็ม */
+.sankey { overflow-x: auto; }
+.sankey-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.sankey-head h2 { margin: 0; }
+.sankey-month { display: flex; flex-direction: row; align-items: center; gap: 8px; }
+.sankey-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 8px; padding: 0; list-style: none; }
+.chip { padding: 6px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.09); border: 1px solid rgba(255, 255, 255, 0.12); font-size: 13px; font-variant-numeric: tabular-nums; }
+.sankey-svg { display: block; width: 100%; height: auto; min-width: 640px; }
+.sankey-label { fill: var(--text); font-size: 14px; }
+.sankey-amount { fill: rgba(244, 245, 250, 0.8); font-size: 13px; font-variant-numeric: tabular-nums; }

@@ -52,7 +52,7 @@ export function LedgerView({ ledger, onAdd, onEdit, onDelete }: LedgerViewProps)
         <p className="muted">{filter.month === 'all' ? 'ทุกเดือน' : thaiMonthKeyLabel(filter.month)}</p>
       </div>
 
-      <section className="glass card filters" aria-label="ตัวกรอง">
+      <section className="glass-lite card filters" aria-label="ตัวกรอง">
         <div className="field">
           <label htmlFor="f-text">ค้นหา</label>
           <input

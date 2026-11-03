@@ -38,7 +38,7 @@ export function Setup({ onDone }: SetupProps) {
         <p className="muted">ใส่เงินที่มีอยู่ในแต่ละกระเป๋าวันนี้ ข้อมูลเก็บไว้ในเบราว์เซอร์ของคุณเท่านั้น</p>
       </header>
 
-      <form className="glass card setup" onSubmit={submit}>
+      <form className="glass-lite card setup" onSubmit={submit}>
         <h2>กระเป๋าเงิน</h2>
         {wallets.map((w, i) => (
           <div className="setup-row" key={i}>
