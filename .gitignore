@@ -6,3 +6,6 @@ dist
 .DS_Store
 
 .obsidian/
+
+# ไฟล์ OCR คัดลอกจาก node_modules ตอน dev/build (scripts/copy-ocr-assets.mjs)
+public/ocr/
