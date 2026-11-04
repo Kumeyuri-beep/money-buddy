@@ -98,6 +98,10 @@ describe('groupRecentByDay: จำนวนและการกรอง', () =
     expect(groupRecentByDay([entry('2026-11-03')], '2026-11-03', 0)).toEqual([]);
   });
 
+  it('limit ติดลบ = ไม่มีรายการ', () => {
+    expect(groupRecentByDay([entry('2026-11-03')], '2026-11-03', -1)).toEqual([]);
+  });
+
   it('ไม่แก้อาร์เรย์ต้นฉบับ', () => {
     const list = [entry('2026-11-01'), entry('2026-11-03')];
     const copy = list.slice();
