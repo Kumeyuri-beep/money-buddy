@@ -1,5 +1,5 @@
 import { monthOf } from '../domain/bills/calendar';
-import { billProblem } from '../domain/bills/schedule';
+import { billProblem, markBillPaid, payableCycle } from '../domain/bills/schedule';
 import { sanitizeSettings, settingsProblem, type FinanceSettings } from '../domain/bills/settings';
 import type { Bill } from '../domain/bills/types';
 import { createEntry } from '../domain/ledger/entry';
@@ -40,6 +40,9 @@ export function compareEntries(a: Entry, b: Entry): number {
   if (ca !== cb) return ca < cb ? -1 : 1;
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
+
+/** รายการจ่ายบิลผูกกับสถานะ "จ่ายแล้ว" ของบิล แก้/ลบจากสมุดบัญชีตรงๆ ไม่ได้ (กันบิลค้างสถานะจ่ายทั้งที่รายจ่ายหาย) */
+const RECURRING_LOCKED = 'รายการนี้เกิดจากการจ่ายบิล แก้หรือลบจากสมุดบัญชีไม่ได้ (เลิกทำได้ทันทีหลังจ่ายจากปุ่ม "เลิกทำ")';
 
 export class StorageError extends Error {
   constructor(message: string) {
@@ -107,6 +110,7 @@ export async function updateEntry(
     const before = await db.entries.get(id);
     if (!before) throw new StorageError('ไม่พบรายการนี้ อาจถูกลบไปแล้ว');
     if (before.source === 'system') throw new StorageError('แก้ไขรายการยอดยกมาไม่ได้');
+    if (before.source === 'recurring') throw new StorageError(RECURRING_LOCKED);
     // แก้ไขแล้วยังอยู่ตำแหน่งเดิมในวันนั้น
     const after = createEntry(await db.accounts.toArray(), { ...input, createdAt: input.createdAt ?? before.createdAt });
     await db.entries.put(after);
@@ -123,6 +127,7 @@ export async function deleteEntry(db: MoneyDB, id: string): Promise<Entry> {
     const entry = await db.entries.get(id);
     if (!entry) throw new StorageError('ไม่พบรายการนี้ อาจถูกลบไปแล้ว');
     if (entry.source === 'system') throw new StorageError('ลบรายการยอดยกมาไม่ได้');
+    if (entry.source === 'recurring') throw new StorageError(RECURRING_LOCKED);
     await db.entries.delete(id);
     return entry;
   });
@@ -273,6 +278,130 @@ export async function setBillPaidMonth(
     await db.bills.put(next);
     return { before, bill: next };
   });
+}
+
+export interface PayBillOptions {
+  /** วันนี้ YYYY-MM-DD (วันที่ของรายการจ่าย) */
+  today: string;
+  /** รอบที่ผู้ใช้เห็นบนหน้าจอ ถ้าไม่ตรงกับรอบที่ต้องจ่ายจริงจะปฏิเสธ (กันจ่ายผิดรอบจากหน้าจอเก่า) */
+  expectedCycle?: string;
+  /** รหัสรายการที่จะสร้าง */
+  entryId: string;
+  /** กระเป๋าที่จ่าย ถ้าไม่ระบุใช้ของบิล ไม่มีทั้งสองที่ = ปฏิเสธ (ไม่เลือกให้เงียบๆ) */
+  walletId?: string;
+  /** หมวดรายจ่าย ถ้าไม่ระบุใช้ของบิล */
+  categoryId?: string;
+}
+
+export interface PayBillResult {
+  entry: Entry;
+  /** รอบที่จ่าย YYYY-MM */
+  cycle: string;
+  /** lastPaidMonth ก่อนจ่าย (ใช้เลิกทำ) */
+  before: string | undefined;
+}
+
+/**
+ * จ่ายบิล: สร้างรายจ่ายจริง (source 'recurring') และตั้ง lastPaidMonth ในธุรกรรมเดียว (R15, R4)
+ * จ่ายรอบที่ค้างเก่าที่สุดเสมอ (payableCycle) จ่ายซ้ำ/บิลเก็บถาวร/ไม่มีรอบที่ต้องจ่าย = ปฏิเสธ
+ * รายการล้มเหลวที่ขั้นใดก็ตาม บิลจะไม่ถูกตั้งว่าจ่าย
+ */
+export async function payBill(db: MoneyDB, billId: string, options: PayBillOptions): Promise<PayBillResult> {
+  currentMonth(options.today); // วันที่ผิดรูป -> StorageError
+  return db.transaction('rw', db.accounts, db.entries, db.bills, async () => {
+    const bill = await db.bills.get(billId);
+    if (!bill) throw new StorageError('ไม่พบบิลนี้ อาจถูกลบไปแล้ว');
+    if (bill.archived === true) throw new StorageError(`บิล "${bill.name}" ถูกเก็บถาวรแล้ว จ่ายไม่ได้`);
+    const problem = billProblem(bill);
+    if (problem) throw new StorageError(`บิลไม่ถูกต้อง: ${problem}`);
+
+    const cycle = payableCycle(bill, options.today);
+    if (cycle !== null && options.expectedCycle !== undefined && options.expectedCycle !== cycle) {
+      throw new StorageError('รอบที่ต้องจ่ายของบิลนี้เปลี่ยนไปแล้ว ปิดหน้าต่างนี้แล้วดูสถานะบิลอีกครั้ง');
+    }
+    if (cycle === null) throw new StorageError(`บิล "${bill.name}" จ่ายครบทุกรอบแล้ว`);
+    let paid: Bill;
+    try {
+      paid = markBillPaid(bill, cycle, options.today);
+    } catch (e) {
+      throw new StorageError(e instanceof Error ? e.message : String(e));
+    }
+
+    const walletId = options.walletId ?? bill.walletId;
+    const categoryId = options.categoryId ?? bill.categoryId;
+    if (walletId === undefined) throw new StorageError('เลือกกระเป๋าที่จะจ่ายบิล');
+    if (categoryId === undefined) throw new StorageError('เลือกหมวดรายจ่ายของบิล');
+    const accounts = await db.accounts.toArray();
+    const wallet = accounts.find((a) => a.id === walletId);
+    const category = accounts.find((a) => a.id === categoryId);
+    if (!wallet || wallet.type !== 'asset' || wallet.currency !== 'THB' || wallet.archived === true) {
+      throw new StorageError('กระเป๋าที่จ่ายต้องเป็นกระเป๋าเงินบาทที่ใช้งานอยู่');
+    }
+    if (!category || category.type !== 'expense' || category.currency !== 'THB' || category.archived === true) {
+      throw new StorageError('หมวดต้องเป็นหมวดรายจ่ายที่ใช้งานอยู่');
+    }
+
+    const entry = createEntry(accounts, {
+      id: options.entryId,
+      date: options.today,
+      memo: bill.name,
+      source: 'recurring',
+      createdAt: nextCreatedAt(),
+      lines: [
+        { accountId: category.id, amount: bill.amount },
+        { accountId: wallet.id, amount: -bill.amount },
+      ],
+    });
+    await db.entries.add(entry); // id ซ้ำจะ error ทั้งก้อน
+    await db.bills.put(paid);
+    return { entry, cycle, before: bill.lastPaidMonth };
+  });
+}
+
+/**
+ * เลิกทำการจ่ายบิล: ลบรายการจ่ายและคืน lastPaidMonth เดิมในธุรกรรมเดียว
+ * ปฏิเสธถ้ารายการหาย ไม่ใช่รายการ recurring หรือสถานะจ่ายของบิลไม่ตรงกับที่เพิ่งตั้ง (ถูกเปลี่ยนไปแล้ว)
+ */
+export async function undoPayBill(
+  db: MoneyDB,
+  input: { entryId: string; billId: string; cycle: string; before: string | undefined },
+): Promise<void> {
+  await db.transaction('rw', db.entries, db.bills, async () => {
+    const entry = await db.entries.get(input.entryId);
+    if (!entry) throw new StorageError('ไม่พบรายการจ่ายบิลนี้ อาจถูกลบไปแล้ว');
+    if (entry.source !== 'recurring') throw new StorageError('เลิกทำได้เฉพาะรายการที่เกิดจากการจ่ายบิล');
+    const bill = await db.bills.get(input.billId);
+    if (!bill) throw new StorageError('ไม่พบบิลนี้ อาจถูกลบไปแล้ว');
+    if (bill.lastPaidMonth !== input.cycle) throw new StorageError('สถานะจ่ายของบิลถูกเปลี่ยนไปแล้ว เลิกทำไม่ได้');
+    const { lastPaidMonth: _current, ...rest } = bill;
+    void _current;
+    const restored: Bill = input.before === undefined ? rest : { ...rest, lastPaidMonth: input.before };
+    const bad = billProblem(restored);
+    if (bad) throw new StorageError(`บิลไม่ถูกต้อง: ${bad}`);
+    await db.entries.delete(input.entryId);
+    await db.bills.put(restored);
+  });
+}
+
+const MIGRATION_SNAPSHOT_KEY = 'snapshot:v1';
+
+/** สรุปสำเนาก่อนอัปเกรด (ถ้ามี) ไม่เชื่อรูปแบบข้อมูลที่เก็บไว้ */
+export async function migrationSnapshotInfo(
+  db: MoneyDB,
+): Promise<{ takenAt: string | undefined; accounts: number; entries: number } | null> {
+  const row = await db.meta.get(MIGRATION_SNAPSHOT_KEY);
+  if (!row) return null;
+  const v = typeof row.value === 'object' && row.value !== null ? (row.value as Record<string, unknown>) : {};
+  return {
+    takenAt: typeof v.takenAt === 'string' ? v.takenAt : undefined,
+    accounts: Array.isArray(v.accounts) ? v.accounts.length : 0,
+    entries: Array.isArray(v.entries) ? v.entries.length : 0,
+  };
+}
+
+/** ลบสำเนาก่อนอัปเกรด (ผู้ใช้สั่งเอง) ไม่แตะบัญชี รายการ หรือบิลจริง */
+export async function clearMigrationSnapshot(db: MoneyDB): Promise<void> {
+  await db.meta.delete(MIGRATION_SNAPSHOT_KEY);
 }
 
 /** ลบบิล คืนบิลที่ลบไปเพื่อให้กู้คืนได้ (เรียกใช้เมื่อผู้ใช้ยืนยันแล้วเท่านั้น) */

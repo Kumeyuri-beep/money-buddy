@@ -1,23 +1,40 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { localIsoDate } from '../app/dates';
+import { localIsoDate, thaiMonthKeyLabel } from '../app/dates';
 import { describeEntry } from '../app/describe';
 import { learnFromHistory } from '../app/quickText';
+import { formatBaht, satang } from '../domain/money/satang';
 import { draftFromOcrTexts, type SlipDraft } from '../app/slipParser';
+import type { BillRow } from '../app/billsView';
+import type { FinanceSettings } from '../domain/bills/settings';
+import type { Bill } from '../domain/bills/types';
 import { runIntegrityCheck } from '../domain/ledger/integrity';
 import type { Entry } from '../domain/ledger/types';
 import { readSlipImage, type SlipOcrPhase } from '../ocr/readSlip';
 import { db } from '../storage/instance';
 import {
+  addBill,
   appendEntry,
+  clearMigrationSnapshot,
+  deleteBill,
   deleteEntry,
   exportSnapshot,
   isEmpty,
+  loadBills,
   loadLedger,
+  loadSettings,
+  migrationSnapshotInfo,
   resetAll,
+  saveSettings,
+  undoPayBill,
+  updateBill,
   updateEntry,
   type Ledger,
+  type PayBillResult,
 } from '../storage/repository';
 import { AddEntryDialog } from './AddEntryDialog';
+import { BillDialog } from './BillDialog';
+import { BillsView, type SnapshotInfo } from './BillsView';
+import { PayBillDialog } from './PayBillDialog';
 import { Header } from './Header';
 import { IntegrityBanner, IntegrityStatus } from './Integrity';
 import { LedgerView } from './LedgerView';
@@ -31,10 +48,16 @@ import { useSlipIntake } from './useSlipIntake';
 type State =
   | { status: 'loading' }
   | { status: 'setup' }
-  | { status: 'ready'; ledger: Ledger }
+  | { status: 'ready'; ledger: Ledger; bills: Bill[]; settings: FinanceSettings; snapshot: SnapshotInfo | null }
   | { status: 'error'; message: string };
 
-type DialogState = { mode: 'add' } | { mode: 'edit'; entry: Entry } | { mode: 'scan'; draft: SlipDraft } | null;
+type DialogState =
+  | { mode: 'add' }
+  | { mode: 'edit'; entry: Entry }
+  | { mode: 'scan'; draft: SlipDraft }
+  | { mode: 'bill'; editing?: Bill }
+  | { mode: 'pay'; row: BillRow }
+  | null;
 
 interface ScanProgress {
   progress: number;
@@ -73,7 +96,15 @@ export function App() {
   const refresh = useCallback(async () => {
     try {
       if (await isEmpty(db)) setState({ status: 'setup' });
-      else setState({ status: 'ready', ledger: await loadLedger(db) });
+      else {
+        const [ledger, bills, settings, snapshot] = await Promise.all([
+          loadLedger(db),
+          loadBills(db),
+          loadSettings(db),
+          migrationSnapshotInfo(db),
+        ]);
+        setState({ status: 'ready', ledger, bills, settings, snapshot });
+      }
     } catch (e) {
       setState({ status: 'error', message: `เปิดที่เก็บข้อมูลไม่ได้: ${String(e)}` });
     }
@@ -136,7 +167,9 @@ export function App() {
   const { dragging } = useSlipIntake(state.status === 'ready' && !dialog, (file) => void scanSlip(file));
 
   const reset = async () => {
-    const ok = window.confirm('ล้างข้อมูลทั้งหมดและเริ่มใหม่?\nการกระทำนี้ย้อนกลับไม่ได้ ควรกด "สำรองข้อมูล" ก่อน');
+    const ok = window.confirm(
+      'ล้างข้อมูลทั้งหมดและเริ่มใหม่?\nรวมบิลประจำ ค่าตั้งค่า และสำเนาก่อนอัปเกรด\nการกระทำนี้ย้อนกลับไม่ได้ ควรกด "สำรองข้อมูล" ก่อน',
+    );
     if (!ok) return;
     await resetAll(db);
     setToast(null);
@@ -211,6 +244,70 @@ export function App() {
       };
     });
 
+  const today = localIsoDate();
+  const billAmountText = (bill: Bill) => formatBaht(satang(bill.amount));
+
+  const billSaved = (bill: Bill, before?: Bill) => {
+    setDialog(null);
+    void run(async () =>
+      before
+        ? {
+            message: `แก้ไขบิลแล้ว: ${bill.name}`,
+            undo: () =>
+              run(async () => {
+                await updateBill(db, before);
+                return { message: 'ย้อนการแก้ไขบิลแล้ว' };
+              }),
+          }
+        : {
+            message: `เพิ่มบิลแล้ว: ${bill.name} ${billAmountText(bill)}`,
+            undo: () =>
+              run(async () => {
+                await deleteBill(db, bill.id);
+                return { message: 'เลิกทำแล้ว บิลถูกลบ' };
+              }),
+          },
+    );
+  };
+
+  const removeBill = (bill: Bill) => {
+    if (!window.confirm(`ลบบิล "${bill.name}"?\nรายการเงินที่เคยจ่ายไปแล้วไม่ถูกลบ`)) return;
+    void run(async () => {
+      const removed = await deleteBill(db, bill.id);
+      return {
+        message: `ลบบิลแล้ว: ${removed.name}`,
+        undo: () =>
+          run(async () => {
+            await addBill(db, removed, today);
+            return { message: 'กู้คืนบิลแล้ว' };
+          }),
+      };
+    });
+  };
+
+  const billPaid = (row: BillRow, result: PayBillResult) => {
+    setDialog(null);
+    void run(async () => ({
+      message: `จ่ายบิลแล้ว: ${row.bill.name} ${billAmountText(row.bill)} รอบ ${thaiMonthKeyLabel(result.cycle)}`,
+      undo: () =>
+        run(async () => {
+          await undoPayBill(db, { entryId: result.entry.id, billId: row.bill.id, cycle: result.cycle, before: result.before });
+          return { message: 'เลิกทำแล้ว รายการจ่ายบิลถูกลบ' };
+        }),
+    }));
+  };
+
+  const clearSnapshot = () => {
+    const ok = window.confirm(
+      'ลบสำเนาข้อมูลก่อนอัปเกรด?\nข้อมูลที่ใช้งานอยู่ไม่ถูกแตะ แต่สำเนานี้จะกู้คืนไม่ได้อีก',
+    );
+    if (!ok) return;
+    void run(async () => {
+      await clearMigrationSnapshot(db);
+      return { message: 'ลบสำเนาก่อนอัปเกรดแล้ว' };
+    });
+  };
+
   const openAdd = () => setDialog({ mode: 'add' });
 
   return (
@@ -241,6 +338,22 @@ export function App() {
 
       {view === 'today' ? (
         <Today ledger={state.ledger} onAdd={openAdd} onOpenLedger={() => setView('ledger')} />
+      ) : view === 'bills' ? (
+        <BillsView
+          bills={state.bills}
+          settings={state.settings}
+          snapshot={state.snapshot}
+          today={today}
+          onAdd={() => setDialog({ mode: 'bill' })}
+          onEdit={(bill) => setDialog({ mode: 'bill', editing: bill })}
+          onDelete={removeBill}
+          onPay={(row) => setDialog({ mode: 'pay', row })}
+          onSaveSettings={async (settings) => {
+            await saveSettings(db, settings);
+            await refresh();
+          }}
+          onClearSnapshot={clearSnapshot}
+        />
       ) : (
         <LedgerView
           ledger={state.ledger}
@@ -250,7 +363,29 @@ export function App() {
         />
       )}
 
-      {dialog && (
+      {dialog?.mode === 'bill' && (
+        <BillDialog
+          key={dialog.editing?.id ?? 'new-bill'}
+          accounts={accounts}
+          {...(dialog.editing ? { editing: dialog.editing } : {})}
+          today={today}
+          onClose={() => setDialog(null)}
+          onSaved={billSaved}
+        />
+      )}
+
+      {dialog?.mode === 'pay' && (
+        <PayBillDialog
+          key={dialog.row.bill.id}
+          row={dialog.row}
+          accounts={accounts}
+          today={today}
+          onClose={() => setDialog(null)}
+          onPaid={billPaid}
+        />
+      )}
+
+      {dialog && dialog.mode !== 'bill' && dialog.mode !== 'pay' && (
         <AddEntryDialog
           key={dialog.mode === 'edit' ? dialog.entry.id : dialog.mode === 'scan' ? 'scan' : 'add'}
           accounts={accounts}

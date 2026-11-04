@@ -69,7 +69,7 @@ export function queryLedger(
         .toLowerCase();
       if (!haystack.includes(text)) return;
     }
-    rows.push({ entry, kind, amountText, detail, editable: entry.source !== 'system' });
+    rows.push({ entry, kind, amountText, detail, editable: entry.source !== 'system' && entry.source !== 'recurring' });
   });
 
   // entries เรียงตามวันที่จากเก่าไปใหม่อยู่แล้ว กลับด้านแบบคงลำดับเดิมภายในวันเดียวกัน
