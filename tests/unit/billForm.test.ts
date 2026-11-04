@@ -56,6 +56,15 @@ describe('settingsFromForm', () => {
       expect(() => settingsFromForm(bad)).toThrow(BillFormError);
     }
   });
+  it('วันเงินเดือนถัดไปที่กำหนดเอง: ว่าง = ไม่ตั้ง · วันที่ไม่มีจริง = BillFormError · แปลงกลับได้', () => {
+    const base = { payDay: '25', monthlySavingsGoal: '', monthlyBudget: '' };
+    expect(settingsFromForm({ ...base, nextPaydayOverride: '' })).toEqual({ payDay: 25 });
+    expect(settingsFromForm({ ...base, nextPaydayOverride: '2026-11-20' })).toEqual({ payDay: 25, nextPaydayOverride: '2026-11-20' });
+    expect(() => settingsFromForm({ ...base, nextPaydayOverride: '2026-02-30' })).toThrow(BillFormError);
+    expect(() => settingsFromForm({ ...base, nextPaydayOverride: 'พรุ่งนี้' })).toThrow(BillFormError);
+    expect(settingsToForm({ payDay: 25, nextPaydayOverride: '2026-11-20' }).nextPaydayOverride).toBe('2026-11-20');
+  });
+
   it('settingsToForm แปลงกลับ', () => {
     expect(settingsToForm({ payDay: 25, monthlySavingsGoal: 500_000 })).toEqual({
       payDay: '25',

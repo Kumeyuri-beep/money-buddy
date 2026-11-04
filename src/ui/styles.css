@@ -351,3 +351,8 @@ select { font: inherit; }
 .bill-row .tx-actions { gap: 8px; }
 .bill-row .btn-small { min-height: 44px; }
 .snapshot-notes { margin: 0 0 16px; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+
+/* B4: แผงบิลที่จะถึง + หน่วยในการ์ด SAFE-TO-SPEND */
+.summary-unit { font-size: 15px; font-weight: 500; color: var(--muted); }
+.upcoming-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.upcoming-row { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }

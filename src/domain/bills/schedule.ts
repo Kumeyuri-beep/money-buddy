@@ -6,7 +6,7 @@
  * (ย้อนหลังได้ไม่เกิน 1 เดือน ไม่แต่งหนี้ที่ไม่มีหลักฐาน) ดู docs/decisions/2026-11-04-bills-safe-to-spend.md
  */
 
-import { addDays, addMonths, dueDateIn, isCycleMonth, monthOf, nextPayday } from './calendar';
+import { addDays, addMonths, dueDateIn, effectiveNextPayday, isCycleMonth, monthOf } from './calendar';
 import type { Bill, BillProblem, UpcomingBill } from './types';
 
 export class BillError extends Error {
@@ -159,8 +159,9 @@ export function outstandingBeforePayday(
   bills: readonly Bill[],
   today: string,
   payDay: number,
+  nextPaydayOverride?: string,
 ): { nextPayday: string; items: UpcomingBill[]; total: number } {
-  const next = nextPayday(payDay, today);
+  const next = effectiveNextPayday(payDay, today, nextPaydayOverride);
   const items = upcomingBills(bills, today, addDays(next, -1));
   return { nextPayday: next, items, total: outstandingTotal(items) };
 }

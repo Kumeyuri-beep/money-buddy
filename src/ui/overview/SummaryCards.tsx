@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { LOW_DAYS_THRESHOLD, type FinanceInput } from '../../app/billsOverview';
+import { thaiDayLabel } from '../../app/dates';
 import { buildOverview } from '../../app/overview';
 import type { Overview } from '../../app/overview';
 import {
@@ -19,6 +21,9 @@ interface SummaryCardsProps {
   entries: readonly Entry[];
   /** YYYY-MM-DD ตามเวลาเครื่อง */
   today: string;
+  finance: FinanceInput;
+  /** ไปหน้า "บิลและเป้า" */
+  onOpenBills: () => void;
   /** ไปหน้ารายรับ-รายจ่าย (มีเฉพาะการ์ดที่มีหน้าปลายทางจริง) */
   onOpenLedger: () => void;
 }
@@ -129,7 +134,20 @@ function OutgoingCard({ state, onOpenLedger }: { state: Overview['outgoing']; on
       ) : (
         <>
           <div className="summary-value value-expense">{formatBaht(satang(state.total))}</div>
-          <p className="muted small summary-sub">แยกบิล / ใช้จ่าย: ตั้งค่า… (เร็วๆ นี้)</p>
+          <p className="muted small summary-sub">
+            บิล {formatBaht(satang(state.bills))} · ใช้จ่าย {formatBaht(satang(state.spend))}
+          </p>
+          {state.budget === null ? (
+            <p className="muted small summary-sub">ยังไม่ตั้งเป้างบ ตั้งได้ที่หน้า "บิลและเป้า"</p>
+          ) : state.budget.over > 0 ? (
+            <p className="slip-warn small" role="status">
+              เกินเป้างบ {formatBaht(satang(state.budget.over))} (เป้า {formatBaht(satang(state.budget.limit))})
+            </p>
+          ) : (
+            <p className="muted small summary-sub">
+              เหลือในเป้างบ {formatBaht(satang(state.budget.remaining))} จาก {formatBaht(satang(state.budget.limit))}
+            </p>
+          )}
           <Link onClick={onOpenLedger}>ดูรายการ →</Link>
         </>
       )}
@@ -157,15 +175,51 @@ function SurplusCard({ state, onOpenLedger }: { state: Overview['surplus']; onOp
   );
 }
 
-function SafeToSpendCard({ state }: { state: Overview['safeToSpend'] }) {
+function SafeToSpendCard({ state, onOpenBills }: { state: Overview['safeToSpend']; onOpenBills: () => void }) {
   return (
     <Card label="SAFE-TO-SPEND" title="ใช้ได้ต่อวันอย่างปลอดภัย">
       {state.kind === 'needs-setup' ? (
         <>
-          <div className="summary-empty">ใช้ได้เมื่อมีฟีเจอร์บิลและเป้าออม</div>
+          <div className="summary-empty">ตั้งวันเงินเดือนเพื่อคำนวณ</div>
+          <p className="muted small summary-sub">หักบิลที่ยังไม่จ่ายและเป้าออมแล้วหารด้วยจำนวนวันที่เหลือ</p>
+          <Link onClick={onOpenBills}>ตั้งค่า →</Link>
+        </>
+      ) : state.kind === 'error' ? (
+        <>
+          <div className="summary-empty">คำนวณไม่ได้</div>
+          <p className="form-error small summary-sub" role="alert">
+            {state.message}
+          </p>
+          <Link onClick={onOpenBills}>ตรวจบิลและค่าตั้งค่า →</Link>
         </>
       ) : (
-        <Waiting headline="ยังคำนวณไม่ได้" reason="ต้องมีข้อมูลบิลและเป้าออม" />
+        <>
+          <div className={`summary-value ${state.perDay === 0 ? 'value-warn' : ''}`}>
+            {formatBaht(satang(state.perDay))}
+            <span className="summary-unit"> / วัน</span>
+          </div>
+          <p className="muted small summary-sub">
+            {state.shortfall > 0
+              ? `⚠ เงินไม่พอหลังหักบิลและเป้าออม ขาด ${formatBaht(satang(state.shortfall))} ถึงเงินเดือน`
+              : state.perDay === 0
+                ? '⚠ ไม่มีเงินเหลือให้ใช้เพิ่มจนถึงเงินเดือน'
+                : `เหลือ ${state.daysLeft} วันถึงเงินเดือน (${thaiDayLabel(state.nextPayday)})${state.overridden ? ' · กำหนดเอง' : ''}`}
+          </p>
+          <p className="muted small summary-sub">
+            หักบิลค้าง {formatBaht(satang(state.outstanding))}
+            {state.reserve > 0 ? ` · เป้าออม ${formatBaht(satang(state.reserve))}` : ''}
+          </p>
+          {state.lowDays && state.shortfall === 0 && (
+            <p className="slip-warn small" role="status">
+              เหลือไม่ถึง {LOW_DAYS_THRESHOLD} วันถึงเงินเดือน ตัวเลขต่อวันอาจไม่สมจริง
+            </p>
+          )}
+          {state.invalidBills > 0 && (
+            <p className="form-error small" role="alert">
+              มีบิล {state.invalidBills} ใบข้อมูลผิด จึงหักบิลไม่ครบ
+            </p>
+          )}
+        </>
       )}
     </Card>
   );
@@ -233,11 +287,11 @@ function RunwayCard({ state }: { state: Overview['runway'] }) {
   );
 }
 
-export function SummaryCards({ accounts, entries, today, onOpenLedger }: SummaryCardsProps) {
+export function SummaryCards({ accounts, entries, today, finance, onOpenLedger, onOpenBills }: SummaryCardsProps) {
   // ถ้าข้อมูลเกินช่วงปลอดภัย (backlog: ยอดใหญ่) ไม่ปล่อยให้หน้าพัง
   let o: Overview;
   try {
-    o = buildOverview(accounts, entries, today);
+    o = buildOverview(accounts, entries, today, finance);
   } catch {
     return (
       <p className="form-error" role="alert">
@@ -254,7 +308,7 @@ export function SummaryCards({ accounts, entries, today, onOpenLedger }: Summary
       <IncomeCard state={o.income} walletName={walletName} onOpenLedger={onOpenLedger} />
       <OutgoingCard state={o.outgoing} onOpenLedger={onOpenLedger} />
       <SurplusCard state={o.surplus} onOpenLedger={onOpenLedger} />
-      <SafeToSpendCard state={o.safeToSpend} />
+      <SafeToSpendCard state={o.safeToSpend} onOpenBills={onOpenBills} />
       <SavingsRateCard state={o.savingsRate} />
       <VsLastMonthCard state={o.vsLastMonth} />
       <RunwayCard state={o.runway} />

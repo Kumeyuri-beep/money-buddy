@@ -94,3 +94,15 @@ export function nextPayday(payDay: number, today: string): string {
   const thisMonth = dueDateIn(month, payDay);
   return thisMonth > today ? thisMonth : dueDateIn(addMonths(month, 1), payDay);
 }
+
+/**
+ * วันเงินเดือนถัดไปที่ใช้คำนวณจริง: ถ้าผู้ใช้กำหนดวัน (override) และเป็นวัน "หลัง" วันนี้ ใช้วันนั้น
+ * ไม่งั้น (ไม่ตั้ง / ผ่านไปแล้ว = หมดอายุ) คำนวณจากวันเงินเดือนประจำเดือนตามปกติ
+ */
+export function effectiveNextPayday(payDay: number, today: string, override?: string): string {
+  if (override !== undefined && override > today) {
+    daysBetween(today, override); // ตรวจรูปแบบวันที่ (โยน RangeError ถ้าไม่มีจริง)
+    return override;
+  }
+  return nextPayday(payDay, today);
+}
