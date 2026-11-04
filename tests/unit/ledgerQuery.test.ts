@@ -101,6 +101,26 @@ describe('queryLedger: ข้อมูลที่แสดง', () => {
     expect(rows.get('opening-wallet-1')).toMatchObject({ detail: 'ยอดยกมา', editable: false });
   });
 
+  it('รายการจ่ายบิล: ผูกกับบิลแล้ว = ยกเลิกได้แต่แก้ไม่ได้, ยังไม่ผูก = ล็อกทั้งหมด, รายการอื่นยกเลิกไม่ได้', () => {
+    const lines = [
+      { accountId: 'expense-food', amount: 500 },
+      { accountId: 'wallet-1', amount: -500 },
+    ];
+    const linked = createEntry(accounts, {
+      id: 'billpay',
+      date: '2026-11-03',
+      memo: 'ค่าเน็ต',
+      source: 'recurring',
+      bill: { id: 'b1', cycle: '2026-11' },
+      lines,
+    });
+    const legacy = createEntry(accounts, { id: 'legacy', date: '2026-11-03', memo: 'เก่า', source: 'recurring', lines });
+    const rows = new Map(queryLedger(accounts, [...all, linked, legacy], ALL_FILTER).map((r) => [r.entry.id, r]));
+    expect(rows.get('billpay')).toMatchObject({ editable: false, cancelable: true });
+    expect(rows.get('legacy')).toMatchObject({ editable: false, cancelable: false });
+    expect(rows.get('coffee')).toMatchObject({ editable: true, cancelable: false });
+  });
+
   it('รายการหลายบรรทัด (เช่น งวดหนี้) แสดงชื่อทุกบัญชี', () => {
     const multi = createEntry(accounts, {
       id: 'multi',

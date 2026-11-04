@@ -190,17 +190,19 @@ describe('ผลตรวจ money-auditor B3', () => {
     expect(await db.entries.get('pay-2')).toBeUndefined();
   });
 
-  it('รายการจ่ายบิลลบ/แก้จากสมุดบัญชีตรงๆ ไม่ได้ (กันบิลค้างสถานะจ่าย)', async () => {
+  it('รายการจ่ายบิล: แก้จากสมุดบัญชีไม่ได้ ส่วนลบ = ยกเลิกการจ่าย (คืนสถานะบิลพร้อมกัน)', async () => {
     await addBill(db, bill(), '2026-11-04');
     const r = await pay();
-    await expect(deleteEntry(db, r.entry.id)).rejects.toBeInstanceOf(StorageError);
     await expect(
       updateEntry(db, r.entry.id, { id: r.entry.id, date: r.entry.date, memo: 'x', lines: r.entry.lines }),
     ).rejects.toBeInstanceOf(StorageError);
     expect(await db.entries.get(r.entry.id)).toBeDefined();
-    // เลิกทำผ่านทางที่ถูกต้องยังทำได้
-    await undoPayBill(db, { entryId: r.entry.id, billId: 'bill-1', cycle: r.cycle, before: r.before });
-    expect(await db.entries.get(r.entry.id)).toBeUndefined();
+    await deleteEntry(db, r.entry.id);
+    expect((await db.bills.get('bill-1'))?.lastPaidMonth).toBeUndefined();
+    // เลิกทำทันทีหลังจ่าย (ปุ่ม toast) ยังทำได้ด้วย undoPayBill
+    const r2 = await pay({ entryId: 'pay-9' });
+    await undoPayBill(db, { entryId: r2.entry.id, billId: 'bill-1', cycle: r2.cycle, before: r2.before });
+    expect(await db.entries.get(r2.entry.id)).toBeUndefined();
   });
 
   it('จ่ายแล้วแก้บิล แล้วเลิกทำ ยังคืนสถานะถูก (updateBill คง lastPaidMonth)', async () => {

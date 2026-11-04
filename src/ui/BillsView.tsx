@@ -23,6 +23,7 @@ interface Props {
   onEdit: (bill: Bill) => void;
   onDelete: (bill: Bill) => void;
   onPay: (row: BillRow) => void;
+  onCancelPay: (bill: Bill) => void;
   onSaveSettings: (settings: FinanceSettings) => Promise<void>;
   onClearSnapshot: () => void;
 }
@@ -35,7 +36,7 @@ const STATUS_TEXT: Record<BillRow['status'], string> = {
 };
 
 /** หน้า "บิลและเป้า": บิลประจำ, วันเงินเดือน, เป้าออม, เป้างบ และสำเนาก่อนอัปเกรด */
-export function BillsView({ bills, settings, snapshot, today, onAdd, onEdit, onDelete, onPay, onSaveSettings, onClearSnapshot }: Props) {
+export function BillsView({ bills, settings, snapshot, today, onAdd, onEdit, onDelete, onPay, onCancelPay, onSaveSettings, onClearSnapshot }: Props) {
   const rows = billRows(bills, today);
   const [form, setForm] = useState<SettingsForm>(() => settingsToForm(settings));
   const [error, setError] = useState<string | null>(null);
@@ -163,6 +164,15 @@ export function BillsView({ bills, settings, snapshot, today, onAdd, onEdit, onD
                   {(row.status === 'due' || row.status === 'overdue') && (
                     <button className="btn btn-small" aria-label={`จ่ายบิล ${row.bill.name}`} onClick={() => onPay(row)}>
                       จ่ายบิล
+                    </button>
+                  )}
+                  {row.bill.lastPaidMonth !== undefined && row.status !== 'invalid' && (
+                    <button
+                      className="btn btn-ghost btn-small"
+                      aria-label={`ยกเลิกการจ่าย ${row.bill.name} รอบ ${row.bill.lastPaidMonth}`}
+                      onClick={() => onCancelPay(row.bill)}
+                    >
+                      ยกเลิกการจ่าย
                     </button>
                   )}
                   <button className="btn btn-ghost btn-small" aria-label={`แก้ไข ${row.bill.name}`} onClick={() => onEdit(row.bill)}>

@@ -1,4 +1,4 @@
-import type { Account, Currency, Entry, NewEntry } from './types';
+import type { Account, BillLink, Currency, Entry, NewEntry } from './types';
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -74,5 +74,24 @@ export function createEntry(accounts: readonly Account[], input: NewEntry): Entr
   };
   if (input.groupId !== undefined) entry.groupId = input.groupId;
   if (input.createdAt !== undefined) entry.createdAt = input.createdAt;
+  if (input.bill !== undefined) entry.bill = checkBillLink(input.bill);
   return entry;
+}
+
+
+const CYCLE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/** ตรวจลิงก์บิล-รอบ และคัดลอกเฉพาะฟิลด์ที่รู้จัก (before ไม่มี = ไม่มีคีย์) */
+function checkBillLink(link: unknown): BillLink {
+  const l = (typeof link === 'object' && link !== null ? link : {}) as Record<string, unknown>;
+  if (typeof l.id !== 'string' || l.id.trim() === '') throw new LedgerError('ลิงก์บิลต้องมีรหัสบิล');
+  if (typeof l.cycle !== 'string' || !CYCLE.test(l.cycle)) throw new LedgerError(`รอบของบิลไม่ถูกต้อง: "${String(l.cycle)}"`);
+  const out: BillLink = { id: l.id, cycle: l.cycle };
+  if (l.before !== undefined) {
+    if (typeof l.before !== 'string' || !CYCLE.test(l.before)) {
+      throw new LedgerError(`รอบก่อนหน้าของบิลไม่ถูกต้อง: "${String(l.before)}"`);
+    }
+    out.before = l.before;
+  }
+  return out;
 }

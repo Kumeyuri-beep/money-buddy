@@ -12,11 +12,12 @@ interface LedgerViewProps {
   onAdd: () => void;
   onEdit: (entry: Entry) => void;
   onDelete: (entry: Entry) => void;
+  onCancelPayment: (entry: Entry) => void;
 }
 
 const KIND_LABEL = { all: 'ทุกประเภท', expense: 'รายจ่าย', income: 'รายรับ', transfer: 'โอนเงิน' } as const;
 
-export function LedgerView({ ledger, onAdd, onEdit, onDelete }: LedgerViewProps) {
+export function LedgerView({ ledger, onAdd, onEdit, onDelete, onCancelPayment }: LedgerViewProps) {
   const { accounts, entries } = ledger;
   const months = useMemo(() => monthsWithEntries(entries), [entries]);
   const thisMonth = localIsoDate().slice(0, 7);
@@ -139,7 +140,7 @@ export function LedgerView({ ledger, onAdd, onEdit, onDelete }: LedgerViewProps)
           groups.map((group) => (
             <div className="day" key={group.date}>
               <h2 className="day-label">{thaiDayLabel(group.date)}</h2>
-              {group.rows.map(({ entry, kind, amountText, detail, editable }) => (
+              {group.rows.map(({ entry, kind, amountText, detail, editable, cancelable }) => (
                 <div className="tx ledger-tx" key={entry.id}>
                   <div className="tx-main">
                     <div>{entry.memo}</div>
@@ -147,6 +148,15 @@ export function LedgerView({ ledger, onAdd, onEdit, onDelete }: LedgerViewProps)
                   </div>
                   <div className={`num tx-${kind}`}>{amountText}</div>
                   <div className="tx-actions">
+                    {cancelable && (
+                      <button
+                        className="btn btn-ghost btn-small btn-danger"
+                        aria-label={`ยกเลิกการจ่าย ${entry.memo}`}
+                        onClick={() => onCancelPayment(entry)}
+                      >
+                        ยกเลิกการจ่าย
+                      </button>
+                    )}
                     {editable && (
                       <>
                         <button className="btn btn-ghost btn-small" aria-label={`แก้ไข ${entry.memo}`} onClick={() => onEdit(entry)}>
