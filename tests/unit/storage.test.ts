@@ -47,7 +47,7 @@ describe('ที่เก็บข้อมูล (IndexedDB)', () => {
     expect(loaded.accounts).toHaveLength(ledger.accounts.length);
     expect(loaded.entries).toHaveLength(2);
     expect(balanceOf('wallet-1', loaded.entries)).toBe(540_841);
-    expect((await db.meta.get('schemaVersion'))?.value).toBe(1);
+    expect((await db.meta.get('schemaVersion'))?.value).toBe(2);
   });
 
   it('อ่านบัญชีกลับมาตามลำดับที่สร้าง ไม่ใช่ตามตัวอักษรของรหัส (wallet-10 ต้องอยู่หลัง wallet-2)', async () => {
@@ -269,7 +269,7 @@ describe('ที่เก็บข้อมูล (IndexedDB)', () => {
   it('exportSnapshot มีเวอร์ชันและข้อมูลครบ และ resetAll ล้างหมด', async () => {
     await saveInitialLedger(db, setup());
     const snap = await exportSnapshot(db, new Date('2026-11-01T08:00:00Z'));
-    expect(snap).toMatchObject({ schemaVersion: 1, exportedAt: '2026-11-01T08:00:00.000Z' });
+    expect(snap).toMatchObject({ schemaVersion: 2, exportedAt: '2026-11-01T08:00:00.000Z' });
     expect(snap.entries).toHaveLength(2);
     expect(JSON.parse(JSON.stringify(snap))).toEqual(snap); // เป็น JSON ล้วน ไม่มี BigInt/undefined
 
