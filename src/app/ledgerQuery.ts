@@ -20,6 +20,8 @@ export interface LedgerRow {
   detail: string;
   /** แก้ไขและลบได้ (ยอดยกมาของระบบทำไม่ได้) */
   editable: boolean;
+  /** รายการจ่ายบิลที่ผูกกับบิลแล้ว: ยกเลิกการจ่ายได้ (คืนสถานะบิลพร้อมกัน) แก้ไขไม่ได้ */
+  cancelable: boolean;
 }
 
 export const ALL_FILTER: LedgerFilter = { month: 'all', kind: 'all', accountId: 'all', text: '' };
@@ -69,7 +71,9 @@ export function queryLedger(
         .toLowerCase();
       if (!haystack.includes(text)) return;
     }
-    rows.push({ entry, kind, amountText, detail, editable: entry.source !== 'system' && entry.source !== 'recurring' });
+    rows.push({ entry, kind, amountText, detail, editable: entry.source !== 'system' && entry.source !== 'recurring',
+      cancelable: entry.source === 'recurring' && entry.bill !== undefined,
+    });
   });
 
   // entries เรียงตามวันที่จากเก่าไปใหม่อยู่แล้ว กลับด้านแบบคงลำดับเดิมภายในวันเดียวกัน
