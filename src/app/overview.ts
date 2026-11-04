@@ -11,6 +11,7 @@ import {
 } from '../domain/ledger/overview';
 import type { NetWorthPoint } from '../domain/ledger/overview';
 import type { Account, Entry } from '../domain/ledger/types';
+import { buildOutgoingSplit, buildSafeToSpend, type FinanceInput, type OutgoingSplit, type SafeToSpendState } from './billsOverview';
 
 /** เป้าเริ่มต้น (ยังไม่ให้ผู้ใช้แก้) 20% = 2000 bps, 6 เดือน = 60 */
 export const DEFAULT_TARGETS = { savingsRateBps: 2000, runwayTenths: 60 } as const;
@@ -34,16 +35,21 @@ export interface Overview {
   month: string;
   netWorth: CardState<{ value: number; deltaVsPrevMonth: number | null; series: NetWorthPoint[] }>;
   income: CardState<{ total: number; channels: number; topWalletId: string | null }>;
-  outgoing: CardState<{ total: number }>;
+  outgoing: CardState<Pick<OutgoingSplit, 'total' | 'bills' | 'spend' | 'budget'>>;
   surplus: CardState<{ net: number }>;
-  safeToSpend: CardState<Record<string, never>>;
+  safeToSpend: SafeToSpendState;
   savingsRate: CardState<{ bps: number; targetBps: number }>;
   vsLastMonth: CardState<{ bps: number }>;
   runway: CardState<{ tenths: number; targetTenths: number }>;
 }
 
 /** ประกอบการ์ดสรุปของเดือนที่ `today` (YYYY-MM-DD) อยู่ ไม่มีสูตรเงินของตัวเอง เรียก domain เท่านั้น */
-export function buildOverview(accounts: readonly Account[], entries: readonly Entry[], today: string): Overview {
+export function buildOverview(
+  accounts: readonly Account[],
+  entries: readonly Entry[],
+  today: string,
+  finance: FinanceInput = { bills: [], settings: {} },
+): Overview {
   const month = today.slice(0, 7);
   const totals = periodTotals(accounts, entries, { from: `${month}-01`, to: today }, 'THB');
   const channels = incomeChannels(accounts, entries, month, today);
@@ -67,10 +73,10 @@ export function buildOverview(accounts: readonly Account[], entries: readonly En
             series,
           },
     income: { kind: 'value', total: totals.income, channels: channels.count, topWalletId: channels.topWalletId },
-    outgoing: { kind: 'value', total: totals.expense },
+    outgoing: { kind: 'value', ...buildOutgoingSplit(accounts, entries, finance.settings, today) },
     surplus: { kind: 'value', net: totals.net },
-    // R15: ต้องมีวันรับเงินเดือน/บิล/เงินสำรองก่อน ยังไม่คำนวณในรอบ A
-    safeToSpend: { kind: 'needs-setup' },
+    // R15: ต้องตั้งวันเงินเดือนก่อน (ไม่ตั้ง = needs-setup)
+    safeToSpend: buildSafeToSpend(accounts, entries, finance, today),
     savingsRate:
       rate === null ? { kind: 'waiting-data' } : { kind: 'value', bps: rate, targetBps: DEFAULT_TARGETS.savingsRateBps },
     vsLastMonth: mom === null ? { kind: 'waiting-data' } : { kind: 'value', bps: mom },

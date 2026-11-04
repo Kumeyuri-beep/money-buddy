@@ -19,7 +19,16 @@ const MAX_NAMED_CATEGORIES = 5;
 const OTHER_NAME = 'อื่นๆ';
 const BPS = 10000;
 
-export type FlowNodeKind = 'income' | 'shortfall' | 'expense' | 'other' | 'leftover';
+export type FlowNodeKind = 'income' | 'shortfall' | 'expense' | 'bills' | 'other' | 'leftover';
+
+/** รหัสบัญชีสมมติของโหนด "บิลประจำ" (ใช้เมื่อเปิด groupBills) */
+const BILLS_ID = '__bills__';
+const BILLS_NAME = 'บิลประจำ';
+
+export interface CashFlowOptions {
+  /** รวมรายจ่ายของรายการจ่ายบิล (source recurring) เป็นโหนด "บิลประจำ" แทนการกระจายตามหมวด ยอดรวมไม่เปลี่ยน */
+  groupBills?: boolean;
+}
 
 export interface FlowNode {
   key: string;
@@ -73,6 +82,7 @@ function sumByAccount(
   accounts: readonly Account[],
   entries: readonly Entry[],
   range: { from: string; to: string },
+  groupBills = false,
 ): Totals {
   const byId = indexAccounts(accounts);
   const income = new Map<string, number>();
@@ -83,7 +93,10 @@ function sumByAccount(
       const account = byId.get(line.accountId);
       if (!account || account.currency !== CURRENCY) continue;
       if (account.type === 'income') income.set(account.id, (income.get(account.id) ?? 0) - line.amount);
-      else if (account.type === 'expense') expense.set(account.id, (expense.get(account.id) ?? 0) + line.amount);
+      else if (account.type === 'expense') {
+        const key = groupBills && entry.source === 'recurring' ? BILLS_ID : account.id;
+        expense.set(key, (expense.get(key) ?? 0) + line.amount);
+      }
     }
   }
   return { income, expense };
@@ -146,9 +159,12 @@ export function buildCashFlow(
   entries: readonly Entry[],
   month: string,
   asOf?: string,
+  options: CashFlowOptions = {},
 ): CashFlow {
-  const byId = indexAccounts(accounts);
-  const sums = sumByAccount(accounts, entries, rangeOf(month, asOf));
+  const groupBills = options.groupBills === true;
+  const byId = new Map(indexAccounts(accounts));
+  if (groupBills) byId.set(BILLS_ID, { id: BILLS_ID, type: 'expense', name: BILLS_NAME, currency: CURRENCY });
+  const sums = sumByAccount(accounts, entries, rangeOf(month, asOf), groupBills);
   const incomes = netBuckets(byId, sums.income);
   const expenses = netBuckets(byId, sums.expense);
 
@@ -177,7 +193,9 @@ export function buildCashFlow(
   const named: Bucket[] = [];
   let otherAmount = 0;
   let otherCount = 0;
+  const billsBucket = groupBills ? expenses.find((b) => b.id === BILLS_ID) : undefined;
   for (const b of expenses) {
+    if (b === billsBucket) continue; // โหนดบิลประจำแสดงเสมอ ไม่ถูกรวมเป็น "อื่นๆ"
     const belowThreshold = BigInt(b.amount) * MERGE_BELOW_DENOMINATOR < BigInt(total);
     if (belowThreshold || b.name === OTHER_NAME || named.length >= MAX_NAMED_CATEGORIES) {
       otherAmount += b.amount;
@@ -187,13 +205,17 @@ export function buildCashFlow(
     }
   }
 
-  const categories: FlowNode[] = named.map((b) => ({
+  const categories: FlowNode[] = [];
+  if (billsBucket) {
+    categories.push({ key: 'bills', name: BILLS_NAME, amount: billsBucket.amount, shareBps: share(billsBucket.amount, total), kind: 'bills' });
+  }
+  categories.push(...named.map((b) => ({
     key: `expense:${b.id}`,
     name: b.name,
     amount: b.amount,
     shareBps: share(b.amount, total),
-    kind: 'expense',
-  }));
+    kind: 'expense' as const,
+  })));
   if (otherCount > 0) {
     categories.push({ key: 'other', name: OTHER_NAME, amount: otherAmount, shareBps: share(otherAmount, total), kind: 'other' });
   }

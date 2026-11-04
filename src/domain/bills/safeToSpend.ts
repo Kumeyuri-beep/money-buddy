@@ -8,7 +8,7 @@
  */
 
 import { roundHalfUp } from '../money/round';
-import { daysBetween, nextPayday } from './calendar';
+import { daysBetween, effectiveNextPayday } from './calendar';
 
 export interface SafeToSpendInput {
   /** ยอดกระเป๋าที่ใช้จ่ายได้ (สตางค์) ติดลบได้ถ้าเบิกเกิน */
@@ -21,6 +21,8 @@ export interface SafeToSpendInput {
   today: string;
   /** วันเงินเดือนเข้าในเดือน 1-31 */
   payDay: number;
+  /** วันเงินเดือนถัดไปที่ผู้ใช้กำหนดเอง (หลังวันนี้เท่านั้นที่มีผล) */
+  nextPaydayOverride?: string;
 }
 
 interface Common {
@@ -47,7 +49,7 @@ export function computeSafeToSpend(input: SafeToSpendInput): SafeToSpendResult {
   assertSatang(input.outstanding, 'ยอดบิลค้างจ่าย', false);
   assertSatang(input.reserve, 'เงินสำรอง', false);
 
-  const next = nextPayday(input.payDay, input.today); // ตรวจวันนี้และวันเงินเดือนด้วย
+  const next = effectiveNextPayday(input.payDay, input.today, input.nextPaydayOverride); // ตรวจวันนี้และวันเงินเดือนด้วย
   const daysLeft = daysBetween(input.today, next); // วันนี้ถึงวันก่อนเงินเดือน นับรวมวันนี้ = ผลต่างพอดี (>= 1)
   const available = input.spendable - input.outstanding - input.reserve || 0; // `|| 0` กัน -0
   if (!Number.isSafeInteger(available)) throw new RangeError('ยอดที่ใช้ได้เกินช่วงที่คำนวณได้อย่างปลอดภัย');

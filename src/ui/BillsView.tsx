@@ -107,7 +107,30 @@ export function BillsView({ bills, settings, snapshot, today, onAdd, onEdit, onD
               />
             </div>
           </div>
-          <p className="muted small">ปล่อยว่าง = ยังไม่ตั้ง ค่าเหล่านี้ยังไม่แสดงในหน้าภาพรวม (กำลังพัฒนา)</p>
+          <div className="field-row">
+            <div className="field">
+              <label htmlFor="set-next-payday">วันเงินเดือนถัดไป (ถ้าไม่ตรงวันปกติ)</label>
+              <input
+                id="set-next-payday"
+                type="date"
+                aria-describedby="set-next-payday-hint"
+                value={form.nextPaydayOverride ?? ''}
+                onChange={(e) => set({ nextPaydayOverride: e.target.value })}
+              />
+              <button
+                type="button"
+                className="btn btn-ghost btn-small"
+                disabled={(form.nextPaydayOverride ?? '') === ''}
+                onClick={() => set({ nextPaydayOverride: '' })}
+              >
+                ล้างวันที่
+              </button>
+              <p id="set-next-payday-hint" className="muted small">
+                ใช้ครั้งเดียว เมื่อเงินเดือนเข้าไม่ตรงวันปกติ พ้นวันนั้นแล้วระบบกลับไปใช้วันเงินเดือนปกติเอง
+              </p>
+            </div>
+          </div>
+          <p className="muted small">ปล่อยว่าง = ยังไม่ตั้ง ค่าเหล่านี้ใช้คำนวณ "ใช้ได้ต่อวัน" และเป้างบในหน้าภาพรวม</p>
           <div className="dialog-actions">
             {error && (
               <p role="alert" className="form-error settings-msg">

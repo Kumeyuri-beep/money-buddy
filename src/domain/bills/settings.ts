@@ -2,6 +2,9 @@
  * ค่าตั้งค่าการเงินรายเดือน (ทุกค่าไม่บังคับ: ยังไม่ตั้ง = ไม่มีฟิลด์)
  * ยอดเงินเป็นสตางค์จำนวนเต็มไม่ติดลบเสมอ (กฎ R1) ตัวแปลงจากข้อความผู้ใช้อยู่ที่ขอบ UI (R2) ไม่ใช่ที่นี่
  */
+
+import { isValidIsoDate } from '../ledger/entry';
+
 export interface FinanceSettings {
   /** วันเงินเดือนเข้าในเดือน 1-31 */
   payDay?: number;
@@ -9,6 +12,8 @@ export interface FinanceSettings {
   monthlySavingsGoal?: number;
   /** เป้างบรายจ่ายรวมต่อเดือน (สตางค์) */
   monthlyBudget?: number;
+  /** วันเงินเดือนถัดไปที่กำหนดเอง YYYY-MM-DD (ใช้ครั้งเดียว หมดอายุเมื่อถึงวันนั้น) ไม่ตั้ง = คำนวณจาก payDay */
+  nextPaydayOverride?: string;
 }
 
 const isSatang = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
@@ -23,6 +28,9 @@ export function settingsProblem(s: FinanceSettings): string | null {
   if (s.monthlyBudget !== undefined && !isSatang(s.monthlyBudget)) {
     return `เป้างบต้องเป็นจำนวนเต็มสตางค์ที่ไม่ติดลบ (ได้รับ ${String(s.monthlyBudget)})`;
   }
+  if (s.nextPaydayOverride !== undefined && !isValidIsoDate(s.nextPaydayOverride)) {
+    return `วันเงินเดือนถัดไปต้องเป็นวันที่ที่มีจริง YYYY-MM-DD (ได้รับ ${String(s.nextPaydayOverride)})`;
+  }
   return null;
 }
 
@@ -34,5 +42,6 @@ export function sanitizeSettings(raw: unknown): FinanceSettings {
   if (isDay(r.payDay)) out.payDay = r.payDay;
   if (isSatang(r.monthlySavingsGoal)) out.monthlySavingsGoal = r.monthlySavingsGoal;
   if (isSatang(r.monthlyBudget)) out.monthlyBudget = r.monthlyBudget;
+  if (typeof r.nextPaydayOverride === 'string' && isValidIsoDate(r.nextPaydayOverride)) out.nextPaydayOverride = r.nextPaydayOverride;
   return out;
 }

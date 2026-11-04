@@ -1,5 +1,6 @@
 import type { FinanceSettings } from '../domain/bills/settings';
 import type { Bill } from '../domain/bills/types';
+import { isValidIsoDate } from '../domain/ledger/entry';
 import { parseBahtToSatang, toBahtString, satang } from '../domain/money/satang';
 
 export class BillFormError extends Error {
@@ -22,6 +23,8 @@ export interface SettingsForm {
   payDay: string;
   monthlySavingsGoal: string;
   monthlyBudget: string;
+  /** วันเงินเดือนถัดไปที่กำหนดเอง YYYY-MM-DD (ว่าง/ไม่มี = ไม่ใช้) */
+  nextPaydayOverride?: string;
 }
 
 /** ยอดบาทจากข้อความ -> สตางค์ (R2: แปลงที่ขอบฟอร์มจุดเดียว) ไม่ติดลบ ข้อความผิดโยน BillFormError */
@@ -73,6 +76,11 @@ export function settingsFromForm(form: SettingsForm): FinanceSettings {
   if (form.payDay.trim() !== '') out.payDay = parseDay(form.payDay, 'วันเงินเดือนเข้า');
   if (form.monthlySavingsGoal.trim() !== '') out.monthlySavingsGoal = parseAmount(form.monthlySavingsGoal, 'เป้าออม');
   if (form.monthlyBudget.trim() !== '') out.monthlyBudget = parseAmount(form.monthlyBudget, 'เป้างบ');
+  const override = form.nextPaydayOverride?.trim() ?? '';
+  if (override !== '') {
+    if (!isValidIsoDate(override)) throw new BillFormError('วันเงินเดือนถัดไปต้องเป็นวันที่ที่มีจริง');
+    out.nextPaydayOverride = override;
+  }
   return out;
 }
 
@@ -81,5 +89,6 @@ export function settingsToForm(settings: FinanceSettings): SettingsForm {
     payDay: settings.payDay === undefined ? '' : String(settings.payDay),
     monthlySavingsGoal: settings.monthlySavingsGoal === undefined ? '' : toBahtString(satang(settings.monthlySavingsGoal)),
     monthlyBudget: settings.monthlyBudget === undefined ? '' : toBahtString(satang(settings.monthlyBudget)),
+    ...(settings.nextPaydayOverride !== undefined ? { nextPaydayOverride: settings.nextPaydayOverride } : {}),
   };
 }

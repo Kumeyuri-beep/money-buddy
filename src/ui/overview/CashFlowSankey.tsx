@@ -17,6 +17,7 @@ interface CashFlowSankeyProps {
 
 /** สีหมวดตามโทเคนดีไซน์ A หมวดที่ไม่มีสีกำหนดวนใช้สีสำรอง สีไม่ใช่ตัวบอกความหมายเดียว (มีป้ายชื่อและยอดกำกับ) */
 const CATEGORY_COLORS: Record<string, string> = {
+  บิลประจำ: '#A99BFF',
   บิล: '#A99BFF',
   อาหาร: '#FF8F82',
   เดินทาง: '#FFB86B',
@@ -78,7 +79,7 @@ export function CashFlowSankey({ accounts, entries, today }: CashFlowSankeyProps
   const flow = useMemo(() => {
     if (month === undefined) return null;
     try {
-      return buildCashFlow(accounts, entries, month, today);
+      return buildCashFlow(accounts, entries, month, today, { groupBills: true });
     } catch (error) {
       // ยอดใหญ่เกินช่วงปลอดภัย (RangeError) ไม่ให้ทั้งหน้าภาพรวมพัง
       if (error instanceof RangeError) return 'too-large' as const;
