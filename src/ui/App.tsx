@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { localIsoDate } from '../app/dates';
 import { describeEntry } from '../app/describe';
+import { learnFromHistory } from '../app/quickText';
+import { draftFromOcrTexts, type SlipDraft } from '../app/slipParser';
 import { runIntegrityCheck } from '../domain/ledger/integrity';
 import type { Entry } from '../domain/ledger/types';
+import { readSlipImage, type SlipOcrPhase } from '../ocr/readSlip';
 import { db } from '../storage/instance';
 import {
   appendEntry,
@@ -20,8 +23,10 @@ import { IntegrityBanner, IntegrityStatus } from './Integrity';
 import { LedgerView } from './LedgerView';
 import { Setup } from './Setup';
 import { Shell, type ViewId } from './Shell';
+import { ScanStatus } from './ScanStatus';
 import { Toast } from './Toast';
 import { Today } from './Today';
+import { useSlipIntake } from './useSlipIntake';
 
 type State =
   | { status: 'loading' }
@@ -29,7 +34,12 @@ type State =
   | { status: 'ready'; ledger: Ledger }
   | { status: 'error'; message: string };
 
-type DialogState = { mode: 'add' } | { mode: 'edit'; entry: Entry } | null;
+type DialogState = { mode: 'add' } | { mode: 'edit'; entry: Entry } | { mode: 'scan'; draft: SlipDraft } | null;
+
+interface ScanProgress {
+  progress: number;
+  phase: SlipOcrPhase;
+}
 
 interface ToastState {
   message: string;
@@ -57,6 +67,8 @@ export function App() {
   const [view, setView] = useState<ViewId>('today');
   const [dialog, setDialog] = useState<DialogState>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [scanning, setScanning] = useState<ScanProgress | null>(null);
+  const scanLock = useRef(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -94,6 +106,34 @@ export function App() {
       setToast({ message: errorText(e) });
     }
   };
+
+  /** สแกนสลิป: อ่านรูปบนเครื่อง -> เปิดฟอร์มพร้อมค่าที่เติมให้ตรวจ (ไม่บันทึกเอง รูปไม่ถูกเก็บ) */
+  const scanSlip = async (file: File) => {
+    if (state.status !== 'ready') return;
+    // ล็อกด้วย ref (ไม่ใช่ state): วาง/ลากรูปสองครั้งติดกันก่อนหน้าจอ render ใหม่ จะไม่เปิด worker ซ้อน
+    if (scanLock.current) {
+      setToast({ message: 'กำลังอ่านสลิปอยู่ รอสักครู่' });
+      return;
+    }
+    scanLock.current = true;
+    const { accounts, entries } = state.ledger;
+    setToast(null);
+    setScanning({ progress: 0, phase: 'preparing' });
+    try {
+      const texts = await readSlipImage(file, { onProgress: (progress, phase) => setScanning({ progress, phase }) });
+      const draft = draftFromOcrTexts(texts, { accounts, today: localIsoDate(), learned: learnFromHistory(accounts, entries) });
+      if (draft) setDialog({ mode: 'scan', draft });
+      else setToast({ message: 'อ่านข้อมูลจากสลิปไม่ได้ ลองรูปที่ชัดขึ้น หรือกด "เพิ่มรายการ" เพื่อกรอกเอง' });
+    } catch (e) {
+      setToast({ message: errorText(e) });
+    } finally {
+      scanLock.current = false;
+      setScanning(null);
+    }
+  };
+
+  // รับรูปจากการวาง (Ctrl+V) และการลากมาวาง เฉพาะตอนไม่ได้เปิดฟอร์มอยู่
+  const { dragging } = useSlipIntake(state.status === 'ready' && !dialog, (file) => void scanSlip(file));
 
   const reset = async () => {
     const ok = window.confirm('ล้างข้อมูลทั้งหมดและเริ่มใหม่?\nการกระทำนี้ย้อนกลับไม่ได้ ควรกด "สำรองข้อมูล" ก่อน');
@@ -189,7 +229,13 @@ export function App() {
         </>
       }
     >
-      <Header ledger={state.ledger} onAdd={openAdd} onQuickSaved={(entry) => saved(entry)} />
+      <Header
+        ledger={state.ledger}
+        onAdd={openAdd}
+        onQuickSaved={(entry) => saved(entry)}
+        onScan={(file) => void scanSlip(file)}
+        scanning={scanning !== null}
+      />
 
       {integrity && <IntegrityBanner report={integrity} />}
 
@@ -206,12 +252,22 @@ export function App() {
 
       {dialog && (
         <AddEntryDialog
-          key={dialog.mode === 'edit' ? dialog.entry.id : 'add'}
+          key={dialog.mode === 'edit' ? dialog.entry.id : dialog.mode === 'scan' ? 'scan' : 'add'}
           accounts={accounts}
+          entries={state.ledger.entries}
+          scan={dialog.mode === 'scan' ? dialog.draft : undefined}
           editing={dialog.mode === 'edit' ? dialog.entry : undefined}
           onClose={() => setDialog(null)}
           onSaved={saved}
         />
+      )}
+
+      {scanning && <ScanStatus progress={scanning.progress} phase={scanning.phase} />}
+
+      {dragging && (
+        <div className="drop-overlay" aria-hidden="true">
+          <p>ปล่อยรูปสลิปที่นี่เพื่อสแกน</p>
+        </div>
       )}
 
       {toast && (

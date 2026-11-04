@@ -143,7 +143,7 @@ function orderMentions(tokens: string[], mentions: WalletMention[], wallets: rea
   return [...mentions].sort((a, b) => position(a) - position(b));
 }
 
-function guessCategory(
+export function guessCategory(
   kind: FormKind,
   options: readonly Account[],
   memoTokens: string[],
