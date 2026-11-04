@@ -320,6 +320,10 @@ select { font: inherit; }
 .drop-overlay p { margin: 0; padding: 16px 28px; border-radius: 16px; background: #14151d; color: var(--gold); font-size: 20px; font-weight: 600; }
 @media (prefers-reduced-motion: no-preference) { .drop-overlay { animation: drop-in 0.12s ease-out; } }
 @keyframes drop-in { from { opacity: 0; } to { opacity: 1; } }
+/* ตาข่ายนิรภัย: ผู้ใช้ตั้งค่าลดการเคลื่อนไหว = ไม่มีแอนิเมชัน/ทรานซิชัน/เลื่อนนุ่มจากโค้ดใดๆ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; animation-delay: 0s !important; transition-delay: 0s !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+}
 .field-hint-warn { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; color: var(--warn); }
 .field-hint .btn-small { min-height: 44px; }
 .entry-form .unverified input { border: 2px dashed var(--warn); }
