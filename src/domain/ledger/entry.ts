@@ -1,3 +1,4 @@
+import { safeAdd } from '../money/safe';
 import type { Account, BillLink, Currency, Entry, NewEntry } from './types';
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -26,7 +27,10 @@ export function indexAccounts(accounts: readonly Account[]): Map<string, Account
   return map;
 }
 
-/** ผลรวม Line แยกตามสกุลเงิน (ใช้ทั้งตอนสร้างและตอนตรวจ) */
+/**
+ * ผลรวม Line แยกตามสกุลเงิน (ใช้ทั้งตอนสร้างและตอนตรวจ)
+ * โยน RangeError ถ้ายอดสะสม (รวมค่าระหว่างทาง) เกินช่วงปลอดภัย (R1) เพราะ number จะเพี้ยนเงียบๆ
+ */
 export function sumByCurrency(
   entry: Pick<Entry, 'lines'>,
   accountsById: ReadonlyMap<string, Account>,
@@ -35,7 +39,7 @@ export function sumByCurrency(
   for (const line of entry.lines) {
     const account = accountsById.get(line.accountId);
     if (!account) continue;
-    totals.set(account.currency, (totals.get(account.currency) ?? 0) + line.amount);
+    totals.set(account.currency, safeAdd(totals.get(account.currency) ?? 0, line.amount));
   }
   return totals;
 }
@@ -59,7 +63,14 @@ export function createEntry(accounts: readonly Account[], input: NewEntry): Entr
     if (line.amount === 0) throw new LedgerError(`ห้ามมี Line ยอด 0 (บัญชี ${line.accountId})`);
   }
 
-  for (const [currency, total] of sumByCurrency(input, byId)) {
+  let totals: Map<Currency, number>;
+  try {
+    totals = sumByCurrency(input, byId);
+  } catch (e) {
+    if (e instanceof RangeError) throw new LedgerError('ยอดรวมของ Entry ใหญ่เกินช่วงที่คำนวณได้อย่างปลอดภัย');
+    throw e;
+  }
+  for (const [currency, total] of totals) {
     if (total !== 0) {
       throw new LedgerError(`Entry ไม่สมดุลในสกุลเงิน ${currency}: ผลต่าง ${total}`);
     }

@@ -19,7 +19,6 @@ import {
   clearMigrationSnapshot,
   deleteBill,
   deleteEntry,
-  exportSnapshot,
   isEmpty,
   loadBills,
   loadLedger,
@@ -37,6 +36,8 @@ import { AddEntryDialog } from './AddEntryDialog';
 import { BillDialog } from './BillDialog';
 import { BillsView, type SnapshotInfo } from './BillsView';
 import { PayBillDialog } from './PayBillDialog';
+import { downloadBackup } from './backup';
+import { ErrorBoundary } from './ErrorBoundary';
 import { Header } from './Header';
 import { IntegrityBanner, IntegrityStatus } from './Integrity';
 import { LedgerView } from './LedgerView';
@@ -73,17 +74,6 @@ interface ToastState {
 }
 
 const TOAST_MS = 10_000;
-
-async function downloadBackup(): Promise<void> {
-  const snapshot = await exportSnapshot(db);
-  const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `money-buddy-backup-${localIsoDate()}.json`;
-  link.click();
-  URL.revokeObjectURL(url);
-}
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -360,6 +350,7 @@ export function App() {
 
       {integrity && <IntegrityBanner report={integrity} />}
 
+      <ErrorBoundary resetKey={view}>
       {view === 'today' ? (
         <Today
           ledger={state.ledger}
@@ -394,6 +385,7 @@ export function App() {
           onCancelPayment={cancelPaymentOfEntry}
         />
       )}
+      </ErrorBoundary>
 
       {dialog?.mode === 'bill' && (
         <BillDialog

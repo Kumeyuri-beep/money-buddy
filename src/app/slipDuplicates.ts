@@ -4,6 +4,7 @@
  */
 
 import type { Entry } from '../domain/ledger/types';
+import { safeAdd } from '../domain/money/safe';
 import { parseBahtToSatang } from '../domain/money/satang';
 
 export interface DuplicateQuery {
@@ -16,9 +17,19 @@ export interface DuplicateQuery {
 
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
 
-/** ยอดรวมฝั่งเดบิตของรายการ (สตางค์) */
+/** ยอดรวมฝั่งเดบิตของรายการ (สตางค์) โยน RangeError ถ้าเกินช่วงปลอดภัย */
 function debitTotal(entry: Entry): number {
-  return entry.lines.reduce((sum, l) => (l.amount > 0 ? sum + l.amount : sum), 0);
+  return entry.lines.reduce((sum, l) => (l.amount > 0 ? safeAdd(sum, l.amount) : sum), 0);
+}
+
+/** ยอดเดบิตของรายการ หรือ null ถ้ายอดผิดปกติ (ข้ามรายการนั้น ไม่ให้ทั้งการเตือนล้ม) */
+function debitTotalOrNull(entry: Entry): number | null {
+  try {
+    return debitTotal(entry);
+  } catch (e) {
+    if (e instanceof RangeError) return null;
+    throw e;
+  }
 }
 
 export function findDuplicateEntry(entries: readonly Entry[], query: DuplicateQuery): Entry | undefined {
@@ -36,7 +47,7 @@ export function findDuplicateEntry(entries: readonly Entry[], query: DuplicateQu
     (e) =>
       e.source !== 'system' &&
       e.date === query.date &&
-      debitTotal(e) === amount &&
+      debitTotalOrNull(e) === amount &&
       (recipient === '' || norm(e.memo).includes(recipient)),
   );
 }

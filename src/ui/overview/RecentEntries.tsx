@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { describeEntry } from '../../app/describe';
+import { amountClass, describeEntry } from '../../app/describe';
 import { groupRecentByDay } from '../../app/recentGroups';
 import type { Account, Entry, EntryKind } from '../../domain/ledger/types';
 
@@ -68,7 +68,7 @@ export function RecentEntries({ accounts, entries, today, onAdd, onOpenLedger }:
                         <div>{KIND_TEXT[kind]}</div>
                       )}
                     </div>
-                    <div className={`num tx-${kind}`}>{amountText}</div>
+                    <div className={amountClass(kind, amountText)}>{amountText}</div>
                   </li>
                 ))}
               </ul>
