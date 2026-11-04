@@ -18,7 +18,7 @@
 | อีเมลภายใน | แปลง username → `<username>@users.money-buddy.internal` ผู้ใช้ไม่เห็น (ดู 4.5 ว่าตรวจอย่างไรและโดเมนสำรอง) |
 | การสมัคร | ปิดสมัครเอง · ปิดยืนยันอีเมล · รหัสขั้นต่ำ 10 ตัว · เจ้าของสร้างบัญชีเองใน Dashboard |
 | ล็อกอินครั้งแรก | บังคับเปลี่ยนรหัส · มีหน้าเปลี่ยนรหัสในตั้งค่า |
-| ลืมรหัส | สคริปต์ reset รันในเครื่องเจ้าของเท่านั้น อ่าน service_role key จาก `.env.local` (อยู่ใน `.gitignore` แล้วผ่าน `.env.*`) ห้ามอ่าน/แสดงค่า key ห้ามอยู่ในโค้ดเว็บ |
+| ลืมรหัส | สคริปต์ reset รันในเครื่องเจ้าของเท่านั้น อ่าน service_role key จากไฟล์ **นอกโปรเจกต์** `C:\Users\owenn\.money-buddy-admin\admin.env` (เจ้าของสั่ง 4 พ.ย. 2569) ห้ามมีไฟล์ secret ในโฟลเดอร์โปรเจกต์ ห้ามอ่าน/แสดงค่า key ห้ามอยู่ในโค้ดเว็บ |
 | PDPA | คงหน้ายินยอม, ส่งออกข้อมูล, ลบบัญชี (M2-E) |
 | ก่อน M2-C | ตรวจช่วงปลอดภัยของสูตรรวมยอด (`periodTotals`, `cashBalance`/`netWorthAt`, `incomeChannels`, `runwayTenths`) เป็น Ticket **M2-pre** |
 
@@ -26,8 +26,11 @@
 
 1. สร้างโปรเจกต์ Supabase (Free) ภูมิภาค Singapore · เก็บรหัสฐานข้อมูลไว้เอง
 2. Authentication → Sign In / Providers → Email: **ปิด "Allow new users to sign up"**, **ปิด "Confirm email"**, ตั้ง **Minimum password length = 10** · ตั้ง Site URL = https://money-buddy-phi.vercel.app
-3. ส่งให้ผม **เฉพาะ Project URL และ publishable (anon) key** (ใส่ `.env` ของเครื่อง: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` และ Vercel env) — ผมจะไม่ขอ service_role key
-4. **service_role key ใส่เองใน `.env.local`** ชื่อ `SUPABASE_SERVICE_ROLE_KEY` (ห้ามมี prefix `VITE_` เด็ดขาด เพราะ Vite ฝังตัวแปร `VITE_*` ลงในเว็บ) ใช้กับสคริปต์ reset เท่านั้น · ห้ามวางในแชท
+3. ส่งให้ผม **เฉพาะ Project URL และ publishable (anon) key** ใส่ใน 2 ที่ด้วยชื่อตัวแปรนี้ (ไม่ใช่ความลับ แต่ผมก็ไม่อ่านไฟล์ `.env` — คุณใส่เอง): ไฟล์ `.env` ของโปรเจกต์ และ Vercel → Settings → Environment Variables (Production + Preview + Development)
+   - `VITE_SUPABASE_URL` = Project URL
+   - `VITE_SUPABASE_ANON_KEY` = publishable key (ขึ้นต้น `sb_publishable_` หรือ anon JWT)
+   - ผมจะไม่ขอ service_role / secret key
+4. **service_role / secret key ใส่เองในไฟล์ `C:\Users\owenn\.money-buddy-admin\admin.env`** (อยู่นอกโปรเจกต์ ไม่ถูก Vite โหลด ไม่ถูก `vercel env pull` เขียนทับ) บรรทัดละตัวแปร: `SUPABASE_URL=…` และ `SUPABASE_SERVICE_ROLE_KEY=…` (ถ้าโปรเจกต์ออก key แบบใหม่ ใช้ชื่อ `SUPABASE_SECRET_KEY` แทนได้) · ห้ามมี prefix `VITE_` · ใช้กับสคริปต์ `scripts/` เท่านั้น · ห้ามวางในแชท · ห้ามใส่ใน Vercel env หรือ GitHub Actions secrets
 5. สร้างบัญชีผู้ใช้: แนะนำใช้สคริปต์ `scripts/create-user.mjs` (ทำใน M2-B) ซึ่งตั้งธงบังคับเปลี่ยนรหัสให้อัตโนมัติ · หรือทำมือใน Dashboard → Authentication → Users → Add user: email = `<username>@users.money-buddy.internal`, รหัสชั่วคราว ≥ 10 ตัว, ติ๊ก Auto Confirm User (ปลอดภัยเช่นกัน: trigger สร้าง profiles ให้อัตโนมัติโดยธงบังคับเปลี่ยนรหัสเป็น true — ดู 4.6 ข้อ 1)
 
 เมื่อได้ URL + publishable key แล้ว ผมเริ่ม M2-A · ระหว่างนั้นทำ M2-0 และ M2-pre ได้โดยไม่ต้องใช้ key
@@ -101,8 +104,8 @@
 **สคริปต์ที่เจ้าของรันในเครื่องเท่านั้น** (`scripts/` อยู่นอก `src/` จึงไม่เข้า bundle ของเว็บ)
 - `create-user.mjs <username>` สร้างผู้ใช้ (`email_confirm: true`) + สุ่มรหัสชั่วคราว 16 ตัวพิมพ์ออกหน้าจอครั้งเดียว + ตั้ง `must_change_password = true`
 - `reset-password.mjs <username>` ตั้งรหัสชั่วคราวใหม่ **แล้วตั้งธงบังคับเปลี่ยนรหัสหลังเปลี่ยนรหัสเสร็จ** (ลำดับสำคัญ เพราะ trigger เคลียร์ธงเมื่อรหัสเปลี่ยน) และเพิกถอน session เดิมของผู้ใช้
-- อ่านค่าจาก `.env.local` ด้วย `node --env-file=.env.local` · **ไม่พิมพ์ key ไม่ log ไม่ใส่ใน error** (ครอบ try/catch ข้อความผิดพลาดต้องไม่มีค่า env) · ปฏิเสธการรันถ้าไม่มี `SUPABASE_SERVICE_ROLE_KEY` หรือพบตัวแปรชื่อ `VITE_*SERVICE*` · reset ปฏิเสธถ้าไม่มีผู้ใช้นั้น · รหัสชั่วคราวเป็นสิ่งเดียวที่พิมพ์
-- เทสต์รักษากติกา (รันใน `npm test`): (1) ไม่พบ `service_role` / `SERVICE_ROLE` ใน `src/` (2) `.gitignore` ครอบ `.env.local` (3) `scripts/*.mjs` ไม่ `console.*` ตัวแปร key (4) `package.json` ไม่มี script ที่ส่งค่า key ผ่านบรรทัดคำสั่ง · และตรวจ `dist/` หลัง build ว่าไม่มีสตริง `service_role`
+- อ่านค่าจากพาธตายตัว `<โฟลเดอร์บ้านผู้ใช้>/.money-buddy-admin/admin.env` ผ่าน `process.loadEnvFile()` (ไม่รับพาธจากอาร์กิวเมนต์) · **ปฏิเสธการรันถ้าพาธนั้นอยู่ในโฟลเดอร์โปรเจกต์** · **ไม่พิมพ์ key ไม่ log ไม่ใส่ใน error** (ครอบ try/catch ข้อความผิดพลาดต้องไม่มีค่า env) · ปฏิเสธการรันถ้าไม่มี `SUPABASE_SERVICE_ROLE_KEY` หรือพบตัวแปรชื่อ `VITE_*SERVICE*` · reset ปฏิเสธถ้าไม่มีผู้ใช้นั้น · รหัสชั่วคราวเป็นสิ่งเดียวที่พิมพ์
+- เทสต์รักษากติกา (รันใน `npm test`): (1) ไม่พบ `service_role` / `SERVICE_ROLE` ใน `src/` (2) สคริปต์อ้างพาธ `.money-buddy-admin/admin.env` และไม่อ้าง `.env.local`/`.env` ในโปรเจกต์ (3) `scripts/*.mjs` ไม่ `console.*` ตัวแปร key (4) `package.json` ไม่มี script ที่ส่งค่า key ผ่านบรรทัดคำสั่ง · และตรวจ `dist/` หลัง build ว่าไม่มีสตริง `service_role`
 - Supabase Free ไม่มี leaked-password protection (ของ Pro) → ตรวจรหัสอ่อนฝั่งเว็บเอง: ขั้นต่ำ 10 ตัว, ไม่อยู่ในรายการรหัสยอดนิยมสั้นๆ ที่ฝังไว้, ไม่เท่ากับ username
 
 **ลบบัญชีตัวเอง (M2-E):** ฟังก์ชัน `delete_my_account()` แบบ `SECURITY DEFINER` ลบแถวใน `auth.users` ของ `auth.uid()` เท่านั้น (ทุกตารางข้อมูลมี FK `user_id → auth.users ON DELETE CASCADE`) ต้องกรอกรหัสผ่านยืนยัน + กล่องยืนยัน
@@ -137,7 +140,8 @@
 
 **key และ secret**
 15. key โปรเจกต์ใหม่เป็นรูป `sb_publishable_…` / `sb_secret_…` ไม่ใช่ JWT `anon`/`service_role` เสมอไป · เทสต์ค้น `service_role|SERVICE_ROLE|sb_secret_|c2VydmljZV9yb2xl` (base64 ของ `service_role`) ใน `src/`, `dist/`, `scripts/` และ `git diff --cached` · สคริปต์รองรับทั้งสองชื่อ (`SUPABASE_SECRET_KEY` หรือ `SUPABASE_SERVICE_ROLE_KEY`)
-16. **ที่เก็บ secret:** เจ้าของสั่งให้ใช้ `.env.local` (คงตามนั้น) แต่ Vite โหลด `.env.local` เองทุกครั้ง และ `vercel env pull` เขียนทับไฟล์นี้ได้ → บังคับด้วยเทสต์ว่า `vite.config.ts` ไม่มี `envPrefix`, `loadEnv(`, หรือ `process.env` ใน `define` · **ห้ามใส่ secret ใน Vercel env หรือ GitHub Actions secrets เด็ดขาด** · (ทางที่แข็งกว่า: เก็บไว้ไฟล์นอกโฟลเดอร์โปรเจกต์แล้วรัน `node --env-file=<path>` — เสนอเจ้าของตัดสินใจ รอเจ้าของตัดสิน)
+16. **ที่เก็บ secret (เจ้าของตัดสิน 4 พ.ย. 2569):** ไฟล์นอกโปรเจกต์ `C:\Users\owenn\.money-buddy-admin\admin.env` เท่านั้น ห้ามมีไฟล์ secret ในโปรเจกต์ (Vite โหลด `.env.local` เอง และ `vercel env pull` เขียนทับได้ จึงไม่ใช้) → เทสต์ว่า `vite.config.ts` ไม่มี `envPrefix`, `loadEnv(`, หรือ `process.env` ใน `define` (กันไว้เผื่อมีคนเพิ่มภายหลัง) · **ห้ามใส่ secret ใน Vercel env หรือ GitHub Actions secrets เด็ดขาด** · `.claude/settings.json` deny การอ่านพาธนี้และ `.env*` แล้ว (ดูข้อ 19)
+19. **กฎ deny ของ Claude Code (เจ้าของอนุญาต 4 พ.ย. 2569):** `Read(./.env*)`, `Read(**/.env*)`, `Read` / `Edit` / `Write` ของ `~/.money-buddy-admin/**`, และคำสั่ง Bash/PowerShell ที่อ่านหรือคัดลอกไฟล์เหล่านี้ (cat, type, Get-Content, grep, Select-String, cp, node ฯลฯ) · ข้อจำกัด: กฎจับจากข้อความคำสั่ง จึงกันไม่ครบทุกรูปแบบ (alias, สคริปต์ที่เปิดไฟล์ข้างใน, ตัวแปรประกอบพาธ) กติกา "ห้ามอ่านค่า key" ยังต้องถือตามเสมอ · ผลข้างเคียง: คำสั่ง `grep`/`cat` ที่มี `.env` อยู่ในอาร์กิวเมนต์ถูกบล็อกด้วย (ใช้เครื่องมือ Grep/Read แทน)
 17. สคริปต์: พิมพ์เฉพาะ `err.message`/`err.status` ห้าม `console.error(err)` ทั้งก้อน · ห้ามรับรหัสหรือ key ทางอาร์กิวเมนต์ (ค้างใน history) · เตือนให้ส่งรหัสชั่วคราวให้ผู้ใช้ทางช่องส่วนตัว
 18. เทสต์ M2-F ที่ต้องใช้ฐานข้อมูลจริงรันในเครื่องหรือบน branch DB เท่านั้น ไม่ใส่ secret ใน CI
 
@@ -174,7 +178,7 @@
 | ความเสี่ยง | การป้องกัน |
 |---|---|
 | ข้อมูลรั่วข้ามผู้ใช้ | RLS ทุกตาราง + M2-F เป็นเทสต์อัตโนมัติ + security-auditor ทุก Ticket |
-| service_role key หลุด/ถูกฝังในเว็บ | อยู่ใน `.env.local` ชื่อไม่มี `VITE_` · ใช้เฉพาะ `scripts/` · เทสต์ค้น `src/` และ `dist/` · ผมไม่อ่านไฟล์นี้ |
+| service_role key หลุด/ถูกฝังในเว็บ | อยู่นอกโปรเจกต์ (`.money-buddy-admin/admin.env`) ชื่อไม่มี `VITE_` · ใช้เฉพาะ `scripts/` · เทสต์ค้น `src/` `dist/` `scripts/` · deny อ่านไฟล์ใน settings |
 | เดารหัส (brute force) | รหัส ≥ 10 ตัว + rate limit ของ Supabase Auth + ข้อความล็อกอินผิดเหมือนกันทุกกรณี · ผู้ใช้ ≤ 20 คน |
 | รหัสชั่วคราวรั่ว | สุ่ม 16 ตัว แสดงครั้งเดียว บังคับเปลี่ยนก่อนใช้ข้อมูล (บังคับที่ RLS) |
 | ลืมรหัสแล้วไม่มีทางกู้ (ไม่มีอีเมล) | เจ้าของรัน `reset-password.mjs` ให้ · ผู้ใช้ควรส่งออก JSON สำรองเป็นประจำ |
