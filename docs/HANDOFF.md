@@ -31,7 +31,7 @@ Vite 8.3.5 · React 19.3 · TypeScript 7.0.2 (strict + `noUncheckedIndexedAccess
 
 ```
 npm run dev        # เปิดเว็บ http://localhost:5173
-npm test           # 312 เทสต์ผ่านทั้งหมด (12 ไฟล์)
+npm test           # 765 เทสต์ผ่านทั้งหมด (28 ไฟล์)
 npm run typecheck
 npm run build
 ```
@@ -147,12 +147,13 @@ project/                       ← โค้ดล่าสุดทั้งห
 | #3 `auto/bills-storage` | B2: Dexie `version(2)` + Snapshot + repository | merge แล้ว |
 | #4 `auto/r15-lastpaid` | เพิ่มข้อความ R15: lastPaidMonth ต้องไม่เกินเดือนปัจจุบัน | merge แล้ว |
 | #5 `auto/bills-ui` | B3: หน้า "บิลและเป้า" | merge แล้ว |
-| (เปิดใหม่) `auto/bill-cancel` | ยกเลิกการจ่ายบิล: `Entry.bill` ผูกบิล+รอบ, ยกเลิก atomic คืน lastPaidMonth, ข้อ R15 ใหม่ (commit แยก) | รอ merge |
+| #6 `auto/bill-cancel` | ยกเลิกการจ่ายบิล: `Entry.bill` ผูกบิล+รอบ, ยกเลิก atomic คืน lastPaidMonth (decisions ข้อ 35-41) | merge แล้ว |
+| #7 `auto/bills-overview` | B4: SAFE-TO-SPEND, แผงบิล, แยกบิล/ใช้จ่าย + เป้างบ, โหนดบิลใน Sankey, override วันเงินเดือน (decisions ข้อ 42-52) | merge แล้ว |
 
-**ลำดับงานบิลประจำ** (แผน `docs/plans/2026-11-04-bills-savings-safe-to-spend.md`, เหตุผล `docs/decisions/2026-11-04-bills-safe-to-spend.md`): B1 ✅ (PR #2) → B2 ✅ → B3 ✅ (หน้าบิลและเป้า ข้อ 30-34) → **B4** หน้าตั้งค่าบิล/เป้า + ปุ่มจ่ายบิล → B4 ต่อการ์ดภาพรวม/Sankey/แผงบิล · แล้วเก็บกวาด backlog แผนดีไซน์ A · M2 (ล็อกอิน) เขียนแผนได้ แต่ **หยุดก่อนลงมือ เจ้าของต้องสมัคร Supabase เอง**
+**ลำดับงานบิลประจำ** (แผน `docs/plans/2026-11-04-bills-savings-safe-to-spend.md`, เหตุผล `docs/decisions/2026-11-04-bills-safe-to-spend.md`): B1-B4 ✅ ครบ (PR #2-#7) · ถัดไป: เก็บกวาด backlog แผนดีไซน์ A → เขียนแผน M2 (ล็อกอิน) แล้ว **หยุดก่อนลงมือ เจ้าของต้องสมัคร Supabase เอง**
 
 **ที่เจ้าของควรตัดสินใจ/ทำ**
-1. merge PR ยกเลิกการจ่ายบิล (decisions ข้อ 35-41) แล้ว B4 ต่อ (การ์ด SAFE-TO-SPEND, แผงบิลที่จะถึง, Sankey, งบเดือน) · ข้อจำกัด: รายการจ่ายบิลที่จ่ายก่อนอัปเดตนี้ไม่มีลิงก์ จึงยกเลิกจากหน้าจอไม่ได้ (ข้อ 39)
+1. (เสร็จแล้ว) merge PR #6/#7 · ช่องว่างที่ยังเหลือ: รายการจ่ายบิลก่อนอัปเดต #6 ยกเลิกจากหน้าจอไม่ได้ (decisions ข้อ 39)
 2. เปิด branch protection บน GitHub สำหรับ `main` (ต้องผ่าน PR, ห้าม force push, ห้ามลบ) และพิจารณาเพิ่มกฎ deny: `git push origin x:main`, `refs/heads/main`, `git push -u origin` บน main, `git -c ... push`, `gh pr merge`, `gh api`, และคำสั่งผ่าน PowerShell (รายละเอียดใน PR #1)
 3. พิจารณาเพิ่มข้อความใน R15 ว่าช่วงคำนวณคือ [วันนี้, วันเงินเดือนถัดไป) และบิลที่ครบกำหนดตรงวันเงินเดือนไม่ถูกหัก (ตอนนี้โค้ดทำแบบนี้ ผมไม่ได้แก้ `money-rules.md`)
 4. กติกา "ปิดบังตัวเลขยาวในผลวินิจฉัย ยกเว้นยอดเงินและวันที่" ทำให้ยอด/วันที่จริงหลุดลงเอกสารได้ ควรให้ปิดบังด้วยเมื่อมาจากสลิปจริง
