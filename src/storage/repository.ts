@@ -123,11 +123,16 @@ export async function updateEntry(
  * คืนรายการที่ลบไปเพื่อให้กู้คืนได้ในอนาคต
  */
 export async function deleteEntry(db: MoneyDB, id: string): Promise<Entry> {
-  return db.transaction('rw', db.entries, async () => {
+  return db.transaction('rw', db.entries, db.bills, async () => {
     const entry = await db.entries.get(id);
     if (!entry) throw new StorageError('ไม่พบรายการนี้ อาจถูกลบไปแล้ว');
     if (entry.source === 'system') throw new StorageError('ลบรายการยอดยกมาไม่ได้');
-    if (entry.source === 'recurring') throw new StorageError(RECURRING_LOCKED);
+    if (entry.source === 'recurring' || entry.bill !== undefined) {
+      // รายการจ่ายบิลที่ผูกกับบิลแล้ว: ลบ = ยกเลิกการจ่าย คืน lastPaidMonth พร้อมกัน (R15)
+      if (!entry.bill) throw new StorageError(RECURRING_LOCKED);
+      await cancelPaymentInTx(db, entry);
+      return entry;
+    }
     await db.entries.delete(id);
     return entry;
   });
@@ -346,6 +351,7 @@ export async function payBill(db: MoneyDB, billId: string, options: PayBillOptio
       date: options.today,
       memo: bill.name,
       source: 'recurring',
+      bill: bill.lastPaidMonth === undefined ? { id: bill.id, cycle } : { id: bill.id, cycle, before: bill.lastPaidMonth },
       createdAt: nextCreatedAt(),
       lines: [
         { accountId: category.id, amount: bill.amount },
@@ -380,6 +386,65 @@ export async function undoPayBill(
     if (bad) throw new StorageError(`บิลไม่ถูกต้อง: ${bad}`);
     await db.entries.delete(input.entryId);
     await db.bills.put(restored);
+  });
+}
+
+/**
+ * ลบรายการจ่ายบิลและคืน lastPaidMonth ในธุรกรรมที่เรียกอยู่ (ต้องเปิด rw entries+bills มาแล้ว)
+ * ยกเลิกได้เฉพาะรอบล่าสุด (lastPaidMonth ตรงกับรอบของรายการ) ไม่งั้นปฏิเสธ ไม่แตะอะไร
+ * บิลถูกลบไปแล้ว = ลบเฉพาะรายการ (ไม่มีอะไรให้คืน)
+ */
+async function cancelPaymentInTx(db: MoneyDB, entry: Entry): Promise<Bill | undefined> {
+  const link = entry.bill;
+  if (entry.source !== 'recurring' || !link) {
+    throw new StorageError('ยกเลิกได้เฉพาะรายการจ่ายบิลที่ผูกกับบิล (รายการที่จ่ายก่อนอัปเดตยังยกเลิกจากหน้านี้ไม่ได้)');
+  }
+  const bill = await db.bills.get(link.id);
+  if (!bill) {
+    await db.entries.delete(entry.id);
+    return undefined;
+  }
+  if (bill.lastPaidMonth !== link.cycle) {
+    throw new StorageError(`ยกเลิกรอบ ${link.cycle} ไม่ได้ เพราะบิลนี้จ่ายรอบหลังจากนั้นแล้ว ให้ยกเลิกรอบล่าสุดก่อน`);
+  }
+  const { lastPaidMonth: _current, ...rest } = bill;
+  void _current;
+  const restored: Bill = link.before === undefined ? rest : { ...rest, lastPaidMonth: link.before };
+  if (link.before !== undefined && link.before >= link.cycle) {
+    throw new StorageError('ข้อมูลลิงก์การจ่ายบิลผิดปกติ (รอบก่อนหน้าต้องมาก่อนรอบที่จ่าย) ไม่ลบรายการ');
+  }
+  const bad = billProblem(restored);
+  if (bad) throw new StorageError(`บิลไม่ถูกต้อง: ${bad}`);
+  await db.entries.delete(entry.id);
+  await db.bills.put(restored);
+  return restored;
+}
+
+/** ยกเลิกการจ่ายบิลตามรหัสรายการ (ทุกกรณีจบในธุรกรรมเดียว) คืนรายการที่ลบและบิลที่คืนค่าแล้ว */
+export async function cancelBillPayment(db: MoneyDB, entryId: string): Promise<{ entry: Entry; bill: Bill | undefined }> {
+  return db.transaction('rw', db.entries, db.bills, async () => {
+    const entry = await db.entries.get(entryId);
+    if (!entry) throw new StorageError('ไม่พบรายการนี้ อาจถูกลบไปแล้ว');
+    return { entry, bill: await cancelPaymentInTx(db, entry) };
+  });
+}
+
+/** ยกเลิกการจ่ายรอบล่าสุดของบิล (หน้าบิล) หารายการจากลิงก์ ไม่พบ = ปฏิเสธ */
+export async function cancelLatestBillPayment(
+  db: MoneyDB,
+  billId: string,
+): Promise<{ entry: Entry; bill: Bill | undefined }> {
+  return db.transaction('rw', db.entries, db.bills, async () => {
+    const bill = await db.bills.get(billId);
+    if (!bill) throw new StorageError('ไม่พบบิลนี้ อาจถูกลบไปแล้ว');
+    if (bill.lastPaidMonth === undefined) throw new StorageError(`บิล "${bill.name}" ยังไม่เคยจ่าย`);
+    const entry = (await db.entries.toArray()).find(
+      (e) => e.source === 'recurring' && e.bill?.id === billId && e.bill.cycle === bill.lastPaidMonth,
+    );
+    if (!entry) {
+      throw new StorageError(`ไม่พบรายการจ่ายบิล "${bill.name}" รอบ ${bill.lastPaidMonth} ที่ผูกกับบิล (อาจจ่ายก่อนอัปเดต)`);
+    }
+    return { entry, bill: await cancelPaymentInTx(db, entry) };
   });
 }
 

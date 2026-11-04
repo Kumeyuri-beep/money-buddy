@@ -29,6 +29,13 @@ export interface Line {
   amount: number;
 }
 
+export interface BillLink {
+  id: string;
+  /** รอบที่จ่าย YYYY-MM */
+  cycle: string;
+  before?: string;
+}
+
 export interface Entry {
   id: string;
   /** YYYY-MM-DD */
@@ -39,6 +46,8 @@ export interface Entry {
   groupId?: string;
   /** เวลาที่บันทึก (ISO) ใช้เรียงรายการวันเดียวกัน รายการเก่าที่ไม่มีค่านี้ถือว่าเก่าสุด */
   createdAt?: string;
+  /** รายการจ่ายบิลประจำ: ผูกกับบิลและรอบ (R15) before = lastPaidMonth ก่อนจ่าย ใช้คืนค่าเมื่อยกเลิก */
+  bill?: BillLink;
   lines: Line[];
 }
 

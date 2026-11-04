@@ -14,6 +14,8 @@ import { db } from '../storage/instance';
 import {
   addBill,
   appendEntry,
+  cancelBillPayment,
+  cancelLatestBillPayment,
   clearMigrationSnapshot,
   deleteBill,
   deleteEntry,
@@ -297,6 +299,28 @@ export function App() {
     }));
   };
 
+  /** ยกเลิกการจ่ายบิล: ลบรายการและคืนสถานะบิลพร้อมกัน ไม่มี undo (จ่ายใหม่ได้จากหน้าบิล) */
+  const confirmCancel = (name: string, cycle: string | undefined): boolean =>
+    window.confirm(
+      `ยกเลิกการจ่าย "${name}"${cycle ? ` รอบ ${thaiMonthKeyLabel(cycle)}` : ''}?\nรายการจ่ายจะถูกลบและเงินกลับเข้ากระเป๋า บิลจะกลับเป็นยังไม่จ่าย`,
+    );
+
+  const cancelPaymentOfEntry = (entry: Entry) => {
+    if (!confirmCancel(entry.memo, entry.bill?.cycle)) return;
+    void run(async () => {
+      await cancelBillPayment(db, entry.id);
+      return { message: `ยกเลิกการจ่ายแล้ว: ${entry.memo}` };
+    });
+  };
+
+  const cancelPaymentOfBill = (bill: Bill) => {
+    if (!confirmCancel(bill.name, bill.lastPaidMonth)) return;
+    void run(async () => {
+      await cancelLatestBillPayment(db, bill.id);
+      return { message: `ยกเลิกการจ่ายแล้ว: ${bill.name}` };
+    });
+  };
+
   const clearSnapshot = () => {
     const ok = window.confirm(
       'ลบสำเนาข้อมูลก่อนอัปเกรด?\nข้อมูลที่ใช้งานอยู่ไม่ถูกแตะ แต่สำเนานี้จะกู้คืนไม่ได้อีก',
@@ -354,6 +378,7 @@ export function App() {
           onEdit={(bill) => setDialog({ mode: 'bill', editing: bill })}
           onDelete={removeBill}
           onPay={(row) => setDialog({ mode: 'pay', row })}
+          onCancelPay={cancelPaymentOfBill}
           onSaveSettings={async (settings) => {
             await saveSettings(db, settings);
             await refresh();
@@ -366,6 +391,7 @@ export function App() {
           onAdd={openAdd}
           onEdit={(entry) => setDialog({ mode: 'edit', entry })}
           onDelete={remove}
+          onCancelPayment={cancelPaymentOfEntry}
         />
       )}
 
