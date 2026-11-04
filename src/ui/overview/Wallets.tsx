@@ -5,12 +5,23 @@ import { formatBaht, satang } from '../../domain/money/satang';
 
 /** กระเป๋าเงิน (glass-lite): ยอดจริง + แถบสัดส่วน % ของกระเป๋าที่ไม่ติดลบ (คำนวณใน domain) */
 export function Wallets({ accounts, entries }: { accounts: readonly Account[]; entries: readonly Entry[] }) {
-  const wallets = useMemo(() => walletShares(accounts, entries), [accounts, entries]);
+  // ยอดเกินช่วงปลอดภัย (balanceOf โยน RangeError) ต้องไม่ทำให้ทั้งหน้าล้ม
+  const result = useMemo(() => {
+    try {
+      return { wallets: walletShares(accounts, entries), error: null as string | null };
+    } catch (e) {
+      if (!(e instanceof RangeError)) throw e;
+      return { wallets: [], error: e.message };
+    }
+  }, [accounts, entries]);
+  const { wallets, error } = result;
 
   return (
     <section className="glass-lite card wallets" aria-labelledby="wallets-title">
       <h2 id="wallets-title">กระเป๋าเงิน</h2>
-      {wallets.length === 0 ? (
+      {error ? (
+        <p role="status">⚠ แสดงยอดกระเป๋าไม่ได้: {error}</p>
+      ) : wallets.length === 0 ? (
         <p className="muted">ยังไม่มีกระเป๋าเงิน</p>
       ) : (
         <ul className="wallet-list">

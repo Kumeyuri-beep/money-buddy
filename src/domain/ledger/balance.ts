@@ -1,12 +1,23 @@
 import { indexAccounts } from './entry';
 import type { Account, AccountType, Currency, Entry, EntryKind } from './types';
 
-/** ผลรวมดิบของบัญชี: เดบิตเป็นบวก เครดิตเป็นลบ */
+/**
+ * ผลรวมดิบของบัญชี: เดบิตเป็นบวก เครดิตเป็นลบ
+ * โยน RangeError ถ้าจำนวนในบรรทัดไม่ใช่จำนวนเต็มปลอดภัย หรือยอดสะสม (รวมค่าระหว่างทาง)
+ * เกินช่วง ±MAX_SAFE_INTEGER เพราะเกินแล้ว number จะเพี้ยนเงียบๆ (R1)
+ */
 export function balanceOf(accountId: string, entries: readonly Entry[]): number {
   let total = 0;
   for (const entry of entries) {
     for (const line of entry.lines) {
-      if (line.accountId === accountId) total += line.amount;
+      if (line.accountId !== accountId) continue;
+      if (!Number.isSafeInteger(line.amount)) {
+        throw new RangeError(`จำนวนเงินในรายการไม่ใช่จำนวนเต็มสตางค์ที่ปลอดภัย: ${String(line.amount)}`);
+      }
+      total += line.amount;
+      if (!Number.isSafeInteger(total)) {
+        throw new RangeError('ยอดคงเหลือของบัญชีเกินช่วงที่คำนวณได้อย่างปลอดภัย');
+      }
     }
   }
   return total;
