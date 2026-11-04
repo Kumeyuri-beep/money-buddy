@@ -142,10 +142,11 @@ project/                       ← โค้ดล่าสุดทั้งห
 
 | PR | เนื้อหา | สถานะ |
 |---|---|---|
-| #1 `auto/m1-b4-ocr` | M1-B4 สแกนสลิป K PLUS (รวม commit กฎโหมดทำงานเอง) | รอเจ้าของ merge |
-| #2 `auto/bills-domain` | บิลประจำ B1: ฟังก์ชัน domain (ปฏิทิน, บิลค้างจ่าย, กันจ่ายซ้ำ R15, SAFE-TO-SPEND) | รอเจ้าของ merge |
+| #1 `auto/m1-b4-ocr` | M1-B4 สแกนสลิป K PLUS (รวม commit กฎโหมดทำงานเอง) | merge แล้ว |
+| #2 `auto/bills-domain` | บิลประจำ B1: ฟังก์ชัน domain (ปฏิทิน, บิลค้างจ่าย, กันจ่ายซ้ำ R15, SAFE-TO-SPEND) | รอเจ้าของ merge (rebase บน main แล้ว) |
+| (ถัดไป) `auto/bills-storage` | B2: Dexie `version(2)` + Snapshot + repository บิล/ค่าตั้งค่า (ซ้อนบน #2) | PR เปิดแล้ว รอ merge |
 
-**ลำดับงานบิลประจำ** (แผน `docs/plans/2026-11-04-bills-savings-safe-to-spend.md`, เหตุผล `docs/decisions/2026-11-04-bills-safe-to-spend.md`): B1 ✅ (PR #2) → **B2** เก็บข้อมูล (Dexie `version(2)` + Snapshot ก่อน migration + `startMonth`) → B3 หน้าตั้งค่าบิล/เป้า + ปุ่มจ่ายบิล → B4 ต่อการ์ดภาพรวม/Sankey/แผงบิล · แล้วเก็บกวาด backlog แผนดีไซน์ A · M2 (ล็อกอิน) เขียนแผนได้ แต่ **หยุดก่อนลงมือ เจ้าของต้องสมัคร Supabase เอง**
+**ลำดับงานบิลประจำ** (แผน `docs/plans/2026-11-04-bills-savings-safe-to-spend.md`, เหตุผล `docs/decisions/2026-11-04-bills-safe-to-spend.md`): B1 ✅ (PR #2) → B2 ✅ (เก็บข้อมูล, ตัดสินใจข้อ 20-29) → **B3** หน้าตั้งค่าบิล/เป้า + ปุ่มจ่ายบิล → B4 ต่อการ์ดภาพรวม/Sankey/แผงบิล · แล้วเก็บกวาด backlog แผนดีไซน์ A · M2 (ล็อกอิน) เขียนแผนได้ แต่ **หยุดก่อนลงมือ เจ้าของต้องสมัคร Supabase เอง**
 
 **ที่เจ้าของควรตัดสินใจ/ทำ**
 1. merge PR #1 และ #2 (หลัง merge #1 commit กฎใน #2 เป็นเนื้อหาเดียวกัน ไม่ชน) แล้วบอกให้ทำ B2 ต่อ
