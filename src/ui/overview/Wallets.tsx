@@ -8,20 +8,21 @@ export function Wallets({ accounts, entries }: { accounts: readonly Account[]; e
   // ยอดเกินช่วงปลอดภัย (balanceOf โยน RangeError) ต้องไม่ทำให้ทั้งหน้าล้ม
   const result = useMemo(() => {
     try {
-      return { wallets: walletShares(accounts, entries), error: null as string | null };
+      return { wallets: walletShares(accounts, entries), tooLarge: false };
     } catch (e) {
       if (!(e instanceof RangeError)) throw e;
-      return { wallets: [], error: e.message };
+      return { wallets: [], tooLarge: true }; // ไม่แสดงข้อความดิบของ error ให้ผู้ใช้
     }
   }, [accounts, entries]);
-  const { wallets, error } = result;
+  const { wallets, tooLarge } = result;
 
   return (
     <section className="glass-lite card wallets" aria-labelledby="wallets-title">
       <h2 id="wallets-title">กระเป๋าเงิน</h2>
-      {error ? (
-        <p role="status">⚠ แสดงยอดกระเป๋าไม่ได้: {error}</p>
-      ) : wallets.length === 0 ? (
+      <div role="status">
+        {tooLarge ? <p className="slip-warn">⚠ แสดงยอดกระเป๋าไม่ได้ เพราะมีรายการที่ยอดใหญ่ผิดปกติ ลองตรวจรายการที่ยอดสูงเกินจริง</p> : null}
+      </div>
+      {tooLarge ? null : wallets.length === 0 ? (
         <p className="muted">ยังไม่มีกระเป๋าเงิน</p>
       ) : (
         <ul className="wallet-list">

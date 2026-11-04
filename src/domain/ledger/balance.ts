@@ -1,3 +1,4 @@
+import { safeAdd, safeSub } from '../money/safe';
 import { indexAccounts } from './entry';
 import type { Account, AccountType, Currency, Entry, EntryKind } from './types';
 
@@ -55,6 +56,7 @@ export interface PeriodTotals {
  *   รายรับ = เครดิตในบัญชีประเภท income,  รายจ่าย = เดบิตในบัญชีประเภท expense
  * การโอนระหว่างกระเป๋า, การจ่ายเงินต้นหนี้, การจ่ายบิลบัตรเครดิต, การให้ยืม/รับคืน
  * ไม่แตะบัญชี income/expense จึงไม่ถูกนับเอง (ดอกเบี้ยเป็นบัญชี expense จึงถูกนับ)
+ * โยน RangeError ถ้าจำนวนในบรรทัดที่นับไม่ใช่จำนวนเต็มปลอดภัย หรือยอดสะสม/net เกินช่วงปลอดภัย
  */
 export function periodTotals(
   accounts: readonly Account[],
@@ -70,11 +72,12 @@ export function periodTotals(
     for (const line of entry.lines) {
       const account = byId.get(line.accountId);
       if (!account || account.currency !== currency) continue;
-      if (account.type === 'income') income -= line.amount;
-      else if (account.type === 'expense') expense += line.amount;
+      // บวก/ลบแบบตรวจช่วงปลอดภัย: เกิน ±MAX_SAFE_INTEGER = RangeError (R1) ไม่ปล่อยให้เพี้ยนเงียบ
+      if (account.type === 'income') income = safeSub(income, line.amount);
+      else if (account.type === 'expense') expense = safeAdd(expense, line.amount);
     }
   }
-  return { currency, income, expense, net: income - expense };
+  return { currency, income, expense, net: safeSub(income, expense) };
 }
 
 /** จัดประเภท Entry สำหรับแสดงในรายการ: มีบัญชีรายจ่าย = expense, มีบัญชีรายรับ = income, นอกนั้น = transfer */

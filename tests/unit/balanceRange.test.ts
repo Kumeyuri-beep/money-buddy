@@ -1,4 +1,4 @@
-import css from '../../src/ui/styles.css?raw';
+import rawCss from '../../src/ui/styles.css?raw';
 import { describe, expect, it } from 'vitest';
 import { balanceOf, naturalBalance } from '../../src/domain/ledger/balance';
 import type { Account, Entry } from '../../src/domain/ledger/types';
@@ -59,6 +59,8 @@ describe('balanceOf: ช่วงปลอดภัย', () => {
 });
 
 describe('prefers-reduced-transparency ครอบคลุมพื้นผิวทั้งสามแบบ', () => {
+  // ไฟล์บน Windows อาจเป็น CRLF: ทำให้ขึ้นบรรทัดแบบเดียวกันก่อนหาท้ายบล็อกด้วย "\n}\n"
+  const css = rawCss.replace(/\r\n/g, '\n');
   const start = css.indexOf('@media (prefers-reduced-transparency: reduce)');
   const block = css.slice(start, css.indexOf('\n}\n', start));
 
