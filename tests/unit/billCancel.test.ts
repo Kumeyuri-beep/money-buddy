@@ -58,7 +58,7 @@ describe('ผูกรายการจ่ายกับบิลและร�
       { accountId: categoryId, amount: 100 },
       { accountId: walletId, amount: -100 },
     ];
-    const base = { id: 'x', date: '2026-11-04', memo: 'm', lines };
+    const base = { id: 'x', date: '2026-11-04', memo: 'm', source: 'recurring' as const, lines };
     const accounts = [
       { id: categoryId, type: 'expense' as const, name: 'c', currency: 'THB' },
       { id: walletId, type: 'asset' as const, name: 'w', currency: 'THB' },
@@ -152,6 +152,47 @@ describe('ยกเลิกการจ่ายบิล (atomic)', () => {
     await expect(cancelBillPayment(db, 'pay-1')).rejects.toBeInstanceOf(StorageError);
     expect(await db.entries.get('pay-1')).toBeDefined();
     expect((await db.bills.get('bill-1'))?.lastPaidMonth).toBe('2026-11');
+  });
+});
+
+describe('ข้อมูลลิงก์เสีย (ผลตรวจ money-auditor)', () => {
+  const lines = () => [
+    { accountId: categoryId, amount: 100 },
+    { accountId: walletId, amount: -100 },
+  ];
+
+  it('before ต้องมาก่อน cycle: createEntry ปฏิเสธ before >= cycle และอนาคตไม่หลุดเข้า lastPaidMonth', async () => {
+    const accounts = await db.accounts.toArray();
+    const mk = (before: string) =>
+      createEntry(accounts, { id: 'x', date: '2026-11-04', memo: 'm', source: 'recurring', bill: { id: 'b', cycle: '2026-10', before }, lines: lines() });
+    expect(() => mk('2026-10')).toThrow();
+    expect(() => mk('2099-12')).toThrow();
+    expect(mk('2026-09').bill?.before).toBe('2026-09');
+  });
+
+  it('ข้อมูลเสียในฐาน (before >= cycle) -> ยกเลิกถูกปฏิเสธก่อนลบ ไม่ตั้ง lastPaidMonth อนาคต', async () => {
+    await addBill(db, bill(), '2026-11-04');
+    await pay();
+    const e = (await db.entries.get('pay-1'))!;
+    await db.entries.put({ ...e, bill: { id: 'bill-1', cycle: '2026-11', before: '2099-12' } });
+    await expect(cancelBillPayment(db, 'pay-1')).rejects.toBeInstanceOf(StorageError);
+    await db.entries.put({ ...e, bill: { id: 'bill-1', cycle: '2026-11', before: '2026-11' } });
+    await expect(cancelBillPayment(db, 'pay-1')).rejects.toBeInstanceOf(StorageError);
+    expect(await db.entries.get('pay-1')).toBeDefined();
+    expect((await db.bills.get('bill-1'))?.lastPaidMonth).toBe('2026-11');
+  });
+
+  it('ลิงก์บิลใช้ได้เฉพาะ source recurring และ deleteEntry ไม่ลบรายการที่มีลิงก์แบบเงียบๆ', async () => {
+    const accounts = await db.accounts.toArray();
+    expect(() =>
+      createEntry(accounts, { id: 'x', date: '2026-11-04', memo: 'm', bill: { id: 'b', cycle: '2026-11' }, lines: lines() }),
+    ).toThrow();
+    await addBill(db, bill(), '2026-11-04');
+    await pay();
+    const e = (await db.entries.get('pay-1'))!;
+    await db.entries.put({ ...e, source: 'manual' }); // ข้อมูลเสีย: มีลิงก์แต่ source ผิด
+    await expect(deleteEntry(db, 'pay-1')).rejects.toBeInstanceOf(StorageError);
+    expect(await db.entries.get('pay-1')).toBeDefined();
   });
 });
 

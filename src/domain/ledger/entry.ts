@@ -74,7 +74,10 @@ export function createEntry(accounts: readonly Account[], input: NewEntry): Entr
   };
   if (input.groupId !== undefined) entry.groupId = input.groupId;
   if (input.createdAt !== undefined) entry.createdAt = input.createdAt;
-  if (input.bill !== undefined) entry.bill = checkBillLink(input.bill);
+  if (input.bill !== undefined) {
+    if (entry.source !== 'recurring') throw new LedgerError('ลิงก์บิลใช้ได้เฉพาะรายการจ่ายบิล (source recurring)');
+    entry.bill = checkBillLink(input.bill);
+  }
   return entry;
 }
 
@@ -91,6 +94,7 @@ function checkBillLink(link: unknown): BillLink {
     if (typeof l.before !== 'string' || !CYCLE.test(l.before)) {
       throw new LedgerError(`รอบก่อนหน้าของบิลไม่ถูกต้อง: "${String(l.before)}"`);
     }
+    if (l.before >= l.cycle) throw new LedgerError('รอบก่อนหน้าของบิลต้องมาก่อนรอบที่จ่าย');
     out.before = l.before;
   }
   return out;

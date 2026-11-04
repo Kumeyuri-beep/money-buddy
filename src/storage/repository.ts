@@ -127,7 +127,7 @@ export async function deleteEntry(db: MoneyDB, id: string): Promise<Entry> {
     const entry = await db.entries.get(id);
     if (!entry) throw new StorageError('ไม่พบรายการนี้ อาจถูกลบไปแล้ว');
     if (entry.source === 'system') throw new StorageError('ลบรายการยอดยกมาไม่ได้');
-    if (entry.source === 'recurring') {
+    if (entry.source === 'recurring' || entry.bill !== undefined) {
       // รายการจ่ายบิลที่ผูกกับบิลแล้ว: ลบ = ยกเลิกการจ่าย คืน lastPaidMonth พร้อมกัน (R15)
       if (!entry.bill) throw new StorageError(RECURRING_LOCKED);
       await cancelPaymentInTx(db, entry);
@@ -410,6 +410,9 @@ async function cancelPaymentInTx(db: MoneyDB, entry: Entry): Promise<Bill | unde
   const { lastPaidMonth: _current, ...rest } = bill;
   void _current;
   const restored: Bill = link.before === undefined ? rest : { ...rest, lastPaidMonth: link.before };
+  if (link.before !== undefined && link.before >= link.cycle) {
+    throw new StorageError('ข้อมูลลิงก์การจ่ายบิลผิดปกติ (รอบก่อนหน้าต้องมาก่อนรอบที่จ่าย) ไม่ลบรายการ');
+  }
   const bad = billProblem(restored);
   if (bad) throw new StorageError(`บิลไม่ถูกต้อง: ${bad}`);
   await db.entries.delete(entry.id);
