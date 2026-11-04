@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { localIsoDate, thaiDayLabel, thaiMonthKeyLabel } from '../app/dates';
 import { counterOptions, walletOptions } from '../app/entryForm';
+import { amountClass } from '../app/describe';
 import { groupByDate, monthsWithEntries, queryLedger, type LedgerFilter } from '../app/ledgerQuery';
 import { periodTotals } from '../domain/ledger/balance';
 import type { Entry } from '../domain/ledger/types';
@@ -159,7 +160,7 @@ export function LedgerView({ ledger, onAdd, onEdit, onDelete, onCancelPayment }:
                     <div>{entry.memo}</div>
                     <div className="muted small">{detail}</div>
                   </div>
-                  <div className={`num tx-${kind}`}>{amountText}</div>
+                  <div className={amountClass(kind, amountText)}>{amountText}</div>
                   <div className="tx-actions">
                     {cancelable && (
                       <button

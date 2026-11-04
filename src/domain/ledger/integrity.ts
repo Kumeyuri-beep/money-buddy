@@ -9,7 +9,8 @@ export type IntegrityIssueCode =
   | 'unknown-account'
   | 'non-integer'
   | 'zero-line'
-  | 'unbalanced';
+  | 'unbalanced'
+  | 'amount-overflow';
 
 export interface IntegrityIssue {
   code: IntegrityIssueCode;
@@ -93,14 +94,23 @@ export function runIntegrityCheck(
     }
     // ตรวจความสมดุลเฉพาะ Entry ที่ยอดเป็นจำนวนเต็มทั้งหมด เพื่อไม่ให้ซ้ำซ้อนกับ non-integer
     if (entry.lines.every((l) => Number.isSafeInteger(l.amount))) {
-      for (const [currency, total] of sumByCurrency(entry, byId)) {
-        if (total !== 0) {
-          issues.push({
-            code: 'unbalanced',
-            entryId: entry.id,
-            message: `ไม่สมดุลในสกุลเงิน ${currency}: ผลต่าง ${total}`,
-          });
+      try {
+        for (const [currency, total] of sumByCurrency(entry, byId)) {
+          if (total !== 0) {
+            issues.push({
+              code: 'unbalanced',
+              entryId: entry.id,
+              message: `ไม่สมดุลในสกุลเงิน ${currency}: ผลต่าง ${total}`,
+            });
+          }
         }
+      } catch (e) {
+        if (!(e instanceof RangeError)) throw e;
+        issues.push({
+          code: 'amount-overflow',
+          entryId: entry.id,
+          message: 'ยอดรวมของรายการใหญ่เกินช่วงที่คำนวณได้อย่างปลอดภัย',
+        });
       }
     }
   }

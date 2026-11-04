@@ -1,4 +1,5 @@
 import { roundHalfUp } from '../money/round';
+import { safeAdd, safeSub } from '../money/safe';
 import { indexAccounts } from './entry';
 import type { Account, Entry } from './types';
 
@@ -92,10 +93,10 @@ function sumByAccount(
     for (const line of entry.lines) {
       const account = byId.get(line.accountId);
       if (!account || account.currency !== CURRENCY) continue;
-      if (account.type === 'income') income.set(account.id, (income.get(account.id) ?? 0) - line.amount);
+      if (account.type === 'income') income.set(account.id, safeSub(income.get(account.id) ?? 0, line.amount));
       else if (account.type === 'expense') {
         const key = groupBills && entry.source === 'recurring' ? BILLS_ID : account.id;
-        expense.set(key, (expense.get(key) ?? 0) + line.amount);
+        expense.set(key, safeAdd(expense.get(key) ?? 0, line.amount));
       }
     }
   }

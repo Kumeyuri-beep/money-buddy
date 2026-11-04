@@ -71,12 +71,22 @@ function Label({ x, anchor, placed }: { x: number; anchor: 'start' | 'end'; plac
 }
 
 export function CashFlowSankey({ accounts, entries, today }: CashFlowSankeyProps) {
-  const months = useMemo(() => cashFlowMonths(accounts, entries), [accounts, entries]);
+  const monthsResult = useMemo(() => {
+    try {
+      return cashFlowMonths(accounts, entries);
+    } catch (error) {
+      // cashFlowMonths รวมยอดรายบัญชี: เกินช่วงปลอดภัยโยน RangeError ต้องไม่ล้มใน render
+      if (error instanceof RangeError) return 'too-large' as const;
+      throw error;
+    }
+  }, [accounts, entries]);
+  const months = monthsResult === 'too-large' ? [] : monthsResult;
   const [picked, setPicked] = useState<string | null>(null);
   const thisMonth = today.slice(0, 7);
   const month = picked !== null && months.includes(picked) ? picked : months.includes(thisMonth) ? thisMonth : months[0];
 
   const flow = useMemo(() => {
+    if (monthsResult === 'too-large') return 'too-large' as const;
     if (month === undefined) return null;
     try {
       return buildCashFlow(accounts, entries, month, today, { groupBills: true });
@@ -85,7 +95,7 @@ export function CashFlowSankey({ accounts, entries, today }: CashFlowSankeyProps
       if (error instanceof RangeError) return 'too-large' as const;
       throw error;
     }
-  }, [accounts, entries, month, today]);
+  }, [accounts, entries, month, today, monthsResult]);
 
   if (flow === 'too-large') {
     return (
