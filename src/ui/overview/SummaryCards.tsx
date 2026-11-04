@@ -126,7 +126,15 @@ function IncomeCard({
   );
 }
 
-function OutgoingCard({ state, onOpenLedger }: { state: Overview['outgoing']; onOpenLedger: () => void }) {
+function OutgoingCard({
+  state,
+  onOpenLedger,
+  onOpenBills,
+}: {
+  state: Overview['outgoing'];
+  onOpenLedger: () => void;
+  onOpenBills: () => void;
+}) {
   return (
     <Card label="OUTGOING" title="รายจ่ายเดือนนี้">
       {state.kind !== 'value' ? (
@@ -138,7 +146,7 @@ function OutgoingCard({ state, onOpenLedger }: { state: Overview['outgoing']; on
             บิล {formatBaht(satang(state.bills))} · ใช้จ่าย {formatBaht(satang(state.spend))}
           </p>
           {state.budget === null ? (
-            <p className="muted small summary-sub">ยังไม่ตั้งเป้างบ ตั้งได้ที่หน้า "บิลและเป้า"</p>
+            <Link onClick={onOpenBills}>ตั้งเป้างบ →</Link>
           ) : state.budget.over > 0 ? (
             <p className="slip-warn small" role="status">
               เกินเป้างบ {formatBaht(satang(state.budget.over))} (เป้า {formatBaht(satang(state.budget.limit))})
@@ -187,7 +195,7 @@ function SafeToSpendCard({ state, onOpenBills }: { state: Overview['safeToSpend'
       ) : state.kind === 'error' ? (
         <>
           <div className="summary-empty">คำนวณไม่ได้</div>
-          <p className="form-error small summary-sub" role="alert">
+          <p className="small summary-sub" role="status">⚠ 
             {state.message}
           </p>
           <Link onClick={onOpenBills}>ตรวจบิลและค่าตั้งค่า →</Link>
@@ -211,14 +219,15 @@ function SafeToSpendCard({ state, onOpenBills }: { state: Overview['safeToSpend'
           </p>
           {state.lowDays && state.shortfall === 0 && (
             <p className="slip-warn small" role="status">
-              เหลือไม่ถึง {LOW_DAYS_THRESHOLD} วันถึงเงินเดือน ตัวเลขต่อวันอาจไม่สมจริง
+              เหลือไม่ถึง {LOW_DAYS_THRESHOLD} วันถึงเงินเดือน ยอดต่อวันอาจดูสูงเกินจริง ควรเผื่อไว้
             </p>
           )}
           {state.invalidBills > 0 && (
-            <p className="form-error small" role="alert">
-              มีบิล {state.invalidBills} ใบข้อมูลผิด จึงหักบิลไม่ครบ
+            <p className="small" role="status">⚠ 
+              มีบิล {state.invalidBills} ใบข้อมูลผิด จึงหักบิลไม่ครบ ตรวจที่หน้า "บิลและเป้า"
             </p>
           )}
+          <Link onClick={onOpenBills}>ตั้งค่า →</Link>
         </>
       )}
     </Card>
@@ -306,7 +315,7 @@ export function SummaryCards({ accounts, entries, today, finance, onOpenLedger, 
     <section className="summary-grid" aria-label="สรุปภาพรวมเดือนนี้">
       <NetWorthCard state={o.netWorth} />
       <IncomeCard state={o.income} walletName={walletName} onOpenLedger={onOpenLedger} />
-      <OutgoingCard state={o.outgoing} onOpenLedger={onOpenLedger} />
+      <OutgoingCard state={o.outgoing} onOpenLedger={onOpenLedger} onOpenBills={onOpenBills} />
       <SurplusCard state={o.surplus} onOpenLedger={onOpenLedger} />
       <SafeToSpendCard state={o.safeToSpend} onOpenBills={onOpenBills} />
       <SavingsRateCard state={o.savingsRate} />

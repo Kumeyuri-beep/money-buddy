@@ -97,11 +97,13 @@ export function nextPayday(payDay: number, today: string): string {
 
 /**
  * วันเงินเดือนถัดไปที่ใช้คำนวณจริง: ถ้าผู้ใช้กำหนดวัน (override) และเป็นวัน "หลัง" วันนี้ ใช้วันนั้น
- * ไม่งั้น (ไม่ตั้ง / ผ่านไปแล้ว = หมดอายุ) คำนวณจากวันเงินเดือนประจำเดือนตามปกติ
+ * ไม่งั้น (ไม่ตั้ง / ผ่านไปแล้ว = หมดอายุ / ไกลเกิน 62 วัน = ถือว่าพิมพ์ผิด) คำนวณจากวันเงินเดือนประจำเดือนตามปกติ
  */
+/** override ที่ไกลเกินนี้ (วัน) ถูกมองว่าพิมพ์ผิดและไม่ใช้ กันบิลล้นหลายรอบ */
+const MAX_OVERRIDE_DAYS = 62;
+
 export function effectiveNextPayday(payDay: number, today: string, override?: string): string {
-  if (override !== undefined && override > today) {
-    daysBetween(today, override); // ตรวจรูปแบบวันที่ (โยน RangeError ถ้าไม่มีจริง)
+  if (override !== undefined && override > today && daysBetween(today, override) <= MAX_OVERRIDE_DAYS) {
     return override;
   }
   return nextPayday(payDay, today);

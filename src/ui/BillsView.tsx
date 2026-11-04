@@ -116,6 +116,14 @@ export function BillsView({ bills, settings, snapshot, today, onAdd, onEdit, onD
                 value={form.nextPaydayOverride ?? ''}
                 onChange={(e) => set({ nextPaydayOverride: e.target.value })}
               />
+              <button
+                type="button"
+                className="btn btn-ghost btn-small"
+                disabled={(form.nextPaydayOverride ?? '') === ''}
+                onClick={() => set({ nextPaydayOverride: '' })}
+              >
+                ล้างวันที่
+              </button>
               <p id="set-next-payday-hint" className="muted small">
                 ใช้ครั้งเดียว เมื่อเงินเดือนเข้าไม่ตรงวันปกติ พ้นวันนั้นแล้วระบบกลับไปใช้วันเงินเดือนปกติเอง
               </p>

@@ -22,15 +22,18 @@ export function UpcomingBillsPanel({ finance, today, onOpenBills }: Props) {
           </button>
         </>
       ) : panel.kind === 'error' ? (
-        <p role="alert" className="form-error">
+        <p role="status" className="small">⚠ 
           {panel.message}
         </p>
       ) : panel.kind === 'clear' ? (
         <>
           <div className="summary-empty">ไม่มีบิลค้างจ่ายในช่วงนี้</div>
+          <button type="button" className="card-link" onClick={onOpenBills}>
+            จัดการบิล →
+          </button>
           {panel.invalidBills > 0 && (
-            <p role="alert" className="form-error small">
-              มีบิล {panel.invalidBills} ใบข้อมูลผิด จึงยังไม่ถูกนับ
+            <p role="status" className="small">⚠ 
+              มีบิล {panel.invalidBills} ใบข้อมูลผิด จึงยังไม่ถูกนับ ตรวจที่หน้า "บิลและเป้า"
             </p>
           )}
         </>
@@ -56,8 +59,8 @@ export function UpcomingBillsPanel({ finance, today, onOpenBills }: Props) {
             {panel.hidden > 0 ? ` · ยังมีอีก ${panel.hidden} ใบ` : ''}
           </p>
           {panel.invalidBills > 0 && (
-            <p role="alert" className="form-error small">
-              มีบิล {panel.invalidBills} ใบข้อมูลผิด จึงยังไม่ถูกนับ
+            <p role="status" className="small">⚠ 
+              มีบิล {panel.invalidBills} ใบข้อมูลผิด จึงยังไม่ถูกนับ ตรวจที่หน้า "บิลและเป้า"
             </p>
           )}
           <button type="button" className="card-link" onClick={onOpenBills}>

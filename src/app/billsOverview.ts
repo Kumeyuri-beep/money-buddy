@@ -106,10 +106,11 @@ export function buildOutgoingSplit(
   today: string,
 ): OutgoingSplit {
   const range = { from: `${today.slice(0, 7)}-01`, to: today };
-  const total = periodTotals(accounts, entries, range, 'THB').expense;
+  // รายจ่ายสุทธิ (หักรายการคืนเงิน) ติดลบ = แสดงเป็น 0 เหมือน Sankey ไม่แสดงรายจ่ายติดลบ
+  const total = Math.max(0, periodTotals(accounts, entries, range, 'THB').expense);
   const recurring = entries.filter((e) => e.source === 'recurring');
-  // รายจ่ายของรายการจ่ายบิล คิดด้วย periodTotals ชุดเดียวกัน เพื่อให้ผลรวมตรงกันเสมอ (R4)
-  const bills = Math.min(total, periodTotals(accounts, recurring, range, 'THB').expense);
+  // รายจ่ายของรายการจ่ายบิล คิดด้วย periodTotals ชุดเดียวกัน บิล + ใช้จ่าย = รวมเสมอ (R4) ส่วนบิลไม่เกินรวมและไม่ติดลบ
+  const bills = Math.min(total, Math.max(0, periodTotals(accounts, recurring, range, 'THB').expense));
   const limit = settings.monthlyBudget;
   return {
     total,

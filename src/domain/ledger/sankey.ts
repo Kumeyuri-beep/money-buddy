@@ -22,7 +22,7 @@ const BPS = 10000;
 export type FlowNodeKind = 'income' | 'shortfall' | 'expense' | 'bills' | 'other' | 'leftover';
 
 /** รหัสบัญชีสมมติของโหนด "บิลประจำ" (ใช้เมื่อเปิด groupBills) */
-const BILLS_ID = 'bills';
+const BILLS_ID = '__bills__';
 const BILLS_NAME = 'บิลประจำ';
 
 export interface CashFlowOptions {

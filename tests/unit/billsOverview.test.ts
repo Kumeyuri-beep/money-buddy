@@ -167,6 +167,41 @@ describe('buildOutgoingSplit: แยกบิล / ใช้จ่าย + ง�
   });
 });
 
+describe('buildOutgoingSplit: รายการคืนเงิน (ผลตรวจ money-auditor)', () => {
+  const refund = (id: string, date: string, amount: number): Entry =>
+    createEntry(accounts, {
+      id,
+      date,
+      memo: id,
+      lines: [
+        { accountId: 'wallet-1', amount },
+        { accountId: 'expense-food', amount: -amount },
+      ],
+    });
+
+  it('มีแต่รายการคืนเงิน: รายจ่ายสุทธิติดลบแสดงเป็น 0 ไม่ใช่บิลติดลบ และงบเหลือไม่เกินเป้า', () => {
+    const r = buildOutgoingSplit(accounts, [...opening, refund('r', '2026-11-02', 50_000)], { monthlyBudget: 500_000 }, '2026-11-04');
+    expect(r).toMatchObject({ total: 0, bills: 0, spend: 0 });
+    expect(r.budget).toEqual({ limit: 500_000, remaining: 500_000, over: 0 });
+  });
+
+  it('จ่ายบิลแล้วมีคืนเงินหมวดอื่น: บิล + ใช้จ่ายยังเท่ารวม และไม่ติดลบ', () => {
+    const e = [...opening, spend('net', '2026-11-03', 100_000, 'recurring', 'expense-housing'), refund('r', '2026-11-04', 40_000)];
+    const r = buildOutgoingSplit(accounts, e, {}, '2026-11-04');
+    expect(r.bills + r.spend).toBe(r.total);
+    expect(r.bills).toBeGreaterThanOrEqual(0);
+    expect(r.spend).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('override วันเงินเดือนไกลเกิน 62 วัน = ไม่ใช้', () => {
+  it('62 วันใช้ได้ 63 วันไม่ใช้', () => {
+    expect(effectiveNextPayday(25, '2026-11-04', '2027-01-05')).toBe('2027-01-05'); // 62 วัน
+    expect(effectiveNextPayday(25, '2026-11-04', '2027-01-06')).toBe('2026-11-25'); // 63 วัน
+    expect(effectiveNextPayday(25, '2026-11-04', '2099-12-31')).toBe('2026-11-25');
+  });
+});
+
 describe('buildUpcomingPanel', () => {
   it('ยังไม่มีบิล = none · มีบิลแต่ไม่มีที่ต้องจ่ายในช่วง = none พร้อมจำนวนบิลทั้งหมด', () => {
     expect(buildUpcomingPanel({ bills: [], settings: {} }, '2026-11-04')).toMatchObject({ kind: 'no-bills' });
