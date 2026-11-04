@@ -1,4 +1,5 @@
 import { roundHalfUp } from '../money/round';
+import { safeAdd, safeSub } from '../money/safe';
 import { indexAccounts } from './entry';
 import { naturalBalance, periodTotals } from './balance';
 import type { Account, Entry } from './types';
@@ -57,7 +58,7 @@ function earliestDate(entries: readonly Entry[]): string | null {
 
 function sumNatural(accountList: readonly Account[], entries: readonly Entry[]): number {
   let total = 0;
-  for (const account of accountList) total += naturalBalance(account, entries);
+  for (const account of accountList) total = safeAdd(total, naturalBalance(account, entries));
   return total;
 }
 
@@ -73,7 +74,7 @@ export function netWorthAt(accounts: readonly Account[], entries: readonly Entry
     thb.filter((a) => a.type === 'liability'),
     upTo,
   );
-  return assets - liabilities;
+  return safeSub(assets, liabilities);
 }
 
 /** เงินสด = Σ ยอดบัญชี asset THB ที่ไม่ถูกเก็บถาวร ณ สิ้นวัน */
@@ -140,7 +141,7 @@ export function monthOverMonth(
   const previous = periodTotals(accounts, entries, { from: `${prevMonth}-01`, to: `${prevMonth}-${prevDay}` }, CURRENCY).expense;
   if (previous <= 0) return null; // 0 หรือติดลบ (เครดิตคืนเกินรายจ่าย) เทียบเป็นร้อยละไม่มีความหมาย
   const current = periodTotals(accounts, entries, { from: `${month}-01`, to: asOf }, CURRENCY).expense;
-  return ratioBps(current - previous, previous);
+  return ratioBps(safeSub(current, previous), previous);
 }
 
 /** อัตราออม = เหลือสุทธิ ÷ รายรับ เป็น bps ติดลบได้ รายรับ 0 = null */
@@ -154,7 +155,7 @@ export function netWorthDelta(series: readonly NetWorthPoint[]): number | null {
   const last = series[series.length - 1];
   const prev = series[series.length - 2];
   if (last === undefined || prev === undefined) return null;
-  return last.value - prev.value;
+  return safeSub(last.value, prev.value);
 }
 
 /**
@@ -187,7 +188,7 @@ export function completedMonthExpenses(
  */
 export function runwayTenths(cash: number, monthlyExpenses: readonly number[]): number | null {
   const count = monthlyExpenses.length;
-  const total = monthlyExpenses.reduce((sum, v) => sum + v, 0);
+  const total = monthlyExpenses.reduce((sum, v) => safeAdd(sum, v), 0);
   if (count === 0 || total === 0) return null;
   if (cash <= 0) return 0;
   return roundHalfUp(cash * 10 * count, total);
@@ -220,14 +221,14 @@ export function incomeChannels(
       const account = byId.get(line.accountId);
       if (account?.type === 'income' && account.currency === CURRENCY) {
         touchesIncome = true;
-        incomeNet.set(account.id, (incomeNet.get(account.id) ?? 0) - line.amount);
+        incomeNet.set(account.id, safeSub(incomeNet.get(account.id) ?? 0, line.amount));
       }
     }
     if (!touchesIncome) continue;
     for (const line of entry.lines) {
       const account = byId.get(line.accountId);
       if (account?.type === 'asset' && account.currency === CURRENCY) {
-        walletIn.set(account.id, (walletIn.get(account.id) ?? 0) + line.amount);
+        walletIn.set(account.id, safeAdd(walletIn.get(account.id) ?? 0, line.amount));
       }
     }
   }

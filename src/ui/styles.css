@@ -241,6 +241,8 @@ select { font: inherit; }
 .filters .field:first-child { flex: 2 1 260px; }
 .field input[type='search'] { min-height: 44px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(0, 0, 0, 0.25); color: var(--text); padding: 0 14px; }
 .ledger-summary { display: flex; flex-wrap: wrap; gap: 24px; padding: 0 4px; font-size: 15px; }
+.ledger-summary-warn:empty { display: none; }
+.ledger-summary-warn { flex: 1 1 100%; }
 .ledger-list { padding-top: 8px; }
 .day + .day { margin-top: 8px; }
 .day-label { margin: 16px 0 4px; font-size: 14px; font-weight: 600; color: var(--muted); }

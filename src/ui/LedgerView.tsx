@@ -34,9 +34,15 @@ export function LedgerView({ ledger, onAdd, onEdit, onDelete, onCancelPayment }:
   const groups = useMemo(() => groupByDate(rows), [rows]);
 
   // ยอดรวมของรายการที่แสดงอยู่ คำนวณด้วย periodTotals ตัวเดียวกับหน้าวันนี้
+  // ยอดเกินช่วงปลอดภัย (periodTotals โยน RangeError) ต้องไม่ทำให้ทั้งหน้าล้ม
   const totals = useMemo(() => {
     const shown = rows.map((r) => r.entry);
-    return periodTotals(accounts, shown, { from: '0000-01-01', to: '9999-12-31' });
+    try {
+      return periodTotals(accounts, shown, { from: '0000-01-01', to: '9999-12-31' });
+    } catch (e) {
+      if (e instanceof RangeError) return null;
+      throw e;
+    }
   }, [accounts, rows]);
 
   // ถ้าลบรายการสุดท้ายของเดือนที่เลือกอยู่ เดือนนั้นจะหายจากรายการ จึงคงไว้เป็นตัวเลือกให้ตรงกับค่าที่เลือก
@@ -112,14 +118,21 @@ export function LedgerView({ ledger, onAdd, onEdit, onDelete, onCancelPayment }:
           <span className="muted">รายการ </span>
           <strong className="num">{rows.length}</strong>
         </span>
-        <span>
-          <span className="muted">รายรับ </span>
-          <strong className="num income">{formatBaht(satang(totals.income))}</strong>
+        <span role="status" className="ledger-summary-warn slip-warn">
+          {totals === null ? '⚠ รวมยอดไม่ได้ เพราะมีรายการที่ยอดใหญ่ผิดปกติ ลองตรวจรายการที่ยอดสูงเกินจริง' : null}
         </span>
-        <span>
-          <span className="muted">รายจ่าย </span>
-          <strong className="num expense">{formatBaht(satang(totals.expense))}</strong>
-        </span>
+        {totals === null ? null : (
+          <>
+            <span>
+              <span className="muted">รายรับ </span>
+              <strong className="num income">{formatBaht(satang(totals.income))}</strong>
+            </span>
+            <span>
+              <span className="muted">รายจ่าย </span>
+              <strong className="num expense">{formatBaht(satang(totals.expense))}</strong>
+            </span>
+          </>
+        )}
       </section>
 
       <section className="solid card ledger-list">
