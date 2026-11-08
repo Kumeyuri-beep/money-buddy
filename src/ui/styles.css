@@ -375,11 +375,22 @@ select { font: inherit; }
 .auth-form .field { flex: none; }
 .auth-error, .auth-ok { min-height: 1.4em; color: var(--text); font-size: 14px; }
 .auth-form .btn { width: 100%; }
+/* ช่องรหัสผ่านเต็มความกว้าง + ปุ่มแสดง/ซ่อนเป็นไอคอนเล็กอยู่ในช่อง (ต้องมาหลัง .auth-form .btn เพื่อไม่ถูกยืดเต็มความกว้าง) */
+.password-row { position: relative; display: block; }
+.password-row input { width: 100%; box-sizing: border-box; padding-right: 56px; }
+.auth-form .password-row .password-toggle, .password-row .password-toggle {
+  position: absolute; top: 50%; right: 6px; transform: translateY(-50%);
+  width: 40px; height: 40px; min-height: 0; padding: 0; margin: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 10px; background: transparent; color: var(--text); cursor: pointer;
+}
+.password-row .password-toggle:hover { background: rgba(255, 255, 255, 0.1); }
+.password-row .password-toggle:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+.auth-local { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid rgba(255, 255, 255, 0.12); padding-top: 14px; }
+.auth-local p { margin: 0; }
+.auth-local .btn { width: 100%; line-height: 1.3; padding-block: 8px; }
 .auth-card .actions { display: flex; flex-wrap: wrap; gap: 12px; }
 .auth-sep { border: 0; border-top: 1px solid rgba(255, 255, 255, 0.12); margin: 8px 0; width: 100%; }
-.password-row { display: flex; gap: 8px; align-items: stretch; }
-.password-row input { flex: 1 1 auto; min-width: 0; }
-.password-row .btn { flex: none; white-space: nowrap; }
 
 /* ปุ่มออกจากระบบใต้การ์ดโปรไฟล์ในแถบเมนู */
 .nav-signout { width: 100%; margin-bottom: 6px; border-color: rgba(255, 255, 255, 0.35); }
