@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 const sources = import.meta.glob(
-  ['/src/domain/backup/*.ts', '/src/app/importVerify.ts', '/src/app/localBackup.ts', '/src/ui/backup.ts'],
+  ['/src/domain/backup/*.ts', '/src/app/importVerify.ts', '/src/app/localBackup.ts', '/src/app/migrate.ts', '/src/app/dataSource.ts', '/src/ui/backup.ts'],
   { query: '?raw', import: 'default', eager: true },
 ) as Record<string, string>;
+
+const uiFlow = import.meta.glob(['/src/ui/MigrationWizard.tsx', '/src/ui/DataSourceGate.tsx'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 
 /**
  * เจ้าของสั่ง (9 พ.ย. 2569): ห้ามลบข้อมูลใน Dexie จนกว่าจะยืนยันว่านำเข้าครบและยอดตรง
@@ -12,6 +14,14 @@ const sources = import.meta.glob(
 describe('การนำเข้าไม่แตะข้อมูลเดิมใน Dexie', () => {
   it('ไฟล์ที่เกี่ยวข้องมีอยู่ครบ (กัน glob ว่าง)', () => {
     expect(Object.keys(sources).length).toBeGreaterThanOrEqual(4);
+  });
+  it('หน้าย้ายข้อมูล/ด่านเลือกแหล่งข้อมูล: ใช้ข้อมูลในเครื่องแบบอ่านอย่างเดียว (ล้างได้เฉพาะข้อมูลออนไลน์ผ่านตัวแปร online)', () => {
+    for (const [path, text] of Object.entries(uiFlow)) {
+      expect(text, path).not.toMatch(/localLedgerRepository\(\)\s*\.\s*(resetAll|importBackup|saveInitialLedger|append|update|delete|add|save)/);
+      expect(text, path).not.toMatch(/\bdb\s*\.\s*\w+\s*\.\s*(clear|delete|bulkDelete|put|add|bulkAdd|update)\(/);
+      expect(text, path).not.toMatch(/deleteDatabase|indexedDB\.delete|localStorage\.(clear|removeItem)/);
+    }
+    expect(Object.keys(uiFlow)).toHaveLength(2);
   });
   it('ไม่มีการเรียก resetAll / clear / delete / bulkDelete / ล้างฐาน', () => {
     for (const [path, text] of Object.entries(sources)) {

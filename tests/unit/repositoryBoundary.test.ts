@@ -4,7 +4,7 @@ const ui = import.meta.glob('/src/ui/**/*.{ts,tsx}', { query: '?raw', import: 'd
 const app = import.meta.glob('/src/app/**/*.ts', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 
 /** หน้าจอเข้าถึงข้อมูลผ่าน LedgerRepository เท่านั้น (M2-C) ยกเว้นตัวช่วยย้ายข้อมูลเฉพาะ Dexie ที่จะหายไปใน M2-D */
-const DEXIE_ONLY = ['/src/ui/RepositoryContext.tsx', '/src/ui/App.tsx', '/src/ui/LocalDataGate.tsx'];
+const DEXIE_ONLY = ['/src/ui/RepositoryContext.tsx', '/src/ui/App.tsx', '/src/ui/DataSourceGate.tsx', '/src/ui/backup.ts'];
 
 describe('ขอบเขต repository', () => {
   it('src/ui ไม่ import db ตรง ยกเว้นไฟล์ที่ระบุ', () => {

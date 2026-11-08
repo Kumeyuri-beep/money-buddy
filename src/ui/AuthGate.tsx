@@ -4,8 +4,10 @@ import { usernameOfEmail } from '../domain/auth/credentials';
 import { authApi, loadProfile, supabase } from '../storage/supabase';
 import { AccountContext } from './AuthContext';
 import { ChangePasswordForm } from './ChangePasswordForm';
-import { LocalDataGate } from './LocalDataGate';
+import { DataSourceGate } from './DataSourceGate';
 import { LoginPage } from './LoginPage';
+import { PasswordPromptProvider } from './PasswordPrompt';
+import { setActiveLedgerRepository } from './RepositoryContext';
 
 type GateView =
   | { kind: 'loading' }
@@ -32,7 +34,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [view, setView] = useState<GateView>({ kind: 'loading' });
   const generation = useRef(0);
 
-  const show = useCallback((next: GateView) => setView((prev) => (sameView(prev, next) ? prev : next)), []);
+  const show = useCallback((next: GateView) => {
+    // ออกจากระบบ/ยังไม่ล็อกอิน: ทิ้ง repository ออนไลน์ของผู้ใช้เดิม (ปุ่มสำรองตอนแอปล้มต้องไม่ใช้ของคนก่อนหน้า)
+    if (next.kind === 'signed-out') setActiveLedgerRepository(null);
+    setView((prev) => (sameView(prev, next) ? prev : next));
+  }, []);
 
   const evaluate = useCallback(async () => {
     const mine = ++generation.current;
@@ -153,7 +159,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
     case 'ready':
       return account ? (
         <AccountContext.Provider key={view.userId} value={account}>
-          <LocalDataGate userId={view.userId}>{children}</LocalDataGate>
+          <PasswordPromptProvider>
+            <DataSourceGate userId={view.userId}>{children}</DataSourceGate>
+          </PasswordPromptProvider>
         </AccountContext.Provider>
       ) : null;
   }
