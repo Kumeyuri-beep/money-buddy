@@ -1,4 +1,5 @@
 import { createEntry } from '../domain/ledger/entry';
+import { accountProblem } from '../domain/ledger/limits';
 import type { Account, Entry } from '../domain/ledger/types';
 import { parseBahtToSatang } from '../domain/money/satang';
 import type { Ledger } from '../storage/repository';
@@ -62,6 +63,10 @@ export function buildInitialLedger(wallets: readonly WalletInput[], date: string
   }));
   // กำหนดลำดับแสดงผลตามที่สร้าง (ฐานข้อมูลคืนค่าเรียงตามรหัส ซึ่งไม่ใช่ลำดับที่ต้องการ)
   const accounts: Account[] = [...walletAccounts, ...BASE_ACCOUNTS].map((a, i) => ({ ...a, sortOrder: i }));
+  for (const account of accounts) {
+    const problem = accountProblem(account);
+    if (problem) throw new SetupError(`${problem} (${account.name.slice(0, 30)})`);
+  }
 
   const entries: Entry[] = [];
   cleaned.forEach((w, i) => {

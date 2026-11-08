@@ -7,6 +7,7 @@
  */
 
 import { addDays, addMonths, dueDateIn, effectiveNextPayday, isCycleMonth, monthOf } from './calendar';
+import { lengthWithin, MAX_ID_LENGTH, MAX_NAME_LENGTH } from '../ledger/limits';
 import type { Bill, BillProblem, UpcomingBill } from './types';
 
 export class BillError extends Error {
@@ -18,6 +19,8 @@ export class BillError extends Error {
 
 /** เหตุผลที่บิลนี้ข้อมูลผิดรูป (null = ใช้ได้) ตรวจ ยอด วันครบกำหนด lastPaidMonth startMonth */
 export function billProblem(bill: Bill): string | null {
+  if (!lengthWithin(bill.id, 1, MAX_ID_LENGTH)) return `รหัสบิลต้องยาว 1-${MAX_ID_LENGTH} ตัวอักษร`;
+  if (!lengthWithin(bill.name, 1, MAX_NAME_LENGTH)) return `ชื่อบิลต้องยาว 1-${MAX_NAME_LENGTH} ตัวอักษร`;
   if (!Number.isSafeInteger(bill.amount) || bill.amount <= 0) {
     return `ยอดต้องเป็นจำนวนเต็มสตางค์ที่มากกว่า 0 (ได้รับ ${String(bill.amount)})`;
   }
