@@ -149,6 +149,30 @@ describe('แยกข้อมูลระหว่างผู้ใช้ (RL
     expect(cross.error).not.toBeNull();
   });
 
+  it('M2-G: สถานะจ่ายของบิลแก้ตรงๆ ผ่าน REST ไม่ได้ · จ่าย/ยกเลิก/เลิกทำการลบบิลยังใช้ได้ (R15)', async () => {
+    const { client } = await signedIn(0);
+    const accounts = (await a.loadLedger()).accounts;
+    const wallet = accounts.find((x) => x.type === 'asset')!;
+    const category = accounts.find((x) => x.type === 'expense')!;
+    await a.addBill({ id: 'bill-lock', name: 'ล็อก', amount: 100, dueDay: 5, walletId: wallet.id, categoryId: category.id }, '2026-11-04');
+    const direct = await client.from('bills').update({ last_paid_month: '2026-11' }).eq('id', 'bill-lock');
+    expect(direct.error).not.toBeNull();
+    const forged = await client.from('bills').insert({ id: 'bill-forged', name: 'x', amount: 1, due_day: 1, last_paid_month: '2026-11' });
+    expect(forged.error).not.toBeNull();
+    await a.payBill('bill-lock', { today: '2026-11-04', entryId: 'lock-pay' });
+    const lastPaid = async () => (await a.loadBills()).find((x) => x.id === 'bill-lock')?.lastPaidMonth;
+    expect(await lastPaid()).toBe('2026-11');
+    const clear = await client.from('bills').update({ last_paid_month: null }).eq('id', 'bill-lock');
+    expect(clear.error).not.toBeNull();
+    expect(await lastPaid()).toBe('2026-11');
+    // เลิกทำการลบบิล: ใส่บิลกลับพร้อมสถานะเดิม ผ่านเพราะมีรายการจ่ายรองรับ
+    const removed = await a.deleteBill('bill-lock');
+    await a.addBill(removed, '2026-11-09');
+    expect(await lastPaid()).toBe('2026-11');
+    await a.cancelLatestBillPayment('bill-lock');
+    expect(await lastPaid()).toBeUndefined();
+  });
+
   it('คนที่ไม่ได้ล็อกอิน (anon) อ่านและเรียก RPC ไม่ได้เลย', async () => {
     const anon = createClient(live.url, live.anonKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
     const read = await anon.from('entries').select('id');
