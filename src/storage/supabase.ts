@@ -30,6 +30,14 @@ export const authApi: AuthApi | null = supabase
 /** ส่วน RPC ที่ use case บัญชีใช้ (ยอมรับนโยบาย / ลบบัญชี) */
 export const accountApi: RpcApi | null = supabase ? { rpc: (name, args) => supabase.rpc(name, args) } : null;
 
+/** เวลาที่เปลี่ยนรหัสผ่านล่าสุดของตัวเอง (ใช้แสดง cooldown เท่านั้น · null = ไม่มี/อ่านไม่ได้) */
+export async function loadPasswordChangedAt(client: SupabaseClient): Promise<string | null> {
+  const { data, error } = await client.from('profiles').select('password_changed_at').maybeSingle();
+  if (error) return null;
+  const value = (data as { password_changed_at?: unknown } | null)?.password_changed_at;
+  return typeof value === 'string' ? value : null;
+}
+
 export type ProfileLoad = { ok: true; profile: ProfileRow | null } | { ok: false };
 
 /** อ่านแถว profiles ของตัวเอง (RLS ให้เห็นแถวเดียว) · ok=false = อ่านไม่สำเร็จ (เครือข่าย/สิทธิ์) */
