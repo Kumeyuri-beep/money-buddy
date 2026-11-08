@@ -111,6 +111,8 @@ export async function readSlipImage(file: File | Blob, options: ReadSlipOptions 
     try {
       worker = await tesseract.createWorker(['tha', 'eng'], tesseract.OEM.LSTM_ONLY, {
         workerPath: ocrUrl('worker.min.js'),
+        // โหลดตัวอ่านจากไฟล์ในโดเมนเองโดยตรง ไม่สร้าง worker จาก Blob (ให้ CSP worker-src เป็น 'self' เท่านั้น)
+        workerBlobURL: false,
         corePath: ocrUrl('core'),
         langPath: ocrUrl('lang'),
         gzip: true,
