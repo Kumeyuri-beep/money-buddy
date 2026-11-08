@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { chooseDataSource, readMigrationFlag } from '../app/dataSource';
-import { localDataAccess } from '../app/localOwner';
 import { db } from '../storage/instance';
-import { getLocalOwner, hasLocalData, setLocalOwner } from '../storage/localOwner';
+import { getLocalOwner, hasLocalData } from '../storage/localOwner';
 import { StorageError } from '../storage/repository';
 import { supabase } from '../storage/supabase';
 import { createSupabaseRepository } from '../storage/supabaseRepository';
@@ -12,12 +11,12 @@ import { MigrationWizard } from './MigrationWizard';
 import { usePasswordPrompt } from './PasswordPrompt';
 import { RepositoryProvider, setActiveLedgerRepository } from './RepositoryContext';
 
-type State = 'checking' | 'online' | 'migrate' | 'verify' | 'ask-bind' | 'error';
+type State = 'checking' | 'online' | 'migrate' | 'verify' | 'error';
 
 /**
  * ด่านเลือกแหล่งข้อมูลหลังล็อกอิน (M2-D2 แทน LocalDataGate)
  * - ออนไลน์มีข้อมูลแล้ว -> ใช้บัญชีออนไลน์ (ข้อมูลเดิมในเครื่องไม่ถูกแตะ)
- * - ออนไลน์ว่าง + มีข้อมูลเดิมของบัญชีนี้ในเครื่อง -> หน้าย้ายข้อมูล · ยังไม่มีเจ้าของ -> ถามก่อนผูก
+ * - ออนไลน์ว่าง + มีข้อมูลเดิมของบัญชีนี้ในเครื่อง -> หน้าย้ายข้อมูล
  * - นำเข้าแล้วแต่ยังไม่ยืนยันยอด -> หน้าตรวจยอดต่อ
  * - ข้อมูลเดิมในเครื่องของบัญชีอื่นไม่ถูกเสนอให้ผู้ใช้นี้ (ตั้งต้นออนไลน์ใหม่) · ไม่มีโค้ดส่วนไหนลบข้อมูลในเครื่อง
  */
@@ -71,17 +70,6 @@ export function DataSourceGate({ userId, children }: { userId: string; children:
 
   const recheck = useCallback(() => setAttempt((n) => n + 1), []);
 
-  const bind = async () => {
-    try {
-      // ผูกเฉพาะเมื่อยังไม่มีเจ้าของจริงๆ (กันแท็บอื่นผูกไปก่อนแล้วเราทับ)
-      const decision = localDataAccess({ ownerId: await getLocalOwner(db), userId, hasData: await hasLocalData(db) });
-      if (decision === 'ask' || decision === 'bind') await setLocalOwner(db, userId);
-      recheck();
-    } catch {
-      setState('error');
-    }
-  };
-
   switch (state) {
     case 'checking':
       return (
@@ -96,26 +84,6 @@ export function DataSourceGate({ userId, children }: { userId: string; children:
     case 'migrate':
     case 'verify':
       return online ? <MigrationWizard key={state} userId={userId} online={online} mode={state} onDone={recheck} /> : null;
-    case 'ask-bind':
-      return (
-        <main className="auth-page">
-          <section className="solid card auth-card" aria-labelledby="bind-title">
-            <h1 id="bind-title">ข้อมูลในเครื่องนี้เป็นของคุณหรือไม่?</h1>
-            <p>
-              เบราว์เซอร์นี้มีข้อมูลการเงินที่บันทึกไว้เดิม ถ้าเป็นข้อมูลของคุณ กดยืนยันเพื่อย้ายขึ้นบัญชีออนไลน์ของ <strong>{username}</strong>
-            </p>
-            <p className="muted">ข้อมูลเดิมจะไม่ถูกลบหรือแก้ไข หลังยืนยันแล้วบัญชีอื่นที่ล็อกอินบนเบราว์เซอร์นี้จะไม่ถูกเสนอให้ย้ายข้อมูลชุดนี้</p>
-            <div className="actions">
-              <button className="btn btn-primary" onClick={() => void bind()}>
-                ยืนยันว่าข้อมูลนี้เป็นของฉัน ({username})
-              </button>
-              <button className="btn btn-ghost" onClick={() => void signOut()}>
-                ไม่ใช่ของฉัน ออกจากระบบ
-              </button>
-            </div>
-          </section>
-        </main>
-      );
     case 'error':
       return (
         <main className="auth-page">
