@@ -161,7 +161,7 @@ project/                       ← โค้ดล่าสุดทั้งห
 
 ## 13. สถานะ M2 และ backlog (อัปเดต 8 พ.ย. 2569)
 
-M2-A (ตาราง/RLS/RPC ใส่ลง Supabase แล้ว) · M2-pre / M2-pre-2 (โดเมนตรงกับ DB) · R15 เวลาไทย · นาฬิกาไทย · M2-B1 (ล็อกอินฝั่งเว็บ) merge แล้ว · M2-B2 (สคริปต์ผู้ดูแล + spike) กำลังทำ **ต้องใช้ `C:\Users\owenn\.money-buddy-admin\admin.env` ที่เจ้าของใส่เอง** · ถัดไป M2-C (repository interface) → M2-D (นำเข้า JSON) → M2-E (PDPA) → M2-F (ทดสอบ 2 ผู้ใช้)
+M2-A (ตาราง/RLS/RPC ใส่ลง Supabase แล้ว) · M2-pre / M2-pre-2 (โดเมนตรงกับ DB) · R15 เวลาไทย · นาฬิกาไทย · M2-B1 (ล็อกอินฝั่งเว็บ) merge แล้ว · M2-B2 เสร็จ (spike จริงผ่าน 19/19 โดเมน `.internal` ใช้ได้) · **M2-C1 กำลังทำ:** interface `LedgerRepository` + `createDexieRepository` + `RepositoryContext` + เทสต์สัญญา `tests/unit/repositoryContract.ts` · ถัดไป **M2-C2** `SupabaseRepository` ผ่านสัญญาชุดเดียวกัน → M2-D (นำเข้า JSON) → M2-E (PDPA) → M2-F (ทดสอบ 2 ผู้ใช้)
 
 การตัดสินใจล่าสุดของเจ้าของ (8 พ.ย. 2569): JWT expiry ตั้งไม่ได้ (1 ชม.) → reset-password ลบ session ทั้งหมดเสมอ · session คง localStorage + มีปุ่ม "ออกจากระบบ" ในแถบเมนู · key ผู้ดูแลเก็บนอกโปรเจกต์เท่านั้น
 

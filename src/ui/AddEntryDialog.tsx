@@ -6,8 +6,7 @@ import { newId } from '../app/ids';
 import { findDuplicateEntry } from '../app/slipDuplicates';
 import type { SlipDraft } from '../app/slipParser';
 import type { Account, Entry } from '../domain/ledger/types';
-import { db } from '../storage/instance';
-import { appendEntry, updateEntry } from '../storage/repository';
+import { useRepository } from './RepositoryContext';
 
 interface Props {
   accounts: Account[];
@@ -30,6 +29,7 @@ const KINDS: { value: FormKind; label: string }[] = [
 
 /** ฟอร์มบันทึกรายการ แสดงเป็น dialog ของเบราว์เซอร์ (กด Esc ปิดได้ และโฟกัสอยู่ในฟอร์ม) */
 export function AddEntryDialog({ accounts, entries = [], scan, editing, onClose, onSaved }: Props) {
+  const repo = useRepository();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const wallets = walletOptions(accounts);
   const [initial] = useState(() => (editing ? entryToForm(accounts, editing) : (scan?.form ?? null)));
@@ -99,11 +99,11 @@ export function AddEntryDialog({ accounts, entries = [], scan, editing, onClose,
       if (editing) {
         // คงแหล่งที่มาเดิม (เช่น สแกนสลิป) และกลุ่มเดิมไว้
         const input = { ...buildEntry(accounts, form, editing.id), source: editing.source, groupId: editing.groupId };
-        const { before, after } = await updateEntry(db, editing.id, input);
+        const { before, after } = await repo.updateEntry(editing.id, input);
         onSaved(after, before);
       } else {
         const built = buildEntry(accounts, form, newId('e'));
-        const entry = await appendEntry(db, scan ? { ...built, source: 'ocr' as const } : built);
+        const entry = await repo.appendEntry(scan ? { ...built, source: 'ocr' as const } : built);
         onSaved(entry);
       }
     } catch (e) {

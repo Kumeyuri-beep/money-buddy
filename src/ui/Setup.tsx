@@ -1,14 +1,14 @@
 import { useState, type FormEvent } from 'react';
 import { thaiIsoDate } from '../app/dates';
 import { buildInitialLedger, DEFAULT_WALLETS, SetupError, type WalletInput } from '../app/setup';
-import { db } from '../storage/instance';
-import { saveInitialLedger } from '../storage/repository';
+import { useRepository } from './RepositoryContext';
 
 interface SetupProps {
   onDone: () => void;
 }
 
 export function Setup({ onDone }: SetupProps) {
+  const repo = useRepository();
   const [wallets, setWallets] = useState<WalletInput[]>(() => DEFAULT_WALLETS.map((w) => ({ ...w })));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -23,7 +23,7 @@ export function Setup({ onDone }: SetupProps) {
     setSaving(true);
     try {
       const ledger = buildInitialLedger(wallets, thaiIsoDate());
-      await saveInitialLedger(db, ledger);
+      await repo.saveInitialLedger(ledger);
       onDone();
     } catch (e) {
       setError(e instanceof SetupError || e instanceof Error ? e.message : String(e));

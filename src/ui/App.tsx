@@ -12,26 +12,12 @@ import type { Entry } from '../domain/ledger/types';
 import { readSlipImage, type SlipOcrPhase } from '../ocr/readSlip';
 import { db } from '../storage/instance';
 import {
-  addBill,
-  appendEntry,
-  cancelBillPayment,
-  cancelLatestBillPayment,
   clearMigrationSnapshot,
-  deleteBill,
-  deleteEntry,
-  isEmpty,
-  loadBills,
-  loadLedger,
-  loadSettings,
   migrationSnapshotInfo,
-  resetAll,
-  saveSettings,
-  undoPayBill,
-  updateBill,
-  updateEntry,
   type Ledger,
   type PayBillResult,
 } from '../storage/repository';
+import { useRepository } from './RepositoryContext';
 import { AddEntryDialog } from './AddEntryDialog';
 import { BillDialog } from './BillDialog';
 import { BillsView, type SnapshotInfo } from './BillsView';
@@ -81,6 +67,7 @@ const TOAST_MS = 10_000;
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export function App() {
+  const repo = useRepository();
   const [state, setState] = useState<State>({ status: 'loading' });
   const { username, signOut } = useAccount();
   const [view, setView] = useState<ViewId>('today');
@@ -93,12 +80,12 @@ export function App() {
 
   const refresh = useCallback(async () => {
     try {
-      if (await isEmpty(db)) setState({ status: 'setup' });
+      if (await repo.isEmpty()) setState({ status: 'setup' });
       else {
         const [ledger, bills, settings, snapshot] = await Promise.all([
-          loadLedger(db),
-          loadBills(db),
-          loadSettings(db),
+          repo.loadLedger(),
+          repo.loadBills(),
+          repo.loadSettings(),
           migrationSnapshotInfo(db),
         ]);
         setState({ status: 'ready', ledger, bills, settings, snapshot });
@@ -106,7 +93,7 @@ export function App() {
     } catch (e) {
       setState({ status: 'error', message: `เปิดที่เก็บข้อมูลไม่ได้: ${String(e)}` });
     }
-  }, []);
+  }, [repo]);
 
   useEffect(() => {
     void refresh();
@@ -169,7 +156,7 @@ export function App() {
       'ล้างข้อมูลทั้งหมดและเริ่มใหม่?\nรวมบิลประจำ ค่าตั้งค่า และสำเนาก่อนอัปเกรด\nการกระทำนี้ย้อนกลับไม่ได้ ควรกด "สำรองข้อมูล" ก่อน',
     );
     if (!ok) return;
-    await resetAll(db);
+    await repo.resetAll();
     setToast(null);
     setView('today');
     await refresh();
@@ -214,7 +201,7 @@ export function App() {
             message: `แก้ไขแล้ว: ${label(entry)}`,
             undo: () =>
               run(async () => {
-                await updateEntry(db, before.id, before);
+                await repo.updateEntry(before.id, before);
                 return { message: 'ย้อนการแก้ไขแล้ว' };
               }),
           }
@@ -222,7 +209,7 @@ export function App() {
             message: `บันทึกแล้ว: ${label(entry)}`,
             undo: () =>
               run(async () => {
-                await deleteEntry(db, entry.id);
+                await repo.deleteEntry(entry.id);
                 return { message: 'เลิกทำแล้ว รายการถูกลบ' };
               }),
           },
@@ -231,12 +218,12 @@ export function App() {
 
   const remove = (entry: Entry) =>
     void run(async () => {
-      const removed = await deleteEntry(db, entry.id);
+      const removed = await repo.deleteEntry(entry.id);
       return {
         message: `ลบแล้ว: ${label(removed)}`,
         undo: () =>
           run(async () => {
-            await appendEntry(db, removed);
+            await repo.appendEntry(removed);
             return { message: 'กู้คืนรายการแล้ว' };
           }),
       };
@@ -252,7 +239,7 @@ export function App() {
             message: `แก้ไขบิลแล้ว: ${bill.name}`,
             undo: () =>
               run(async () => {
-                await updateBill(db, before);
+                await repo.updateBill(before);
                 return { message: 'ย้อนการแก้ไขบิลแล้ว' };
               }),
           }
@@ -260,7 +247,7 @@ export function App() {
             message: `เพิ่มบิลแล้ว: ${bill.name} ${billAmountText(bill)}`,
             undo: () =>
               run(async () => {
-                await deleteBill(db, bill.id);
+                await repo.deleteBill(bill.id);
                 return { message: 'เลิกทำแล้ว บิลถูกลบ' };
               }),
           },
@@ -270,12 +257,12 @@ export function App() {
   const removeBill = (bill: Bill) => {
     if (!window.confirm(`ลบบิล "${bill.name}"?\nรายการเงินที่เคยจ่ายไปแล้วไม่ถูกลบ`)) return;
     void run(async () => {
-      const removed = await deleteBill(db, bill.id);
+      const removed = await repo.deleteBill(bill.id);
       return {
         message: `ลบบิลแล้ว: ${removed.name}`,
         undo: () =>
           run(async () => {
-            await addBill(db, removed, today);
+            await repo.addBill(removed, today);
             return { message: 'กู้คืนบิลแล้ว' };
           }),
       };
@@ -288,7 +275,7 @@ export function App() {
       message: `จ่ายบิลแล้ว: ${row.bill.name} ${billAmountText(row.bill)} รอบ ${thaiMonthKeyLabel(result.cycle)}`,
       undo: () =>
         run(async () => {
-          await undoPayBill(db, { entryId: result.entry.id, billId: row.bill.id, cycle: result.cycle, before: result.before });
+          await repo.undoPayBill({ entryId: result.entry.id, billId: row.bill.id, cycle: result.cycle, before: result.before });
           return { message: 'เลิกทำแล้ว รายการจ่ายบิลถูกลบ' };
         }),
     }));
@@ -303,7 +290,7 @@ export function App() {
   const cancelPaymentOfEntry = (entry: Entry) => {
     if (!confirmCancel(entry.memo, entry.bill?.cycle)) return;
     void run(async () => {
-      await cancelBillPayment(db, entry.id);
+      await repo.cancelBillPayment(entry.id);
       return { message: `ยกเลิกการจ่ายแล้ว: ${entry.memo}` };
     });
   };
@@ -311,7 +298,7 @@ export function App() {
   const cancelPaymentOfBill = (bill: Bill) => {
     if (!confirmCancel(bill.name, bill.lastPaidMonth)) return;
     void run(async () => {
-      await cancelLatestBillPayment(db, bill.id);
+      await repo.cancelLatestBillPayment(bill.id);
       return { message: `ยกเลิกการจ่ายแล้ว: ${bill.name}` };
     });
   };
@@ -381,7 +368,7 @@ export function App() {
           onPay={(row) => setDialog({ mode: 'pay', row })}
           onCancelPay={cancelPaymentOfBill}
           onSaveSettings={async (settings) => {
-            await saveSettings(db, settings);
+            await repo.saveSettings(settings);
             await refresh();
           }}
           onClearSnapshot={clearSnapshot}
