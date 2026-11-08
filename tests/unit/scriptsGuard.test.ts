@@ -126,6 +126,10 @@ describe('ไฟล์ตั้งค่าโปรเจกต์', () => {
         expect(deny, `${tool}(${pattern})`).toContain(`${tool}(${pattern})`);
       }
     }
+    // ชุดทดสอบจริงที่ใช้ key ผู้ดูแล: ห้ามสั่ง vitest ตรงๆ ด้วย (เจ้าของอนุญาต 9 พ.ย. 2569)
+    for (const tool of ['Bash', 'PowerShell']) {
+      expect(deny, tool + ' vitest.live').toContain(tool + '(*vitest.live*)');
+    }
     // กฎ git push เดิมยังอยู่ครบ
     expect(deny).toContain('Bash(git push)');
     expect(deny).toContain('Bash(git push --force*)');

@@ -152,7 +152,11 @@
       "PowerShell(& node *spike-auth*)",
       "PowerShell(Start-Process *create-user*)",
       "PowerShell(Start-Process *reset-password*)",
-      "PowerShell(Start-Process *spike-auth*)"
+      "PowerShell(Start-Process *spike-auth*)",
+      "Bash(*vitest.live*)",
+      "Bash(*admin:live-contract*)",
+      "PowerShell(*vitest.live*)",
+      "PowerShell(*admin:live-contract*)"
     ]
   }
 }
