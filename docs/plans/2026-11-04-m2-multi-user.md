@@ -169,6 +169,7 @@
 | **M2-C** | interface `LedgerRepository` + `DexieRepository` (ย้ายโค้ดเดิม) + `SupabaseRepository` + contract tests | money-auditor | เทสต์เดิมทั้งหมดผ่านกับ Dexie · ชุดเดียวกันผ่านกับ Supabase |
 | **M2-D** | นำเข้าไฟล์สำรอง JSON เดิม → RPC · ตรวจ R16 ก่อนส่ง · รายงานผล · ไม่ทับข้อมูลที่มีอยู่ · **สำรอง JSON ก่อนทุกครั้ง** | money-auditor + security-auditor | นำเข้าซ้ำไม่ซ้ำซ้อน · ข้อมูลเสียถูกปฏิเสธทั้งก้อน |
 | **M2-E** | PDPA: นโยบาย (ระบุว่าเจ้าของโปรเจกต์เห็นข้อมูลได้จากหน้าแอดมิน), ยินยอมก่อนใช้ (`consented_at`), ส่งออก JSON, ลบบัญชี+ข้อมูล | security-auditor + design-critic | ลบแล้วข้อมูลหายจริงทุกตาราง |
+| **M2-G** | ล็อก `bills.last_paid_month` ให้เปลี่ยนได้เฉพาะผ่านเส้นทางจ่าย/ยกเลิกบิล (trigger: ห้าม UPDATE/INSERT ค่านี้ตรงๆ ผ่าน REST; เส้นทางจ่าย/ยกเลิกที่ trigger `entries_bill_link`/`entries_guard` ทำอยู่ผ่านได้) · **ต้องเสร็จก่อนเชิญผู้ใช้จริง** (เจ้าของสั่ง 9 พ.ย. 2569, R15 "ทุกเส้นทาง") · addBill ที่ส่ง lastPaidMonth มา (เช่น นำเข้า JSON) ต้องมีทางเฉพาะกิจใน M2-D | security-auditor + money-auditor | ผู้ใช้เรียก PATCH bills ตั้ง last_paid_month ตรงๆ แล้วถูกปฏิเสธ · จ่าย/ยกเลิก/นำเข้ายังทำงาน |
 | **M2-F** | ทดสอบ 2 ผู้ใช้อ่านข้อมูลกันไม่ได้ (อ่าน/เขียน/ลบ/RPC) เป็นเทสต์อัตโนมัติ + ผู้ใช้จริงคนแรก | security-auditor | ผู้ใช้ B เรียก RPC ด้วย id ของ A แล้วไม่เห็น/แก้ไม่ได้ |
 
 ข้อกำหนดทุก Ticket: branch `auto/m2-*` จาก `origin/main` · TDD · `npm test` + `typecheck` + `build` · commit ระบุกฎ · **ก่อน migration ที่กระทบข้อมูลจริงต้องมี Snapshot/สำรอง** (R6) · **หยุดถามเจ้าของเมื่อต้องใช้ URL/key หรือแตะข้อมูลจริง**
