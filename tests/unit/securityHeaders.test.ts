@@ -51,6 +51,11 @@ describe('ส่วนหัวความปลอดภัยใน vercel.js
       }
     }
     expect(csp.get('font-src')).toEqual(['https://fonts.gstatic.com']);
+    // รัดแล้ว (หลังเจ้าของลอง Preview): ไม่มีรูป data:/blob: ไม่มี worker จาก Blob ไม่มีฟอร์มที่ส่งแบบเบราว์เซอร์เอง ไม่มี manifest
+    expect(csp.get('img-src')).toEqual(["'self'"]);
+    expect(csp.get('worker-src')).toEqual(["'self'"]);
+    expect(csp.get('form-action')).toEqual(["'none'"]);
+    expect(csp.has('manifest-src')).toBe(false);
     expect(csp.get('style-src')).toEqual(["'self'", 'https://fonts.googleapis.com']);
   });
 
@@ -80,6 +85,27 @@ describe('โค้ดต้นทางสอดคล้องกับ CSP', 
     const origins = new Set((indexHtml.match(/https:\/\/[a-z0-9.-]+/gi) ?? []).map((o) => o.toLowerCase()));
     expect(origins.size).toBeGreaterThan(0);
     for (const origin of origins) expect(allowed, origin).toContain(origin);
+  });
+
+  it('ตัวอ่านสลิปโหลด worker จากไฟล์ในโดเมนเอง (workerBlobURL: false) ให้ตรงกับ worker-src \'self\'', () => {
+    const text = sources['/src/ocr/readSlip.ts'] ?? '';
+    expect(text).toMatch(/workerBlobURL:\s*false/);
+    expect(text).toContain("workerPath: ocrUrl('worker.min.js')");
+  });
+
+  it('ทุกฟอร์มจัดการ onSubmit เอง (form-action none จะบล็อกการส่งแบบเบราว์เซอร์)', () => {
+    for (const [path, text] of Object.entries(sources)) {
+      const forms = (text.match(/<form\b/g) ?? []).length;
+      if (forms === 0) continue;
+      expect((text.match(/<form\b[^>]*onSubmit/gs) ?? []).length, path).toBe(forms);
+      expect(text, path).not.toMatch(/<form\b[^>]*\saction\s*=/s);
+    }
+  });
+
+  it('ไม่มี <img>, url() หรือรูป data:/blob: ในโค้ดและ CSS (img-src \'self\')', () => {
+    for (const [path, text] of Object.entries(sources)) {
+      expect(text, path).not.toMatch(/<img\b|new Image\(|url\(\s*['"]?data:/);
+    }
   });
 
   it('โค้ดไม่ใช้ eval / new Function / innerHTML / dangerouslySetInnerHTML / setAttribute style', () => {
