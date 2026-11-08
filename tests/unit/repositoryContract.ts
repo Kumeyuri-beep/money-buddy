@@ -170,6 +170,24 @@ export function describeRepositoryContract(name: string, factory: () => Promise<
       await expect(repo.deleteBill('b2')).rejects.toThrow(StorageError);
     });
 
+    it('เก็บถาวรบิลที่จ่ายแล้ว: สถานะจ่ายคงเดิม จ่ายไม่ได้ขณะเก็บถาวร · นำกลับมาแสดงได้ (แทนการลบที่กู้คืนไม่ได้)', async () => {
+      await seed();
+      await repo.addBill(bill(), '2026-11-04');
+      await repo.payBill('bill-1', { today: '2026-11-04', walletId, categoryId, entryId: 'pay-1' });
+      const paid = (await repo.loadBills())[0]!;
+      const archived = await repo.updateBill({ ...paid, archived: true });
+      expect(archived.archived).toBe(true);
+      expect(archived.lastPaidMonth).toBe('2026-11');
+      const reloaded = (await repo.loadBills())[0]!;
+      expect(reloaded).toMatchObject({ id: 'bill-1', archived: true, lastPaidMonth: '2026-11' });
+      await expect(repo.payBill('bill-1', { today: '2026-11-05', walletId, categoryId, entryId: 'pay-2' })).rejects.toThrow();
+      await repo.updateBill({ ...reloaded, archived: false });
+      const back = (await repo.loadBills())[0]!;
+      expect(back.archived).not.toBe(true);
+      expect(back.lastPaidMonth).toBe('2026-11');
+      expect((await repo.loadLedger()).entries.some((e) => e.id === 'pay-1')).toBe(true);
+    });
+
     it('จ่ายบิล (R15): รายจ่าย recurring + lastPaidMonth ในครั้งเดียว · จ่ายซ้ำรอบเดิมไม่ได้ · เลิกทำคืนสถานะ', async () => {
       await seed();
       await repo.addBill(bill(), '2026-11-04');
