@@ -42,7 +42,7 @@ export type ProfileLoad = { ok: true; profile: ProfileRow | null } | { ok: false
 
 /** อ่านแถว profiles ของตัวเอง (RLS ให้เห็นแถวเดียว) · ok=false = อ่านไม่สำเร็จ (เครือข่าย/สิทธิ์) */
 export async function loadProfile(client: SupabaseClient): Promise<ProfileLoad> {
-  const { data, error } = await client.from('profiles').select('must_change_password, consented_at').maybeSingle();
+  const { data, error } = await client.from('profiles').select('must_change_password, consented_at, consented_version').maybeSingle();
   if (error) return { ok: false };
   return { ok: true, profile: (data as ProfileRow | null) ?? null };
 }

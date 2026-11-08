@@ -100,7 +100,7 @@ begin
   if v_int <> 0 then raise exception 'FAIL: T2 อ่านข้อมูลได้ทั้งที่ยังไม่เปลี่ยนรหัส'; end if;
   r := pg_temp.fails($$ select public.setup_ledger('[]'::jsonb, '[]'::jsonb) $$);
   if r is null then raise exception 'FAIL: T2 setup_ledger ผ่านทั้งที่ยังไม่เปลี่ยนรหัส'; end if;
-  r := pg_temp.fails($$ select public.record_consent() $$);
+  r := pg_temp.fails($$ select public.record_consent('2026-11-09') $$);
   if r is null then raise exception 'FAIL: T2 record_consent ผ่านทั้งที่ยังไม่เปลี่ยนรหัส'; end if;
   perform pg_temp.logout();
 
@@ -126,7 +126,7 @@ begin
   perform pg_temp.login(ua);
   r := pg_temp.fails($$ update public.profiles set must_change_password = false $$);
   if r is null then raise exception 'FAIL: T5 ผู้ใช้แก้ profiles เองได้'; end if;
-  perform public.record_consent();
+  perform public.record_consent('2026-11-09');
   perform pg_temp.logout();
   select count(*) into v_int from public.profiles where user_id = ua and consented_at is not null;
   if v_int <> 1 then raise exception 'FAIL: T5 record_consent ไม่ตั้งเวลา'; end if;
@@ -144,7 +144,7 @@ begin
   if r is null then raise exception 'FAIL: T6 anon เรียก update_entry ได้'; end if;
   r := pg_temp.fails($$ select public.setup_ledger('[]'::jsonb, '[]'::jsonb) $$);
   if r is null then raise exception 'FAIL: T6 anon เรียก setup_ledger ได้'; end if;
-  r := pg_temp.fails($$ select public.record_consent() $$);
+  r := pg_temp.fails($$ select public.record_consent('2026-11-09') $$);
   if r is null then raise exception 'FAIL: T6 anon เรียก record_consent ได้'; end if;
   r := pg_temp.fails($$ select public.delete_my_account('x') $$);
   if r is null then raise exception 'FAIL: T6 anon เรียก delete_my_account ได้'; end if;

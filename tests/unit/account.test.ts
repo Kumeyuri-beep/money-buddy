@@ -14,11 +14,21 @@ const api = (result: { data?: unknown; error?: { message?: string; code?: string
   return { impl, calls };
 };
 
+const migrations = import.meta.glob('/supabase/migrations/*.sql', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+
+describe('เวอร์ชันนโยบายต้องอยู่ในรายการอนุญาตของฐานข้อมูล', () => {
+  it('PRIVACY_POLICY_VERSION ปัจจุบันถูกเพิ่มใน private.policy_versions โดย migration (ไม่งั้นผู้ใช้ยอมรับไม่ได้)', () => {
+    const inserted = Object.values(migrations).some((sql) => new RegExp(`insert into private\\.policy_versions[^;]*'${PRIVACY_POLICY_VERSION}'`, 'i').test(sql));
+    expect(Object.keys(migrations).length).toBeGreaterThan(10);
+    expect(inserted).toBe(true);
+  });
+});
+
 describe('ยอมรับนโยบาย (record_consent)', () => {
-  it('เรียก RPC ชื่อนี้โดยไม่ส่งเวลา (เวลาตั้งที่เซิร์ฟเวอร์) · สำเร็จ = ok', async () => {
+  it('เรียก RPC ชื่อนี้พร้อมเวอร์ชันนโยบายที่แสดง โดยไม่ส่งเวลา (เวลาตั้งที่เซิร์ฟเวอร์) · สำเร็จ = ok', async () => {
     const { impl, calls } = api({});
     expect(await recordConsent(impl)).toEqual({ ok: true });
-    expect(calls).toEqual([{ name: 'record_consent' }]);
+    expect(calls).toEqual([{ name: 'record_consent', args: { p_version: PRIVACY_POLICY_VERSION } }]);
   });
   it('ล้มเหลว = ข้อความไทย ไม่รั่วรายละเอียดจากเซิร์ฟเวอร์', async () => {
     const r = await recordConsent(api({ error: { message: 'relation "profiles" permission denied', code: '42501' } }).impl);
@@ -117,8 +127,10 @@ describe('นโยบายความเป็นส่วนตัว (เ�
   });
   it('บอกความจริงเรื่องข้อมูลที่ยังค้างหลังลบบัญชีและเรื่องการขอความยินยอมซ้ำ', () => {
     expect(all).toMatch(/บันทึกการเข้าสู่ระบบ.*ไม่ถูกลบตาม/);
-    expect(all).toMatch(/ยังไม่บันทึกว่ายอมรับฉบับใด/);
-    expect(all).not.toMatch(/ขอความยินยอมอีกครั้ง/);
+    // ระบบบันทึกเวอร์ชันและขอยินยอมซ้ำจริงแล้ว (consented_version) ข้อความต้องตรงกับพฤติกรรมนี้
+    expect(all).toMatch(/บันทึกเวลาและเวอร์ชันของนโยบาย/);
+    expect(all).toMatch(/ขอให้คุณอ่านและยอมรับฉบับใหม่ก่อนใช้งานต่อ/);
+    expect(all).not.toMatch(/ยังไม่บันทึกว่ายอมรับฉบับใด/);
     expect(all).not.toMatch(/ข้อมูลหายจากฐานข้อมูลหลักทันที[^ ]*ทั้งหมด/);
   });
   it('ไม่อ้างสิ่งที่ระบบไม่ได้ทำ (ไม่มีคำว่า ไม่ระบุตัวตน / เข้ารหัสแบบ end-to-end / ผู้ดูแลอ่านไม่ได้)', () => {
