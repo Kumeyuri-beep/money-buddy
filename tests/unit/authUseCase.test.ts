@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { PRIVACY_POLICY_VERSION } from '../../src/domain/privacy/policy';
 import {
   changePassword,
   gateStateFromProfile,
@@ -136,7 +137,11 @@ describe('gateStateFromProfile', () => {
     expect(gateStateFromProfile({ must_change_password: true, consented_at: null })).toBe('must-change');
   });
   it('ธงเป็น false = ใช้งานได้', () => {
-    expect(gateStateFromProfile({ must_change_password: false, consented_at: '2026-11-09T01:00:00Z' })).toBe('ready');
+    expect(gateStateFromProfile({ must_change_password: false, consented_at: '2026-11-09T01:00:00Z', consented_version: PRIVACY_POLICY_VERSION })).toBe('ready');
+    // ยอมรับเวอร์ชันเก่า/ไม่ทราบเวอร์ชัน = ขอยินยอมซ้ำ
+    expect(gateStateFromProfile({ must_change_password: false, consented_at: '2026-11-09T01:00:00Z', consented_version: '2020-01-01' })).toBe('needs-consent');
+    expect(gateStateFromProfile({ must_change_password: false, consented_at: '2026-11-09T01:00:00Z', consented_version: null })).toBe('needs-consent');
+    expect(gateStateFromProfile({ must_change_password: false, consented_at: '2026-11-09T01:00:00Z' })).toBe('needs-consent');
     // ยังไม่ยอมรับนโยบาย / ค่าเพี้ยน = ยังไม่ให้เข้าแอป
     expect(gateStateFromProfile({ must_change_password: false, consented_at: null })).toBe('needs-consent');
     expect(gateStateFromProfile({ must_change_password: false, consented_at: '' })).toBe('needs-consent');

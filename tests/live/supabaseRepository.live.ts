@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { beforeAll, describe, expect, inject, it } from 'vitest';
 import { buildInitialLedger } from '../../src/app/setup';
+import { PRIVACY_POLICY_VERSION } from '../../src/domain/privacy/policy';
 import { StorageError } from '../../src/storage/repository';
 import { createSupabaseRepository } from '../../src/storage/supabaseRepository';
 import type { LedgerRepository } from '../../src/storage/ledgerRepository';
@@ -54,11 +55,15 @@ describe('PDPA (M2-E): ยอมรับนโยบาย · ลบบัญ�
     const { client, id } = await signedIn(2);
     const before = await client.from('profiles').select('consented_at').eq('user_id', id).maybeSingle();
     expect(before.data?.consented_at ?? null).toBeNull();
-    const first = await client.rpc('record_consent');
+    const first = await client.rpc('record_consent', { p_version: PRIVACY_POLICY_VERSION });
     expect(first.error).toBeNull();
     const a1 = await client.from('profiles').select('consented_at').eq('user_id', id).maybeSingle();
     expect(typeof a1.data?.consented_at).toBe('string');
-    await client.rpc('record_consent');
+    await client.rpc('record_consent', { p_version: PRIVACY_POLICY_VERSION });
+    const bogus = await client.rpc('record_consent', { p_version: '2099-01-01' });
+    expect(bogus.error).not.toBeNull(); // รับเฉพาะเวอร์ชันในรายการอนุญาต
+    const noVersion = await client.rpc('record_consent');
+    expect(noVersion.error).not.toBeNull(); // ฟังก์ชันแบบไม่มีเวอร์ชันถูกถอดแล้ว
     const a2 = await client.from('profiles').select('consented_at').eq('user_id', id).maybeSingle();
     expect(a2.data?.consented_at).toBe(a1.data?.consented_at);
     const forge = await client.from('profiles').update({ consented_at: '2000-01-01T00:00:00Z' }).eq('user_id', id);

@@ -1,4 +1,5 @@
 import { passwordProblem, usernameToEmail } from '../domain/auth/credentials';
+import { PRIVACY_POLICY_VERSION } from '../domain/privacy/policy';
 
 /**
  * ขั้นตอนใช้งานของล็อกอิน (M2-B) · ไม่แตะ React/DOM · รับ API ผ่าน interface เพื่อทดสอบโดยไม่ต่อเน็ต
@@ -131,6 +132,8 @@ export async function signOutQuietly(api: AuthApi): Promise<void> {
 export interface ProfileRow {
   must_change_password: boolean;
   consented_at: string | null;
+  /** เวอร์ชันนโยบายที่ยอมรับ (null = ยังไม่ยอมรับ/ไม่ทราบ) */
+  consented_version?: string | null;
 }
 
 export type GateState = 'ready' | 'needs-consent' | 'must-change' | 'no-profile';
@@ -142,6 +145,8 @@ export type GateState = 'ready' | 'needs-consent' | 'must-change' | 'no-profile'
 export function gateStateFromProfile(profile: ProfileRow | null | undefined): GateState {
   if (!profile || typeof profile.must_change_password !== 'boolean') return 'no-profile';
   if (profile.must_change_password) return 'must-change';
-  // ยังไม่ยอมรับนโยบาย (PDPA) = ยังไม่ให้เข้าแอป · ค่าที่ไม่ใช่ข้อความเวลา ถือว่ายังไม่ยอมรับ (ปิดไว้ก่อน)
-  return typeof profile.consented_at === 'string' && profile.consented_at !== '' ? 'ready' : 'needs-consent';
+  // ยังไม่ยอมรับนโยบาย (PDPA) หรือยอมรับเวอร์ชันเก่ากว่าฉบับปัจจุบัน = ยังไม่ให้เข้าแอป (ขอยินยอมซ้ำ)
+  // ค่าที่ไม่ใช่ข้อความเวลา/เวอร์ชัน ถือว่ายังไม่ยอมรับ (ปิดไว้ก่อน)
+  const accepted = typeof profile.consented_at === 'string' && profile.consented_at !== '';
+  return accepted && profile.consented_version === PRIVACY_POLICY_VERSION ? 'ready' : 'needs-consent';
 }
