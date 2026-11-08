@@ -13,6 +13,16 @@ export function LoginPage({ onSignedIn }: { onSignedIn: () => void | Promise<voi
   const passwordRef = useRef<HTMLInputElement>(null);
   const [backupNote, setBackupNote] = useState<string>('');
   const [backupBusy, setBackupBusy] = useState(false);
+  // ลบบัญชีสำเร็จแล้วถูกพามาหน้านี้: แจ้งผลครั้งเดียว
+  const [deletedNote] = useState(() => {
+    try {
+      const was = window.sessionStorage.getItem('mb.accountDeleted') === '1';
+      if (was) window.sessionStorage.removeItem('mb.accountDeleted');
+      return was;
+    } catch {
+      return false;
+    }
+  });
 
   const downloadLocal = async () => {
     if (backupBusy) return;
@@ -62,6 +72,11 @@ export function LoginPage({ onSignedIn }: { onSignedIn: () => void | Promise<voi
           </div>
         </div>
         <h1 id="login-title">เข้าสู่ระบบ</h1>
+        {deletedNote && (
+          <p role="status" className="auth-ok">
+            ✓ ลบบัญชีและข้อมูลออนไลน์ทั้งหมดแล้ว
+          </p>
+        )}
         <form className="auth-form" onSubmit={(e) => void submit(e)} aria-busy={busy}>
           <div className="field">
             <label htmlFor="login-username">ชื่อผู้ใช้</label>

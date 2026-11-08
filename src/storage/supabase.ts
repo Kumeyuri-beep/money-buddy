@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { RpcApi } from '../app/account';
 import type { AuthApi, ProfileRow } from '../app/auth';
 
 /**
@@ -25,6 +26,9 @@ export const authApi: AuthApi | null = supabase
       signOutOthers: () => supabase.auth.signOut({ scope: 'others' }),
     }
   : null;
+
+/** ส่วน RPC ที่ use case บัญชีใช้ (ยอมรับนโยบาย / ลบบัญชี) */
+export const accountApi: RpcApi | null = supabase ? { rpc: (name, args) => supabase.rpc(name, args) } : null;
 
 export type ProfileLoad = { ok: true; profile: ProfileRow | null } | { ok: false };
 

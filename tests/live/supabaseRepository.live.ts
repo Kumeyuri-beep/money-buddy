@@ -49,6 +49,50 @@ describeRepositoryContract('Supabase (จริง)', async () => {
   return repo;
 });
 
+describe('PDPA (M2-E): ยอมรับนโยบาย · ลบบัญชีและข้อมูลทั้งหมด', () => {
+  it('ยอมรับนโยบาย: เวลาตั้งที่เซิร์ฟเวอร์ เรียกซ้ำไม่เปลี่ยนเวลาเดิม · ผู้ใช้อ่านได้ แก้ตรงๆ ไม่ได้', async () => {
+    const { client, id } = await signedIn(2);
+    const before = await client.from('profiles').select('consented_at').eq('user_id', id).maybeSingle();
+    expect(before.data?.consented_at ?? null).toBeNull();
+    const first = await client.rpc('record_consent');
+    expect(first.error).toBeNull();
+    const a1 = await client.from('profiles').select('consented_at').eq('user_id', id).maybeSingle();
+    expect(typeof a1.data?.consented_at).toBe('string');
+    await client.rpc('record_consent');
+    const a2 = await client.from('profiles').select('consented_at').eq('user_id', id).maybeSingle();
+    expect(a2.data?.consented_at).toBe(a1.data?.consented_at);
+    const forge = await client.from('profiles').update({ consented_at: '2000-01-01T00:00:00Z' }).eq('user_id', id);
+    expect(forge.error !== null || (forge.count ?? 0) === 0).toBe(true);
+    const a3 = await client.from('profiles').select('consented_at').eq('user_id', id).maybeSingle();
+    expect(a3.data?.consented_at).toBe(a1.data?.consented_at);
+  });
+
+  it('ลบบัญชี: รหัสผิดไม่ลบ · รหัสถูกลบข้อมูลทุกตารางหมด เข้าสู่ระบบอีกไม่ได้ · ของผู้ใช้อื่นไม่ถูกแตะ', async () => {
+    const { client, id } = await signedIn(2);
+    const repo = createSupabaseRepository(client, id);
+    await repo.saveInitialLedger(buildInitialLedger([{ name: 'ของ C', opening: '10' }], '2026-11-01'));
+    await repo.addBill({ id: 'bill-c', name: 'บิล C', amount: 1, dueDay: 1 }, '2026-11-04');
+    await repo.saveSettings({ payDay: 5 });
+    const aBefore = (await (await repoFor(0)).loadLedger()).entries.length;
+    const wrong = await client.rpc('delete_my_account', { p_password: 'definitely-wrong-1A' });
+    expect(wrong.error).toBeNull();
+    expect(wrong.data).toBe(false);
+    expect(await repo.isEmpty()).toBe(false);
+    const ok = await client.rpc('delete_my_account', { p_password: live.users[2]!.password });
+    expect(ok.error).toBeNull();
+    expect(ok.data).toBe(true);
+    for (const table of ['accounts', 'entries', 'lines', 'bills', 'settings', 'profiles']) {
+      const left = await admin.from(table).select('*', { count: 'exact', head: true }).eq('user_id', id);
+      expect(left.error, table).toBeNull();
+      expect(left.count, table).toBe(0);
+    }
+    const again = createClient(live.url, live.anonKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+    const login = await again.auth.signInWithPassword({ email: live.users[2]!.email, password: live.users[2]!.password });
+    expect(login.error).not.toBeNull();
+    expect((await (await repoFor(0)).loadLedger()).entries.length).toBe(aBefore);
+  });
+});
+
 describe('แยกข้อมูลระหว่างผู้ใช้ (RLS) ผ่าน repository', () => {
   let a: LedgerRepository;
   let b: LedgerRepository;

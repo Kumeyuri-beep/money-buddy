@@ -133,7 +133,7 @@ export interface ProfileRow {
   consented_at: string | null;
 }
 
-export type GateState = 'ready' | 'must-change' | 'no-profile';
+export type GateState = 'ready' | 'needs-consent' | 'must-change' | 'no-profile';
 
 /**
  * ตัดสินว่าผู้ที่ล็อกอินแล้วเข้าแอปได้ไหม · ปิดไว้ก่อน: ไม่มีแถว หรือธงไม่ใช่ boolean = ไม่พร้อม
@@ -141,5 +141,7 @@ export type GateState = 'ready' | 'must-change' | 'no-profile';
  */
 export function gateStateFromProfile(profile: ProfileRow | null | undefined): GateState {
   if (!profile || typeof profile.must_change_password !== 'boolean') return 'no-profile';
-  return profile.must_change_password ? 'must-change' : 'ready';
+  if (profile.must_change_password) return 'must-change';
+  // ยังไม่ยอมรับนโยบาย (PDPA) = ยังไม่ให้เข้าแอป · ค่าที่ไม่ใช่ข้อความเวลา ถือว่ายังไม่ยอมรับ (ปิดไว้ก่อน)
+  return typeof profile.consented_at === 'string' && profile.consented_at !== '' ? 'ready' : 'needs-consent';
 }

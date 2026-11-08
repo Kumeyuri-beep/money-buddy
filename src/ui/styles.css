@@ -387,6 +387,15 @@ select { font: inherit; }
 .password-row .password-toggle:hover { background: rgba(255, 255, 255, 0.1); }
 .password-row .password-toggle:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
 .migrate-card { width: min(720px, 100%); }
+.migrate-heading-h1:focus { outline: none; }
+.policy-details { border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 12px; padding: 4px 14px; }
+.policy-details > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 600; }
+.policy-details > summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 8px; }
+.policy-text h3 { margin: 16px 0 6px; font-size: 16px; }
+.policy-text p { margin: 0 0 8px; }
+.account-privacy, .account-danger { display: flex; flex-direction: column; gap: 12px; }
+.account-privacy h2, .account-danger h2, .account-privacy p, .account-danger p { margin: 0; }
+.account-danger { border: 2px solid rgba(255, 143, 130, 0.75); }
 .migrate-body { display: flex; flex-direction: column; gap: 12px; }
 .migrate-body h2 { margin: 0; font-size: 18px; }
 .migrate-steps { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; counter-reset: step; }

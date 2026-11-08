@@ -136,7 +136,13 @@ describe('gateStateFromProfile', () => {
     expect(gateStateFromProfile({ must_change_password: true, consented_at: null })).toBe('must-change');
   });
   it('ธงเป็น false = ใช้งานได้', () => {
-    expect(gateStateFromProfile({ must_change_password: false, consented_at: null })).toBe('ready');
+    expect(gateStateFromProfile({ must_change_password: false, consented_at: '2026-11-09T01:00:00Z' })).toBe('ready');
+    // ยังไม่ยอมรับนโยบาย / ค่าเพี้ยน = ยังไม่ให้เข้าแอป
+    expect(gateStateFromProfile({ must_change_password: false, consented_at: null })).toBe('needs-consent');
+    expect(gateStateFromProfile({ must_change_password: false, consented_at: '' })).toBe('needs-consent');
+    expect(gateStateFromProfile({ must_change_password: false, consented_at: 1 as unknown as string })).toBe('needs-consent');
+    // ต้องเปลี่ยนรหัสก่อนเสมอ (ฐานข้อมูลไม่ให้บันทึกการยอมรับถ้ายังไม่เปลี่ยนรหัส)
+    expect(gateStateFromProfile({ must_change_password: true, consented_at: null })).toBe('must-change');
   });
   it('ข้อมูลผิดรูป (ไม่ใช่ boolean) = ปิดไว้ก่อน ไม่ใช่ ready', () => {
     expect(gateStateFromProfile({ must_change_password: undefined as unknown as boolean, consented_at: null })).toBe('no-profile');
