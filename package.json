@@ -9,7 +9,11 @@
     "dev": "vite",
     "prebuild": "node scripts/copy-ocr-assets.mjs",
     "build": "tsc --noEmit && vite build",
+    "postbuild": "node scripts/check-dist.mjs",
     "typecheck": "tsc --noEmit",
+    "admin:create-user": "node scripts/create-user.mjs",
+    "admin:reset-password": "node scripts/reset-password.mjs",
+    "admin:spike": "node scripts/spike-auth.mjs",
     "preview": "vite preview"
   },
   "keywords": [],

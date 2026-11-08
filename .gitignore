@@ -9,3 +9,7 @@ dist
 
 # ไฟล์ OCR คัดลอกจาก node_modules ตอน dev/build (scripts/copy-ocr-assets.mjs)
 public/ocr/
+
+# ไฟล์ key ผู้ดูแลต้องอยู่นอกโปรเจกต์ ถ้าเผลอคัดลอกเข้ามา git ต้องไม่เห็น
+*.env
+.money-buddy-admin/
