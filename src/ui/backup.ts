@@ -1,4 +1,4 @@
-import { localIsoDate } from '../app/dates';
+import { thaiIsoDate } from '../app/dates';
 import { db } from '../storage/instance';
 import { exportSnapshot } from '../storage/repository';
 
@@ -9,7 +9,7 @@ export async function downloadBackup(): Promise<void> {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `money-buddy-backup-${localIsoDate()}.json`;
+  link.download = `money-buddy-backup-${thaiIsoDate()}.json`;
   link.click();
   URL.revokeObjectURL(url);
 }

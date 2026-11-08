@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { localIsoDate } from '../app/dates';
+import { thaiIsoDate } from '../app/dates';
 import type { Ledger } from '../storage/repository';
 import { CashFlowSankey } from './overview/CashFlowSankey';
 import type { FinanceInput } from '../app/billsOverview';
@@ -19,7 +19,7 @@ interface TodayProps {
 
 export function Today({ ledger, onAdd, onOpenLedger, finance, onOpenBills }: TodayProps) {
   const { accounts, entries } = ledger;
-  const today = useMemo(() => localIsoDate(new Date()), []);
+  const today = useMemo(() => thaiIsoDate(new Date()), []);
 
   return (
     <>

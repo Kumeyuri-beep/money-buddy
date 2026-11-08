@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { localIsoDate } from '../app/dates';
+import { thaiIsoDate } from '../app/dates';
 import { buildInitialLedger, DEFAULT_WALLETS, SetupError, type WalletInput } from '../app/setup';
 import { db } from '../storage/instance';
 import { saveInitialLedger } from '../storage/repository';
@@ -22,7 +22,7 @@ export function Setup({ onDone }: SetupProps) {
     event.preventDefault();
     setSaving(true);
     try {
-      const ledger = buildInitialLedger(wallets, localIsoDate());
+      const ledger = buildInitialLedger(wallets, thaiIsoDate());
       await saveInitialLedger(db, ledger);
       onDone();
     } catch (e) {

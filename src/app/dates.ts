@@ -1,14 +1,24 @@
-/** วันที่ตามเวลาเครื่องผู้ใช้ รูปแบบ YYYY-MM-DD (ไม่ใช้ toISOString เพราะเป็นเวลา UTC และวันที่จะเพี้ยนช่วงเช้าตรู่ในไทย) */
-export function localIsoDate(date: Date = new Date()): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+const THAI_DATE_FORMAT = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Bangkok',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+/**
+ * "วันนี้" ตามเวลาประเทศไทย (Asia/Bangkok, UTC+7) รูปแบบ YYYY-MM-DD ไม่ขึ้นกับเขตเวลาของเครื่อง (กฎ R15)
+ * ฐานข้อมูลใช้เขตเวลาเดียวกัน (private.current_month) เดือนปัจจุบันของเว็บกับฐานข้อมูลจึงตรงกันเสมอ
+ * ไม่ใช้ toISOString (เป็น UTC วันที่จะเพี้ยนช่วงเช้าตรู่ในไทย) และไม่ใช้ getFullYear/getMonth/getDate (เวลาเครื่อง)
+ */
+export function thaiIsoDate(date: Date = new Date()): string {
+  const parts = THAI_DATE_FORMAT.formatToParts(date);
+  const pick = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return `${pick('year').padStart(4, '0')}-${pick('month')}-${pick('day')}`;
 }
 
 /** ช่วงวันที่ของเดือนที่ date อยู่ (เปรียบเทียบเป็นข้อความได้เพราะวันสูงสุดคือ 31) */
 export function monthRange(date: Date = new Date()): { from: string; to: string } {
-  const prefix = localIsoDate(date).slice(0, 7);
+  const prefix = thaiIsoDate(date).slice(0, 7);
   return { from: `${prefix}-01`, to: `${prefix}-31` };
 }
 
