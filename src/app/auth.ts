@@ -104,7 +104,7 @@ export async function changePassword(api: AuthApi, input: ChangePasswordInput): 
       case 'same-password':
         return { ok: false, message: 'รหัสผ่านใหม่ต้องไม่ซ้ำรหัสเดิม' };
       case 'weak-password':
-        return { ok: false, message: 'รหัสผ่านง่ายเกินไป ลองใช้ประโยคหรือคำหลายคำต่อกัน' };
+        return { ok: false, message: 'เซิร์ฟเวอร์ไม่รับรหัสผ่านนี้ ต้องมีตัวพิมพ์เล็ก ตัวพิมพ์ใหญ่ ตัวเลข ยาวอย่างน้อย 10 ตัว และไม่ใช่รหัสที่เดาง่าย' };
       case 'rate-limit':
         return { ok: false, message: RATE_LIMITED };
       case 'network':
