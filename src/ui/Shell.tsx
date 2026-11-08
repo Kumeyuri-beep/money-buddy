@@ -14,6 +14,8 @@ interface ShellProps {
   footer?: ReactNode;
   /** ชื่อผู้ใช้ที่ล็อกอินอยู่ (แสดงในการ์ดโปรไฟล์) */
   accountName?: string;
+  /** ปุ่ม "ออกจากระบบ" ใต้การ์ดโปรไฟล์ (เห็นชัดในแถบเมนูทุกหน้า) */
+  onSignOut?: () => void;
 }
 
 interface NavItem {
@@ -48,7 +50,7 @@ function Icon({ path }: { path: string }) {
   );
 }
 
-export function Shell({ children, showNav = true, current = 'today', onNavigate, status, footer, accountName }: ShellProps) {
+export function Shell({ children, showNav = true, current = 'today', onNavigate, status, footer, accountName, onSignOut }: ShellProps) {
   const renderItem = ({ id, label, icon }: NavItem) => {
     if (id === null) {
       return (
@@ -101,6 +103,11 @@ export function Shell({ children, showNav = true, current = 'today', onNavigate,
                 <div className="muted profile-sub">ข้อมูลอยู่ในเครื่องคุณ</div>
               </div>
             </div>
+            {onSignOut ? (
+              <button className="btn btn-ghost nav-signout" onClick={onSignOut}>
+                ออกจากระบบ
+              </button>
+            ) : null}
             <nav aria-label="เมนูหลัก">
               <div className="nav-label">เมนูหลัก</div>
               {NAV_MAIN.map(renderItem)}

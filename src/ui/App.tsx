@@ -82,7 +82,7 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export function App() {
   const [state, setState] = useState<State>({ status: 'loading' });
-  const { username } = useAccount();
+  const { username, signOut } = useAccount();
   const [view, setView] = useState<ViewId>('today');
   // "วันนี้" ตามเวลาไทย อัปเดตเองเมื่อข้ามเที่ยงคืนหรือกลับมาเปิดแท็บ (ต้องเรียก hook ก่อน return ใดๆ)
   const today = useThaiToday();
@@ -332,6 +332,7 @@ export function App() {
   return (
     <Shell
       accountName={username}
+      onSignOut={() => void signOut()}
       current={view}
       onNavigate={setView}
       status={integrity ? <IntegrityStatus report={integrity} /> : null}
