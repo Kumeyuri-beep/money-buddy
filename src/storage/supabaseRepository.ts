@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { BackupData } from '../domain/backup/parseBackup';
 import { billProblem, markBillPaid, payableCycle } from '../domain/bills/schedule';
 import { sanitizeSettings, settingsProblem, type FinanceSettings } from '../domain/bills/settings';
 import type { Bill } from '../domain/bills/types';
@@ -154,6 +155,17 @@ export function rowToBill(row: BillRow): Bill {
   if (row.start_month !== null) bill.startMonth = row.start_month;
   if (row.archived) bill.archived = true;
   return bill;
+}
+
+/** รูปแบบบิลที่ RPC import_ledger รับ (ส่งเฉพาะฟิลด์ที่มีค่า) */
+export function billToJson(b: Bill): Record<string, unknown> {
+  const out: Record<string, unknown> = { id: b.id, name: b.name, amount: b.amount, dueDay: b.dueDay };
+  if (b.walletId !== undefined) out.walletId = b.walletId;
+  if (b.categoryId !== undefined) out.categoryId = b.categoryId;
+  if (b.lastPaidMonth !== undefined) out.lastPaidMonth = b.lastPaidMonth;
+  if (b.startMonth !== undefined) out.startMonth = b.startMonth;
+  if (b.archived !== undefined) out.archived = b.archived;
+  return out;
 }
 
 /** ฟิลด์ที่ผู้ใช้แก้ได้ของบิล (ไม่รวม lastPaidMonth/startMonth: เปลี่ยนผ่านการจ่าย/ยกเลิกเท่านั้น R15) */
@@ -487,6 +499,23 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
     },
 
     loadSettings,
+
+    async importBackup(data: BackupData) {
+      const report = runIntegrityCheck(data.accounts, data.entries);
+      if (!report.ok) throw new StorageError(`ข้อมูลนำเข้าไม่ผ่านการตรวจ: ${report.issues[0]?.message ?? ''}`);
+      const settingsIssue = settingsProblem(data.settings);
+      if (settingsIssue) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${settingsIssue}`);
+      // ครั้งเดียว: ฐานข้อมูลเขียนทุกส่วนในธุรกรรมเดียว ผิดข้อใด = ย้อนกลับทั้งก้อน · มีข้อมูลอยู่แล้ว = ปฏิเสธ
+      const out = (await rpc('import_ledger', {
+        p_data: {
+          accounts: data.accounts.map(accountToJson),
+          bills: data.bills.map(billToJson),
+          entries: data.entries.map(entryToJson),
+          settings: sanitizeSettings(data.settings),
+        },
+      })) as { accounts?: number; entries?: number; bills?: number } | null;
+      return { accounts: out?.accounts ?? 0, entries: out?.entries ?? 0, bills: out?.bills ?? 0 };
+    },
 
     async saveSettings(settings) {
       const problem = settingsProblem(settings);
