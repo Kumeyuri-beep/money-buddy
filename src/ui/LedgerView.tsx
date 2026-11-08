@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { localIsoDate, thaiDayLabel, thaiMonthKeyLabel } from '../app/dates';
+import { thaiIsoDate, thaiDayLabel, thaiMonthKeyLabel } from '../app/dates';
 import { counterOptions, walletOptions } from '../app/entryForm';
 import { amountClass } from '../app/describe';
 import { groupByDate, monthsWithEntries, queryLedger, type LedgerFilter } from '../app/ledgerQuery';
@@ -21,7 +21,7 @@ const KIND_LABEL = { all: 'ทุกประเภท', expense: 'รายจ�
 export function LedgerView({ ledger, onAdd, onEdit, onDelete, onCancelPayment }: LedgerViewProps) {
   const { accounts, entries } = ledger;
   const months = useMemo(() => monthsWithEntries(entries), [entries]);
-  const thisMonth = localIsoDate().slice(0, 7);
+  const thisMonth = thaiIsoDate().slice(0, 7);
 
   const [filter, setFilter] = useState<LedgerFilter>(() => ({
     month: months.includes(thisMonth) ? thisMonth : (months[0] ?? 'all'),

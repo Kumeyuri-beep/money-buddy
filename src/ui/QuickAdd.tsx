@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type FormEvent } from 'react';
-import { localIsoDate, thaiDayLabel } from '../app/dates';
+import { thaiIsoDate, thaiDayLabel } from '../app/dates';
 import { buildEntry, counterOptions, walletOptions, type FormKind } from '../app/entryForm';
 import { newId } from '../app/ids';
 import { learnFromHistory, parseQuickText } from '../app/quickText';
@@ -26,7 +26,7 @@ export function QuickAdd({ ledger, onSaved }: QuickAddProps) {
 
   const learned = useMemo(() => learnFromHistory(accounts, entries), [accounts, entries]);
   const result = useMemo(
-    () => parseQuickText(text, { accounts, today: localIsoDate(), learned }),
+    () => parseQuickText(text, { accounts, today: thaiIsoDate(), learned }),
     [text, accounts, learned],
   );
 
@@ -71,7 +71,7 @@ export function QuickAdd({ ledger, onSaved }: QuickAddProps) {
     }
   };
 
-  const today = localIsoDate();
+  const today = thaiIsoDate();
   const amountText = form ? formatBaht(parseBahtToSatang(form.amount)) : '';
   const counterLabel = form?.kind === 'transfer' ? 'ไปกระเป๋า' : 'หมวด';
   const walletLabel = form?.kind === 'income' ? 'เข้ากระเป๋า' : form?.kind === 'transfer' ? 'จากกระเป๋า' : 'จากกระเป๋า';

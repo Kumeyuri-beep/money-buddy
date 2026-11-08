@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { localIsoDate, thaiMonthKeyLabel } from '../app/dates';
+import { thaiIsoDate, thaiMonthKeyLabel } from '../app/dates';
 import { describeEntry } from '../app/describe';
 import { learnFromHistory } from '../app/quickText';
 import { formatBaht, satang } from '../domain/money/satang';
@@ -144,7 +144,7 @@ export function App() {
     setScanning({ progress: 0, phase: 'preparing' });
     try {
       const texts = await readSlipImage(file, { onProgress: (progress, phase) => setScanning({ progress, phase }) });
-      const draft = draftFromOcrTexts(texts, { accounts, today: localIsoDate(), learned: learnFromHistory(accounts, entries) });
+      const draft = draftFromOcrTexts(texts, { accounts, today: thaiIsoDate(), learned: learnFromHistory(accounts, entries) });
       if (draft) setDialog({ mode: 'scan', draft });
       else setToast({ message: 'อ่านข้อมูลจากสลิปไม่ได้ ลองรูปที่ชัดขึ้น หรือกด "เพิ่มรายการ" เพื่อกรอกเอง' });
     } catch (e) {
@@ -236,7 +236,7 @@ export function App() {
       };
     });
 
-  const today = localIsoDate();
+  const today = thaiIsoDate();
   const billAmountText = (bill: Bill) => formatBaht(satang(bill.amount));
 
   const billSaved = (bill: Bill, before?: Bill) => {

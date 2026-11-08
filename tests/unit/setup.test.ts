@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { localIsoDate, monthRange } from '../../src/app/dates';
+import { monthRange, thaiIsoDate } from '../../src/app/dates';
 import { buildInitialLedger, DEFAULT_WALLETS, SetupError } from '../../src/app/setup';
 import { balanceOf, periodTotals } from '../../src/domain/ledger/balance';
 import { runIntegrityCheck } from '../../src/domain/ledger/integrity';
@@ -66,14 +66,29 @@ describe('buildInitialLedger: เริ่มใหม่จากยอดค�
   });
 });
 
-describe('วันที่ตามเวลาเครื่อง', () => {
-  it('localIsoDate ใช้เวลาท้องถิ่น ไม่ใช่ UTC', () => {
-    expect(localIsoDate(new Date(2026, 10, 1, 0, 30))).toBe('2026-11-01'); // เที่ยงคืนครึ่ง
-    expect(localIsoDate(new Date(2026, 11, 31, 23, 59))).toBe('2026-12-31');
-    expect(localIsoDate(new Date(2028, 1, 29))).toBe('2028-02-29');
+describe('วันที่ตามเวลาประเทศไทย (R15: Asia/Bangkok ไม่ขึ้นกับเขตเวลาของเครื่อง)', () => {
+  it('thaiIsoDate: ขอบเที่ยงคืนตามเวลาไทย (UTC+7)', () => {
+    expect(thaiIsoDate(new Date('2026-11-30T16:59:59Z'))).toBe('2026-11-30');
+    expect(thaiIsoDate(new Date('2026-11-30T17:00:00Z'))).toBe('2026-12-01'); // 00:00 ไทย
+    expect(thaiIsoDate(new Date('2026-12-31T17:00:00Z'))).toBe('2027-01-01'); // ข้ามปี
+    expect(thaiIsoDate(new Date('2026-10-31T17:00:00Z'))).toBe('2026-11-01');
   });
-  it('monthRange ครอบคลุมสิ้นเดือน', () => {
-    expect(monthRange(new Date(2026, 10, 15))).toEqual({ from: '2026-11-01', to: '2026-11-31' });
+  it('thaiIsoDate: วันที่ 29 ก.พ. ปีอธิกสุรทิน และ 1 มี.ค.', () => {
+    expect(thaiIsoDate(new Date('2028-02-29T16:59:59Z'))).toBe('2028-02-29');
+    expect(thaiIsoDate(new Date('2028-02-29T17:00:00Z'))).toBe('2028-03-01');
+    expect(thaiIsoDate(new Date('2027-02-28T17:00:00Z'))).toBe('2027-03-01'); // ปีไม่อธิกสุรทิน
+  });
+  it('thaiIsoDate: เช้าตรู่ไทยที่ UTC ยังเป็นวันก่อน', () => {
+    expect(thaiIsoDate(new Date('2026-11-01T00:30:00+07:00'))).toBe('2026-11-01');
+    expect(thaiIsoDate(new Date('2026-11-01T00:00:00+07:00'))).toBe('2026-11-01');
+    expect(thaiIsoDate(new Date('2026-10-31T23:59:59+07:00'))).toBe('2026-10-31');
+  });
+  it('thaiIsoDate: ปีต่ำกว่า 1000 ยังเป็นรูป YYYY-MM-DD (เติม 0 หน้าปี)', () => {
+    expect(thaiIsoDate(new Date(Date.UTC(999, 0, 1, 12)))).toBe('0999-01-01');
+  });
+  it('monthRange ใช้เดือนตามเวลาไทย และครอบคลุมสิ้นเดือน', () => {
+    expect(monthRange(new Date('2026-11-15T05:00:00Z'))).toEqual({ from: '2026-11-01', to: '2026-11-31' });
+    expect(monthRange(new Date('2026-11-30T17:00:00Z'))).toEqual({ from: '2026-12-01', to: '2026-12-31' });
     // ใช้ 31 เป็นขอบบนได้ เพราะวันที่จริงของเดือนที่สั้นกว่าไม่มีทางเกิน
     expect('2026-11-30' <= '2026-11-31').toBe(true);
     expect('2026-12-01' <= '2026-11-31').toBe(false);

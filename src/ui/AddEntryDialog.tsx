@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { localIsoDate, thaiDayLabel } from '../app/dates';
+import { thaiIsoDate, thaiDayLabel } from '../app/dates';
 import { describeEntry } from '../app/describe';
 import { buildEntry, counterOptions, entryToForm, walletOptions, type FormKind } from '../app/entryForm';
 import { newId } from '../app/ids';
@@ -38,7 +38,7 @@ export function AddEntryDialog({ accounts, entries = [], scan, editing, onClose,
   const [amount, setAmount] = useState(initial?.amount ?? '');
   const [walletId, setWalletId] = useState(initial?.walletId ?? wallets[0]?.id ?? '');
   const [chosenCounter, setChosenCounter] = useState(initial?.counterId ?? '');
-  const [date, setDate] = useState(() => initial?.date ?? localIsoDate());
+  const [date, setDate] = useState(() => initial?.date ?? thaiIsoDate());
   const [memo, setMemo] = useState(initial?.memo ?? '');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
