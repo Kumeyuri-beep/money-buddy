@@ -16,6 +16,33 @@ export function thaiIsoDate(date: Date = new Date()): string {
   return `${pick('year').padStart(4, '0')}-${pick('month')}-${pick('day')}`;
 }
 
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+/** ประเทศไทยใช้ UTC+7 ตลอดปี ไม่มีเวลาออมแสง */
+export const THAI_OFFSET_MS = 7 * HOUR_MS;
+
+/**
+ * เวลาไทยของ date แยกเป็นส่วนๆ (คำนวณจากเวลา UTC บวก 7 ชั่วโมง ไม่ใช้เขตเวลาของเครื่อง)
+ * weekday: 0 = อาทิตย์ · month: 1-12
+ */
+export function thaiClock(date: Date = new Date()): { year: number; month: number; day: number; weekday: number; hour: number; minute: number } {
+  const t = new Date(date.getTime() + THAI_OFFSET_MS);
+  return {
+    year: t.getUTCFullYear(),
+    month: t.getUTCMonth() + 1,
+    day: t.getUTCDate(),
+    weekday: t.getUTCDay(),
+    hour: t.getUTCHours(),
+    minute: t.getUTCMinutes(),
+  };
+}
+
+/** มิลลิวินาทีที่เหลือถึงเที่ยงคืนไทยครั้งถัดไป (อยู่ในช่วง 1 ถึง 1 วัน พอดีเที่ยงคืน = เหลืออีกทั้งวัน) */
+export function msUntilNextThaiMidnight(date: Date = new Date()): number {
+  const intoDay = (((date.getTime() + THAI_OFFSET_MS) % DAY_MS) + DAY_MS) % DAY_MS;
+  return DAY_MS - intoDay;
+}
+
 /** ช่วงวันที่ของเดือนที่ date อยู่ (เปรียบเทียบเป็นข้อความได้เพราะวันสูงสุดคือ 31) */
 export function monthRange(date: Date = new Date()): { from: string; to: string } {
   const prefix = thaiIsoDate(date).slice(0, 7);
@@ -38,7 +65,8 @@ export function thaiMonthKeyLabel(monthKey: string): string {
 }
 
 /** "พฤศจิกายน 2569" */
-export function thaiMonthLabel(date: Date = new Date()): string {
+/** date ต้องเป็นวันที่ที่สร้างจากเวลาเครื่อง (เช่น fromIso) เท่านั้น: จัดรูปแบบด้วยเขตเวลาเครื่อง ไม่ใช่เวลาไทย จึงไม่มีค่าเริ่มต้นเป็นเวลาปัจจุบัน */
+export function thaiMonthLabel(date: Date): string {
   return new Intl.DateTimeFormat('th-TH', { month: 'long', year: 'numeric' }).format(date);
 }
 

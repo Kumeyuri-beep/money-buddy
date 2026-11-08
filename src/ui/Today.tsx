@@ -1,5 +1,3 @@
-import { useMemo } from 'react';
-import { thaiIsoDate } from '../app/dates';
 import type { Ledger } from '../storage/repository';
 import { CashFlowSankey } from './overview/CashFlowSankey';
 import type { FinanceInput } from '../app/billsOverview';
@@ -15,11 +13,12 @@ interface TodayProps {
   onOpenLedger: () => void;
   finance: FinanceInput;
   onOpenBills: () => void;
+  /** "วันนี้" ตามเวลาไทย (YYYY-MM-DD) จาก App ซึ่งอัปเดตเองเมื่อข้ามเที่ยงคืน */
+  today: string;
 }
 
-export function Today({ ledger, onAdd, onOpenLedger, finance, onOpenBills }: TodayProps) {
+export function Today({ ledger, onAdd, onOpenLedger, finance, onOpenBills, today }: TodayProps) {
   const { accounts, entries } = ledger;
-  const today = useMemo(() => thaiIsoDate(new Date()), []);
 
   return (
     <>
