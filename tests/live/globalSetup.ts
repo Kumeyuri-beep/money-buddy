@@ -38,10 +38,13 @@ export default async function setup({ provide }: GlobalSetupContext): Promise<()
 
   const created: { email: string; password: string; id: string }[] = [];
   const cleanup = async (): Promise<void> => {
+    const failed: string[] = [];
     for (const u of created) {
       const del = await admin.auth.admin.deleteUser(u.id);
-      if (del.error) console.error(`ลบผู้ใช้ทดสอบไม่สำเร็จ (${safeMessage(del.error)}) โปรดลบใน Dashboard เอง`);
+      if (del.error) failed.push(`${u.email}: ${safeMessage(del.error)}`);
     }
+    // ลบไม่สำเร็จ = ถือว่าการรันล้มเหลว (เคยพบว่าลบผู้ใช้ที่มีข้อมูลไม่ได้ ซึ่งกระทบ delete_my_account/Dashboard ด้วย)
+    if (failed.length > 0) throw new Error('ลบผู้ใช้ทดสอบไม่สำเร็จ โปรดลบใน Dashboard เอง: ' + failed.join(' | '));
   };
 
   try {
