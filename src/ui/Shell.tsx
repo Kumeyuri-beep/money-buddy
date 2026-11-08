@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-export type ViewId = 'today' | 'ledger' | 'bills';
+export type ViewId = 'today' | 'ledger' | 'bills' | 'account';
 
 interface ShellProps {
   children: ReactNode;
@@ -12,6 +12,8 @@ interface ShellProps {
   status?: ReactNode;
   /** ปุ่มด้านล่างแถบข้าง */
   footer?: ReactNode;
+  /** ชื่อผู้ใช้ที่ล็อกอินอยู่ (แสดงในการ์ดโปรไฟล์) */
+  accountName?: string;
 }
 
 interface NavItem {
@@ -35,7 +37,7 @@ const NAV_TOOLS: NavItem[] = [
   { id: null, label: 'วางแผนเกษียณ', icon: 'M12 7v5l3 2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z' },
   { id: null, label: 'คำนวณภาษี', icon: 'M6 3h12v18H6zM9 7h6M9 12h.01M12 12h.01M15 12h.01M9 16h.01M12 16h.01M15 16h.01' },
   { id: null, label: 'ถัวเฉลี่ยต้นทุน', icon: 'M3 7l6 6 4-4 8 8M21 11v6h-6' },
-  { id: null, label: 'โปรไฟล์', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0' },
+  { id: 'account', label: 'โปรไฟล์', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0' },
 ];
 
 function Icon({ path }: { path: string }) {
@@ -46,7 +48,7 @@ function Icon({ path }: { path: string }) {
   );
 }
 
-export function Shell({ children, showNav = true, current = 'today', onNavigate, status, footer }: ShellProps) {
+export function Shell({ children, showNav = true, current = 'today', onNavigate, status, footer, accountName }: ShellProps) {
   const renderItem = ({ id, label, icon }: NavItem) => {
     if (id === null) {
       return (
@@ -90,13 +92,12 @@ export function Shell({ children, showNav = true, current = 'today', onNavigate,
         </div>
         {showNav && (
           <>
-            {/* ยังไม่มีบัญชีผู้ใช้ (รอ M2) จึงไม่แสดงชื่อ */}
             <div className="profile">
               <span className="profile-avatar">
                 <Icon path="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0" />
               </span>
               <div>
-                <div className="profile-name">บัญชีในเครื่องนี้</div>
+                <div className="profile-name">{accountName ?? 'บัญชีในเครื่องนี้'}</div>
                 <div className="muted profile-sub">ข้อมูลอยู่ในเครื่องคุณ</div>
               </div>
             </div>

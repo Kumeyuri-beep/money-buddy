@@ -45,6 +45,8 @@ import { Setup } from './Setup';
 import { Shell, type ViewId } from './Shell';
 import { ScanStatus } from './ScanStatus';
 import { Toast } from './Toast';
+import { AccountView } from './AccountView';
+import { useAccount } from './AuthContext';
 import { Today } from './Today';
 import { useSlipIntake } from './useSlipIntake';
 
@@ -79,6 +81,7 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export function App() {
   const [state, setState] = useState<State>({ status: 'loading' });
+  const { username } = useAccount();
   const [view, setView] = useState<ViewId>('today');
   const [dialog, setDialog] = useState<DialogState>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -326,6 +329,7 @@ export function App() {
 
   return (
     <Shell
+      accountName={username}
       current={view}
       onNavigate={setView}
       status={integrity ? <IntegrityStatus report={integrity} /> : null}
@@ -359,6 +363,8 @@ export function App() {
           finance={{ bills: state.bills, settings: state.settings }}
           onOpenBills={() => setView('bills')}
         />
+      ) : view === 'account' ? (
+        <AccountView />
       ) : view === 'bills' ? (
         <BillsView
           bills={state.bills}
