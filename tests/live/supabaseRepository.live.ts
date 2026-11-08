@@ -223,6 +223,67 @@ describe('แยกข้อมูลระหว่างผู้ใช้ (RL
     expect(await lastPaid()).toBeUndefined();
   });
 
+  it('M2-F: ผู้ใช้ B ใช้ REST/RPC ตรงๆ กับรหัสและ user_id ของ A อ่าน/แก้/ลบ/เขียนแทนไม่ได้', async () => {
+    await wipe(0);
+    await wipe(1);
+    await a.saveInitialLedger(buildInitialLedger([{ name: 'ของ A', opening: '1000' }], '2026-11-01'));
+    await a.saveSettings({ payDay: 11 });
+    const aLedger = await a.loadLedger();
+    const wallet = aLedger.accounts.find((x) => x.type === 'asset')!;
+    const category = aLedger.accounts.find((x) => x.type === 'expense')!;
+    await a.addBill({ id: 'iso-bill', name: 'บิล A', amount: 100, dueDay: 5, walletId: wallet.id, categoryId: category.id }, '2026-11-04');
+    const aEntry = aLedger.entries[0]!;
+    const aId = (await signedIn(0)).id;
+    const { client: bc, id: bId } = await signedIn(1);
+    // อ่าน: ไม่เห็นแถวของ A แม้ระบุ user_id หรือ id ตรงๆ
+    for (const table of ['accounts', 'entries', 'lines', 'bills', 'settings', 'profiles']) {
+      const byUser = await bc.from(table).select('*').eq('user_id', aId);
+      expect(byUser.error, table).toBeNull();
+      expect(byUser.data ?? [], table).toHaveLength(0);
+    }
+    const byId = await bc.from('entries').select('id').eq('id', aEntry.id);
+    expect(byId.data ?? []).toHaveLength(0);
+    // เขียนแทน A: ใส่ user_id ของ A ใน insert/upsert ถูกปฏิเสธ
+    const forgeEntry = await bc.from('entries').insert({ user_id: aId, id: 'forged', date: '2026-11-01', memo: '' });
+    expect(forgeEntry.error).not.toBeNull();
+    const forgeAccount = await bc.from('accounts').insert({ user_id: aId, id: 'forged', type: 'asset', name: 'x', currency: 'THB' });
+    expect(forgeAccount.error).not.toBeNull();
+    const forgeSettings = await bc.from('settings').upsert({ user_id: aId, value: { payDay: 1 } }, { onConflict: 'user_id' });
+    expect(forgeSettings.error).not.toBeNull();
+    // แก้/ลบแถวของ A ด้วย id ตรงๆ: ไม่มีแถวใดถูกแตะ
+    await bc.from('bills').update({ name: 'ถูกแก้' }).eq('id', 'iso-bill');
+    await bc.from('bills').delete().eq('id', 'iso-bill');
+    await bc.from('entries').delete().eq('id', aEntry.id);
+    await bc.from('entries').update({ memo: 'ถูกแก้' }).eq('id', aEntry.id);
+    // RPC ด้วยรหัสรายการของ A: update_entry ไม่พบ · create_entry ด้วยรหัสเดียวกันสร้างในพื้นที่ของ B เท่านั้น (ไม่ทับของ A)
+    const upd = await bc.rpc('update_entry', { p_entry: { id: aEntry.id, date: '2026-11-02', memo: 'x', lines: [] } });
+    expect(upd.error).not.toBeNull();
+    const cross = await bc.rpc('create_entry', {
+      p_entry: { id: 'x1', date: '2026-11-02', memo: 'x', source: 'manual', lines: [{ accountId: wallet.id, amount: 1 }, { accountId: category.id, amount: -1 }] },
+    });
+    expect(cross.error).not.toBeNull(); // บัญชีของ A ไม่มีในพื้นที่ของ B
+    // หลังทั้งหมด ข้อมูลของ A ครบเหมือนเดิม
+    const after = await a.loadLedger();
+    expect(after.entries).toHaveLength(aLedger.entries.length);
+    expect(after.entries.find((e) => e.id === aEntry.id)?.memo).toBe(aEntry.memo);
+    expect((await a.loadBills())[0]).toMatchObject({ id: 'iso-bill', name: 'บิล A' });
+    expect(await a.loadSettings()).toEqual({ payDay: 11 });
+    expect(await b.isEmpty()).toBe(true);
+    expect(bId).not.toBe(aId);
+  });
+
+  it('M2-F: สมัครเอง / เข้าสู่ระบบแบบไม่ระบุตัวตน ถูกปฏิเสธ (ปิดที่เซิร์ฟเวอร์ ไม่ใช่แค่ซ่อนปุ่ม)', async () => {
+    const anon = createClient(live.url, live.anonKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+    const email = `signup-probe-${Math.random().toString(36).slice(2)}@users.money-buddy.internal`;
+    const signUp = await anon.auth.signUp({ email, password: 'Probe-Password-1x' });
+    expect(signUp.error).not.toBeNull();
+    expect(signUp.data.session).toBeNull();
+    const guest = await anon.auth.signInAnonymously();
+    expect(guest.error).not.toBeNull();
+    const found = await admin.from('profiles').select('user_id', { count: 'exact', head: true }).eq('user_id', signUp.data.user?.id ?? '00000000-0000-0000-0000-000000000000');
+    expect(found.count ?? 0).toBe(0);
+  });
+
   it('คนที่ไม่ได้ล็อกอิน (anon) อ่านและเรียก RPC ไม่ได้เลย', async () => {
     const anon = createClient(live.url, live.anonKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
     const read = await anon.from('entries').select('id');

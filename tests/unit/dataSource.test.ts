@@ -15,9 +15,9 @@ describe('เลือกแหล่งข้อมูลหลังล็อ�
   it('ออนไลน์ว่าง + ข้อมูลในเครื่องเป็นของบัญชีนี้ = หน้าย้ายข้อมูล', () => {
     expect(pick({ localHasData: true, localOwner: 'u1' })).toBe('migrate');
   });
-  it('ออนไลน์ว่าง + ข้อมูลในเครื่องยังไม่มีเจ้าของ = ถามก่อนผูก', () => {
-    expect(pick({ localHasData: true, localOwner: null })).toBe('ask-bind');
-    expect(pick({ localHasData: true, localOwner: '' })).toBe('ask-bind');
+  it('ออนไลน์ว่าง + ข้อมูลในเครื่องยังไม่มีเจ้าของ = ไม่เสนอให้ใคร (ไม่มีขั้น "ยืนยันว่าเป็นของฉัน" แล้ว)', () => {
+    expect(pick({ localHasData: true, localOwner: null })).toBe('online');
+    expect(pick({ localHasData: true, localOwner: '' })).toBe('online');
   });
   it('ข้อมูลในเครื่องเป็นของบัญชีอื่น = ไม่เสนอให้ผู้ใช้นี้ ตั้งต้นออนไลน์ของตัวเอง', () => {
     expect(pick({ localHasData: true, localOwner: 'someone-else' })).toBe('online');
