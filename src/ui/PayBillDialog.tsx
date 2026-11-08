@@ -5,7 +5,8 @@ import { thaiDayLabel, thaiMonthKeyLabel } from '../app/dates';
 import { walletOptions } from '../app/entryForm';
 import { newId } from '../app/ids';
 import type { Account } from '../domain/ledger/types';
-import { formatBaht, satang } from '../domain/money/satang';
+import { PAY_CONFIRM_PERCENT, payAmountProblem, payDeviation, type PayDeviation } from '../domain/bills/payAmount';
+import { formatBaht, parseBahtToSatang, satang, toBahtString } from '../domain/money/satang';
 import type { PayBillResult } from '../storage/repository';
 import { useRepository } from './RepositoryContext';
 
@@ -30,7 +31,30 @@ export function PayBillDialog({ row, accounts, today, onClose, onPaid }: Props) 
   const [categoryId, setCategoryId] = useState(categories.some((c) => c.id === bill.categoryId) ? (bill.categoryId ?? '') : '');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // ยอดที่จ่ายจริง (R15): แก้ได้ ต่างจากยอดบิลเกิน 20% ต้องกดยืนยันอีกครั้งก่อนบันทึก
+  const [amountText, setAmountText] = useState(toBahtString(satang(bill.amount)));
+  const [askedFor, setAskedFor] = useState<number | null>(null);
+  const amountRef = useRef<HTMLInputElement>(null);
+  const warnRef = useRef<HTMLDivElement>(null);
+  const askedAt = useRef(0);
 
+  const parsedAmount = (): number | null => {
+    try {
+      const value = parseBahtToSatang(amountText);
+      return payAmountProblem(value) === null ? value : null;
+    } catch {
+      return null;
+    }
+  };
+  const amountNow = parsedAmount();
+  const deviation: PayDeviation | null = amountNow === null ? null : payDeviation(bill.amount, amountNow);
+  useEffect(() => {
+    // แสดงกล่องเตือนแล้วย้ายโฟกัสไปที่กล่อง: กด Enter ซ้ำที่ช่องยอดจะไม่ผ่านขั้นยืนยันโดยไม่ได้อ่าน
+    if (askedFor !== null) warnRef.current?.focus();
+  }, [askedFor]);
+
+  // ถามยืนยันแล้ว (askedFor = ยอดนี้) และยังเป็นยอดเดิม: กดส่งอีกครั้ง = ยืนยัน
+  const askingConfirm = amountNow !== null && deviation?.needsConfirm === true && askedFor === amountNow;
   useEffect(() => {
     const dialog = dialogRef.current;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -51,11 +75,28 @@ export function PayBillDialog({ row, accounts, today, onClose, onPaid }: Props) 
       categoryRef.current?.focus();
       return;
     }
+    const amount = parsedAmount();
+    if (amount === null) {
+      setError('ใส่ยอดที่จ่ายเป็นตัวเลขมากกว่า 0 เช่น 599.00');
+      amountRef.current?.focus();
+      return;
+    }
+    const dev = payDeviation(bill.amount, amount);
+    // ต้องผ่านการถามก่อน และต้องผ่านไปแล้วระยะหนึ่ง: กด Enter รัว (key repeat) ต้องไม่ข้ามกล่องเตือน
+    if (dev.needsConfirm && (askedFor !== amount || Date.now() - askedAt.current < 600)) {
+      if (askedFor === amount) return;
+      askedAt.current = Date.now();
+      // ต่างจากยอดบิลเกิน 20%: ยังไม่บันทึก ถามยืนยันก่อน
+      setAskedFor(amount);
+      setError(null);
+      return;
+    }
     setSaving(true);
     try {
-      const result = await repo.payBill(bill.id, { today, entryId: newId('e'), walletId, categoryId, ...(cycle ? { expectedCycle: cycle } : {}) });
+      const result = await repo.payBill(bill.id, { today, entryId: newId('e'), walletId, categoryId, amount, ...(cycle ? { expectedCycle: cycle } : {}) });
       onPaid(row, result);
     } catch (e) {
+      setAskedFor(null);
       setError(friendlyError(e));
       setSaving(false);
     }
@@ -72,11 +113,47 @@ export function PayBillDialog({ row, accounts, today, onClose, onPaid }: Props) 
       <form onSubmit={submit} className="entry-form">
         <h2 id="pay-dialog-title">จ่ายบิล: {bill.name}</h2>
         <p>
-          บันทึกเป็นรายจ่าย <strong className="num">{formatBaht(satang(bill.amount))}</strong> ของรอบ{' '}
+          บันทึกเป็นรายจ่ายของรอบ{' '}
           <strong>{cycle ? thaiMonthKeyLabel(cycle) : ''}</strong> วันที่ {thaiDayLabel(today)}
         </p>
         {row.status === 'overdue' && row.dueDate && (
           <p className="slip-warn">บิลนี้เลยกำหนด (ครบกำหนด {thaiDayLabel(row.dueDate)})</p>
+        )}
+
+        <div className="field">
+          <label htmlFor="pay-amount">ยอดที่จ่ายจริง (บาท)</label>
+          <input
+            id="pay-amount"
+            ref={amountRef}
+            className="amount-input"
+            inputMode="decimal"
+            autoComplete="off"
+            value={amountText}
+            aria-describedby={error !== null && amountNow === null ? 'pay-amount-hint pay-error' : 'pay-amount-hint'}
+            aria-invalid={amountNow === null || undefined}
+            onChange={(e) => {
+              setAmountText(e.target.value);
+              setAskedFor(null);
+              setError(null);
+            }}
+          />
+          <p id="pay-amount-hint" className="muted small">
+            {amountNow === null
+              ? 'ใส่ยอดเป็นตัวเลขมากกว่า 0'
+              : deviation?.direction === 'same'
+                ? 'เท่ากับยอดบิล'
+                : `${deviation?.direction === 'higher' ? 'สูงกว่า' : 'ต่ำกว่า'}ยอดบิล (${formatBaht(satang(bill.amount))}) ${(deviation?.percentTenths ?? 0) / 10}%${deviation?.needsConfirm ? ` · ต่างเกิน ${PAY_CONFIRM_PERCENT}% จะถามยืนยันอีกครั้งก่อนบันทึก` : ''}`}
+          </p>
+        </div>
+
+        {askingConfirm && deviation && (
+          <div role="alert" className="slip-warn" ref={warnRef} tabIndex={-1}>
+            <strong>ยอดต่างจากยอดบิลเกิน {PAY_CONFIRM_PERCENT}%</strong>
+            <p>
+              จะบันทึกจ่าย <strong className="num">{formatBaht(satang(amountNow))}</strong> ทั้งที่ยอดบิลคือ{' '}
+              <strong className="num">{formatBaht(satang(bill.amount))}</strong> ({deviation.direction === 'higher' ? 'สูงกว่า' : 'ต่ำกว่า'} {deviation.percentTenths / 10}%) ถ้าถูกต้อง กด "ยืนยันจ่ายยอดนี้" ถ้าพิมพ์ผิดให้แก้ยอดก่อน
+            </p>
+          </div>
         )}
 
         <div className="field-row">
@@ -135,7 +212,7 @@ export function PayBillDialog({ row, accounts, today, onClose, onPaid }: Props) 
             ยกเลิก
           </button>
           <button type="submit" className="btn btn-primary" disabled={saving}>
-            จ่ายบิล
+            {askingConfirm ? 'ยืนยันจ่ายยอดนี้' : 'จ่ายบิล'}
           </button>
         </div>
       </form>

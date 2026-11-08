@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BackupData } from '../domain/backup/parseBackup';
+import { payAmountProblem } from '../domain/bills/payAmount';
 import { billProblem, markBillPaid, payableCycle } from '../domain/bills/schedule';
 import { sanitizeSettings, settingsProblem, type FinanceSettings } from '../domain/bills/settings';
 import type { Bill } from '../domain/bills/types';
@@ -431,6 +432,10 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       } catch (e) {
         throw new StorageError(e instanceof Error ? e.message : String(e));
       }
+      // ยอดที่จ่ายจริง (R15): ไม่ระบุ = ยอดบิล · ระบุได้ต่างจากยอดบิล (ค่าไฟ/ค่าน้ำ) ต้องเป็นจำนวนเต็มสตางค์บวกที่ปลอดภัย
+      const amount = options.amount ?? bill.amount;
+      const amountIssue = payAmountProblem(amount);
+      if (amountIssue) throw new StorageError(amountIssue);
       const walletId = options.walletId ?? bill.walletId;
       const categoryId = options.categoryId ?? bill.categoryId;
       if (walletId === undefined) throw new StorageError('เลือกกระเป๋าที่จะจ่ายบิล');
@@ -452,8 +457,8 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
         bill: bill.lastPaidMonth === undefined ? { id: bill.id, cycle } : { id: bill.id, cycle, before: bill.lastPaidMonth },
         createdAt: nextCreatedAt(),
         lines: [
-          { accountId: category.id, amount: bill.amount },
-          { accountId: wallet.id, amount: -bill.amount },
+          { accountId: category.id, amount },
+          { accountId: wallet.id, amount: -amount },
         ],
       });
       // ครั้งเดียว: ฐานข้อมูลสร้างรายการและตั้ง lastPaidMonth ในธุรกรรมเดียว (trigger) · รอบซ้ำ/สถานะเปลี่ยน = ปฏิเสธทั้งก้อน

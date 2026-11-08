@@ -1,4 +1,5 @@
 import { monthOf } from '../domain/bills/calendar';
+import { payAmountProblem } from '../domain/bills/payAmount';
 import { billProblem, markBillPaid, payableCycle } from '../domain/bills/schedule';
 import { sanitizeSettings, settingsProblem, type FinanceSettings } from '../domain/bills/settings';
 import type { Bill } from '../domain/bills/types';
@@ -323,6 +324,8 @@ export interface PayBillOptions {
   today: string;
   /** รอบที่ผู้ใช้เห็นบนหน้าจอ ถ้าไม่ตรงกับรอบที่ต้องจ่ายจริงจะปฏิเสธ (กันจ่ายผิดรอบจากหน้าจอเก่า) */
   expectedCycle?: string;
+  /** ยอดที่จ่ายจริง (สตางค์) ไม่ระบุ = ยอดบิล · ต่างจากยอดบิลได้ การถามยืนยันเมื่อต่างเกิน 20% เป็นหน้าที่ของหน้าจอ */
+  amount?: number;
   /** รหัสรายการที่จะสร้าง */
   entryId: string;
   /** กระเป๋าที่จ่าย ถ้าไม่ระบุใช้ของบิล ไม่มีทั้งสองที่ = ปฏิเสธ (ไม่เลือกให้เงียบๆ) */
@@ -365,6 +368,10 @@ export async function payBill(db: MoneyDB, billId: string, options: PayBillOptio
       throw new StorageError(e instanceof Error ? e.message : String(e));
     }
 
+    // ยอดที่จ่ายจริง (R15): ไม่ระบุ = ยอดบิล · ระบุได้ต่างจากยอดบิล (ค่าไฟ/ค่าน้ำ) ต้องเป็นจำนวนเต็มสตางค์บวกที่ปลอดภัย
+    const amount = options.amount ?? bill.amount;
+    const amountIssue = payAmountProblem(amount);
+    if (amountIssue) throw new StorageError(amountIssue);
     const walletId = options.walletId ?? bill.walletId;
     const categoryId = options.categoryId ?? bill.categoryId;
     if (walletId === undefined) throw new StorageError('เลือกกระเป๋าที่จะจ่ายบิล');
@@ -387,8 +394,8 @@ export async function payBill(db: MoneyDB, billId: string, options: PayBillOptio
       bill: bill.lastPaidMonth === undefined ? { id: bill.id, cycle } : { id: bill.id, cycle, before: bill.lastPaidMonth },
       createdAt: nextCreatedAt(),
       lines: [
-        { accountId: category.id, amount: bill.amount },
-        { accountId: wallet.id, amount: -bill.amount },
+        { accountId: category.id, amount },
+        { accountId: wallet.id, amount: -amount },
       ],
     });
     await db.entries.add(entry); // id ซ้ำจะ error ทั้งก้อน
