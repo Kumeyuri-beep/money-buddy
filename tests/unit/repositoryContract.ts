@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { buildInitialLedger } from '../../src/app/setup';
 import type { Bill } from '../../src/domain/bills/types';
+import { parseBackup, type BackupData } from '../../src/domain/backup/parseBackup';
 import { runIntegrityCheck } from '../../src/domain/ledger/integrity';
+import { balanceOf } from '../../src/domain/ledger/balance';
 import type { NewEntry } from '../../src/domain/ledger/types';
 import type { LedgerRepository } from '../../src/storage/ledgerRepository';
 import { StorageError } from '../../src/storage/repository';
@@ -226,6 +228,83 @@ export function describeRepositoryContract(name: string, factory: () => Promise<
       await expect(repo.saveSettings({ payDay: 40 })).rejects.toThrow(StorageError);
       await expect(repo.saveSettings({ monthlyBudget: -1 })).rejects.toThrow(StorageError);
       expect(await repo.loadSettings()).toEqual({ payDay: 1 });
+    });
+
+    /** ไฟล์สำรองตัวอย่าง: ยอดยกมา + รายจ่าย + บิลที่จ่ายแล้วรอบ 2026-11 (มีรายการจ่ายผูกบิล) + ตั้งค่า */
+    const backupData = (): BackupData => {
+      const ledger = setup();
+      const wallet = ledger.accounts.find((a) => a.type === 'asset')!;
+      const category = ledger.accounts.find((a) => a.type === 'expense')!;
+      const file = {
+        schemaVersion: 2,
+        accounts: ledger.accounts,
+        entries: [
+          ...ledger.entries,
+          { id: 'imp-1', date: '2026-11-02', memo: 'ข้าว', source: 'manual', createdAt: '2026-11-02T03:00:00.000Z', lines: [{ accountId: category.id, amount: 5_000 }, { accountId: wallet.id, amount: -5_000 }] },
+          { id: 'imp-pay', date: '2026-11-05', memo: 'ค่าเน็ต', source: 'recurring', createdAt: '2026-11-05T03:00:00.000Z', bill: { id: 'imp-bill', cycle: '2026-11' }, lines: [{ accountId: category.id, amount: 59_900 }, { accountId: wallet.id, amount: -59_900 }] },
+        ],
+        bills: [{ id: 'imp-bill', name: 'ค่าเน็ต', amount: 59_900, dueDay: 5, walletId: wallet.id, categoryId: category.id, lastPaidMonth: '2026-11', startMonth: '2026-10' }],
+        settings: { payDay: 25 },
+      };
+      const parsed = parseBackup(JSON.stringify(file), '2026-11-09');
+      if (!parsed.ok) throw new Error(parsed.problems.join('\n'));
+      return parsed.data;
+    };
+
+    it('นำเข้า: ข้อมูลครบทุกส่วน ยอดต่อบัญชีตรง สถานะบิลคงตามไฟล์ และยกเลิกการจ่ายที่นำเข้ามาได้ (R15)', async () => {
+      const data = backupData();
+      const result = await repo.importBackup(data);
+      expect(result).toEqual({ accounts: data.accounts.length, entries: data.entries.length, bills: 1 });
+      const { accounts, entries } = await repo.loadLedger();
+      expect(entries.map((e) => e.id).sort()).toEqual(data.entries.map((e) => e.id).sort());
+      for (const a of data.accounts) {
+        expect(balanceOf(a.id, entries), a.id).toBe(balanceOf(a.id, data.entries));
+      }
+      expect(accounts.map((a) => a.id).sort()).toEqual(data.accounts.map((a) => a.id).sort());
+      expect(entries.filter((e) => e.source === 'system')).toHaveLength(2);
+      expect(runIntegrityCheck(accounts, entries).ok).toBe(true);
+      expect(await repo.loadBills()).toEqual(data.bills);
+      expect(await repo.loadSettings()).toEqual({ payDay: 25 });
+      const paid = entries.find((e) => e.id === 'imp-pay')!;
+      expect(paid.bill).toEqual({ id: 'imp-bill', cycle: '2026-11' });
+      expect(paid.createdAt).toBe('2026-11-05T03:00:00.000Z');
+      const cancelled = await repo.cancelLatestBillPayment('imp-bill');
+      expect(cancelled.entry.id).toBe('imp-pay');
+      expect(cancelled.bill?.lastPaidMonth).toBeUndefined();
+    });
+
+    it('นำเข้าซ้ำ/นำเข้าทับข้อมูลเดิม = ปฏิเสธ ไม่ซ้ำซ้อน ไม่แก้ของเดิม', async () => {
+      const data = backupData();
+      await repo.importBackup(data);
+      const before = await repo.loadLedger();
+      await expect(repo.importBackup(data)).rejects.toThrow(StorageError);
+      const after = await repo.loadLedger();
+      expect(after.entries).toHaveLength(before.entries.length);
+      expect(after.accounts).toHaveLength(before.accounts.length);
+      expect(await repo.loadBills()).toHaveLength(1);
+    });
+
+    it('นำเข้าเมื่อมีข้อมูลที่ตั้งต้นเองไว้แล้ว = ปฏิเสธ และของเดิมไม่เปลี่ยน', async () => {
+      await seed();
+      const before = await repo.loadLedger();
+      await expect(repo.importBackup(backupData())).rejects.toThrow(StorageError);
+      const after = await repo.loadLedger();
+      expect(after.entries.map((e) => e.id)).toEqual(before.entries.map((e) => e.id));
+      expect(await repo.loadBills()).toEqual([]);
+    });
+
+    it('นำเข้าข้อมูลเสีย (ไม่สมดุล) = ปฏิเสธทั้งก้อน ไม่เหลือข้อมูลค้างครึ่งๆ กลางๆ', async () => {
+      const data = backupData();
+      const bad = structuredClone(data);
+      bad.entries.find((e) => e.id === 'imp-1')!.lines[0]!.amount = 5_001;
+      await expect(repo.importBackup(bad)).rejects.toThrow();
+      expect(await repo.isEmpty()).toBe(true);
+      expect((await repo.loadLedger()).entries).toHaveLength(0);
+      expect(await repo.loadBills()).toEqual([]);
+      expect(await repo.loadSettings()).toEqual({});
+      // ไฟล์ดีนำเข้าได้หลังจากนั้น (ไม่มีสถานะค้างที่ขวาง)
+      await repo.importBackup(data);
+      expect(await repo.isEmpty()).toBe(false);
     });
 
     it('ส่งออก: ครบทุกส่วนและสอดคล้องกัน · ล้างทั้งหมดแล้วว่างจริง', async () => {

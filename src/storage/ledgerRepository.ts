@@ -1,3 +1,4 @@
+import type { BackupData } from '../domain/backup/parseBackup';
 import type { FinanceSettings } from '../domain/bills/settings';
 import type { Bill } from '../domain/bills/types';
 import type { Entry, NewEntry } from '../domain/ledger/types';
@@ -30,6 +31,12 @@ export interface LedgerRepository {
   cancelBillPayment(entryId: string): Promise<{ entry: Entry; bill: Bill | undefined }>;
   cancelLatestBillPayment(billId: string): Promise<{ entry: Entry; bill: Bill | undefined }>;
 
+  /**
+   * นำเข้าข้อมูลจากไฟล์สำรองที่ผ่าน parseBackup แล้ว ทั้งก้อนในธุรกรรมเดียว (M2-D)
+   * ปฏิเสธถ้ามีข้อมูลอยู่แล้ว (ไม่ทับ ไม่ซ้ำซ้อน) · ผิดข้อใดข้อหนึ่ง = ไม่เขียนอะไรเลย
+   */
+  importBackup(data: BackupData): Promise<{ accounts: number; entries: number; bills: number }>;
+
   loadSettings(): Promise<FinanceSettings>;
   saveSettings(settings: FinanceSettings): Promise<FinanceSettings>;
 }
@@ -53,6 +60,7 @@ export function createDexieRepository(db: MoneyDB): LedgerRepository {
     undoPayBill: (input) => dexie.undoPayBill(db, input),
     cancelBillPayment: (entryId) => dexie.cancelBillPayment(db, entryId),
     cancelLatestBillPayment: (billId) => dexie.cancelLatestBillPayment(db, billId),
+    importBackup: (data) => dexie.importBackup(db, data),
     loadSettings: () => dexie.loadSettings(db),
     saveSettings: (settings) => dexie.saveSettings(db, settings),
   };

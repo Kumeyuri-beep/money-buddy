@@ -194,6 +194,37 @@ describe('อ่านครบจริง (pagination)', () => {
   });
 });
 
+describe('นำเข้าไฟล์สำรอง', () => {
+  const data = {
+    accounts: [
+      { id: 'a', type: 'asset' as const, name: 'a', currency: 'THB' },
+      { id: 'b', type: 'equity' as const, name: 'b', currency: 'THB' },
+    ],
+    entries: [{ id: 'e', date: '2026-11-01', memo: '', source: 'system' as const, lines: [{ accountId: 'a', amount: 10 }, { accountId: 'b', amount: -10 }] }],
+    bills: [{ id: 'bill', name: 'x', amount: 5, dueDay: 1, lastPaidMonth: '2026-11' }],
+    settings: { payDay: 3 },
+  };
+  it('เรียก import_ledger ครั้งเดียว ส่งครบทุกส่วน ไม่เขียนตารางตรงๆ', async () => {
+    const { client, calls } = fakeClient(() => ({ data: { accounts: 2, bills: 1, entries: 1 } }));
+    const out = await createSupabaseRepository(client, 'u').importBackup(data);
+    expect(out).toEqual({ accounts: 2, entries: 1, bills: 1 });
+    expect(calls.map((c) => c.kind + ':' + c.name)).toEqual(['rpc:import_ledger']);
+    const sent = (calls[0]?.args as { p_data: { accounts: unknown[]; entries: unknown[]; bills: { lastPaidMonth?: string }[]; settings: unknown } }).p_data;
+    expect(sent.accounts).toHaveLength(2);
+    expect(sent.entries).toHaveLength(1);
+    expect(sent.bills[0]?.lastPaidMonth).toBe('2026-11');
+    expect(sent.settings).toEqual({ payDay: 3 });
+  });
+  it('ข้อมูลไม่สมดุลถูกปฏิเสธก่อนส่ง · เซิร์ฟเวอร์ปฏิเสธ (มีข้อมูลอยู่แล้ว) = StorageError ข้อความไทย', async () => {
+    const none = fakeClient(() => ({}));
+    const bad = { ...data, entries: [{ ...data.entries[0]!, lines: [{ accountId: 'a', amount: 10 }, { accountId: 'b', amount: -9 }] }] };
+    await expect(createSupabaseRepository(none.client, 'u').importBackup(bad)).rejects.toThrow(StorageError);
+    expect(none.calls).toHaveLength(0);
+    const exists = fakeClient(() => ({ error: { message: 'มีข้อมูลอยู่แล้ว นำเข้าไม่ได้ (ไม่ทับข้อมูลเดิม)', code: '23505' } }));
+    await expect(createSupabaseRepository(exists.client, 'u').importBackup(data)).rejects.toThrow(/มีข้อมูลอยู่แล้ว/);
+  });
+});
+
 describe('การป้องกันอื่น', () => {
   it('ไม่มี userId = สร้าง repository ไม่ได้', () => {
     const { client } = fakeClient(() => ({}));

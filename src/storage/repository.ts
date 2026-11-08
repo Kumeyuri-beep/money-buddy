@@ -5,6 +5,7 @@ import type { Bill } from '../domain/bills/types';
 import { createEntry } from '../domain/ledger/entry';
 import { runIntegrityCheck } from '../domain/ledger/integrity';
 import type { Account, Entry, NewEntry } from '../domain/ledger/types';
+import type { BackupData } from '../domain/backup/parseBackup';
 import { SCHEMA_VERSION, type MoneyDB } from './db';
 
 export interface Ledger {
@@ -83,6 +84,33 @@ export async function saveInitialLedger(db: MoneyDB, ledger: Ledger): Promise<vo
     await db.entries.bulkAdd(ledger.entries);
     await db.meta.put({ key: 'schemaVersion', value: SCHEMA_VERSION });
   });
+}
+
+/**
+ * นำเข้าไฟล์สำรอง (ผ่าน parseBackup มาแล้ว) ทั้งก้อนในธุรกรรมเดียว · ไม่ทับข้อมูลเดิม
+ * ตรวจซ้ำที่นี่ด้วย (Integrity + บิล) เพื่อไม่พึ่งว่าผู้เรียกตรวจมาแล้ว
+ */
+export async function importBackup(db: MoneyDB, data: BackupData): Promise<{ accounts: number; entries: number; bills: number }> {
+  const report = runIntegrityCheck(data.accounts, data.entries);
+  if (!report.ok) throw new StorageError(`ข้อมูลนำเข้าไม่ผ่านการตรวจ: ${report.issues[0]?.message ?? ''}`);
+  for (const bill of data.bills) {
+    const problem = billProblem(bill);
+    if (problem) throw new StorageError(`บิล ${bill.id} ไม่ถูกต้อง: ${problem}`);
+  }
+  const settingsIssue = settingsProblem(data.settings);
+  if (settingsIssue) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${settingsIssue}`);
+  await db.transaction('rw', db.accounts, db.entries, db.bills, db.meta, async () => {
+    if ((await db.accounts.count()) > 0 || (await db.entries.count()) > 0 || (await db.bills.count()) > 0) {
+      throw new StorageError('มีข้อมูลอยู่แล้ว นำเข้าไม่ได้ (ไม่ทับข้อมูลเดิม)');
+    }
+    await db.accounts.bulkAdd(data.accounts);
+    await db.entries.bulkAdd(data.entries);
+    await db.bills.bulkAdd(data.bills);
+    const clean = sanitizeSettings(data.settings);
+    if (Object.keys(clean).length > 0) await db.meta.put({ key: SETTINGS_KEY, value: clean });
+    await db.meta.put({ key: 'schemaVersion', value: SCHEMA_VERSION });
+  });
+  return { accounts: data.accounts.length, entries: data.entries.length, bills: data.bills.length };
 }
 
 /** เพิ่มรายการใหม่ ผ่าน createEntry เสมอ รายการไม่สมดุลหรือบัญชีไม่มีจะถูกปฏิเสธก่อนเขียน */

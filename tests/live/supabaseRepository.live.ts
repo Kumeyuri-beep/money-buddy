@@ -99,12 +99,64 @@ describe('แยกข้อมูลระหว่างผู้ใช้ (RL
     expect(await b.loadSettings()).toEqual({ payDay: 20 });
   });
 
+  it('นำเข้าข้อมูลเสียที่ส่งตรงเข้า RPC (ข้ามการตรวจฝั่งเว็บ) ถูกฐานข้อมูลปฏิเสธทั้งก้อน ไม่เหลือแถวค้าง · นำเข้าซ้ำถูกปฏิเสธ', async () => {
+    await wipe(1);
+    const { client } = await signedIn(1);
+    const accounts = [
+      { id: 'w1', type: 'asset', name: 'w1', currency: 'THB' },
+      { id: 'open', type: 'equity', name: 'open', currency: 'THB' },
+    ];
+    const bad = await client.rpc('import_ledger', {
+      p_data: { accounts, bills: [], entries: [{ id: 'x', date: '2026-11-01', memo: '', source: 'manual', lines: [{ accountId: 'w1', amount: 100 }, { accountId: 'open', amount: -99 }] }] },
+    });
+    expect(bad.error).not.toBeNull();
+    expect(await b.isEmpty()).toBe(true);
+    const good = await client.rpc('import_ledger', {
+      p_data: { accounts, bills: [], entries: [{ id: 'x', date: '2026-11-01', memo: '', source: 'system', lines: [{ accountId: 'w1', amount: 100 }, { accountId: 'open', amount: -100 }] }] },
+    });
+    expect(good.error).toBeNull();
+    const again = await client.rpc('import_ledger', { p_data: { accounts, bills: [], entries: [] } });
+    expect(again.error?.message ?? '').toMatch(/มีข้อมูลอยู่แล้ว/);
+    // GUC ของการนำเข้าไม่ค้างหลังจบ: สร้างรายการ system ด้วย create_entry ต้องถูกปฏิเสธ
+    const sys = await client.rpc('create_entry', {
+      p_entry: { id: 'sys2', date: '2026-11-02', memo: '', source: 'system', lines: [{ accountId: 'w1', amount: 1 }, { accountId: 'open', amount: -1 }] },
+    });
+    expect(sys.error).not.toBeNull();
+    expect((await b.loadLedger()).entries).toHaveLength(1);
+  });
+
+  it('payload ที่ใส่ user_id ของคนอื่นมา ถูกมองข้าม แถวเป็นของผู้เรียกเสมอ · อ้างบัญชีของอีกคนไม่ได้', async () => {
+    await wipe(1);
+    const { client } = await signedIn(1);
+    const other = live.users[0]!;
+    const ok = await client.rpc('import_ledger', {
+      p_data: {
+        accounts: [
+          { id: 'w1', type: 'asset', name: 'w1', currency: 'THB', user_id: other.id },
+          { id: 'open', type: 'equity', name: 'open', currency: 'THB', user_id: other.id },
+        ],
+        bills: [],
+        entries: [{ id: 'u1', date: '2026-11-01', memo: '', source: 'system', user_id: other.id, lines: [{ accountId: 'w1', amount: 5 }, { accountId: 'open', amount: -5 }] }],
+      },
+    });
+    expect(ok.error).toBeNull();
+    expect((await a.loadLedger()).accounts.some((x) => x.id === 'w1' && x.name === 'w1')).toBe(false);
+    expect((await b.loadLedger()).entries.map((e) => e.id)).toEqual(['u1']);
+    await wipe(1);
+    const cross = await client.rpc('import_ledger', {
+      p_data: { accounts: [], bills: [], entries: [{ id: 'z', date: '2026-11-01', memo: '', source: 'manual', lines: [{ accountId: 'wallet-of-A', amount: 1 }, { accountId: 'x', amount: -1 }] }] },
+    });
+    expect(cross.error).not.toBeNull();
+  });
+
   it('คนที่ไม่ได้ล็อกอิน (anon) อ่านและเรียก RPC ไม่ได้เลย', async () => {
     const anon = createClient(live.url, live.anonKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
     const read = await anon.from('entries').select('id');
     expect(read.error !== null || (read.data ?? []).length === 0).toBe(true);
-    const rpc = await anon.rpc('reset_my_ledger', {});
+    const rpc = await anon.rpc('reset_my_ledger', { p_password: 'x' });
     expect(rpc.error).not.toBeNull();
+    const imp = await anon.rpc('import_ledger', { p_data: { accounts: [], bills: [], entries: [] } });
+    expect(imp.error).not.toBeNull();
     expect((await a.loadLedger()).entries.length).toBeGreaterThan(0);
   });
 });
