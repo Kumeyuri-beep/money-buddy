@@ -6,8 +6,8 @@ import { walletOptions } from '../app/entryForm';
 import { newId } from '../app/ids';
 import type { Account } from '../domain/ledger/types';
 import { formatBaht, satang } from '../domain/money/satang';
-import { db } from '../storage/instance';
-import { payBill, type PayBillResult } from '../storage/repository';
+import type { PayBillResult } from '../storage/repository';
+import { useRepository } from './RepositoryContext';
 
 interface Props {
   row: BillRow;
@@ -19,6 +19,7 @@ interface Props {
 
 /** ยืนยันจ่ายบิล: แสดงรอบและยอดที่จะบันทึก ต้องเลือกกระเป๋าและหมวดเองถ้าบิลยังไม่ระบุ (ไม่เลือกให้เงียบๆ) */
 export function PayBillDialog({ row, accounts, today, onClose, onPaid }: Props) {
+  const repo = useRepository();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const walletRef = useRef<HTMLSelectElement>(null);
   const categoryRef = useRef<HTMLSelectElement>(null);
@@ -52,7 +53,7 @@ export function PayBillDialog({ row, accounts, today, onClose, onPaid }: Props) 
     }
     setSaving(true);
     try {
-      const result = await payBill(db, bill.id, { today, entryId: newId('e'), walletId, categoryId, ...(cycle ? { expectedCycle: cycle } : {}) });
+      const result = await repo.payBill(bill.id, { today, entryId: newId('e'), walletId, categoryId, ...(cycle ? { expectedCycle: cycle } : {}) });
       onPaid(row, result);
     } catch (e) {
       setError(friendlyError(e));

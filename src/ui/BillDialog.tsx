@@ -5,8 +5,7 @@ import { newId } from '../app/ids';
 import { walletOptions } from '../app/entryForm';
 import type { Bill } from '../domain/bills/types';
 import type { Account } from '../domain/ledger/types';
-import { db } from '../storage/instance';
-import { addBill, updateBill } from '../storage/repository';
+import { useRepository } from './RepositoryContext';
 
 interface Props {
   accounts: Account[];
@@ -22,6 +21,7 @@ const EMPTY: BillForm = { name: '', amount: '', dueDay: '', walletId: '', catego
 
 /** ฟอร์มเพิ่ม/แก้บิลประจำ (dialog ของเบราว์เซอร์ กด Esc ปิดได้) */
 export function BillDialog({ accounts, editing, today, onClose, onSaved }: Props) {
+  const repo = useRepository();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<BillForm>(() => (editing ? billToForm(editing) : EMPTY));
@@ -50,10 +50,10 @@ export function BillDialog({ accounts, editing, today, onClose, onSaved }: Props
     try {
       if (editing) {
         const next = billFromForm(form, editing.id);
-        const saved = await updateBill(db, next);
+        const saved = await repo.updateBill(next);
         onSaved(saved, editing);
       } else {
-        const saved = await addBill(db, billFromForm(form, newId('bill')), today);
+        const saved = await repo.addBill(billFromForm(form, newId('bill')), today);
         onSaved(saved);
       }
     } catch (e) {

@@ -5,8 +5,8 @@ import { newId } from '../app/ids';
 import { learnFromHistory, parseQuickText } from '../app/quickText';
 import type { Entry } from '../domain/ledger/types';
 import { formatBaht, parseBahtToSatang } from '../domain/money/satang';
-import { db } from '../storage/instance';
-import { appendEntry, type Ledger } from '../storage/repository';
+import type { Ledger } from '../storage/repository';
+import { useRepository } from './RepositoryContext';
 
 interface QuickAddProps {
   ledger: Ledger;
@@ -17,6 +17,7 @@ const KIND_LABEL: Record<FormKind, string> = { expense: 'รายจ่าย',
 
 /** ช่องพิมพ์สั้นๆ เช่น "กาแฟ 65" พร้อมตัวอย่างที่แก้ได้ก่อนกด Enter บันทึก */
 export function QuickAdd({ ledger, onSaved }: QuickAddProps) {
+  const repo = useRepository();
   const { accounts, entries } = ledger;
   const [text, setText] = useState('');
   const [override, setOverride] = useState<{ walletId?: string; counterId?: string }>({});
@@ -61,7 +62,7 @@ export function QuickAdd({ ledger, onSaved }: QuickAddProps) {
     setSaving(true);
     try {
       const input = { ...buildEntry(accounts, { ...form, counterId }, newId('e')), source: 'quick' as const };
-      const entry = await appendEntry(db, input);
+      const entry = await repo.appendEntry(input);
       reset();
       onSaved(entry);
     } catch (e) {
