@@ -114,4 +114,25 @@ describe('ไฟล์ตั้งค่าโปรเจกต์', () => {
     expect(deny).toContain('Read(./.env*)');
     expect(deny.some((d) => d.startsWith('Read(') && d.includes('.money-buddy-admin'))).toBe(true);
   });
+  it('.claude/settings.json ห้ามผู้ช่วย AI รันสคริปต์ผู้ดูแล (เจ้าของรันเองใน terminal เท่านั้น) ทั้ง Bash และ PowerShell', () => {
+    const deny = (JSON.parse(claude) as { permissions: { deny: string[] } }).permissions.deny;
+    for (const tool of ['Bash', 'PowerShell']) {
+      for (const pattern of [
+        'npm run admin:*',
+        'node *scripts/create-user*',
+        'node *scripts/reset-password*',
+        'node *scripts/spike-auth*',
+      ]) {
+        expect(deny, `${tool}(${pattern})`).toContain(`${tool}(${pattern})`);
+      }
+    }
+    // กฎ git push เดิมยังอยู่ครบ
+    expect(deny).toContain('Bash(git push)');
+    expect(deny).toContain('Bash(git push --force*)');
+  });
+  it('สคริปต์รับชื่อตัวแปร key ได้ทั้งแบบ service_role และแบบ sb_secret_ (SUPABASE_SECRET_KEY)', () => {
+    const admin = named('lib/admin.mjs');
+    expect(admin).toContain('values.SUPABASE_SERVICE_ROLE_KEY || values.SUPABASE_SECRET_KEY');
+    expect(admin).toContain("KEY_NAMES = ['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEY']");
+  });
 });
