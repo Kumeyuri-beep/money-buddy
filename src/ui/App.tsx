@@ -45,6 +45,8 @@ import { Setup } from './Setup';
 import { Shell, type ViewId } from './Shell';
 import { ScanStatus } from './ScanStatus';
 import { Toast } from './Toast';
+import { AccountView } from './AccountView';
+import { useAccount } from './AuthContext';
 import { Today } from './Today';
 import { useSlipIntake } from './useSlipIntake';
 import { useThaiToday } from './useThaiClock';
@@ -80,6 +82,7 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export function App() {
   const [state, setState] = useState<State>({ status: 'loading' });
+  const { username } = useAccount();
   const [view, setView] = useState<ViewId>('today');
   // "วันนี้" ตามเวลาไทย อัปเดตเองเมื่อข้ามเที่ยงคืนหรือกลับมาเปิดแท็บ (ต้องเรียก hook ก่อน return ใดๆ)
   const today = useThaiToday();
@@ -328,6 +331,7 @@ export function App() {
 
   return (
     <Shell
+      accountName={username}
       current={view}
       onNavigate={setView}
       status={integrity ? <IntegrityStatus report={integrity} /> : null}
@@ -362,6 +366,8 @@ export function App() {
           onOpenBills={() => setView('bills')}
           today={today}
         />
+      ) : view === 'account' ? (
+        <AccountView />
       ) : view === 'bills' ? (
         <BillsView
           bills={state.bills}
