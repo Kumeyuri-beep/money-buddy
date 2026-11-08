@@ -4,6 +4,7 @@ import { usernameOfEmail } from '../domain/auth/credentials';
 import { authApi, loadProfile, supabase } from '../storage/supabase';
 import { AccountContext } from './AuthContext';
 import { ChangePasswordForm } from './ChangePasswordForm';
+import { ConsentPage } from './ConsentPage';
 import { DataSourceGate } from './DataSourceGate';
 import { LoginPage } from './LoginPage';
 import { PasswordPromptProvider } from './PasswordPrompt';
@@ -14,6 +15,7 @@ type GateView =
   | { kind: 'no-config' }
   | { kind: 'signed-out' }
   | { kind: 'must-change'; userId: string; username: string }
+  | { kind: 'needs-consent'; userId: string; username: string }
   | { kind: 'no-profile'; userId: string; username: string }
   | { kind: 'error'; userId: string; username: string }
   | { kind: 'ready'; userId: string; username: string };
@@ -63,7 +65,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       return;
     }
     const state = gateStateFromProfile(loaded.profile);
-    show({ kind: state === 'ready' ? 'ready' : state === 'must-change' ? 'must-change' : 'no-profile', userId, username });
+    show({ kind: state, userId, username });
   }, [show]);
 
   useEffect(() => {
@@ -132,6 +134,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
           </section>
         </main>
       );
+    case 'needs-consent':
+      return <ConsentPage username={view.username} onAccepted={evaluate} onSignOut={signOut} />;
     case 'no-profile':
     case 'error':
       return (

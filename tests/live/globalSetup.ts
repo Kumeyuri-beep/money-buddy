@@ -41,7 +41,9 @@ export default async function setup({ provide }: GlobalSetupContext): Promise<()
     const failed: string[] = [];
     for (const u of created) {
       const del = await admin.auth.admin.deleteUser(u.id);
-      if (del.error) failed.push(`${u.email}: ${safeMessage(del.error)}`);
+      // ผู้ใช้ c ถูกลบโดยเทสต์ลบบัญชีอยู่แล้ว: ไม่พบ = ปกติ
+      const gone = del.error && (del.error.status === 404 || /not.?found/i.test(`${del.error.code ?? ''} ${del.error.message ?? ''}`));
+      if (del.error && !gone) failed.push(`${u.email}: ${safeMessage(del.error)}`);
     }
     // ลบไม่สำเร็จ = ถือว่าการรันล้มเหลว (เคยพบว่าลบผู้ใช้ที่มีข้อมูลไม่ได้ ซึ่งกระทบ delete_my_account/Dashboard ด้วย)
     if (failed.length > 0) throw new Error('ลบผู้ใช้ทดสอบไม่สำเร็จ โปรดลบใน Dashboard เอง: ' + failed.join(' | '));
@@ -49,7 +51,7 @@ export default async function setup({ provide }: GlobalSetupContext): Promise<()
 
   try {
     const suffix = globalThis.crypto.getRandomValues(new Uint8Array(4)).reduce((s, b) => s + b.toString(16).padStart(2, '0'), '');
-    for (const who of ['a', 'b']) {
+    for (const who of ['a', 'b', 'c']) {
       const email = `livetest-${suffix}-${who}@${AUTH_EMAIL_DOMAIN}`;
       const temp = generateTempPassword();
       const password = generateTempPassword();
