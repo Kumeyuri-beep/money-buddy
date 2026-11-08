@@ -1,3 +1,4 @@
+import { PRIVACY_POLICY_VERSION } from '../domain/privacy/policy';
 import type { AuthResult } from './auth';
 
 /**
@@ -16,7 +17,8 @@ export const COOLDOWN_MESSAGE = 'เพิ่งเปลี่ยนรหั�
 /** บันทึกว่าผู้ใช้ยอมรับนโยบาย (เวลาตั้งที่เซิร์ฟเวอร์ ไม่รับเวลาจากเว็บ) · เรียกซ้ำได้ ไม่เปลี่ยนเวลาเดิม */
 export async function recordConsent(api: RpcApi): Promise<AuthResult> {
   try {
-    const { error } = await api.rpc('record_consent');
+    // ส่งเวอร์ชันที่แสดงให้ผู้ใช้อ่านจริง (ฐานข้อมูลรับเฉพาะเวอร์ชันที่อยู่ในรายการอนุญาต ไม่รับข้อความอิสระ)
+    const { error } = await api.rpc('record_consent', { p_version: PRIVACY_POLICY_VERSION });
     if (!error) return { ok: true };
     return { ok: false, message: /fetch|network/i.test(String(error.message ?? '')) ? NETWORK : UNKNOWN };
   } catch {
