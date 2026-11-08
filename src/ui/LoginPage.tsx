@@ -1,6 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { signIn } from '../app/auth';
 import { authApi } from '../storage/supabase';
+import { downloadLocalData } from './backup';
 import { PasswordField } from './PasswordField';
 
 /** หน้าเข้าสู่ระบบ: ไม่มีปุ่มสมัคร/ลืมรหัสทางอีเมล (เจ้าของสร้างบัญชีและรีเซ็ตรหัสให้) */
@@ -10,6 +11,25 @@ export function LoginPage({ onSignedIn }: { onSignedIn: () => void | Promise<voi
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const passwordRef = useRef<HTMLInputElement>(null);
+  const [backupNote, setBackupNote] = useState<string>('');
+  const [backupBusy, setBackupBusy] = useState(false);
+
+  const downloadLocal = async () => {
+    if (backupBusy) return;
+    setBackupBusy(true);
+    setBackupNote('');
+    try {
+      const result = await downloadLocalData();
+      setBackupNote(
+        result.saved
+          ? `ดาวน์โหลดแล้ว (${result.accounts} บัญชี ${result.entries} รายการ) เก็บไฟล์นี้ไว้ในที่ปลอดภัย`
+          : 'ไม่พบข้อมูลที่เก็บในเบราว์เซอร์นี้ ลองเปิดจากเบราว์เซอร์/โปรไฟล์ที่เคยใช้งาน',
+      );
+    } catch {
+      setBackupNote('อ่านข้อมูลในเครื่องไม่สำเร็จ ลองปิดแล้วเปิดแอปใหม่');
+    }
+    setBackupBusy(false);
+  };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -73,6 +93,15 @@ export function LoginPage({ onSignedIn }: { onSignedIn: () => void | Promise<voi
             {busy ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
           </button>
         </form>
+        <div className="auth-local">
+          <button className="btn btn-ghost" type="button" onClick={() => void downloadLocal()} disabled={backupBusy}>
+            ดาวน์โหลดข้อมูลที่เก็บในเครื่องนี้
+          </button>
+          <p className="muted small">ใช้ได้โดยไม่ต้องเข้าสู่ระบบ อ่านจากเบราว์เซอร์นี้เท่านั้น ไม่ส่งข้อมูลไปที่ใด</p>
+          <div role="status" className="auth-ok">
+            {backupNote}
+          </div>
+        </div>
         <p className="muted small">
           ระบบนี้ยังไม่เปิดให้สมัครเอง หากต้องการบัญชีหรือลืมรหัสผ่าน โปรดแจ้งผู้ดูแลระบบที่ให้บัญชีคุณ
         </p>
