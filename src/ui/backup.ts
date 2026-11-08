@@ -13,7 +13,8 @@ function saveJson(json: string, filename: string): void {
   link.href = url;
   link.download = filename;
   link.click();
-  URL.revokeObjectURL(url);
+  // หน่วงก่อนคืน URL: บางเบราว์เซอร์ (Firefox/Safari) เริ่มดาวน์โหลดหลังคืน URL แล้วล้ม
+  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 /**
