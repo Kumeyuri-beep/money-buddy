@@ -22,7 +22,7 @@ export interface Snapshot extends Ledger {
 let lastStamp = 0;
 
 /** เวลาบันทึกที่เพิ่มขึ้นเสมอ (กดบันทึกติดกันใน 1 มิลลิวินาทีก็ยังเรียงถูก) */
-function nextCreatedAt(): string {
+export function nextCreatedAt(): string {
   lastStamp = Math.max(Date.now(), lastStamp + 1);
   return new Date(lastStamp).toISOString();
 }
@@ -164,7 +164,7 @@ const SETTINGS_KEY = 'settings';
 
 /** ตรวจบิลก่อนเขียน: รูปแบบ (ยอด/วัน/เดือน) ชื่อไม่ว่าง และกระเป๋า/หมวดที่อ้างต้องมีจริงและเป็นชนิดที่ถูกต้อง */
 /** สร้างบิลใหม่จากฟิลด์ที่รู้จักเท่านั้น (ไม่ copy ฟิลด์แปลก/__proto__) ชนิดผิดโยน StorageError ก่อนถึงตรวจรูปแบบ */
-function pickBill(raw: unknown): Bill {
+export function pickBill(raw: unknown): Bill {
   if (typeof raw !== 'object' || raw === null) throw new StorageError('บิลไม่ถูกต้อง: ข้อมูลไม่ใช่วัตถุ');
   const r = raw as Record<string, unknown>;
   const str = (key: string, required: boolean): string | undefined => {
@@ -187,15 +187,20 @@ function pickBill(raw: unknown): Bill {
 }
 
 async function assertBillWritable(db: MoneyDB, bill: Bill): Promise<void> {
+  await assertBillWritableWith((id) => db.accounts.get(id), bill);
+}
+
+/** ตรวจบิลก่อนเขียนโดยไม่ผูกกับที่เก็บข้อมูล (ใช้ร่วมกับ Dexie และ Supabase) */
+export async function assertBillWritableWith(getAccount: (id: string) => Promise<Account | undefined>, bill: Bill): Promise<void> {
   const problem = billProblem(bill) ?? (bill.name.trim() === '' ? 'ชื่อบิลต้องไม่ว่าง' : null);
   if (problem) throw new StorageError(`บิลไม่ถูกต้อง: ${problem}`);
   if (bill.id.trim() === '') throw new StorageError('บิลไม่ถูกต้อง: รหัสบิลต้องไม่ว่าง');
   if (bill.walletId !== undefined) {
-    const wallet = await db.accounts.get(bill.walletId);
+    const wallet = await getAccount(bill.walletId);
     if (!wallet || wallet.type !== 'asset') throw new StorageError('บิลไม่ถูกต้อง: กระเป๋าที่จ่ายต้องเป็นกระเป๋าที่มีอยู่จริง');
   }
   if (bill.categoryId !== undefined) {
-    const category = await db.accounts.get(bill.categoryId);
+    const category = await getAccount(bill.categoryId);
     if (!category || category.type !== 'expense') throw new StorageError('บิลไม่ถูกต้อง: หมวดต้องเป็นหมวดรายจ่ายที่มีอยู่จริง');
   }
 }
@@ -207,7 +212,7 @@ export async function loadBills(db: MoneyDB): Promise<Bill[]> {
 }
 
 /** เดือนของวันนี้ ถ้าวันที่ผิดรูปให้เป็น StorageError (ชนิด error สม่ำเสมอ) */
-function currentMonth(today: string): string {
+export function currentMonth(today: string): string {
   try {
     return monthOf(today);
   } catch {
@@ -216,7 +221,7 @@ function currentMonth(today: string): string {
 }
 
 /** lastPaidMonth ต้องไม่เกินเดือนปัจจุบันในทุกเส้นทางเขียน (ข้อ 16) ไม่งั้นเทียบแบบ >= จะทำให้บิลหายจากยอดค้างถาวร */
-function assertNotFuture(month: string | undefined, today: string): void {
+export function assertNotFuture(month: string | undefined, today: string): void {
   if (month !== undefined && month > currentMonth(today)) {
     throw new StorageError(`บิลไม่ถูกต้อง: lastPaidMonth (${month}) เป็นเดือนในอนาคต`);
   }
