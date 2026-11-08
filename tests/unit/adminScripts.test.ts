@@ -42,6 +42,7 @@ describe('generateTempPassword', () => {
       expect(p).toMatch(/[A-Z]/);
       expect(p).toMatch(/[a-z]/);
       expect(p).toMatch(/[0-9]/);
+      expect(p).toMatch(/[!@#$%&*?_+=-]/); // สัญลักษณ์ครบ 4 ชนิดเสมอ
       expect(p).not.toMatch(AMBIGUOUS);
       expect(passwordProblem(p, 'someuser')).toBeNull();
     }
@@ -54,12 +55,12 @@ describe('generateTempPassword', () => {
     // ไบต์ 0..255 วนซ้ำ ผลต้องเกิดจากไบต์ที่ต่ำกว่าขีดจำกัดเท่านั้น
     let n = 0;
     const fill = (b: Uint8Array) => {
-      for (let i = 0; i < b.length; i++) b[i] = n++ % 256;
+      for (let i = 0; i < b.length; i++) b[i] = (n++ * 37) % 256; // กระโดดข้าม ให้ได้ตัวอักษรหลายชนิด
       return b;
     };
     const p = generateTempPassword(fill);
     expect(p).toHaveLength(16);
-    expect(p).toMatch(/^[A-HJ-NP-Za-km-z2-9]+$/);
+    expect(p).toMatch(/^[A-HJ-NP-Za-km-z2-9!@#$%&*?_+=-]+$/);
   });
   it('ตัวสุ่มเสีย (ได้แต่ไบต์ที่ถูกปัดทิ้ง) ต้องล้มไม่วนไม่รู้จบ', () => {
     expect(() => generateTempPassword((b) => b.fill(255))).toThrow();

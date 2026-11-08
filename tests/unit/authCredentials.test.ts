@@ -3,6 +3,7 @@ import {
   AUTH_EMAIL_DOMAIN,
   AuthInputError,
   MIN_PASSWORD_LENGTH,
+  PASSWORD_RULES_TEXT,
   normalizeUsername,
   passwordProblem,
   usernameOfEmail,
@@ -65,14 +66,14 @@ describe('passwordProblem', () => {
     expect(passwordProblem('Abcd1234xy')).toBeNull();
   });
   it('ยาวเกิน 72 ไบต์ (ขีดจำกัดของ bcrypt) ไม่ผ่าน: ไทย 3 ไบต์/ตัว', () => {
-    expect(passwordProblem('ab'.repeat(36))).toBeNull(); // 72 ไบต์พอดี
-    expect(passwordProblem('ab'.repeat(36) + 'c')).not.toBeNull(); // 73 ไบต์
-    expect(passwordProblem('กข'.repeat(12))).toBeNull(); // 24 ตัว = 72 ไบต์พอดี
-    expect(passwordProblem('กข'.repeat(13))).not.toBeNull(); // 78 ไบต์
+    expect(passwordProblem('aB'.repeat(35) + '12')).toBeNull(); // 72 ไบต์พอดี
+    expect(passwordProblem('aB'.repeat(35) + '123')).not.toBeNull(); // 73 ไบต์
+    expect(passwordProblem('aB1' + 'กข'.repeat(11))).toBeNull(); // 69 ไบต์
+    expect(passwordProblem('aB1' + 'กข'.repeat(12))).not.toBeNull(); // 75 ไบต์
   });
   it('ไม่เท่ากับชื่อผู้ใช้ (ไม่สนตัวพิมพ์)', () => {
-    expect(passwordProblem('longusername1', 'LongUsername1')).not.toBeNull();
-    expect(passwordProblem('longusername1', 'someoneelse')).toBeNull();
+    expect(passwordProblem('Longusername1', 'LongUsername1')).not.toBeNull();
+    expect(passwordProblem('Longusername1', 'someoneelse')).toBeNull();
   });
   it('รหัสยอดนิยม/ซ้ำตัวเดียว/เรียงลำดับ ไม่ผ่าน', () => {
     for (const p of ['password123', '1234567890', '0123456789', 'qwertyuiop', 'aaaaaaaaaa', '0000000000', 'Password123', 'abcdefghij']) {
@@ -81,7 +82,14 @@ describe('passwordProblem', () => {
   });
   it('ช่องว่างล้วนไม่ผ่าน แต่ช่องว่างในรหัสยาวผ่าน', () => {
     expect(passwordProblem('          ')).not.toBeNull();
-    expect(passwordProblem('rain on the roof')).toBeNull();
+    expect(passwordProblem('Rain on the roof 9')).toBeNull();
+  });
+  it('ต้องมีตัวพิมพ์เล็ก ตัวพิมพ์ใหญ่ และตัวเลขครบ (ตรงกับเงื่อนไข Supabase)', () => {
+    expect(passwordProblem('abcdef7hijk')).toMatch(/ตัวพิมพ์ใหญ่/);
+    expect(passwordProblem('ABCDEF7HIJK')).toMatch(/ตัวพิมพ์เล็ก/);
+    expect(passwordProblem('Abcdefghijk')).toMatch(/ตัวเลข/);
+    expect(passwordProblem('กขคงจฉชซฌญ12')).not.toBeNull();
+    expect(PASSWORD_RULES_TEXT).toMatch(/ตัวพิมพ์เล็ก.*ตัวพิมพ์ใหญ่.*ตัวเลข/);
   });
   it('ผ่านทั้งๆ ที่เป็นอักขระผสม', () => {
     expect(passwordProblem('k9#Tz!pQ2m')).toBeNull();

@@ -118,7 +118,7 @@ describe('changePassword', () => {
     const same = await changePassword(fakeApi({ update: err('same_password', 422) }).api, good);
     expect(same.ok === false && same.message).toContain('ซ้ำ');
     const weak = await changePassword(fakeApi({ update: err('weak_password', 422) }).api, good);
-    expect(weak.ok === false && weak.message).toContain('ง่ายเกินไป');
+    expect(weak.ok === false && weak.message).toContain('ตัวพิมพ์ใหญ่');
   });
   it('error อื่นตอนเปลี่ยน: ข้อความทั่วไป ไม่รั่วรายละเอียด', async () => {
     const r = await changePassword(fakeApi({ update: err('x', 500, 'DB-INTERNAL-9') }).api, good);

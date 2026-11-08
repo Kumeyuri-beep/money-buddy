@@ -12,6 +12,8 @@
 export const AUTH_EMAIL_DOMAIN = 'users.money-buddy.internal';
 
 export const MIN_PASSWORD_LENGTH = 10;
+/** เงื่อนไขชนิดตัวอักษรที่ Supabase ตั้งไว้ (ตัวเล็ก ตัวใหญ่ ตัวเลข) · แสดงให้ผู้ใช้เห็นก่อนพิมพ์ */
+export const PASSWORD_RULES_TEXT = `ยาวอย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร และต้องมีตัวพิมพ์เล็ก (a-z) ตัวพิมพ์ใหญ่ (A-Z) และตัวเลข (0-9) อย่างน้อยอย่างละ 1 ตัว`;
 /** bcrypt ใช้ได้ไม่เกิน 72 ไบต์ ที่เกินจะถูกตัดเงียบๆ (รหัสต่างกันแต่ใช้ได้เหมือนกัน) จึงปฏิเสธ */
 export const MAX_PASSWORD_BYTES = 72;
 
@@ -85,6 +87,9 @@ export function passwordProblem(password: string, username?: string): string | n
   if (Array.from(password).length < MIN_PASSWORD_LENGTH) return `รหัสผ่านต้องยาวอย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร`;
   if (new TextEncoder().encode(password).length > MAX_PASSWORD_BYTES) return `รหัสผ่านยาวเกินไป (ไม่เกิน ${MAX_PASSWORD_BYTES} ไบต์ ภาษาไทยตัวละ 3 ไบต์)`;
   if (password.trim() === '') return 'รหัสผ่านต้องไม่ใช่ช่องว่างล้วน';
+  if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
+    return 'รหัสผ่านต้องมีตัวพิมพ์เล็ก (a-z) ตัวพิมพ์ใหญ่ (A-Z) และตัวเลข (0-9) อย่างน้อยอย่างละ 1 ตัว';
+  }
   if (username !== undefined) {
     const name = normalizeUsername(username);
     const lower = password.toLowerCase();

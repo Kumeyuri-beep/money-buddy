@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { changePassword } from '../app/auth';
-import { MIN_PASSWORD_LENGTH } from '../domain/auth/credentials';
+import { MIN_PASSWORD_LENGTH, PASSWORD_RULES_TEXT } from '../domain/auth/credentials';
 import { authApi } from '../storage/supabase';
 import { PasswordField } from './PasswordField';
 
@@ -71,7 +71,7 @@ export function ChangePasswordForm({ username, onDone }: Props) {
         onChange={(e) => setNext(e.target.value)}
         required
         minLength={MIN_PASSWORD_LENGTH}
-        hint={`ยาวอย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร ใช้ประโยคหรือคำหลายคำต่อกันจะจำง่ายและเดายาก`}
+        hint={`${PASSWORD_RULES_TEXT} (เช่น ประโยคสั้นๆ ที่ผสมตัวพิมพ์ใหญ่และตัวเลข)`}
       />
       <PasswordField
         id="pw-confirm"

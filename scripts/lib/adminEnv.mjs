@@ -33,10 +33,12 @@ export function redact(text, secrets) {
 const UPPER = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 const LOWER = 'abcdefghijkmnopqrstuvwxyz';
 const DIGIT = '23456789';
-const ALPHABET = UPPER + LOWER + DIGIT;
+// สัญลักษณ์ที่พิมพ์/ส่งทางข้อความได้ไม่เพี้ยน และอยู่ในชุดสัญลักษณ์ที่ Supabase นับ
+const SYMBOL = '!@#$%&*?-_+=';
+const ALPHABET = UPPER + LOWER + DIGIT + SYMBOL;
 
 /**
- * รหัสผ่านชั่วคราวสุ่ม 16 ตัว (ตัวพิมพ์ใหญ่ เล็ก และตัวเลขอย่างละอย่างน้อย 1) ด้วย CSPRNG
+ * รหัสผ่านชั่วคราวสุ่ม 16 ตัว (ตัวพิมพ์ใหญ่ เล็ก ตัวเลข และสัญลักษณ์อย่างละอย่างน้อย 1 ผ่านเกณฑ์ Supabase แบบเข้มสุดเสมอ) ด้วย CSPRNG
  * ใช้ rejection sampling เพื่อไม่ให้การกระจายเอียง · fill ฉีดได้เพื่อทดสอบ
  */
 export function generateTempPassword(fill = (bytes) => globalThis.crypto.getRandomValues(bytes), length = 16) {
@@ -50,7 +52,7 @@ export function generateTempPassword(fill = (bytes) => globalThis.crypto.getRand
       }
     }
     if (out.length < length) throw new Error('ตัวสุ่มให้ข้อมูลไม่พอ');
-    if (/[A-Z]/.test(out) && /[a-z]/.test(out) && /[0-9]/.test(out)) return out;
+    if (/[A-Z]/.test(out) && /[a-z]/.test(out) && /[0-9]/.test(out) && /[^A-Za-z0-9]/.test(out)) return out;
   }
   throw new Error('สุ่มรหัสผ่านชั่วคราวไม่สำเร็จ');
 }
