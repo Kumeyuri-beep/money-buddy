@@ -191,6 +191,28 @@ export function describeRepositoryContract(name: string, factory: () => Promise<
       expect((await repo.loadLedger()).entries.some((e) => e.id === 'pay-1')).toBe(false);
     });
 
+    it('จ่ายบิลด้วยยอดต่างจากยอดบิล (R15): บันทึกตามยอดที่จ่ายจริง · ยอดไม่ถูกต้องถูกปฏิเสธและไม่เขียนอะไร', async () => {
+      await seed();
+      await repo.addBill(bill(), '2026-11-04');
+      const before = (await repo.loadLedger()).entries.length;
+      for (const bad of [0, -100, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 2]) {
+        await expect(repo.payBill('bill-1', { today: '2026-11-04', walletId, categoryId, entryId: 'p-bad', amount: bad }), String(bad)).rejects.toThrow(StorageError);
+      }
+      expect((await repo.loadLedger()).entries).toHaveLength(before);
+      expect((await repo.loadBills())[0]?.lastPaidMonth).toBeUndefined();
+      const r = await repo.payBill('bill-1', { today: '2026-11-04', walletId, categoryId, entryId: 'pay-custom', amount: 123_45 });
+      expect(r.entry.lines).toEqual([{ accountId: categoryId, amount: 123_45 }, { accountId: walletId, amount: -123_45 }]);
+      expect((await repo.loadBills())[0]?.lastPaidMonth).toBe('2026-11');
+      const { accounts, entries } = await repo.loadLedger();
+      expect(runIntegrityCheck(accounts, entries).ok).toBe(true);
+      expect(balanceOf(walletId, entries)).toBe(540_841 - 123_45);
+      // ไม่ระบุยอด = ยอดบิล (พฤติกรรมเดิม) · ยกเลิกการจ่ายคืนสถานะเหมือนเดิม
+      const cancelled = await repo.cancelBillPayment('pay-custom');
+      expect(cancelled.bill?.lastPaidMonth).toBeUndefined();
+      const same = await repo.payBill('bill-1', { today: '2026-11-04', walletId, categoryId, entryId: 'pay-default' });
+      expect(same.entry.lines[0]?.amount).toBe(59_900);
+    });
+
     it('จ่ายบิลไม่มีกระเป๋า/ไม่มีบิล = ปฏิเสธและไม่เขียนอะไร', async () => {
       await seed();
       await repo.addBill(bill(), '2026-11-04');

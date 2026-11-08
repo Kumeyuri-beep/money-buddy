@@ -274,7 +274,8 @@ export function App() {
   const billPaid = (row: BillRow, result: PayBillResult) => {
     setDialog(null);
     void run(async () => ({
-      message: `จ่ายบิลแล้ว: ${row.bill.name} ${billAmountText(row.bill)} รอบ ${thaiMonthKeyLabel(result.cycle)}`,
+      // แสดงยอดที่บันทึกจริง (อาจต่างจากยอดบิล) ไม่ใช่ยอดบิล
+      message: `จ่ายบิลแล้ว: ${row.bill.name} ${formatBaht(satang(result.entry.lines[0]?.amount ?? row.bill.amount))} รอบ ${thaiMonthKeyLabel(result.cycle)}`,
       undo: () =>
         run(async () => {
           await repo.undoPayBill({ entryId: result.entry.id, billId: row.bill.id, cycle: result.cycle, before: result.before });
