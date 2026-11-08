@@ -3,6 +3,7 @@ import { greetingFor, thaiHeaderDate } from '../app/greeting';
 import type { Entry } from '../domain/ledger/types';
 import type { Ledger } from '../storage/repository';
 import { QuickAdd } from './QuickAdd';
+import { useThaiNow } from './useThaiClock';
 
 interface HeaderProps {
   ledger: Ledger;
@@ -16,7 +17,7 @@ interface HeaderProps {
 
 /** หัวหน้า: ทักทายตามเวลา + วันที่ + ช่องพิมพ์จดด่วน + ปุ่มสแกนสลิป + ปุ่มเพิ่มรายการ */
 export function Header({ ledger, onAdd, onQuickSaved, onScan, scanning }: HeaderProps) {
-  const now = new Date();
+  const now = useThaiNow();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const picked = (event: ChangeEvent<HTMLInputElement>) => {

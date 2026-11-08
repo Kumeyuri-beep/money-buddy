@@ -47,6 +47,7 @@ import { ScanStatus } from './ScanStatus';
 import { Toast } from './Toast';
 import { Today } from './Today';
 import { useSlipIntake } from './useSlipIntake';
+import { useThaiToday } from './useThaiClock';
 
 type State =
   | { status: 'loading' }
@@ -80,6 +81,8 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 export function App() {
   const [state, setState] = useState<State>({ status: 'loading' });
   const [view, setView] = useState<ViewId>('today');
+  // "วันนี้" ตามเวลาไทย อัปเดตเองเมื่อข้ามเที่ยงคืนหรือกลับมาเปิดแท็บ (ต้องเรียก hook ก่อน return ใดๆ)
+  const today = useThaiToday();
   const [dialog, setDialog] = useState<DialogState>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [scanning, setScanning] = useState<ScanProgress | null>(null);
@@ -236,7 +239,6 @@ export function App() {
       };
     });
 
-  const today = thaiIsoDate();
   const billAmountText = (bill: Bill) => formatBaht(satang(bill.amount));
 
   const billSaved = (bill: Bill, before?: Bill) => {
@@ -358,6 +360,7 @@ export function App() {
           onOpenLedger={() => setView('ledger')}
           finance={{ bills: state.bills, settings: state.settings }}
           onOpenBills={() => setView('bills')}
+          today={today}
         />
       ) : view === 'bills' ? (
         <BillsView
