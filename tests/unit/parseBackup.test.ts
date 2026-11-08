@@ -219,6 +219,15 @@ describe('ตรวจเพิ่มจากผู้ตรวจ M2-D1', () =
     expect(clean.warnings).toEqual([]);
   });
 
+  it('ค่าตั้งค่าที่ไม่รู้จักถูกข้ามพร้อมคำเตือน (ไม่ทิ้งเงียบๆ)', () => {
+    const f = good();
+    f.settings = { payDay: 25, theme: 'dark', secretNote: 'x' };
+    const r = parse(f);
+    if (!r.ok) throw new Error(r.problems.join('\n'));
+    expect(r.data.settings).toEqual({ payDay: 25 });
+    expect(r.warnings.join('|')).toMatch(/theme, secretNote/);
+  });
+
   it('รหัสบิลในลิงก์ยาวเกิน/มี NUL ถูกปฏิเสธด้วยข้อความไทย', () => {
     const a = good();
     entry(a, 'pay-1').bill = { id: 'x'.repeat(101), cycle: '2026-11' };

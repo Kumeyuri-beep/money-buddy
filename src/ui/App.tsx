@@ -156,10 +156,12 @@ export function App() {
       'ล้างข้อมูลทั้งหมดและเริ่มใหม่?\nรวมบิลประจำ ค่าตั้งค่า และสำเนาก่อนอัปเกรด\nการกระทำนี้ย้อนกลับไม่ได้ ควรกด "สำรองข้อมูล" ก่อน',
     );
     if (!ok) return;
-    await repo.resetAll();
-    setToast(null);
-    setView('today');
-    await refresh();
+    // ออนไลน์: ฐานข้อมูลถามรหัสผ่านและจำกัดการลอง · ยกเลิก/รหัสผิดแจ้งทาง toast ไม่ล้างอะไร
+    await run(async () => {
+      await repo.resetAll();
+      setView('today');
+      return { message: 'ล้างข้อมูลทั้งหมดแล้ว' };
+    });
   };
 
   if (state.status === 'loading') {

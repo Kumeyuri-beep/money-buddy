@@ -304,9 +304,13 @@ export function parseBackup(text: string, today: string): ParseResult {
   if (settingsIssue) p.add(`ค่าตั้งค่า: ${settingsIssue}`);
 
   let warnings: string[] = [];
+  const droppedKeys = Object.keys(rawSettings).filter((k) => !['payDay', 'monthlySavingsGoal', 'monthlyBudget', 'nextPaydayOverride'].includes(k));
+  if (droppedKeys.length > 0) {
+    warnings.push(`ค่าตั้งค่าที่แอปไม่รู้จักจะไม่ถูกย้าย: ${droppedKeys.slice(0, 10).map(short).join(', ')}`);
+  }
   if (accountsOk) {
     checkAccountTotals(accounts, entries, p);
-    warnings = checkBillLinks(entries, bills, today, p);
+    warnings = [...warnings, ...checkBillLinks(entries, bills, today, p)];
   }
 
   if (p.any) return { ok: false, problems: p.result() };

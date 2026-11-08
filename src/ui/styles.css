@@ -386,6 +386,26 @@ select { font: inherit; }
 }
 .password-row .password-toggle:hover { background: rgba(255, 255, 255, 0.1); }
 .password-row .password-toggle:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+.migrate-card { width: min(720px, 100%); }
+.migrate-body { display: flex; flex-direction: column; gap: 12px; }
+.migrate-body h2 { margin: 0; font-size: 18px; }
+.migrate-steps { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; counter-reset: step; }
+.migrate-steps li { counter-increment: step; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.18); color: var(--muted); font-size: 14px; }
+.migrate-steps li::before { content: counter(step) ". "; }
+.migrate-steps li[aria-current="step"] { color: var(--text); border-color: var(--gold); background: rgba(255, 255, 255, 0.08); font-weight: 600; }
+.migrate-list { margin: 8px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.migrate-check { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
+.migrate-check input { width: 20px; height: 20px; }
+.migrate-table-wrap { overflow-x: auto; }
+.migrate-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.migrate-table th, .migrate-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+.migrate-table thead th { color: var(--muted); font-weight: 600; }
+.migrate-table tbody th { font-weight: 500; }
+.migrate-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.migrate-table tbody th { position: sticky; left: 0; background: #14151d; }
+.migrate-table-wrap:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.migrate-heading:focus { outline: none; }
+.migrate-heading { margin: 0; font-size: 18px; }
 .auth-local { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid rgba(255, 255, 255, 0.12); padding-top: 14px; }
 .auth-local p { margin: 0; }
 .auth-local .btn { width: 100%; line-height: 1.3; padding-block: 8px; }
