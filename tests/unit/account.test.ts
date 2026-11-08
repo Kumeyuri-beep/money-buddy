@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deleteMyAccount, recordConsent, type RpcApi } from '../../src/app/account';
+import { cooldownState, deleteMyAccount, formatRemaining, PASSWORD_COOLDOWN_HOURS, recordConsent, type RpcApi } from '../../src/app/account';
 import { PRIVACY_POLICY, PRIVACY_POLICY_VERSION, PRIVACY_SUMMARY } from '../../src/domain/privacy/policy';
 
 const api = (result: { data?: unknown; error?: { message?: string; code?: string } | null } | 'throw') => {
@@ -62,6 +62,31 @@ describe('ลบบัญชีและข้อมูลทั้งหมด 
     if (!net.ok) expect(net.message).toMatch(/เชื่อมต่อ/);
     const other = await deleteMyAccount(api({ error: { message: 'duplicate key value violates "x_pkey"', code: '23505' } }).impl, 'x');
     if (!other.ok) expect(other.message).not.toMatch(/duplicate|pkey/);
+  });
+});
+
+describe('cooldown หลังเปลี่ยนรหัสผ่าน (แสดงผล · ฐานข้อมูลเป็นด่านจริง)', () => {
+  const at = '2026-11-09T01:00:00.000Z';
+  it('24 ชั่วโมง ตรงกับฐานข้อมูล', () => {
+    expect(PASSWORD_COOLDOWN_HOURS).toBe(24);
+  });
+  it('ในช่วง: เหลือเวลา/เวลาที่ลบได้ · ครบพอดีและเลยไปแล้ว = ไม่อยู่ในช่วง', () => {
+    const s = cooldownState(at, new Date('2026-11-09T19:30:00.000Z'));
+    expect(s?.remainingMs).toBe(5.5 * 3_600_000);
+    expect(s?.until.toISOString()).toBe('2026-11-10T01:00:00.000Z');
+    expect(cooldownState(at, new Date('2026-11-10T01:00:00.000Z'))).toBeNull();
+    expect(cooldownState(at, new Date('2026-11-12T00:00:00.000Z'))).toBeNull();
+    expect(cooldownState(at, new Date('2026-11-10T00:59:59.999Z'))?.remainingMs).toBe(1);
+  });
+  it('ค่าว่าง/อ่านไม่ได้ = ไม่แสดง (ปล่อยให้ฐานข้อมูลตัดสิน) ไม่โยน error', () => {
+    for (const v of [null, undefined, '', 'ไม่ใช่วันที่', 123 as unknown as string]) expect(cooldownState(v, new Date())).toBeNull();
+  });
+  it('ข้อความเวลาที่เหลือ: ปัดนาทีขึ้น ไม่บอก 0 นาทีทั้งที่ยังไม่ครบ', () => {
+    expect(formatRemaining(5.5 * 3_600_000)).toBe('5 ชั่วโมง 30 นาที');
+    expect(formatRemaining(2 * 3_600_000)).toBe('2 ชั่วโมง');
+    expect(formatRemaining(90_000)).toBe('2 นาที');
+    expect(formatRemaining(1)).toBe('1 นาที');
+    expect(formatRemaining(24 * 3_600_000)).toBe('24 ชั่วโมง');
   });
 });
 

@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { deleteMyAccount } from '../app/account';
-import { accountApi } from '../storage/supabase';
+import { useEffect, useState } from 'react';
+import { cooldownState, deleteMyAccount, formatRemaining } from '../app/account';
+import { accountApi, loadPasswordChangedAt, supabase } from '../storage/supabase';
 import { useAccount } from './AuthContext';
 import { downloadBackup } from './backup';
 import { ChangePasswordForm } from './ChangePasswordForm';
@@ -17,7 +17,19 @@ export function AccountView() {
   const [ack, setAck] = useState(false);
   const [busy, setBusy] = useState(false);
   const [deleteNote, setDeleteNote] = useState('');
-
+  // cooldown 24 ชม. หลังเปลี่ยนรหัสผ่าน (ฐานข้อมูลบังคับ · ที่นี่บอกเวลาที่เหลือและปิดปุ่มล่วงหน้า)
+  const [changedAt, setChangedAt] = useState<string | null>(null);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    let cancelled = false;
+    if (supabase) void loadPasswordChangedAt(supabase).then((v) => !cancelled && setChangedAt(v));
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+  const cooling = cooldownState(changedAt, now);
   const doExport = async () => {
     setExportNote('');
     try {
@@ -29,7 +41,7 @@ export function AccountView() {
   };
 
   const doDelete = async () => {
-    if (!ack || busy || !accountApi) return;
+    if (!ack || busy || !accountApi || cooling) return;
     setDeleteNote('');
     const password = await requestPassword('ลบบัญชี ' + username + ' และข้อมูลการเงินออนไลน์ทั้งหมดถาวร ย้อนกลับไม่ได้ ควรดาวน์โหลดข้อมูลของคุณไว้ก่อน', 'ลบบัญชีถาวร');
     if (password === null) {
@@ -97,7 +109,13 @@ export function AccountView() {
           <li>ไม่ถูกลบ: ข้อมูลเก่าที่เก็บในเบราว์เซอร์นี้ (ถ้ามี) และไฟล์ที่คุณดาวน์โหลดไว้</li>
           <li>ลบไม่ได้ภายใน 24 ชั่วโมงหลังเปลี่ยนรหัสผ่าน (กันผู้อื่นที่ได้ session ไปเปลี่ยนรหัสแล้วลบข้อมูล)</li>
         </ul>
-        {!ack && (
+        {cooling && (
+          <p id="delete-cooldown" className="slip-warn" role="status">
+            เพิ่งเปลี่ยนรหัสผ่าน จึงยังลบบัญชีไม่ได้ ลบได้อีก {formatRemaining(cooling.remainingMs)} (หลังเวลา{' '}
+            {cooling.until.toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })})
+          </p>
+        )}
+        {!ack && !cooling && (
           <p id="delete-reason" className="muted small">
             ติ๊กช่อง "ฉันเข้าใจว่าลบแล้วกู้คืนไม่ได้" ก่อน ปุ่มลบจึงจะกดได้
           </p>
@@ -107,7 +125,7 @@ export function AccountView() {
           <span>ฉันเข้าใจว่าลบแล้วกู้คืนไม่ได้</span>
         </label>
         <div className="actions">
-          <button className="btn btn-danger" type="button" disabled={!ack || busy} onClick={() => void doDelete()} aria-describedby={ack ? undefined : 'delete-reason'}>
+          <button className="btn btn-danger" type="button" disabled={!ack || busy || cooling !== null} onClick={() => void doDelete()} aria-describedby={cooling ? 'delete-cooldown' : ack ? undefined : 'delete-reason'}>
             {busy ? 'กำลังลบ...' : 'ลบบัญชีและข้อมูลทั้งหมด'}
           </button>
         </div>

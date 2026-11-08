@@ -42,3 +42,32 @@ export async function deleteMyAccount(api: RpcApi, password: string): Promise<Au
     return { ok: false, message: NETWORK };
   }
 }
+
+/** ต้องตรงกับ private.assert_password_cooled ในฐานข้อมูล (migration 20261108001400) ฐานข้อมูลเป็นด่านจริง ที่นี่ใช้แสดงผลเท่านั้น */
+export const PASSWORD_COOLDOWN_HOURS = 24;
+
+export interface CooldownState {
+  /** เวลาที่เหลือเป็นมิลลิวินาที (> 0) */
+  remainingMs: number;
+  /** เวลาที่ลบบัญชีได้ */
+  until: Date;
+}
+
+/** ยังอยู่ในช่วง cooldown หลังเปลี่ยนรหัสผ่านไหม (null = ไม่อยู่ในช่วง · ค่าว่าง/อ่านไม่ได้ = ไม่แสดง ให้ฐานข้อมูลตัดสิน) */
+export function cooldownState(passwordChangedAt: string | null | undefined, now: Date = new Date()): CooldownState | null {
+  if (typeof passwordChangedAt !== 'string' || passwordChangedAt === '') return null;
+  const changed = Date.parse(passwordChangedAt);
+  if (Number.isNaN(changed)) return null;
+  const untilMs = changed + PASSWORD_COOLDOWN_HOURS * 3_600_000;
+  const remainingMs = untilMs - now.getTime();
+  return remainingMs > 0 ? { remainingMs, until: new Date(untilMs) } : null;
+}
+
+/** "5 ชั่วโมง 30 นาที" (ปัดนาทีขึ้น ไม่ให้บอกว่าเหลือ 0 นาทีทั้งที่ยังไม่ครบ) */
+export function formatRemaining(ms: number): string {
+  const totalMinutes = Math.max(1, Math.ceil(ms / 60_000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours === 0) return `${minutes} นาที`;
+  return minutes === 0 ? `${hours} ชั่วโมง` : `${hours} ชั่วโมง ${minutes} นาที`;
+}
