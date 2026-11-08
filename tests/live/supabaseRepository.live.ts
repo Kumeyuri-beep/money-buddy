@@ -74,6 +74,12 @@ describe('PDPA (M2-E): ยอมรับนโยบาย · ลบบัญ�
     await repo.addBill({ id: 'bill-c', name: 'บิล C', amount: 1, dueDay: 1 }, '2026-11-04');
     await repo.saveSettings({ payDay: 5 });
     const aBefore = (await (await repoFor(0)).loadLedger()).entries.length;
+    // cooldown 24 ชม. หลังเปลี่ยนรหัส (M2-F): แม้รหัสถูก ลบบัญชี/ล้างข้อมูลไม่ได้ จนกว่าจะพ้นเวลา
+    const cooling = await client.rpc('delete_my_account', { p_password: live.users[2]!.password });
+    expect(cooling.error?.message ?? '').toMatch(/24 ชั่วโมง/);
+    expect(await repo.isEmpty()).toBe(false);
+    const aged = await admin.from('profiles').update({ password_changed_at: new Date(Date.now() - 2 * 86_400_000).toISOString() }).eq('user_id', id);
+    expect(aged.error).toBeNull();
     const wrong = await client.rpc('delete_my_account', { p_password: 'definitely-wrong-1A' });
     expect(wrong.error).toBeNull();
     expect(wrong.data).toBe(false);

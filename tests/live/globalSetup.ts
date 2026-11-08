@@ -63,6 +63,11 @@ export default async function setup({ provide }: GlobalSetupContext): Promise<()
       if (signedIn.error) throw new Error(`ล็อกอินผู้ใช้ทดสอบไม่สำเร็จ: ${safeMessage(signedIn.error)}`);
       const changed = await user.auth.updateUser({ password });
       if (changed.error) throw new Error(`เปลี่ยนรหัสผู้ใช้ทดสอบไม่สำเร็จ: ${safeMessage(changed.error)}`);
+      // ข้าม cooldown 24 ชม. ของล้างข้อมูล/ลบบัญชี (M2-F) ด้วยสิทธิ์ผู้ดูแล · ผู้ใช้ c ปล่อยสดไว้เพื่อทดสอบ cooldown จริง
+      if (who !== 'c') {
+        const aged = await admin.from('profiles').update({ password_changed_at: new Date(Date.now() - 2 * 86_400_000).toISOString() }).eq('user_id', made.data.user.id);
+        if (aged.error) throw new Error(`ตั้งเวลาเปลี่ยนรหัสผู้ใช้ทดสอบไม่สำเร็จ: ${safeMessage(aged.error)}`);
+      }
     }
   } catch (e) {
     await cleanup();

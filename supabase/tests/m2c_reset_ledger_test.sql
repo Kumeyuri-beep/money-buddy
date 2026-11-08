@@ -66,6 +66,7 @@ begin
          (ub, 'b-rst@users.money-buddy.internal', extensions.crypt('old-password-2', extensions.gen_salt('bf')), 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000');
   update auth.users set encrypted_password = extensions.crypt('new-password-1', extensions.gen_salt('bf')) where id = ua;
   update auth.users set encrypted_password = extensions.crypt('new-password-2', extensions.gen_salt('bf')) where id = ub;
+  update public.profiles set password_changed_at = now() - interval '2 days' where user_id in (ua, ub); -- ข้าม cooldown 24 ชม. ของ delete/reset (M2-F)
 
   perform pg_temp.login(ua);
   perform public.setup_ledger(acc, ent);

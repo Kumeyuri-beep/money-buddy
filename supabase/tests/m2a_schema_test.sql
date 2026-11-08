@@ -118,6 +118,7 @@ begin
   if v_bool is not true then raise exception 'FAIL: T4 ธงถูกเคลียร์ทั้งที่รหัสไม่เปลี่ยน'; end if;
   update auth.users set encrypted_password = extensions.crypt('new-password-1', extensions.gen_salt('bf')) where id = ua;
   update auth.users set encrypted_password = extensions.crypt('new-password-2', extensions.gen_salt('bf')) where id = ub;
+  update public.profiles set password_changed_at = now() - interval '2 days' where user_id in (ua, ub); -- ข้าม cooldown 24 ชม. ของ delete/reset (M2-F)
   select count(*) into v_int from public.profiles where user_id in (ua, ub) and not must_change_password and password_changed_at is not null;
   if v_int <> 2 then raise exception 'FAIL: T4 ธงไม่ถูกเคลียร์หลังเปลี่ยนรหัส'; end if;
 
@@ -412,6 +413,7 @@ begin
   insert into auth.users (id, email, encrypted_password, aud, role, instance_id)
   values (uc, 'c-test@users.money-buddy.internal', extensions.crypt('pw-c-12345', extensions.gen_salt('bf')), 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000');
   update auth.users set encrypted_password = extensions.crypt('pw-c-new-12345', extensions.gen_salt('bf')) where id = uc;
+  update public.profiles set password_changed_at = now() - interval '2 days' where user_id in (uc); -- ข้าม cooldown 24 ชม. ของ delete/reset (M2-F)
   perform pg_temp.login(uc);
   perform public.setup_ledger(acc, jsonb_build_array(jsonb_build_object(
     'id','c-open','date','2026-11-01','source','system',
