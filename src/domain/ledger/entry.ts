@@ -1,4 +1,5 @@
 import { safeAdd } from '../money/safe';
+import { isSupportedEntryDate, lengthWithin, MAX_ID_LENGTH, MAX_MEMO_LENGTH, MAX_ENTRY_YEAR, MAX_LINES_PER_ENTRY, MIN_ENTRY_YEAR } from './limits';
 import type { Account, BillLink, Currency, Entry, NewEntry } from './types';
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -51,9 +52,17 @@ export function sumByCurrency(
 export function createEntry(accounts: readonly Account[], input: NewEntry): Entry {
   const byId = indexAccounts(accounts);
 
-  if (!input.id) throw new LedgerError('Entry ต้องมี id');
+  if (!lengthWithin(input.id, 1, MAX_ID_LENGTH)) throw new LedgerError(`Entry ต้องมี id ยาว 1-${MAX_ID_LENGTH} ตัวอักษร`);
   if (!isValidIsoDate(input.date)) throw new LedgerError(`วันที่ไม่ถูกต้อง: "${input.date}"`);
+  if (!isSupportedEntryDate(input.date)) throw new LedgerError(`วันที่ต้องอยู่ในช่วงปี ${MIN_ENTRY_YEAR}-${MAX_ENTRY_YEAR}: "${input.date}"`);
+  if (!lengthWithin(input.memo, 0, MAX_MEMO_LENGTH)) {
+    throw new LedgerError(`หมายเหตุต้องเป็นข้อความไม่เกิน ${MAX_MEMO_LENGTH} ตัวอักษรและไม่มีอักขระต้องห้าม`);
+  }
+  if (input.groupId !== undefined && !lengthWithin(input.groupId, 1, MAX_ID_LENGTH)) {
+    throw new LedgerError(`groupId ต้องยาว 1-${MAX_ID_LENGTH} ตัวอักษร`);
+  }
   if (input.lines.length < 2) throw new LedgerError('Entry ต้องมีอย่างน้อย 2 Line');
+  if (input.lines.length > MAX_LINES_PER_ENTRY) throw new LedgerError(`Entry มี Line ได้ไม่เกิน ${MAX_LINES_PER_ENTRY}`);
 
   for (const line of input.lines) {
     if (!byId.has(line.accountId)) throw new LedgerError(`ไม่พบบัญชี: ${line.accountId}`);
@@ -74,6 +83,17 @@ export function createEntry(accounts: readonly Account[], input: NewEntry): Entr
     if (total !== 0) {
       throw new LedgerError(`Entry ไม่สมดุลในสกุลเงิน ${currency}: ผลต่าง ${total}`);
     }
+  }
+  // ผลรวมฝั่งเดบิตต่อสกุลเงินต้องไม่เกินช่วงปลอดภัย (ฐานข้อมูลบังคับเกณฑ์เดียวกัน ไม่ขึ้นกับลำดับบรรทัด)
+  const debits = new Map<Currency, number>();
+  try {
+    for (const line of input.lines) {
+      const account = byId.get(line.accountId);
+      if (account && line.amount > 0) debits.set(account.currency, safeAdd(debits.get(account.currency) ?? 0, line.amount));
+    }
+  } catch (e) {
+    if (e instanceof RangeError) throw new LedgerError('ยอดรวมฝั่งเดบิตของ Entry ใหญ่เกินช่วงที่คำนวณได้อย่างปลอดภัย');
+    throw e;
   }
 
   const entry: Entry = {
