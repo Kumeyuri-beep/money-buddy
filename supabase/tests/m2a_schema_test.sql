@@ -5,15 +5,26 @@
 --   ไม่ผ่าน     -> ข้อความ error ขึ้นต้นด้วย  FAIL:  แล้วตามด้วยชื่อข้อทดสอบ
 -- ไม่ใช้ข้อมูลการเงินจริง
 
+create function pg_temp.settle() returns void
+language plpgsql as $
+begin
+  -- constraint trigger ของ M2-A เป็นแบบ deferred (ตรวจตอน commit) แต่ธุรกรรมทดสอบไม่เคย commit
+  -- จึงสั่งให้ตรวจทันที แล้วกลับเป็น deferred เหมือนเดิม
+  execute 'set constraints all immediate';
+  execute 'set constraints all deferred';
+end
+$;
+
 create function pg_temp.fails(p_sql text) returns text
-language plpgsql as $$
+language plpgsql as $
 begin
   execute p_sql;
+  perform pg_temp.settle();
   return null;                       -- ไม่ error = ข้อทดสอบ "ควร error" ไม่ผ่าน
 exception when others then
   return sqlerrm;
 end
-$$;
+$;
 
 create function pg_temp.login(p_user uuid) returns void
 language plpgsql as $$
@@ -111,6 +122,7 @@ begin
   perform public.setup_ledger(acc, jsonb_build_array(jsonb_build_object(
     'id','e-open','date','2026-11-01','memo','ยอดยกมา','source','system',
     'lines', jsonb_build_array(jsonb_build_object('accountId','w1','amount',100000), jsonb_build_object('accountId','open','amount',-100000)))));
+  perform pg_temp.settle();
   select count(*) into v_int from public.accounts;
   if v_int <> 7 then raise exception 'FAIL: T7 setup_ledger จำนวนบัญชี (%)', v_int; end if;
   r := pg_temp.fails($$ select public.setup_ledger('[]'::jsonb, '[]'::jsonb) $$);
@@ -120,7 +132,8 @@ begin
   perform public.create_entry('{"id":"e1","date":"2026-11-02","memo":"ข้าว","source":"manual","lines":[{"accountId":"food","amount":6500},{"accountId":"w1","amount":-6500}]}'::jsonb);
 
   -- T9 R16: ไม่สมดุล / บรรทัดเดียว / ยอด 0 / ไม่ใช่จำนวนเต็ม / ยอดเกินช่วงปลอดภัย / ข้ามสกุลเงินไม่มีบัญชีพัก
-  r := pg_temp.fails($$ select public.create_entry('{"id":"bad1","date":"2026-11-02","lines":[{"accountId":"food","amount":100},{"accountId":"w1","amount":-99}]}'::jsonb) $$);
+  perform pg_temp.settle();
+  r := pg_temp.fails($ select public.create_entry('{"id":"bad1","date":"2026-11-02","lines":[{"accountId":"food","amount":100},{"accountId":"w1","amount":-99}]}'::jsonb) $$);
   if r is null then raise exception 'FAIL: T9a รายการไม่สมดุลผ่าน'; end if;
   r := pg_temp.fails($$ select public.create_entry('{"id":"bad2","date":"2026-11-02","lines":[{"accountId":"food","amount":100}]}'::jsonb) $$);
   if r is null then raise exception 'FAIL: T9b บรรทัดเดียวผ่าน'; end if;
@@ -143,7 +156,9 @@ begin
   perform public.create_entry('{"id":"fx2","date":"2026-11-02","lines":[{"accountId":"w1","amount":-3500},{"accountId":"open","amount":3500},{"accountId":"usd","amount":100},{"accountId":"fx","amount":-100}]}'::jsonb);
 
   -- T11 แก้ไขรายการ: สำเร็จ · ทำให้ไม่สมดุลแล้วต้องไม่เปลี่ยนอะไร
+  perform pg_temp.settle();
   perform public.update_entry('{"id":"e1","date":"2026-11-03","memo":"ข้าวมันไก่","lines":[{"accountId":"food","amount":7000},{"accountId":"w1","amount":-7000}]}'::jsonb);
+  perform pg_temp.settle();
   select count(*) into v_int from public.entries where id = 'e1' and memo = 'ข้าวมันไก่';
   if v_int <> 1 then raise exception 'FAIL: T11 update_entry ไม่เปลี่ยน memo'; end if;
   r := pg_temp.fails($$ select public.update_entry('{"id":"e1","date":"2026-11-03","memo":"x","lines":[{"accountId":"food","amount":7000},{"accountId":"w1","amount":-1}]}'::jsonb) $$);
@@ -169,6 +184,7 @@ begin
 
   -- T14 จ่ายบิล: ผูกบิล+รอบ → ตั้ง lastPaidMonth ให้ในธุรกรรมเดียว
   perform public.create_entry(format('{"id":"pay1","date":"2026-11-04","memo":"ค่าเน็ต","source":"recurring","bill":{"id":"bill1","cycle":"%s"},"lines":[{"accountId":"food","amount":59900},{"accountId":"w1","amount":-59900}]}', private.current_month())::jsonb);
+  perform pg_temp.settle();
   select last_paid_month into v_text from public.bills where id = 'bill1';
   if v_text is distinct from private.current_month() then raise exception 'FAIL: T14 จ่ายบิลแล้ว lastPaidMonth ไม่ถูกตั้ง (%)', v_text; end if;
 
@@ -186,6 +202,7 @@ begin
   r := pg_temp.fails($$ select public.update_entry('{"id":"pay1","date":"2026-11-04","lines":[{"accountId":"food","amount":1},{"accountId":"w1","amount":-1}]}'::jsonb) $$);
   if r is null then raise exception 'FAIL: T16a แก้รายการจ่ายบิลผ่าน'; end if;
   delete from public.entries where id = 'pay1';
+  perform pg_temp.settle();
   select last_paid_month into v_text from public.bills where id = 'bill1';
   if v_text is not null then raise exception 'FAIL: T16b ยกเลิกการจ่ายแล้ว lastPaidMonth ไม่ถูกคืน (%)', v_text; end if;
 
@@ -193,9 +210,11 @@ begin
   update public.bills set start_month = '2026-09' where id = 'bill1';
   perform public.create_entry('{"id":"payA","date":"2026-09-05","source":"recurring","bill":{"id":"bill1","cycle":"2026-09"},"lines":[{"accountId":"food","amount":100},{"accountId":"w1","amount":-100}]}'::jsonb);
   perform public.create_entry('{"id":"payB","date":"2026-10-05","source":"recurring","bill":{"id":"bill1","cycle":"2026-10","before":"2026-09"},"lines":[{"accountId":"food","amount":100},{"accountId":"w1","amount":-100}]}'::jsonb);
-  r := pg_temp.fails($$ delete from public.entries where id = 'payA' $$);
+  perform pg_temp.settle();
+  r := pg_temp.fails($ delete from public.entries where id = 'payA' $);
   if r is null then raise exception 'FAIL: T17a ยกเลิกรอบเก่า (ไม่ใช่รอบล่าสุด) ผ่าน'; end if;
   delete from public.entries where id = 'payB';
+  perform pg_temp.settle();
   select last_paid_month into v_text from public.bills where id = 'bill1';
   if v_text is distinct from '2026-09' then raise exception 'FAIL: T17b คืนค่าเป็น before ไม่ถูก (%)', v_text; end if;
 
@@ -248,6 +267,7 @@ begin
   r := pg_temp.fails($$ select public.delete_my_account('wrong-password') $$);
   if r is null then raise exception 'FAIL: T23a ลบบัญชีด้วยรหัสผิดผ่าน'; end if;
   perform public.delete_my_account('new-password-1');
+  perform pg_temp.settle();
   perform pg_temp.logout();
   select (select count(*) from public.accounts where user_id = ua)
        + (select count(*) from public.entries where user_id = ua)
