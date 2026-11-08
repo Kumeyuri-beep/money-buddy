@@ -50,6 +50,11 @@ describe('ลบบัญชีและข้อมูลทั้งหมด 
     }
     expect(calls).toHaveLength(0);
   });
+  it('เพิ่งเปลี่ยนรหัส (55000) แจ้ง cooldown 24 ชั่วโมงโดยเฉพาะ ไม่ใช่ข้อผิดพลาดทั่วไป', async () => {
+    const r = await deleteMyAccount(api({ error: { message: 'x', code: '55000' } }).impl, 'x');
+    if (r.ok) throw new Error('ควรไม่สำเร็จ');
+    expect(r.message).toMatch(/24 ชั่วโมง/);
+  });
   it('ลองผิดหลายครั้ง (53400) แจ้งแยก · เครือข่ายล้ม = ข้อความเครือข่าย · ข้อผิดพลาดอื่นไม่รั่วรายละเอียด', async () => {
     const limited = await deleteMyAccount(api({ error: { message: 'ลองผิดหลายครั้งเกินไป', code: '53400' } }).impl, 'x');
     if (!limited.ok) expect(limited.message).toMatch(/หลายครั้ง/);
