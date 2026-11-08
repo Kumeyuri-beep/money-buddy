@@ -5,6 +5,7 @@ import { StorageError } from '../../src/storage/repository';
 import { createSupabaseRepository } from '../../src/storage/supabaseRepository';
 import type { LedgerRepository } from '../../src/storage/ledgerRepository';
 import { describeRepositoryContract } from '../unit/repositoryContract';
+import { loadAdmin } from '../../scripts/lib/admin.mjs';
 
 /**
  * M2-C2/M2-F: เทสต์สัญญาชุดเดียวกับ Dexie รันกับ Supabase จริง + เทสต์แยกข้อมูลระหว่างผู้ใช้ 2 คน (RLS)
@@ -25,6 +26,17 @@ async function signedIn(index: number): Promise<{ client: SupabaseClient; id: st
   return session;
 }
 
+// ล้างข้อมูลของผู้ใช้ทดสอบด้วยสิทธิ์ผู้ดูแล (เฉพาะในชุดทดสอบนี้) เพื่อไม่ให้ชน rate limit ของ reset_my_ledger (5 ครั้ง/15 นาที)
+// rate limit ของ production ไม่ถูกลด · ชุดนี้เรียก resetAll จริงแค่ 2 ครั้งต่อรอบ เพื่อทดสอบเส้นทางนั้นเอง
+const admin = loadAdmin().client;
+async function wipe(index: number): Promise<void> {
+  const { id } = await signedIn(index);
+  for (const table of ['entries', 'bills', 'accounts', 'settings']) {
+    const { error } = await admin.from(table).delete().eq('user_id', id);
+    if (error) throw new Error('ล้างข้อมูลผู้ใช้ทดสอบไม่สำเร็จที่ตาราง ' + table);
+  }
+}
+
 async function repoFor(index: number): Promise<LedgerRepository> {
   const { client, id } = await signedIn(index);
   return createSupabaseRepository(client, id, { getPasswordForReset: async () => live.users[index]!.password });
@@ -33,7 +45,7 @@ async function repoFor(index: number): Promise<LedgerRepository> {
 // ผู้ใช้ A: ทุกเทสต์เริ่มจากสมุดว่าง
 describeRepositoryContract('Supabase (จริง)', async () => {
   const repo = await repoFor(0);
-  await repo.resetAll();
+  await wipe(0);
   return repo;
 });
 
@@ -43,8 +55,8 @@ describe('แยกข้อมูลระหว่างผู้ใช้ (RL
   beforeAll(async () => {
     a = await repoFor(0);
     b = await repoFor(1);
-    await a.resetAll();
-    await b.resetAll();
+    await wipe(0);
+    await wipe(1);
     await a.saveInitialLedger(buildInitialLedger([{ name: 'ของ A', opening: '1000' }], '2026-11-01'));
   });
 
