@@ -19,6 +19,7 @@ import {
 } from '../storage/repository';
 import { useRepository } from './RepositoryContext';
 import { AddEntryDialog } from './AddEntryDialog';
+import { canRestoreDeletedBill } from '../domain/bills/restore';
 import { BillDialog } from './BillDialog';
 import { BillsView, type SnapshotInfo } from './BillsView';
 import { PayBillDialog } from './PayBillDialog';
@@ -257,6 +258,22 @@ export function App() {
   };
 
   const removeBill = (bill: Bill) => {
+    // บิลที่มีสถานะจ่ายซึ่งกู้คืนด้วยเลิกทำไม่ได้ (ไม่มีรายการจ่ายผูก เช่น จ่ายไว้ก่อนมีการผูกบิล): เก็บถาวรแทนลบ เพื่อไม่ให้บิลหายถาวร (M2-G)
+    if (state.status === 'ready' && !canRestoreDeletedBill(bill, state.ledger.entries)) {
+      if (!window.confirm(`เก็บถาวรบิล "${bill.name}"?\nบิลนี้บันทึกสถานะจ่ายไว้ก่อนมีการผูกรายการ ลบแล้วกู้คืนไม่ได้ จึงเก็บถาวร (ซ่อนจากรายการ ข้อมูลไม่หาย) แทน\nรายการเงินที่เคยจ่ายไปแล้วไม่ถูกลบ`)) return;
+      void run(async () => {
+        await repo.updateBill({ ...bill, archived: true });
+        return {
+          message: `เก็บถาวรบิลแล้ว: ${bill.name}`,
+          undo: () =>
+            run(async () => {
+              await repo.updateBill({ ...bill, archived: false });
+              return { message: 'นำบิลกลับมาแสดงแล้ว' };
+            }),
+        };
+      });
+      return;
+    }
     if (!window.confirm(`ลบบิล "${bill.name}"?\nรายการเงินที่เคยจ่ายไปแล้วไม่ถูกลบ`)) return;
     void run(async () => {
       const removed = await repo.deleteBill(bill.id);
