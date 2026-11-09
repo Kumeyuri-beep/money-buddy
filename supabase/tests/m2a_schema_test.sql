@@ -306,10 +306,15 @@ begin
   if v_text is distinct from '2026-09' then raise exception 'FAIL: T17b คืนค่าเป็น before ไม่ถูก (%)', v_text; end if;
 
   -- T17c จ่ายซ้ำรอบเดียวกันไม่ได้แม้ถอย lastPaidMonth ผ่านการเขียนตรง (unique index)
+  -- (M2-G: ผู้ใช้ตั้ง last_paid_month ตรงๆ ไม่ได้แล้ว จึงถอยค่าผ่านบทบาทผู้ดูแลที่ M2-G อนุญาต เพื่อทดสอบว่า unique index ยังกันจ่ายซ้ำ)
+  perform pg_temp.logout();
   update public.bills set last_paid_month = null where id = 'bill1';
+  perform pg_temp.login(ua);
   r := pg_temp.fails($$ select public.create_entry('{"id":"payA2","date":"2026-09-06","source":"recurring","bill":{"id":"bill1","cycle":"2026-09"},"lines":[{"accountId":"food","amount":100},{"accountId":"w1","amount":-100}]}'::jsonb) $$);
   if r is null then raise exception 'FAIL: T17c จ่ายรอบเดิมซ้ำหลังถอย last_paid_month ผ่าน'; end if;
+  perform pg_temp.logout();
   update public.bills set last_paid_month = '2026-09' where id = 'bill1';
+  perform pg_temp.login(ua);
 
   -- T18 TRUNCATE ไม่มีสิทธิ์
   r := pg_temp.fails($$ truncate public.entries $$);
