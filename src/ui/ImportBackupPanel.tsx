@@ -28,6 +28,7 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState<Step>({ name: 'pick' });
   const [ack, setAck] = useState(false);
   const [wipeNote, setWipeNote] = useState('');
+  const [progress, setProgress] = useState<[number, number] | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -47,8 +48,9 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
 
   const doImport = async (read: Extract<BackupFileRead, { ok: true }>) => {
     setStep({ name: 'importing' });
+    setProgress(null);
     try {
-      const result = await importAndVerify(read.data, repo);
+      const result = await importAndVerify(read.data, repo, (done, total) => setProgress([done, total]));
       setAck(false);
       setWipeNote('');
       setStep({ name: 'result', report: result.report, counts: result.counts });
@@ -115,9 +117,18 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
       )}
 
       {(step.name === 'reading' || step.name === 'importing') && (
+        <>
         <p role="status" className="muted">
-          {step.name === 'importing' ? 'กำลังนำเข้าและตรวจยอด... อย่าปิดหน้านี้' : 'กำลังอ่านและตรวจไฟล์...'}
+          {step.name === 'importing'
+            ? 'กำลังนำเข้าและตรวจยอด... อย่าปิดหน้านี้'
+            : 'กำลังอ่านและตรวจไฟล์...'}
         </p>
+        {step.name === 'importing' && progress && (
+          <p className="muted">
+            <progress value={progress[0]} max={progress[1]} aria-label="ความคืบหน้าการนำเข้า" /> นำเข้าแล้ว {progress[0].toLocaleString('th-TH')} จาก {progress[1].toLocaleString('th-TH')} รายการ
+          </p>
+        )}
+        </>
       )}
 
       {step.name === 'review' && !step.read.ok && (

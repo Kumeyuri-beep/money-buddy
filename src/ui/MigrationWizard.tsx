@@ -58,6 +58,7 @@ export function MigrationWizard({ userId, online, mode, onDone }: Props) {
   const [busy, setBusy] = useState(false);
   const [ack, setAck] = useState(false);
   const [wipeNote, setWipeNote] = useState('');
+  const [progress, setProgress] = useState<[number, number] | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   // เปลี่ยนขั้น = ย้ายโฟกัสมาที่หัวข้อของขั้นใหม่ (ปุ่มเดิมถูกถอดออกจากหน้า ผู้ใช้คีย์บอร์ดไม่ต้องกด Tab ตั้งแต่ต้น)
@@ -117,10 +118,11 @@ export function MigrationWizard({ userId, online, mode, onDone }: Props) {
 
   const doImport = async (read: Extract<LocalRead, { ok: true }>) => {
     setStep({ name: 'importing' });
+    setProgress(null);
     // ตั้งธง "รอยืนยัน" ก่อนนำเข้า: ถ้าปิดแท็บกลางทางแล้วเปิดใหม่ จะเห็นหน้าตรวจยอดต่อ ไม่ข้ามเข้าแอปเงียบๆ
     writeMigrationFlag(window.localStorage, userId, 'pending');
     try {
-      const result = await importAndVerify(read.data, online);
+      const result = await importAndVerify(read.data, online, (done, total) => setProgress([done, total]));
       setAck(false);
       setWipeNote('');
       setStep({ name: 'result', report: result.report, counts: result.counts });
@@ -195,9 +197,18 @@ export function MigrationWizard({ userId, online, mode, onDone }: Props) {
         )}
 
         {(step.name === 'reading' || step.name === 'importing') && (
+          <>
           <p role="status" className="muted">
-            {step.name === 'importing' ? 'กำลังนำเข้าและตรวจยอด... อย่าปิดหน้านี้' : 'กำลังอ่านและตรวจข้อมูล...'}
+            {step.name === 'importing'
+              ? 'กำลังนำเข้าและตรวจยอด... อย่าปิดหน้านี้'
+              : 'กำลังอ่านและตรวจข้อมูล...'}
           </p>
+          {step.name === 'importing' && progress && (
+            <p className="muted">
+              <progress value={progress[0]} max={progress[1]} aria-label="ความคืบหน้าการนำเข้า" /> นำเข้าแล้ว {progress[0].toLocaleString('th-TH')} จาก {progress[1].toLocaleString('th-TH')} รายการ
+            </p>
+          )}
+          </>
         )}
 
         {step.name === 'review' && !step.read.ok && (

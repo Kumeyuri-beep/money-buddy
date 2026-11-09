@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { BackupData } from '../domain/backup/parseBackup';
+import { chunkEntries } from '../domain/backup/chunk';
+import { SINGLE_IMPORT_MAX_ENTRIES, SINGLE_IMPORT_MAX_LINES, type BackupData } from '../domain/backup/parseBackup';
 import { payAmountProblem } from '../domain/bills/payAmount';
 import { billProblem, markBillPaid, payableCycle } from '../domain/bills/schedule';
 import { sanitizeSettings, settingsProblem, type FinanceSettings } from '../domain/bills/settings';
@@ -8,7 +9,7 @@ import { createEntry } from '../domain/ledger/entry';
 import { runIntegrityCheck } from '../domain/ledger/integrity';
 import type { Account, AccountType, Entry, EntrySource, NewEntry } from '../domain/ledger/types';
 import { SCHEMA_VERSION } from './db';
-import type { LedgerRepository } from './ledgerRepository';
+import type { ImportProgress, LedgerRepository } from './ledgerRepository';
 import {
   assertBillWritableWith,
   assertNotFuture,
@@ -254,6 +255,44 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
     const { data, error } = await client.rpc(name, args);
     check(error);
     return data;
+  }
+
+  /**
+   * ไฟล์ใหญ่ (เกิน SINGLE_IMPORT_MAX_ENTRIES): แบ่งเป็นหลายคำสั่งเพื่อไม่ชนเพดานเวลา · ไม่อะตอมมิกทั้งไฟล์
+   * ฐานข้อมูลจำ "เซสชันนำเข้า" ไว้ (import_ledger_begin เปิด ครบจำนวนที่ประกาศจึงปิด) ถ้าก้อนใดล้ม: สั่งล้างส่วนที่ค้างทันที
+   * ล้างไม่ได้ (เช่นเน็ตหลุด) = เซสชันยังเปิด แอปจะพาไปหน้าล้างตอนเปิดครั้งหน้า ไม่ปล่อยเข้าใช้งานด้วยข้อมูลครึ่งเดียว
+   */
+  async function importChunked(data: BackupData, onProgress?: ImportProgress) {
+    const [first = [], ...rest] = chunkEntries(data.entries);
+    const total = data.entries.length;
+    const begin = (await rpc('import_ledger_begin', {
+      p_data: {
+        accounts: data.accounts.map(accountToJson),
+        bills: data.bills.map(billToJson),
+        entries: first.map(entryToJson),
+        settings: sanitizeSettings(data.settings),
+      },
+      p_total_entries: total,
+    })) as { accounts?: number; entries?: number; bills?: number } | null;
+    // ถึงตรงนี้เซสชันเปิดแล้ว: ล้มหลังจากนี้ต้องล้างส่วนที่ค้าง
+    let done = begin?.entries ?? first.length;
+    onProgress?.(done, total);
+    try {
+      for (const chunk of rest) {
+        const out = (await rpc('import_ledger_append', { p_entries: chunk.map(entryToJson) })) as { entries?: number } | null;
+        done += out?.entries ?? chunk.length;
+        onProgress?.(done, total);
+      }
+    } catch (e) {
+      const reason = e instanceof StorageError ? e.message : 'เกิดข้อผิดพลาด';
+      try {
+        await rpc('import_ledger_abort', {});
+      } catch {
+        throw new StorageError(`นำเข้าไม่สำเร็จ (${reason}) และล้างส่วนที่นำเข้าค้างไม่ได้ เปิดแอปใหม่แล้วแอปจะให้ล้างส่วนที่ค้างก่อนลองใหม่`);
+      }
+      throw new StorageError(`นำเข้าไม่สำเร็จ (${reason}) ระบบล้างส่วนที่นำเข้าค้างให้แล้ว ลองนำเข้าใหม่ได้`);
+    }
+    return { accounts: begin?.accounts ?? 0, entries: done, bills: begin?.bills ?? 0 };
   }
 
   async function deleteEntryRow(id: string): Promise<void> {
@@ -505,11 +544,13 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
 
     loadSettings,
 
-    async importBackup(data: BackupData) {
+    async importBackup(data: BackupData, onProgress?: ImportProgress) {
       const report = runIntegrityCheck(data.accounts, data.entries);
       if (!report.ok) throw new StorageError(`ข้อมูลนำเข้าไม่ผ่านการตรวจ: ${report.issues[0]?.message ?? ''}`);
       const settingsIssue = settingsProblem(data.settings);
       if (settingsIssue) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${settingsIssue}`);
+      const totalLines = data.entries.reduce((n, e) => n + e.lines.length, 0);
+      if (data.entries.length > SINGLE_IMPORT_MAX_ENTRIES || totalLines > SINGLE_IMPORT_MAX_LINES) return importChunked(data, onProgress);
       // ครั้งเดียว: ฐานข้อมูลเขียนทุกส่วนในธุรกรรมเดียว ผิดข้อใด = ย้อนกลับทั้งก้อน · มีข้อมูลอยู่แล้ว = ปฏิเสธ
       const out = (await rpc('import_ledger', {
         p_data: {
@@ -519,7 +560,16 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
           settings: sanitizeSettings(data.settings),
         },
       })) as { accounts?: number; entries?: number; bills?: number } | null;
+      onProgress?.(data.entries.length, data.entries.length);
       return { accounts: out?.accounts ?? 0, entries: out?.entries ?? 0, bills: out?.bills ?? 0 };
+    },
+
+    async hasUnfinishedImport() {
+      return (await rpc('import_ledger_status', {})) === true;
+    },
+
+    async abortUnfinishedImport() {
+      await rpc('import_ledger_abort', {});
     },
 
     async saveSettings(settings) {

@@ -8,10 +8,11 @@ import { createSupabaseRepository } from '../storage/supabaseRepository';
 import { useAccount } from './AuthContext';
 import { RESET_CANCELLED_MESSAGE } from '../app/migrate';
 import { MigrationWizard } from './MigrationWizard';
+import { UnfinishedImportPage } from './UnfinishedImportPage';
 import { usePasswordPrompt } from './PasswordPrompt';
 import { RepositoryProvider, setActiveLedgerRepository } from './RepositoryContext';
 
-type State = 'checking' | 'online' | 'migrate' | 'verify' | 'error';
+type State = 'checking' | 'online' | 'migrate' | 'verify' | 'unfinished' | 'error';
 
 /**
  * ด่านเลือกแหล่งข้อมูลหลังล็อกอิน (M2-D2 แทน LocalDataGate)
@@ -49,6 +50,13 @@ export function DataSourceGate({ userId, children }: { userId: string; children:
     setState('checking');
     void (async () => {
       try {
+        // นำเข้าแบบแบ่งก้อนที่ค้างอยู่ (ปิดแท็บ/เน็ตหลุดกลางทาง) ต้องมาก่อนทุกอย่าง: ห้ามปล่อยเข้าแอปด้วยข้อมูลครึ่งเดียว
+        // ถามไม่ได้ (เช่นฐานข้อมูลยังไม่มีฟังก์ชันนี้ระหว่างอัปเดต) = ถือว่าไม่ค้าง ไม่ล็อกทุกคนออกจากแอป · ถ้าเครือข่ายล่มจริง isEmpty ด้านล่างจะล้มเอง
+        const unfinished = await online.hasUnfinishedImport().catch(() => false);
+        if (unfinished) {
+          if (!cancelled) setState('unfinished');
+          return;
+        }
         const [onlineEmpty, localData, localOwner] = await Promise.all([online.isEmpty(), hasLocalData(db), getLocalOwner(db)]);
         if (cancelled) return;
         const flag = readMigrationFlag(window.localStorage, userId);
@@ -84,6 +92,8 @@ export function DataSourceGate({ userId, children }: { userId: string; children:
     case 'migrate':
     case 'verify':
       return online ? <MigrationWizard key={state} userId={userId} online={online} mode={state} onDone={recheck} /> : null;
+    case 'unfinished':
+      return online ? <UnfinishedImportPage online={online} onCleared={recheck} /> : null;
     case 'error':
       return (
         <main className="auth-page">
