@@ -9,6 +9,7 @@ export interface RpcApi {
   rpc(name: string, args?: Record<string, unknown>): PromiseLike<{ data: unknown; error: { message?: string; code?: string } | null }>;
 }
 
+const PARTIAL_DELETE = 'ข้อมูลบางส่วนถูกลบไปแล้ว และบัญชีอาจถูกลบเรียบร้อยแล้ว ลองเข้าสู่ระบบใหม่เพื่อตรวจ ถ้ายังเข้าได้ให้กดลบบัญชีอีกครั้ง';
 const NETWORK = 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ตรวจอินเทอร์เน็ตแล้วลองใหม่';
 const UNKNOWN = 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง';
 const RATE_LIMITED = 'ลองรหัสผ่านผิดหลายครั้งเกินไป ลองใหม่ภายหลัง';
@@ -40,6 +41,8 @@ export async function deleteMyAccount(api: RpcApi, password: string): Promise<Au
       if (error) {
         if (error.code === '53400') return { ok: false, message: RATE_LIMITED };
         if (error.code === '55000') return { ok: false, message: COOLDOWN_MESSAGE };
+        // หลังลบไปแล้วบางชุด (i > 0) แล้วถูกปฏิเสธเพราะ session/บัญชีใช้ไม่ได้ (42501): บัญชีอาจถูกลบไปแล้วแต่คำตอบสุดท้ายหายระหว่างทาง ไม่นับว่าสำเร็จ แต่บอกให้ตรวจ
+        if (error.code === '42501' && i > 0) return { ok: false, message: PARTIAL_DELETE };
         return { ok: false, message: /fetch|network/i.test(String(error.message ?? '')) ? NETWORK : UNKNOWN };
       }
       if (data === 'done') return { ok: true };

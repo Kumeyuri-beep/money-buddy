@@ -92,6 +92,16 @@ describe('ลบบัญชีและข้อมูลทั้งหมด 
     expect(f.ok).toBe(false);
     expect(m).toBeLessThanOrEqual(200);
   });
+  it('ลบไปแล้วบางชุดแล้วถูกปฏิเสธ (42501: session/บัญชีใช้ไม่ได้) = ไม่นับว่าสำเร็จ แต่แจ้งให้ตรวจว่าบัญชีอาจถูกลบแล้ว · ชุดแรกถูกปฏิเสธ (42501) = ข้อผิดพลาดทั่วไป', async () => {
+    let n = 0;
+    const lostAnswer: RpcApi = { rpc: () => { n += 1; return Promise.resolve(n === 1 ? { data: 'more', error: null } : { data: null, error: { message: 'x', code: '42501' } }); } };
+    const r = await deleteMyAccount(lostAnswer, 'x');
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.message).toMatch(/อาจถูกลบ/);
+    const first = await deleteMyAccount(api({ error: { message: 'x', code: '42501' } }).impl, 'x');
+    expect(first.ok).toBe(false);
+    if (!first.ok) expect(first.message).not.toMatch(/อาจถูกลบ/);
+  });
   it('รหัสผิด (wrong) / ค่าแปลก (รวม true แบบฟังก์ชันเดิม) = ไม่ถือว่าลบ', async () => {
     for (const data of ['wrong', false, true, null, 'true', 1, undefined, 'oops']) {
       const r = await deleteMyAccount(api({ data }).impl, 'x');
