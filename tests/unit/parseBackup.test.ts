@@ -261,15 +261,17 @@ describe('ตรวจเพิ่มจากผู้ตรวจ M2-D1', () =
     entry(f, 'e1').lines = Array.from({ length: 202 }, (_, i) => ({ accountId: i % 2 ? wal : cat, amount: i % 2 ? -1 : 1 }));
     expect(problems(f)).toMatch(/บรรทัดมากเกินไป/);
     const g = good();
-    g.entries = Array.from({ length: 150 }, (_, i) => ({
+    g.entries = Array.from({ length: 1100 }, (_, i) => ({
       id: 'm' + i, date: '2026-11-02', memo: '', source: 'manual',
       lines: Array.from({ length: 200 }, (_, j) => ({ accountId: j % 2 ? wal : cat, amount: j % 2 ? -1 : 1 })),
     }));
     expect(problems(g)).toMatch(/บรรทัดรวม/);
   });
 
-  it('เพดานรายการ 1,500 ตรงกับ import_ledger', async () => {
+  it('เพดานรายการต่อคำสั่ง 1,500 ตรงกับ import_ledger', async () => {
     const { MAX_IMPORT_ENTRIES } = await import('../../src/domain/backup/parseBackup');
-    expect(MAX_IMPORT_ENTRIES).toBe(1500);
+    const { SINGLE_IMPORT_MAX_ENTRIES } = await import('../../src/domain/backup/parseBackup');
+    expect(SINGLE_IMPORT_MAX_ENTRIES).toBe(1500);
+    expect(MAX_IMPORT_ENTRIES).toBe(10_000); // รวมทั้งไฟล์ ตรงกับ import_ledger_begin
   });
 });

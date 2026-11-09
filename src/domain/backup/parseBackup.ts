@@ -16,10 +16,14 @@ import type { Account, Entry, EntrySource, NewEntry } from '../ledger/types';
 export const MAX_SUPPORTED_SCHEMA = 2;
 export const MAX_IMPORT_BYTES = 20 * 1024 * 1024;
 export const MAX_IMPORT_ACCOUNTS = 2000;
-/** วัดจริง 2,000 รายการ = 5.2 วินาที เพดานเวลาของ Supabase ~8 วินาที จึงตั้ง 1,500 (ไฟล์ใหญ่กว่านี้ต้องนำเข้าแบบแบ่งชุด: backlog) ต้องตรงกับ import_ledger ในฐานข้อมูล */
-export const MAX_IMPORT_ENTRIES = 1500;
+/** เพดานรวมของไฟล์ (นำเข้าแบบแบ่งก้อนเมื่อเกิน SINGLE_IMPORT_MAX_ENTRIES) ต้องตรงกับ import_ledger_begin ในฐานข้อมูล */
+export const MAX_IMPORT_ENTRIES = 10_000;
+/** ไม่เกินนี้ = นำเข้าคำสั่งเดียวอะตอมมิก (import_ledger) · วัดจริง 2,000 รายการ = 5.2 วินาที เพดานเวลา ~8 วินาที จึงตั้ง 1,500 ต่อคำสั่ง · ต้องตรงกับ import_ledger */
+export const SINGLE_IMPORT_MAX_ENTRIES = 1500;
+/** บรรทัดรวมต่อคำสั่งของ import_ledger (เกิน = ต้องแบ่งก้อน แม้จำนวนรายการไม่ถึง) */
+export const SINGLE_IMPORT_MAX_LINES = 20_000;
 export const MAX_LINES_PER_IMPORTED_ENTRY = 200;
-export const MAX_IMPORT_LINES = 20_000;
+export const MAX_IMPORT_LINES = 200_000;
 export const MAX_IMPORT_BILLS = 2000;
 const MAX_PROBLEMS = 30;
 
@@ -284,7 +288,7 @@ export function parseBackup(text: string, today: string): ParseResult {
   const rawEntries = root.entries as unknown[];
   const rawBills = (root.bills ?? []) as unknown[];
   if (rawAccounts.length > MAX_IMPORT_ACCOUNTS) p.add(`มีบัญชีมากเกินไป (${rawAccounts.length} เกิน ${MAX_IMPORT_ACCOUNTS})`);
-  if (rawEntries.length > MAX_IMPORT_ENTRIES) p.add(`มีรายการมากเกินไป (${rawEntries.length} เกิน ${MAX_IMPORT_ENTRIES}) ติดต่อผู้ดูแลเพื่อนำเข้าแบบแบ่งส่วน`);
+  if (rawEntries.length > MAX_IMPORT_ENTRIES) p.add(`มีรายการมากเกินไป (${rawEntries.length} เกิน ${MAX_IMPORT_ENTRIES})`);
   if (rawBills.length > MAX_IMPORT_BILLS) p.add(`มีบิลมากเกินไป (${rawBills.length} เกิน ${MAX_IMPORT_BILLS})`);
   const totalLines = rawEntries.reduce<number>((n, e) => n + (isObject(e) && Array.isArray(e.lines) ? e.lines.length : 0), 0);
   if (totalLines > MAX_IMPORT_LINES) p.add(`มีบรรทัดรวมมากเกินไป (${totalLines} เกิน ${MAX_IMPORT_LINES})`);

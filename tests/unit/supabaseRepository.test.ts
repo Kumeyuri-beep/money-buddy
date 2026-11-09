@@ -225,6 +225,106 @@ describe('นำเข้าไฟล์สำรอง', () => {
   });
 });
 
+describe('นำเข้าแบบแบ่งก้อน (เกิน 1,500 รายการ)', () => {
+  const accounts = [
+    { id: 'a', type: 'asset' as const, name: 'a', currency: 'THB' },
+    { id: 'b', type: 'equity' as const, name: 'b', currency: 'THB' },
+  ];
+  const many = (n: number) => ({
+    accounts,
+    entries: Array.from({ length: n }, (_, i) => ({ id: 'e' + i, date: '2026-11-01', memo: '', source: 'manual' as const, lines: [{ accountId: 'a', amount: 10 }, { accountId: 'b', amount: -10 }] })),
+    bills: [{ id: 'bill', name: 'x', amount: 5, dueDay: 1 }],
+    settings: { payDay: 3 },
+  });
+  type Args = { p_data?: { accounts: unknown[]; bills: unknown[]; entries: { id: string }[]; settings: unknown }; p_total_entries?: number; p_entries?: { id: string }[] };
+  const ok = (call: { name: string; args?: unknown }) => {
+    const a = (call.args ?? {}) as Args;
+    if (call.name === 'import_ledger_begin') return { data: { accounts: 2, bills: 1, entries: a.p_data?.entries.length ?? 0, done: false } };
+    if (call.name === 'import_ledger_append') return { data: { entries: a.p_entries?.length ?? 0, done: false } };
+    return { data: true };
+  };
+
+  it('1,600 รายการ: begin ครั้งเดียว (บัญชี บิล ตั้งค่า + ก้อนแรก + จำนวนรวม) แล้ว append ก้อนละไม่เกิน 500 · ทุกรายการถูกส่งครั้งเดียวตามลำดับ', async () => {
+    const { client, calls } = fakeClient(ok);
+    const progress: [number, number][] = [];
+    const out = await createSupabaseRepository(client, 'u').importBackup(many(1600), (done, total) => progress.push([done, total]));
+    expect(out).toEqual({ accounts: 2, entries: 1600, bills: 1 });
+    expect(calls.map((c) => c.name)).toEqual(['import_ledger_begin', 'import_ledger_append', 'import_ledger_append', 'import_ledger_append']);
+    const begin = calls[0]!.args as Args;
+    expect(begin.p_total_entries).toBe(1600);
+    expect(begin.p_data!.accounts).toHaveLength(2);
+    expect(begin.p_data!.bills).toHaveLength(1);
+    expect(begin.p_data!.settings).toEqual({ payDay: 3 });
+    const sent = [...begin.p_data!.entries, ...calls.slice(1).flatMap((c) => (c.args as Args).p_entries!)];
+    expect(sent.map((e) => e.id)).toEqual(Array.from({ length: 1600 }, (_, i) => 'e' + i));
+    expect(Math.max(...calls.map((c) => (c.args as Args).p_entries?.length ?? (c.args as Args).p_data!.entries.length))).toBeLessThanOrEqual(500);
+    expect(progress.at(-1)).toEqual([1600, 1600]);
+    expect(progress.map((p) => p[0])).toEqual([...progress.map((p) => p[0])].sort((a, b) => a - b));
+  });
+
+  it('ไม่เกิน 1,500 รายการ: ยังใช้ import_ledger คำสั่งเดียวเหมือนเดิม (อะตอมมิก)', async () => {
+    const { client, calls } = fakeClient(() => ({ data: { accounts: 2, bills: 1, entries: 1500 } }));
+    await createSupabaseRepository(client, 'u').importBackup(many(1500));
+    expect(calls.map((c) => c.name)).toEqual(['import_ledger']);
+  });
+
+  it('รายการไม่ถึง 1,500 แต่บรรทัดรวมเกิน 20,000 ต่อคำสั่ง: ต้องแบ่งก้อนด้วย (ไม่ให้ import_ledger คำสั่งเดียวถูกปฏิเสธ) และแต่ละก้อนไม่เกิน 20,000 บรรทัด', async () => {
+    const wide = many(1000);
+    wide.entries = wide.entries.map((e) => ({ ...e, lines: Array.from({ length: 30 }, (_, j) => ({ accountId: j % 2 ? 'b' : 'a', amount: j % 2 ? -1 : 1 })) }));
+    const { client, calls } = fakeClient(ok);
+    await createSupabaseRepository(client, 'u').importBackup(wide);
+    expect(calls[0]!.name).toBe('import_ledger_begin');
+    expect(calls.length).toBeGreaterThan(1);
+    for (const c of calls) {
+      const list = (c.args as Args).p_entries ?? (c.args as Args).p_data!.entries;
+      expect((list as unknown as { lines: unknown[] }[]).reduce((n, e) => n + e.lines.length, 0)).toBeLessThanOrEqual(20_000);
+    }
+  });
+
+  it('ก้อนกลางทางล้ม: สั่งล้างส่วนที่นำเข้าค้างทันที 1 ครั้ง แล้วแจ้งว่าล้างให้แล้ว (ไม่ส่งก้อนต่อ)', async () => {
+    let appends = 0;
+    const { client, calls } = fakeClient((call) => {
+      if (call.name === 'import_ledger_append' && ++appends === 2) return { error: { message: 'ล้มกลางทาง' } };
+      return ok(call);
+    });
+    await expect(createSupabaseRepository(client, 'u').importBackup(many(1600))).rejects.toThrow(/ล้างส่วนที่นำเข้าค้างให้แล้ว/);
+    expect(calls.map((c) => c.name)).toEqual(['import_ledger_begin', 'import_ledger_append', 'import_ledger_append', 'import_ledger_abort']);
+  });
+
+  it('ล้างส่วนค้างไม่สำเร็จด้วย: แจ้งให้เปิดแอปใหม่ (แอปจะพาไปหน้าล้าง) ไม่บอกว่าล้างแล้ว', async () => {
+    const { client } = fakeClient((call) => {
+      if (call.name === 'import_ledger_append' || call.name === 'import_ledger_abort') return { error: { message: 'ล้ม' } };
+      return ok(call);
+    });
+    const err = await createSupabaseRepository(client, 'u').importBackup(many(1600)).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(StorageError);
+    expect((err as Error).message).toMatch(/เปิดแอปใหม่/);
+    expect((err as Error).message).not.toMatch(/ล้างส่วนที่นำเข้าค้างให้แล้ว/);
+  });
+
+  it('begin ถูกปฏิเสธ (เช่นมีข้อมูลอยู่แล้ว): ไม่สั่งล้าง เพราะยังไม่ได้เปิดเซสชัน ข้อมูลเดิมต้องไม่ถูกแตะ', async () => {
+    const { client, calls } = fakeClient((call) => (call.name === 'import_ledger_begin' ? { error: { message: 'มีข้อมูลอยู่แล้ว นำเข้าไม่ได้ (ไม่ทับข้อมูลเดิม)', code: '23505' } } : ok(call)));
+    await expect(createSupabaseRepository(client, 'u').importBackup(many(1600))).rejects.toThrow(/มีข้อมูลอยู่แล้ว/);
+    expect(calls.map((c) => c.name)).toEqual(['import_ledger_begin']);
+  });
+
+  it('ข้อมูลไม่สมดุลถูกปฏิเสธก่อนส่งแม้เป็นไฟล์ใหญ่ (ไม่เปิดเซสชันเลย)', async () => {
+    const data = many(1600);
+    data.entries[1599] = { ...data.entries[1599]!, lines: [{ accountId: 'a', amount: 10 }, { accountId: 'b', amount: -9 }] };
+    const { client, calls } = fakeClient(ok);
+    await expect(createSupabaseRepository(client, 'u').importBackup(data)).rejects.toThrow(StorageError);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('hasUnfinishedImport / abortUnfinishedImport เรียก RPC ของตัวเองเท่านั้น', async () => {
+    const { client, calls } = fakeClient((call) => ({ data: call.name === 'import_ledger_status' ? true : true }));
+    const repo = createSupabaseRepository(client, 'u');
+    expect(await repo.hasUnfinishedImport()).toBe(true);
+    await repo.abortUnfinishedImport();
+    expect(calls.map((c) => c.kind + ':' + c.name)).toEqual(['rpc:import_ledger_status', 'rpc:import_ledger_abort']);
+  });
+});
+
 describe('การป้องกันอื่น', () => {
   it('ไม่มี userId = สร้าง repository ไม่ได้', () => {
     const { client } = fakeClient(() => ({}));

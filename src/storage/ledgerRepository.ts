@@ -12,6 +12,9 @@ import type { Ledger, PayBillOptions, PayBillResult, Snapshot } from './reposito
  * ทุก implementation ต้องผ่านชุดเทสต์สัญญาเดียวกัน: tests/unit/repositoryContract.ts
  * ที่ยังอยู่นอก interface นี้โดยตั้งใจ: ตัวช่วยย้ายข้อมูลเฉพาะ Dexie (migration snapshot, local owner) จะหายไปใน M2-D
  */
+/** รายงานความคืบหน้าการนำเข้า (รายการที่นำเข้าแล้ว, ทั้งหมด) */
+export type ImportProgress = (done: number, total: number) => void;
+
 export interface LedgerRepository {
   loadLedger(): Promise<Ledger>;
   isEmpty(): Promise<boolean>;
@@ -35,7 +38,11 @@ export interface LedgerRepository {
    * นำเข้าข้อมูลจากไฟล์สำรองที่ผ่าน parseBackup แล้ว ทั้งก้อนในธุรกรรมเดียว (M2-D)
    * ปฏิเสธถ้ามีข้อมูลอยู่แล้ว (ไม่ทับ ไม่ซ้ำซ้อน) · ผิดข้อใดข้อหนึ่ง = ไม่เขียนอะไรเลย
    */
-  importBackup(data: BackupData): Promise<{ accounts: number; entries: number; bills: number }>;
+  importBackup(data: BackupData, onProgress?: ImportProgress): Promise<{ accounts: number; entries: number; bills: number }>;
+  /** ออนไลน์เท่านั้น: มีการนำเข้าแบบแบ่งก้อนที่ค้างอยู่ (ยังไม่ครบ) หรือไม่ · Dexie คืน false เสมอ */
+  hasUnfinishedImport(): Promise<boolean>;
+  /** ล้างข้อมูลที่นำเข้าค้าง (ใช้ได้เฉพาะขณะมีการนำเข้าค้าง ไม่ถามรหัสผ่าน) · Dexie ไม่ทำอะไร */
+  abortUnfinishedImport(): Promise<void>;
 
   loadSettings(): Promise<FinanceSettings>;
   saveSettings(settings: FinanceSettings): Promise<FinanceSettings>;
@@ -61,6 +68,8 @@ export function createDexieRepository(db: MoneyDB): LedgerRepository {
     cancelBillPayment: (entryId) => dexie.cancelBillPayment(db, entryId),
     cancelLatestBillPayment: (billId) => dexie.cancelLatestBillPayment(db, billId),
     importBackup: (data) => dexie.importBackup(db, data),
+    hasUnfinishedImport: () => Promise.resolve(false),
+    abortUnfinishedImport: () => Promise.resolve(),
     loadSettings: () => dexie.loadSettings(db),
     saveSettings: (settings) => dexie.saveSettings(db, settings),
   };
