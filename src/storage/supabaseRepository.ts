@@ -286,13 +286,22 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
     } catch (e) {
       const reason = e instanceof StorageError ? e.message : 'เกิดข้อผิดพลาด';
       try {
-        await rpc('import_ledger_abort', {});
+        await abortImport();
       } catch {
         throw new StorageError(`นำเข้าไม่สำเร็จ (${reason}) และล้างส่วนที่นำเข้าค้างไม่ได้ เปิดแอปใหม่แล้วแอปจะให้ล้างส่วนที่ค้างก่อนลองใหม่`);
       }
       throw new StorageError(`นำเข้าไม่สำเร็จ (${reason}) ระบบล้างส่วนที่นำเข้าค้างให้แล้ว ลองนำเข้าใหม่ได้`);
     }
     return { accounts: begin?.accounts ?? 0, entries: done, bills: begin?.bills ?? 0 };
+  }
+
+  /** ล้างส่วนที่นำเข้าค้างเป็นชุด (ฐานข้อมูลลบทีละ ≤ 500 รายการ คืน 'more' จนกว่าจะหมด) · หยุดที่ 200 รอบกันวนไม่รู้จบ */
+  async function abortImport(): Promise<void> {
+    for (let i = 0; i < 200; i++) {
+      const result = await rpc('import_ledger_abort', {});
+      if (result !== 'more') return;
+    }
+    throw new StorageError('ล้างส่วนที่นำเข้าค้างไม่หมด ลองอีกครั้ง');
   }
 
   async function deleteEntryRow(id: string): Promise<void> {
@@ -569,7 +578,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
     },
 
     async abortUnfinishedImport() {
-      await rpc('import_ledger_abort', {});
+      await abortImport();
     },
 
     async saveSettings(settings) {
