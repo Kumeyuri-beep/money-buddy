@@ -49,9 +49,9 @@ begin
 
   -- T3 ล้างค่า/ย้อนค่าตรงๆ เพื่อจ่ายซ้ำรอบเดิม = ปฏิเสธ
   r := pg_temp.fails($$ update public.bills set last_paid_month = null where id = 'b1' $$);
-  if r is null then raise exception 'FAIL: T3 ล้าง lastPaidMonth ตรงๆ ได้'; end if;
+  if r is null or r not like '%ตรงๆ%' then raise exception 'FAIL: T3 ล้าง lastPaidMonth ตรงๆ ได้ หรือถูกปฏิเสธด้วยเหตุผลอื่น (%)', r; end if;
   r := pg_temp.fails($$ update public.bills set last_paid_month = '2026-10' where id = 'b1' $$);
-  if r is null then raise exception 'FAIL: T3 ย้อน lastPaidMonth ตรงๆ ได้'; end if;
+  if r is null or r not like '%ตรงๆ%' then raise exception 'FAIL: T3 ย้อน lastPaidMonth ตรงๆ ได้ หรือถูกปฏิเสธด้วยเหตุผลอื่น (%)', r; end if;
 
   -- T4 แก้ฟิลด์อื่นของบิลได้ตามปกติ · lastPaidMonth ไม่เปลี่ยน
   update public.bills set name = 'net2', amount = 600, archived = false where id = 'b1';
@@ -93,6 +93,9 @@ begin
   perform pg_temp.settle();
   select last_paid_month into v_paid from public.bills where id = 'b1';
   if v_paid is not null then raise exception 'FAIL: T7 ยกเลิกการจ่ายแล้ว lastPaidMonth ไม่คืน (%)', v_paid; end if;
+  -- T7b หลังยกเลิกการจ่าย (entries_guard ครอบด้วย app.bill_paid_path) ตัวแปรต้องไม่ค้าง: ตั้งค่าตรงๆ ต้องยังถูกปฏิเสธ
+  r := pg_temp.fails($$ update public.bills set last_paid_month = '2026-11' where id = 'b1' $$);
+  if r is null or r not like '%ตรงๆ%' then raise exception 'FAIL: T7b หลังยกเลิกการจ่ายตั้ง lastPaidMonth ตรงๆ ได้ (ตัวแปรเส้นทางจ่ายค้าง) (%)', r; end if;
   perform pg_temp.logout();
 
   -- T8 นำเข้า: บิลพก lastPaidMonth มาจากไฟล์ได้ (ผู้ใช้ B ว่าง)

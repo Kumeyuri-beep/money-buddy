@@ -308,12 +308,17 @@ begin
   -- T17c จ่ายซ้ำรอบเดียวกันไม่ได้แม้ถอย lastPaidMonth ผ่านการเขียนตรง (unique index)
   -- (M2-G: ผู้ใช้ตั้ง last_paid_month ตรงๆ ไม่ได้แล้ว จึงถอยค่าผ่านบทบาทผู้ดูแลที่ M2-G อนุญาต เพื่อทดสอบว่า unique index ยังกันจ่ายซ้ำ)
   perform pg_temp.logout();
-  update public.bills set last_paid_month = null where id = 'bill1';
+  update public.bills set last_paid_month = null where id = 'bill1' and user_id = ua;
+  -- ยืนยันว่าถอยค่าจริง (ไม่งั้นเทสต์ข้างล่างไม่ได้ทดสอบสถานการณ์ที่ตั้งใจ)
+  select last_paid_month into v_text from public.bills where id = 'bill1' and user_id = ua;
+  if v_text is not null then raise exception 'FAIL: T17c ถอย last_paid_month ไม่สำเร็จ (%)', v_text; end if;
   perform pg_temp.login(ua);
   r := pg_temp.fails($$ select public.create_entry('{"id":"payA2","date":"2026-09-06","source":"recurring","bill":{"id":"bill1","cycle":"2026-09"},"lines":[{"accountId":"food","amount":100},{"accountId":"w1","amount":-100}]}'::jsonb) $$);
   if r is null then raise exception 'FAIL: T17c จ่ายรอบเดิมซ้ำหลังถอย last_paid_month ผ่าน'; end if;
+  -- ต้องล้มเพราะดัชนีกันจ่ายรอบเดิมซ้ำ ไม่ใช่เหตุอื่น (fails() รับทุก error จึงตรวจชื่อดัชนีในข้อความ)
+  if r not like '%entries_bill_cycle_once_idx%' then raise exception 'FAIL: T17c ล้มด้วยเหตุผลอื่นที่ไม่ใช่ดัชนีกันจ่ายซ้ำ (%)', r; end if;
   perform pg_temp.logout();
-  update public.bills set last_paid_month = '2026-09' where id = 'bill1';
+  update public.bills set last_paid_month = '2026-09' where id = 'bill1' and user_id = ua;
   perform pg_temp.login(ua);
 
   -- T18 TRUNCATE ไม่มีสิทธิ์
