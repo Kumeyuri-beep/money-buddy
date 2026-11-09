@@ -28,18 +28,25 @@ export async function recordConsent(api: RpcApi): Promise<AuthResult> {
 
 /**
  * ลบบัญชีและข้อมูลทั้งหมดของผู้ที่ล็อกอินอยู่ (ย้อนกลับไม่ได้) · ต้องส่งรหัสผ่านปัจจุบัน
- * รหัสผิด = ไม่ลบ ฐานข้อมูลจำกัด 5 ครั้ง/15 นาที · ไม่ผ่านโดยไม่มี true จากเซิร์ฟเวอร์
+ * รหัสผิด = ไม่ลบ ฐานข้อมูลจำกัดรหัสผิด 5 ครั้ง/15 นาที · ไม่ผ่านโดยไม่มี done จากเซิร์ฟเวอร์
  */
 export async function deleteMyAccount(api: RpcApi, password: string): Promise<AuthResult> {
   if (typeof password !== 'string' || password === '') return { ok: false, message: 'ต้องใส่รหัสผ่านเพื่อยืนยัน' };
   try {
-    const { data, error } = await api.rpc('delete_my_account', { p_password: password });
-    if (error) {
-      if (error.code === '53400') return { ok: false, message: RATE_LIMITED };
-      if (error.code === '55000') return { ok: false, message: COOLDOWN_MESSAGE };
-      return { ok: false, message: /fetch|network/i.test(String(error.message ?? '')) ? NETWORK : UNKNOWN };
+    // ลบเป็นชุดละ ≤ 500 รายการ (ข้อมูลหนักมากลบในคำสั่งเดียวชนเพดานเวลา 8 วินาที) · ฐานข้อมูลตรวจรหัสผ่านและ cooldown ทุกชุด
+    // more = ยังเหลือ เรียกซ้ำ · done = ลบบัญชีแล้ว · หยุดที่ 200 ชุดกันวนไม่รู้จบ · ค่าที่ไม่รู้จักไม่นับว่าลบ
+    for (let i = 0; i < 200; i++) {
+      const { data, error } = await api.rpc('delete_my_account_step', { p_password: password });
+      if (error) {
+        if (error.code === '53400') return { ok: false, message: RATE_LIMITED };
+        if (error.code === '55000') return { ok: false, message: COOLDOWN_MESSAGE };
+        return { ok: false, message: /fetch|network/i.test(String(error.message ?? '')) ? NETWORK : UNKNOWN };
+      }
+      if (data === 'done') return { ok: true };
+      if (data === 'wrong') return { ok: false, message: 'รหัสผ่านไม่ถูกต้อง ไม่ได้ลบบัญชี' };
+      if (data !== 'more') return { ok: false, message: UNKNOWN };
     }
-    return data === true ? { ok: true } : { ok: false, message: 'รหัสผ่านไม่ถูกต้อง ไม่ได้ลบบัญชี' };
+    return { ok: false, message: UNKNOWN };
   } catch {
     return { ok: false, message: NETWORK };
   }
