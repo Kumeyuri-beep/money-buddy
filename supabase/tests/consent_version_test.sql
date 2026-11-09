@@ -1,5 +1,5 @@
 -- ทดสอบ: record_consent(p_version) บันทึกเวอร์ชันนโยบายที่ยอมรับ
--- วิธีรัน: วางทั้งไฟล์ใน Supabase SQL Editor (หรือ execute_sql) หลังใส่ migration 20261108001500 แล้ว · จบด้วย rollback: TESTS_PASSED = ผ่าน
+-- วิธีรัน: วางทั้งไฟล์ใน Supabase SQL Editor (หรือ execute_sql) หลังใส่ migration 20261108001500 และ 20261109000100 แล้ว · จบด้วย rollback: TESTS_PASSED = ผ่าน
 
 create function pg_temp.fails(p_sql text) returns text language plpgsql as $$ begin execute p_sql; return null; exception when others then return sqlerrm; end $$;
 create function pg_temp.login(p_user uuid) returns void language plpgsql as $$
@@ -54,7 +54,8 @@ begin
 
   -- T4 เปลี่ยนเวอร์ชันในตาราง (ผู้ดูแลเพิ่มเวอร์ชันใหม่) = ยอมรับใหม่ ตั้งเวลาใหม่ · เวอร์ชันเก่ายังอยู่ในประวัติของผู้ใช้อื่นไม่กระทบ
   perform pg_temp.logout();
-  insert into private.policy_versions (version) values ('2026-12-01');
+  update private.policy_versions set is_current = false where is_current;
+  insert into private.policy_versions (version, is_current) values ('2026-12-01', true);
   -- now() คงที่ในธุรกรรมเดียว: ย้อนเวลายอมรับเดิมไปก่อน แล้วดูว่าเวอร์ชันใหม่ตั้งเวลาใหม่
   update public.profiles set consented_at = now() - interval '1 day' where user_id = ua;
   select consented_at into v_at from public.profiles where user_id = ua;
@@ -62,9 +63,17 @@ begin
   perform public.record_consent('2026-12-01');
   select consented_at, consented_version into v_at2, v_ver from public.profiles;
   if v_ver is distinct from '2026-12-01' or v_at2 <= v_at then raise exception 'FAIL: T4 ยอมรับเวอร์ชันใหม่แล้วไม่อัปเดต (% %)', v_ver, v_at2; end if;
+  -- T4b ฉบับเก่า (ไม่ใช่ฉบับปัจจุบันแล้ว) ยอมรับไม่ได้ · เวอร์ชันของผู้ใช้ไม่เปลี่ยน
+  if pg_temp.fails($$ select public.record_consent('2026-11-09') $$) is null then raise exception 'FAIL: T4b ยอมรับฉบับที่ไม่ใช่ฉบับปัจจุบันได้'; end if;
+  select consented_version into v_ver from public.profiles;
+  if v_ver is distinct from '2026-12-01' then raise exception 'FAIL: T4b ถูกปฏิเสธแล้วแต่เวอร์ชันเปลี่ยน (%)', v_ver; end if;
   perform pg_temp.logout();
+  -- ฉบับปัจจุบันมีได้แถวเดียว
+  if pg_temp.fails($$ insert into private.policy_versions (version, is_current) values ('2027-01-01', true) $$) is null then
+    raise exception 'FAIL: T4b ตั้งฉบับปัจจุบันได้สองแถว';
+  end if;
 
-  -- T5 ผู้ใช้ B ไม่ได้รับผลกระทบ (ยังไม่ยอมรับ)
+  -- T5ผู้ใช้ B ไม่ได้รับผลกระทบ (ยังไม่ยอมรับ)
   perform pg_temp.login(ub);
   select consented_at, consented_version into v_at, v_ver from public.profiles;
   if v_at is not null or v_ver is not null then raise exception 'FAIL: T5 การยอมรับของ A กระทบ B'; end if;

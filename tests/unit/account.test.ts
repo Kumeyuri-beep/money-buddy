@@ -24,6 +24,22 @@ describe('เวอร์ชันนโยบายต้องอยู่ใ�
   });
 });
 
+describe('ฐานข้อมูลรับเฉพาะเวอร์ชันนโยบายปัจจุบัน (ข)', () => {
+  const sorted = Object.entries(migrations).sort(([a], [b]) => a.localeCompare(b)).map(([, sql]) => sql);
+  it('migration ล่าสุดที่ประกาศ "current-policy-version" ต้องตรงกับ PRIVACY_POLICY_VERSION (กันลืมสลับฉบับปัจจุบันตอนแก้นโยบาย)', () => {
+    const declared = sorted
+      .map((sql) => /^--\s*current-policy-version:\s*(\d{4}-\d{2}-\d{2})\s*$/m.exec(sql)?.[1])
+      .filter((v): v is string => v !== undefined);
+    expect(declared.length).toBeGreaterThan(0);
+    expect(declared[declared.length - 1]).toBe(PRIVACY_POLICY_VERSION);
+  });
+  it('record_consent ตรวจ is_current และตารางมีฉบับปัจจุบันได้แถวเดียว (unique partial index)', () => {
+    const latest = sorted.filter((s) => /create (or replace )?function public\.record_consent/i.test(s)).pop() ?? '';
+    expect(latest).toMatch(/v\.is_current/);
+    expect(sorted.join('\n')).toMatch(/create unique index[^;]*policy_versions[^;]*where is_current/i);
+  });
+});
+
 describe('ยอมรับนโยบาย (record_consent)', () => {
   it('เรียก RPC ชื่อนี้พร้อมเวอร์ชันนโยบายที่แสดง โดยไม่ส่งเวลา (เวลาตั้งที่เซิร์ฟเวอร์) · สำเร็จ = ok', async () => {
     const { impl, calls } = api({});
