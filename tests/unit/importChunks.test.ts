@@ -40,6 +40,6 @@ describe('แบ่งรายการเป็นก้อนสำหรั�
     expect(SINGLE_IMPORT_MAX_ENTRIES).toBe(1500);
     expect(IMPORT_CHUNK_MAX_ENTRIES).toBeLessThanOrEqual(1500);
     expect(IMPORT_CHUNK_MAX_LINES).toBeLessThanOrEqual(20_000);
-    expect(MAX_IMPORT_LINES).toBe(200_000);
+    expect(MAX_IMPORT_LINES).toBe(100_000); // ล้างส่วนค้างของไฟล์หนักสุดต้องทันเพดานเวลา (วัดจริง 200,000 บรรทัด = 10.9 วินาที)
   });
 });

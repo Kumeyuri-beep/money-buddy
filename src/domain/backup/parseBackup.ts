@@ -23,7 +23,8 @@ export const SINGLE_IMPORT_MAX_ENTRIES = 1500;
 /** บรรทัดรวมต่อคำสั่งของ import_ledger (เกิน = ต้องแบ่งก้อน แม้จำนวนรายการไม่ถึง) */
 export const SINGLE_IMPORT_MAX_LINES = 20_000;
 export const MAX_LINES_PER_IMPORTED_ENTRY = 200;
-export const MAX_IMPORT_LINES = 200_000;
+/** วัดจริง: ล้าง 200,000 บรรทัดในคำสั่งเดียว = 10.9 วินาที เกินเพดาน 8 วินาที จึงจำกัด 100,000 และให้ล้างส่วนค้างเป็นชุด (import_ledger_abort) */
+export const MAX_IMPORT_LINES = 100_000;
 export const MAX_IMPORT_BILLS = 2000;
 const MAX_PROBLEMS = 30;
 

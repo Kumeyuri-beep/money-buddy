@@ -241,6 +241,7 @@ describe('นำเข้าแบบแบ่งก้อน (เกิน 1,50
     const a = (call.args ?? {}) as Args;
     if (call.name === 'import_ledger_begin') return { data: { accounts: 2, bills: 1, entries: a.p_data?.entries.length ?? 0, done: false } };
     if (call.name === 'import_ledger_append') return { data: { entries: a.p_entries?.length ?? 0, done: false } };
+    if (call.name === 'import_ledger_abort') return { data: 'done' };
     return { data: true };
   };
 
@@ -316,8 +317,27 @@ describe('นำเข้าแบบแบ่งก้อน (เกิน 1,50
     expect(calls).toHaveLength(0);
   });
 
+  it('ล้างส่วนค้างเป็นชุด: ได้ more ก็เรียกซ้ำจนได้ done (ไม่เกินเพดานเวลาต่อคำสั่ง)', async () => {
+    const answers = ['more', 'more', 'done'];
+    const { client, calls } = fakeClient(() => ({ data: answers.shift() }));
+    await createSupabaseRepository(client, 'u').abortUnfinishedImport();
+    expect(calls.map((c) => c.name)).toEqual(['import_ledger_abort', 'import_ledger_abort', 'import_ledger_abort']);
+  });
+
+  it('ล้างส่วนค้างไม่มีวันจบ (more ตลอด) ต้องหยุดและแจ้งผิดพลาด ไม่วนไม่รู้จบ', async () => {
+    const { client, calls } = fakeClient(() => ({ data: 'more' }));
+    await expect(createSupabaseRepository(client, 'u').abortUnfinishedImport()).rejects.toThrow(StorageError);
+    expect(calls.length).toBeLessThanOrEqual(200);
+  });
+
+  it('ไม่มีเซสชัน (none) = ไม่ทำอะไรต่อ', async () => {
+    const { client, calls } = fakeClient(() => ({ data: 'none' }));
+    await createSupabaseRepository(client, 'u').abortUnfinishedImport();
+    expect(calls).toHaveLength(1);
+  });
+
   it('hasUnfinishedImport / abortUnfinishedImport เรียก RPC ของตัวเองเท่านั้น', async () => {
-    const { client, calls } = fakeClient((call) => ({ data: call.name === 'import_ledger_status' ? true : true }));
+    const { client, calls } = fakeClient((call) => ({ data: call.name === 'import_ledger_status' ? true : 'done' }));
     const repo = createSupabaseRepository(client, 'u');
     expect(await repo.hasUnfinishedImport()).toBe(true);
     await repo.abortUnfinishedImport();

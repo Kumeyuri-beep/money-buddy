@@ -47,7 +47,7 @@ begin
   -- T2 ไม่มีเซสชัน: append ปฏิเสธ · abort คืน false และไม่แตะอะไร · status false
   perform pg_temp.login(ua);
   if pg_temp.fails(format('select public.import_ledger_append(%L::jsonb)', pg_temp.entries('x', 1, 1))) is null then raise exception 'FAIL: T2 append ไม่มีเซสชัน'; end if;
-  if public.import_ledger_abort() then raise exception 'FAIL: T2 abort คืน true ทั้งที่ไม่มีเซสชัน'; end if;
+  if public.import_ledger_abort() <> 'none' then raise exception 'FAIL: T2 abort ไม่คืน none ทั้งที่ไม่มีเซสชัน'; end if;
   if public.import_ledger_status() then raise exception 'FAIL: T2 status true'; end if;
 
   -- T3 begin ก้อนแรก (2 จาก 5) -> เซสชันเปิด · status true · มีข้อมูลบางส่วน
@@ -94,14 +94,14 @@ begin
   select count(*) into n from public.entries; if n <> 5 then raise exception 'FAIL: T6 ลบหลังปิดเซสชันไม่ได้ (%)', n; end if;
   -- หลังปิดแล้ว append/abort ใช้ไม่ได้ (abort ไม่ลบข้อมูลที่นำเข้าเสร็จแล้ว)
   if pg_temp.fails(format('select public.import_ledger_append(%L::jsonb)', pg_temp.entries('e', 1, 1))) is null then raise exception 'FAIL: T6 append หลังปิด'; end if;
-  if public.import_ledger_abort() then raise exception 'FAIL: T6 abort ลบข้อมูลที่นำเข้าเสร็จแล้ว'; end if;
+  if public.import_ledger_abort() <> 'none' then raise exception 'FAIL: T6 abort ลบข้อมูลที่นำเข้าเสร็จแล้ว'; end if;
   select count(*) into n from public.entries; if n <> 5 then raise exception 'FAIL: T6 abort แตะข้อมูลที่เสร็จแล้ว'; end if;
   perform pg_temp.logout();
 
   -- T7 ผู้ใช้ B: เปิดเซสชันบนสมุดว่าง · abort ล้างเฉพาะของ B ไม่แตะ A · begin บนสมุดที่มีข้อมูลแล้ว (A) ปฏิเสธ
   perform pg_temp.login(ub);
   perform public.import_ledger_begin(jsonb_build_object('accounts', acc, 'entries', pg_temp.entries('a', 1, 2)), 4); -- id ซ้ำกับของ A ได้ (คีย์ต่อผู้ใช้)
-  if not public.import_ledger_abort() then raise exception 'FAIL: T7 abort ไม่คืน true'; end if;
+  if public.import_ledger_abort() <> 'done' then raise exception 'FAIL: T7 abort ไม่คืน done'; end if;
   select count(*) into n from public.entries; if n <> 0 then raise exception 'FAIL: T7 abort ไม่ล้างรายการ (%)', n; end if;
   select count(*) into n from public.accounts; if n <> 0 then raise exception 'FAIL: T7 abort ไม่ล้างบัญชี (%)', n; end if;
   if public.import_ledger_status() then raise exception 'FAIL: T7 เซสชันยังเปิดหลัง abort'; end if;
@@ -110,7 +110,7 @@ begin
   select count(*) into n from public.entries; if n <> 5 then raise exception 'FAIL: T7 abort ของ B กระทบ A (%)', n; end if;
   -- A มีข้อมูลแล้ว: เปิดเซสชัน (ซึ่งจะเปิดทางให้ abort ลบสมุดจริง) ไม่ได้
   if pg_temp.fails(format('select public.import_ledger_begin(%L::jsonb, 3)', jsonb_build_object('accounts', acc, 'entries', pg_temp.entries('q', 1, 1)))) is null then raise exception 'FAIL: T7 begin บนสมุดที่มีข้อมูล'; end if;
-  if public.import_ledger_abort() then raise exception 'FAIL: T7 abort ลบสมุดจริงของ A'; end if;
+  if public.import_ledger_abort() <> 'none' then raise exception 'FAIL: T7 abort ลบสมุดจริงของ A'; end if;
   perform pg_temp.logout();
 
   -- T8 เพดาน: จำนวนทั้งหมด 0/10,001 ปฏิเสธ · ก้อนเกิน 1,500 ปฏิเสธ · ก้อนแรกมากกว่าจำนวนทั้งหมดปฏิเสธ
@@ -130,6 +130,7 @@ begin
   perform pg_temp.logout();
   update public.profiles set password_changed_at = null where user_id = ub;
   perform pg_temp.login(ub);
+  if not public.reset_my_ledger('new-password-1') then raise exception 'FAIL: T8b reset (ล้างข้อมูลจาก T8) คืน false'; end if;
   v := public.import_ledger_begin(jsonb_build_object('accounts', acc, 'entries', pg_temp.entries('r', 1, 2)), 4);
   if not public.import_ledger_status() then raise exception 'FAIL: T8b เซสชันไม่เปิด'; end if;
   if not public.reset_my_ledger('new-password-1') then raise exception 'FAIL: T8b reset คืน false'; end if;
@@ -144,6 +145,25 @@ begin
   perform pg_temp.login(ua);
   if pg_temp.fails($$ select private.import_session_open(5) $$) is null then raise exception 'FAIL: T8c เปิดเซสชันบนสมุดที่มีข้อมูลได้'; end if;
   if public.import_ledger_status() then raise exception 'FAIL: T8c มีเซสชันค้างทั้งที่ถูกปฏิเสธ'; end if;
+  perform pg_temp.logout();
+
+  -- T10 abort เป็นชุด: 1,200 รายการ → more (เหลือ 700) → more (เหลือ 200) → done (ล้างหมด ปิดเซสชัน) · ไม่ต้องใช้รหัสผ่านแม้เพิ่งเปลี่ยนรหัส (ไม่ติด cooldown)
+  update public.profiles set password_changed_at = now() where user_id = ub;
+  insert into public.accounts (user_id, id, type, name, currency) values (ub, 'w1', 'asset', 'w1', 'THB'), (ub, 'food', 'expense', 'food', 'THB');
+  insert into public.entries (user_id, id, date, memo, source) select ub, 'bulk' || i, date '2026-11-02', '', 'manual' from generate_series(1, 1200) i;
+  insert into public.lines (user_id, entry_id, idx, account_id, amount)
+    select ub, 'bulk' || i, j, case when j = 1 then 'food' else 'w1' end, case when j = 1 then 1 else -1 end from generate_series(1, 1200) i, generate_series(1, 2) j;
+  insert into private.import_sessions (user_id, expected_entries, received_entries) values (ub, 5000, 1200);
+  perform pg_temp.login(ub);
+  if public.import_ledger_abort() <> 'more' then raise exception 'FAIL: T10 ชุดแรกควรคืน more'; end if;
+  select count(*) into n from public.entries; if n <> 700 then raise exception 'FAIL: T10 หลังชุดแรกเหลือ % <> 700', n; end if;
+  if not public.import_ledger_status() then raise exception 'FAIL: T10 เซสชันต้องยังเปิดระหว่างล้าง'; end if;
+  if public.import_ledger_abort() <> 'more' then raise exception 'FAIL: T10 ชุดสองควรคืน more'; end if;
+  select count(*) into n from public.entries; if n <> 200 then raise exception 'FAIL: T10 หลังชุดสองเหลือ % <> 200', n; end if;
+  if public.import_ledger_abort() <> 'done' then raise exception 'FAIL: T10 ชุดสุดท้ายควรคืน done'; end if;
+  select (select count(*) from public.entries) + (select count(*) from public.lines) + (select count(*) from public.accounts) into n;
+  if n <> 0 then raise exception 'FAIL: T10 ล้างแล้วยังเหลือแถว (%)', n; end if;
+  if public.import_ledger_status() then raise exception 'FAIL: T10 เซสชันยังเปิดหลัง done'; end if;
   perform pg_temp.logout();
 
   -- T9 anon เรียกไม่ได้
