@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { thaiIsoDate } from '../app/dates';
 import { buildInitialLedger, DEFAULT_WALLETS, SetupError, type WalletInput } from '../app/setup';
+import { ImportBackupPanel } from './ImportBackupPanel';
 import { useRepository } from './RepositoryContext';
 
 interface SetupProps {
@@ -93,6 +94,8 @@ export function Setup({ onDone }: SetupProps) {
           </p>
         )}
       </form>
+
+      <ImportBackupPanel onDone={onDone} />
     </>
   );
 }

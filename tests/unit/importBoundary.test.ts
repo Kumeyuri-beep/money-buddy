@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 const sources = import.meta.glob(
-  ['/src/domain/backup/*.ts', '/src/app/importVerify.ts', '/src/app/localBackup.ts', '/src/app/migrate.ts', '/src/app/dataSource.ts', '/src/ui/backup.ts'],
+  ['/src/domain/backup/*.ts', '/src/app/importVerify.ts', '/src/app/localBackup.ts', '/src/app/migrate.ts', '/src/app/importFile.ts', '/src/app/dataSource.ts', '/src/ui/backup.ts'],
   { query: '?raw', import: 'default', eager: true },
 ) as Record<string, string>;
 
@@ -11,6 +11,19 @@ const uiFlow = import.meta.glob(['/src/ui/MigrationWizard.tsx', '/src/ui/DataSou
  * เจ้าของสั่ง (9 พ.ย. 2569): ห้ามลบข้อมูลใน Dexie จนกว่าจะยืนยันว่านำเข้าครบและยอดตรง
  * โค้ดส่วนตรวจ/นำเข้า/ตรวจยอด/สำรองต้องไม่มีทางลบหรือล้างข้อมูลในเครื่อง
  */
+const filePanel = import.meta.glob('/src/ui/ImportBackupPanel.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+
+describe('นำเข้าจากไฟล์ที่ผู้ใช้เลือกเอง', () => {
+  it('หน้านำเข้าไม่แตะข้อมูลเดิมในเครื่อง (Dexie/localStorage) และไม่ลบอะไรนอกจากข้อมูลออนไลน์ผ่าน repository ที่ใช้งานอยู่', () => {
+    const entries = Object.entries(filePanel);
+    expect(entries).toHaveLength(1);
+    for (const [path, text] of entries) {
+      expect(text, path).not.toMatch(/localLedgerRepository|storage\/instance|storage\/db|localStorage|indexedDB/);
+      expect(text, path).not.toMatch(/\.clear\(|\.delete\(|bulkDelete|deleteDatabase/);
+    }
+  });
+});
+
 describe('การนำเข้าไม่แตะข้อมูลเดิมใน Dexie', () => {
   it('ไฟล์ที่เกี่ยวข้องมีอยู่ครบ (กัน glob ว่าง)', () => {
     expect(Object.keys(sources).length).toBeGreaterThanOrEqual(4);
