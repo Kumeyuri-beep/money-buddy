@@ -80,18 +80,18 @@ describe('PDPA (M2-E): ยอมรับนโยบาย · ลบบัญ�
     await repo.saveSettings({ payDay: 5 });
     const aBefore = (await (await repoFor(0)).loadLedger()).entries.length;
     // cooldown 24 ชม. หลังเปลี่ยนรหัส (M2-F): แม้รหัสถูก ลบบัญชี/ล้างข้อมูลไม่ได้ จนกว่าจะพ้นเวลา
-    const cooling = await client.rpc('delete_my_account', { p_password: live.users[2]!.password });
+    const cooling = await client.rpc('delete_my_account_step', { p_password: live.users[2]!.password });
     expect(cooling.error?.message ?? '').toMatch(/24 ชั่วโมง/);
     expect(await repo.isEmpty()).toBe(false);
     const aged = await admin.from('profiles').update({ password_changed_at: new Date(Date.now() - 2 * 86_400_000).toISOString() }).eq('user_id', id);
     expect(aged.error).toBeNull();
-    const wrong = await client.rpc('delete_my_account', { p_password: 'definitely-wrong-1A' });
+    const wrong = await client.rpc('delete_my_account_step', { p_password: 'definitely-wrong-1A' });
     expect(wrong.error).toBeNull();
-    expect(wrong.data).toBe(false);
+    expect(wrong.data).toBe('wrong');
     expect(await repo.isEmpty()).toBe(false);
-    const ok = await client.rpc('delete_my_account', { p_password: live.users[2]!.password });
+    const ok = await client.rpc('delete_my_account_step', { p_password: live.users[2]!.password });
     expect(ok.error).toBeNull();
-    expect(ok.data).toBe(true);
+    expect(ok.data).toBe('done'); // สมุดเล็ก (< 500 รายการ) จบในชุดเดียว
     for (const table of ['accounts', 'entries', 'lines', 'bills', 'settings', 'profiles']) {
       const left = await admin.from(table).select('*', { count: 'exact', head: true }).eq('user_id', id);
       expect(left.error, table).toBeNull();
@@ -295,6 +295,9 @@ describe('แยกข้อมูลระหว่างผู้ใช้ (RL
     expect(read.error !== null || (read.data ?? []).length === 0).toBe(true);
     const rpc = await anon.rpc('reset_my_ledger', { p_password: 'x' });
     expect(rpc.error).not.toBeNull();
+    for (const name of ['reset_my_ledger_step', 'delete_my_account_step']) {
+      expect((await anon.rpc(name, { p_password: 'x' })).error, name).not.toBeNull();
+    }
     const imp = await anon.rpc('import_ledger', { p_data: { accounts: [], bills: [], entries: [] } });
     expect(imp.error).not.toBeNull();
     expect((await a.loadLedger()).entries.length).toBeGreaterThan(0);

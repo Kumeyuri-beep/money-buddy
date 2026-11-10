@@ -417,8 +417,15 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
     async resetAll() {
       if (!options.getPasswordForReset) throw new StorageError('ล้างข้อมูลออนไลน์ต้องยืนยันด้วยรหัสผ่าน (ยังไม่ได้ต่อช่องกรอกรหัส)');
       const password = await options.getPasswordForReset();
-      const ok = await rpc('reset_my_ledger', { p_password: password });
-      if (ok !== true) throw new StorageError('รหัสผ่านไม่ถูกต้อง ไม่ได้ล้างข้อมูล');
+      // ล้างเป็นชุดละ ≤ 500 รายการ (ข้อมูลหนักมากล้างในคำสั่งเดียวชนเพดานเวลา 8 วินาที) · ฐานข้อมูลตรวจรหัสผ่านและด่านอื่นทุกชุด
+      // more = ยังเหลือ เรียกซ้ำ · หยุดที่ 200 ชุด (= 100,000 รายการ) กันวนไม่รู้จบ · ค่าที่ไม่รู้จักถือว่าผิดพลาด ไม่เดาว่าสำเร็จ
+      for (let i = 0; i < 200; i++) {
+        const result = await rpc('reset_my_ledger_step', { p_password: password });
+        if (result === 'done') return;
+        if (result === 'wrong') throw new StorageError('รหัสผ่านไม่ถูกต้อง ไม่ได้ล้างข้อมูล');
+        if (result !== 'more') throw new StorageError('ล้างข้อมูลไม่สำเร็จ ลองอีกครั้ง');
+      }
+      throw new StorageError('ล้างข้อมูลไม่หมด ลองอีกครั้ง (ข้อมูลที่เหลือล้างต่อได้)');
     },
 
     loadBills,

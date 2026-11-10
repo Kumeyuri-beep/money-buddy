@@ -356,17 +356,40 @@ describe('การป้องกันอื่น', () => {
     await expect(repo.saveSettings({ payDay: 99 })).rejects.toThrow(StorageError);
     expect(calls).toHaveLength(0);
   });
-  it('ล้างข้อมูลทั้งหมด: เรียกเฉพาะ reset_my_ledger พร้อมรหัสผ่าน (ไม่ลบทีละตารางเอง)', async () => {
-    const { client, calls } = fakeClient(() => ({ data: true }));
+  it('ล้างข้อมูลทั้งหมด: เรียกเฉพาะ reset_my_ledger_step พร้อมรหัสผ่าน (ไม่ลบทีละตารางเอง)', async () => {
+    const { client, calls } = fakeClient(() => ({ data: 'done' }));
     await createSupabaseRepository(client, 'u', { getPasswordForReset: async () => 'pw-1' }).resetAll();
-    expect(calls.map((c) => c.kind + ':' + c.name)).toEqual(['rpc:reset_my_ledger']);
+    expect(calls.map((c) => c.kind + ':' + c.name)).toEqual(['rpc:reset_my_ledger_step']);
     expect(calls[0]?.args).toEqual({ p_password: 'pw-1' });
+  });
+  it('ล้างข้อมูลเป็นชุด: more, more, done → เรียก 3 ครั้งด้วยรหัสเดิม ถามรหัสผ่านครั้งเดียว', async () => {
+    const answers = ['more', 'more', 'done'];
+    const { client, calls } = fakeClient(() => ({ data: answers.shift() }));
+    let asked = 0;
+    await createSupabaseRepository(client, 'u', { getPasswordForReset: async () => { asked += 1; return 'pw-1'; } }).resetAll();
+    expect(calls.map((c) => c.name)).toEqual(['reset_my_ledger_step', 'reset_my_ledger_step', 'reset_my_ledger_step']);
+    expect(calls.every((c) => JSON.stringify(c.args) === JSON.stringify({ p_password: 'pw-1' }))).toBe(true);
+    expect(asked).toBe(1);
+  });
+  it('ล้างข้อมูลเป็นชุด: ชุดกลางทางล้ม/รหัสถูกเปลี่ยนกลางทาง = หยุดทันที ไม่เรียกต่อ · ไม่จบ (more ตลอด) หยุดที่ 200 ชุด · ค่าแปลก = ผิดพลาด', async () => {
+    const answers: unknown[] = ['more', 'wrong'];
+    const mid = fakeClient(() => ({ data: answers.shift() }));
+    await expect(createSupabaseRepository(mid.client, 'u', { getPasswordForReset: async () => 'x' }).resetAll()).rejects.toThrow(/รหัสผ่าน/);
+    expect(mid.calls).toHaveLength(2);
+    const err = fakeClient(() => ({ data: 'more' }));
+    await expect(createSupabaseRepository(err.client, 'u', { getPasswordForReset: async () => 'x' }).resetAll()).rejects.toThrow(StorageError);
+    expect(err.calls.length).toBeLessThanOrEqual(200);
+    for (const data of [true, false, null, 'oops', 1]) {
+      const odd = fakeClient(() => ({ data }));
+      await expect(createSupabaseRepository(odd.client, 'u', { getPasswordForReset: async () => 'x' }).resetAll(), String(data)).rejects.toThrow(StorageError);
+      expect(odd.calls).toHaveLength(1);
+    }
   });
   it('ล้างข้อมูล: ไม่มีช่องรหัสผ่าน = ล้างไม่ได้ · รหัสผิด (false) = ปฏิเสธ', async () => {
     const none = fakeClient(() => ({ data: true }));
     await expect(createSupabaseRepository(none.client, 'u').resetAll()).rejects.toThrow(StorageError);
     expect(none.calls).toHaveLength(0);
-    const wrong = fakeClient(() => ({ data: false }));
+    const wrong = fakeClient(() => ({ data: 'wrong' }));
     await expect(createSupabaseRepository(wrong.client, 'u', { getPasswordForReset: async () => 'x' }).resetAll()).rejects.toThrow(/รหัสผ่าน/);
   });
   it('ตั้งต้นที่ไม่สมดุลถูกปฏิเสธก่อนส่งไปเซิร์ฟเวอร์', async () => {
