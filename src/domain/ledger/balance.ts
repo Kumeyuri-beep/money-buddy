@@ -15,10 +15,8 @@ export function balanceOf(accountId: string, entries: readonly Entry[]): number 
       if (!Number.isSafeInteger(line.amount)) {
         throw new RangeError(`จำนวนเงินในรายการไม่ใช่จำนวนเต็มสตางค์ที่ปลอดภัย: ${String(line.amount)}`);
       }
-      total += line.amount;
-      if (!Number.isSafeInteger(total)) {
-        throw new RangeError('ยอดคงเหลือของบัญชีเกินช่วงที่คำนวณได้อย่างปลอดภัย');
-      }
+      // safeAdd = ตรวจช่วงปลอดภัยทุกขั้น (R1) แบบเดียวกับ periodTotals · เกิน ±MAX_SAFE_INTEGER = RangeError
+      total = safeAdd(total, line.amount);
     }
   }
   return total;
