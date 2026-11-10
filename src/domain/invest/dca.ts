@@ -1,0 +1,64 @@
+/**
+ * DCA (ซื้อด้วยเงินคงที่) และสรุปมูลค่าตามราคาที่ผู้ใช้กรอก (กฎ R17) · ฟังก์ชันล้วน ไม่ดึงราคาจากเว็บ
+ *   units = roundHalfUp(A x 10^12 / priceMicro) ปัดครั้งเดียว · ต้นทุนที่บันทึก = A + F ไม่คำนวณกลับจากหน่วย x ราคา
+ * แผน DCA เป็นเพียงตัวเตือน ฟังก์ชันนี้ใช้คำนวณล่วงหน้า/เติมฟอร์ม ไม่สร้างรายการ
+ */
+
+import { roundHalfUpBig } from '../money/round';
+import { safeAdd, safeSub } from '../money/safe';
+import { applyBuy, type Position } from './costBasis';
+import { assertPriceMicro, SATANG_DIVISOR, valueInSatang } from './units';
+
+export function dcaUnits(amountSatang: number, priceMicro: number): bigint {
+  if (!Number.isSafeInteger(amountSatang) || amountSatang <= 0) {
+    throw new RangeError(`จำนวนเงินซื้อต้องเป็นสตางค์จำนวนเต็มที่มากกว่า 0 (ได้รับ ${String(amountSatang)})`);
+  }
+  assertPriceMicro(priceMicro);
+  const units = roundHalfUpBig(BigInt(amountSatang) * SATANG_DIVISOR, BigInt(priceMicro));
+  if (units <= 0n) throw new RangeError('จำนวนเงินน้อยเกินไปจนได้หน่วยเป็น 0');
+  return units;
+}
+
+export interface DcaPeriod {
+  /** เงินที่ซื้อ (สตางค์ ไม่รวมค่าธรรมเนียม) */
+  amount: number;
+  fee: number;
+  /** ราคาสมมติหรือราคาจริงของงวดนั้น */
+  priceMicro: number;
+}
+
+export interface DcaProjection {
+  position: Position;
+  /** Σ เงินที่ออกจากกระเป๋า (A+F) */
+  totalPaid: number;
+  steps: { units: bigint; paid: number }[];
+}
+
+export function projectDca(start: Position, periods: readonly DcaPeriod[]): DcaProjection {
+  let position = start;
+  let totalPaid = 0;
+  const steps: DcaProjection['steps'] = [];
+  for (const p of periods) {
+    const units = dcaUnits(p.amount, p.priceMicro);
+    position = applyBuy(position, { units, amount: p.amount, fee: p.fee });
+    const paid = safeAdd(p.amount, p.fee);
+    totalPaid = safeAdd(totalPaid, paid);
+    steps.push({ units, paid });
+  }
+  return { position, totalPaid, steps };
+}
+
+export interface MarketSummary {
+  /** มูลค่าตามราคาที่กรอก (สตางค์) */
+  value: number;
+  cost: number;
+  /** กำไร/ขาดทุนที่ยังไม่ขาย = มูลค่า − ต้นทุน (ค่าแสดงผล ไม่ลงสมุดบัญชี) */
+  unrealized: number;
+}
+
+/** ยังไม่มีราคา = null ห้ามใช้ต้นทุนแทนเงียบๆ */
+export function marketSummary(position: Position, priceMicro: number | null): MarketSummary | null {
+  if (priceMicro === null) return null;
+  const value = valueInSatang(position.units, priceMicro);
+  return { value, cost: position.cost, unrealized: safeSub(value, position.cost) };
+}

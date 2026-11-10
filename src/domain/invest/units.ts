@@ -1,0 +1,87 @@
+/**
+ * หน่วยลงทุนและราคา (กฎ R9, R17) · ฟังก์ชันล้วน ไม่แตะ DOM/เครือข่าย · BigInt ตลอด ไม่ผ่านทศนิยมลอยตัว
+ *   - จำนวนหน่วย = จำนวนเต็ม x 10^8 (bigint)
+ *   - ราคาต่อ 1 หน่วย = micro-baht (x 10^6) จำนวนเต็มบวก
+ *   - มูลค่า (สตางค์) = roundHalfUp(units x priceMicro / 10^12) ปัดครั้งเดียวตอนแปลงเป็นสตางค์
+ * ห้ามใช้ mulMicro/parseMicro เดิมกับหน่วย (ผิดสเกล 100 เท่า / รับเลขลบ)
+ */
+
+import { roundHalfUpBig } from '../money/round';
+
+export const UNIT_SCALE = 100_000_000n;
+const UNIT_DECIMALS = 8;
+const PRICE_DECIMALS = 6;
+/** หน่วยสูงสุดที่รับ (หน่วยเต็ม) กันค่าผิดปกติ */
+const MAX_WHOLE_UNITS = 999_999_999_999n;
+/** units x priceMicro / SATANG_DIVISOR = สตางค์ (10^8 x 10^6 / 10^2 สตางค์ต่อบาท... = 10^12) */
+export const SATANG_DIVISOR = 1_000_000_000_000n;
+
+const PLAIN_DECIMAL = /^(\d+)?(?:\.(\d*))?$/;
+
+interface Decimal {
+  int: string;
+  frac: string;
+}
+
+/** อ่านเลขทศนิยมล้วน: ไม่รับเครื่องหมาย, scientific, ข้อความว่าง · ตัด "," และช่องว่าง */
+function readDecimal(input: string, label: string): Decimal {
+  const cleaned = input.replace(/[,\s]/g, '');
+  const m = PLAIN_DECIMAL.exec(cleaned);
+  const int = m?.[1] ?? '';
+  const frac = m?.[2] ?? '';
+  if (!m || (int === '' && frac === '')) throw new SyntaxError(`อ่าน${label}ไม่ได้: "${input}"`);
+  return { int: int === '' ? '0' : int, frac };
+}
+
+/** ตัดทศนิยมเป็น decimals หลัก ปัดครึ่งออกจากศูนย์ที่หลักถัดไป (ค่าบวกเสมอ) */
+function scaleUp(d: Decimal, decimals: number): bigint {
+  const kept = BigInt(d.int + d.frac.slice(0, decimals).padEnd(decimals, '0'));
+  const next = d.frac.length > decimals ? d.frac.charCodeAt(decimals) - 48 : 0;
+  return next >= 5 ? kept + 1n : kept;
+}
+
+/** "1,000.5" -> 100_050_000_000n · ลบ/ศูนย์/ปัดแล้วเป็นศูนย์ ปฏิเสธ (SyntaxError) · เกิน 10^12 หน่วย RangeError */
+export function parseUnits(input: string): bigint {
+  const d = readDecimal(input, 'จำนวนหน่วย');
+  const value = scaleUp(d, UNIT_DECIMALS);
+  if (value === 0n) throw new SyntaxError('จำนวนหน่วยต้องมากกว่า 0 (ละเอียดสุด 8 ตำแหน่ง)');
+  if (value > MAX_WHOLE_UNITS * UNIT_SCALE + UNIT_SCALE - 1n) throw new RangeError('จำนวนหน่วยมากเกินช่วงที่รองรับ');
+  return value;
+}
+
+/** "12.3456" -> 12_345_600 micro-baht · ต่ำกว่า 0.000001 บาท/ลบ/ศูนย์ ปฏิเสธ (ไม่ปัดเป็น 0 เงียบๆ) */
+export function parsePriceMicro(input: string): number {
+  const d = readDecimal(input, 'ราคา');
+  const value = scaleUp(d, PRICE_DECIMALS);
+  if (value === 0n) throw new SyntaxError('ราคาต้องมากกว่า 0 (ละเอียดสุด 0.000001 บาท)');
+  if (value > BigInt(Number.MAX_SAFE_INTEGER)) throw new RangeError('ราคาสูงเกินช่วงที่รองรับ');
+  return Number(value);
+}
+
+/** 150_000_000n -> "1.5" (ตัดศูนย์ท้าย) */
+export function formatUnits(units: bigint): string {
+  if (units < 0n) throw new RangeError('จำนวนหน่วยติดลบไม่ได้');
+  const whole = units / UNIT_SCALE;
+  const frac = (units % UNIT_SCALE).toString().padStart(UNIT_DECIMALS, '0').replace(/0+$/, '');
+  return `${whole}${frac ? `.${frac}` : ''}`;
+}
+
+export function assertPriceMicro(priceMicro: number): void {
+  if (!Number.isSafeInteger(priceMicro) || priceMicro <= 0) {
+    throw new RangeError(`ราคาต่อหน่วยต้องเป็นจำนวนเต็ม micro-baht ที่มากกว่า 0 (ได้รับ ${String(priceMicro)})`);
+  }
+}
+
+export function toSafeSatang(value: bigint): number {
+  if (value > BigInt(Number.MAX_SAFE_INTEGER) || value < BigInt(Number.MIN_SAFE_INTEGER)) {
+    throw new RangeError('ผลลัพธ์เกินช่วงจำนวนเต็มปลอดภัย');
+  }
+  return Number(value) || 0; // กัน -0
+}
+
+/** มูลค่า = units x ราคา เป็นสตางค์ ปัดครั้งเดียว (ค่า 0 สตางค์เป็นไปได้ ผู้เรียกระดับรายการต้องปฏิเสธเอง) */
+export function valueInSatang(units: bigint, priceMicro: number): number {
+  if (units < 0n) throw new RangeError('จำนวนหน่วยติดลบไม่ได้');
+  assertPriceMicro(priceMicro);
+  return toSafeSatang(roundHalfUpBig(units * BigInt(priceMicro), SATANG_DIVISOR));
+}

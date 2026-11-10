@@ -21,3 +21,17 @@ export function roundHalfUp(numerator: number, denominator: number): number {
   const rounded = remainder >= d - remainder ? quotient + 1 : quotient;
   return (negative ? -rounded : rounded) || 0; // `|| 0` กัน -0
 }
+
+/**
+ * เวอร์ชัน BigInt ของ roundHalfUp (กฎ R8, R17) ปัดครึ่งออกจากศูนย์ ใช้กับหน่วยลงทุน (10^8) ที่ number รับไม่ไหว
+ * ห้ามสร้างฟังก์ชันปัดใหม่ที่อื่น
+ */
+export function roundHalfUpBig(numerator: bigint, denominator: bigint): bigint {
+  if (denominator === 0n) throw new RangeError('roundHalfUpBig: ตัวหารเป็นศูนย์');
+  const negative = numerator < 0n !== denominator < 0n;
+  const n = numerator < 0n ? -numerator : numerator;
+  const d = denominator < 0n ? -denominator : denominator;
+  const q = n / d;
+  const rounded = (n % d) * 2n >= d ? q + 1n : q;
+  return negative ? -rounded : rounded;
+}
