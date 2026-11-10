@@ -78,6 +78,23 @@ describe('buildSafeToSpend (R15)', () => {
     expect(s).toMatchObject({ kind: 'value', outstanding: 0 });
   });
 
+  it('R15: บิลที่ครบกำหนดตรงวันเงินเดือนถัดไปถูกหักจากรอบปัจจุบัน · วันถัดไป 1 วันไม่ถูกหัก', () => {
+    const onPayday = buildSafeToSpend(accounts, opening, { bills: [bill({ dueDay: 26 })], settings: { payDay: 26 } }, '2026-11-04');
+    expect(onPayday).toMatchObject({ kind: 'value', outstanding: 60_000, daysLeft: 22, available: 940_000 });
+    const after = buildSafeToSpend(accounts, opening, { bills: [bill({ dueDay: 27 })], settings: { payDay: 26 } }, '2026-11-04');
+    expect(after).toMatchObject({ kind: 'value', outstanding: 0 });
+  });
+
+  it('R15: วันเงินเดือนที่กำหนดเอง (override) ก็หักบิลที่ครบกำหนดวันนั้น', () => {
+    const s = buildSafeToSpend(
+      accounts,
+      opening,
+      { bills: [bill({ dueDay: 20 })], settings: { payDay: 26, nextPaydayOverride: '2026-11-20' } },
+      '2026-11-04',
+    );
+    expect(s).toMatchObject({ kind: 'value', nextPayday: '2026-11-20', outstanding: 60_000, overridden: true });
+  });
+
   it('ยอดไม่พอ: perDay = 0 พร้อมยอดที่ขาด (ไม่ติดลบ)', () => {
     const s = buildSafeToSpend(accounts, opening, { bills: [bill({ amount: 2_000_000 })], settings: { payDay: 26 } }, '2026-11-04');
     expect(s).toMatchObject({ kind: 'value', perDay: 0, shortfall: 1_000_000 });
@@ -208,6 +225,14 @@ describe('buildUpcomingPanel', () => {
     expect(buildUpcomingPanel({ bills: [bill({ lastPaidMonth: '2026-11' })], settings: { payDay: 26 } }, '2026-11-04')).toMatchObject({
       kind: 'clear',
     });
+  });
+
+  it('R15: แผงรวมบิลที่ครบกำหนดตรงวันเงินเดือน และยอดรวมเท่ากับที่การ์ดหัก', () => {
+    const finance = { bills: [bill({ dueDay: 26 })], settings: { payDay: 26 } };
+    const r = buildUpcomingPanel(finance, '2026-11-04');
+    expect(r).toMatchObject({ kind: 'list', total: 60_000, until: '2026-11-26' });
+    const s = buildSafeToSpend(accounts, opening, finance, '2026-11-04');
+    if (r.kind === 'list' && s.kind === 'value') expect(r.total).toBe(s.outstanding);
   });
 
   it('เรียงตามวันครบกำหนด เลยกำหนดขึ้นก่อน และตัดแสดงไม่เกิน 5 พร้อมจำนวนที่ซ่อน', () => {
