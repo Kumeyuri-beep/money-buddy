@@ -60,7 +60,7 @@ export function buildSafeToSpend(
   try {
     const { valid, invalid } = splitValidBills(finance.bills);
     const next = effectiveNextPayday(settings.payDay, today, settings.nextPaydayOverride);
-    const outstanding = outstandingTotal(upcomingBills(valid, today, addDays(next, -1)));
+    const outstanding = outstandingTotal(upcomingBills(valid, today, next));
     const result = computeSafeToSpend({
       spendable: cashBalance(accounts, entries, today),
       outstanding,
@@ -146,7 +146,7 @@ export function buildUpcomingPanel(finance: FinanceInput, today: string): Upcomi
     const { payDay, nextPaydayOverride } = finance.settings;
     const until =
       payDay !== undefined
-        ? addDays(effectiveNextPayday(payDay, today, nextPaydayOverride), -1)
+        ? effectiveNextPayday(payDay, today, nextPaydayOverride) /* รวมวันเงินเดือน (R15) */
         : addDays(today, UPCOMING_LOOKAHEAD_DAYS);
     const all = upcomingBills(valid, today, until);
     if (all.length === 0) return { kind: 'clear', invalidBills: invalid.length };

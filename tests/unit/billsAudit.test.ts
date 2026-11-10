@@ -135,8 +135,9 @@ describe('outstandingBeforePayday: ประกอบ nextPayday + upcomingBills
     expect(r.total).toBe(170_000);
   });
 
-  it('บิลที่ครบกำหนดตรงวันเงินเดือนไม่ถูกหัก (จ่ายจากเงินเดือนรอบใหม่) · วันก่อนหน้า 1 วันถูกหัก', () => {
-    expect(run([bill({ dueDay: 25 })], '2026-11-05', 25).total).toBe(0);
+  it('บิลที่ครบกำหนดตรงวันเงินเดือนถัดไปถูกหักด้วย (R15 ทางปลอดภัย) · วันหลังเงินเดือน 1 วันไม่ถูกหัก', () => {
+    expect(run([bill({ dueDay: 25 })], '2026-11-05', 25).total).toBe(150_000);
+    expect(run([bill({ dueDay: 26 })], '2026-11-05', 25).total).toBe(0);
     expect(run([bill({ dueDay: 24 })], '2026-11-05', 25).total).toBe(150_000);
   });
 
@@ -144,6 +145,25 @@ describe('outstandingBeforePayday: ประกอบ nextPayday + upcomingBills
     const r = run([bill({ dueDay: 10, lastPaidMonth: '2026-11' })], '2026-11-25', 25);
     expect(r.nextPayday).toBe('2026-12-25');
     expect(r.items.map((u) => u.dueDate)).toEqual(['2026-12-10']);
+  });
+
+  it('วันนี้คือวันเงินเดือนและบิลครบกำหนดวันนั้น (ยังไม่จ่าย): หักทั้งรอบนี้และรอบวันเงินเดือนถัดไป', () => {
+    const r = run([bill({ dueDay: 25 })], '2026-11-25', 25);
+    expect(r.items.map((u) => u.dueDate)).toEqual(['2026-11-25', '2026-12-25']);
+    expect(r.total).toBe(300_000);
+  });
+
+  it('บิลครบกำหนด 31 ในเดือนสั้น ตรงวันเงินเดือนที่บีบเป็นวันสุดท้าย (28 ก.พ.) ถูกหัก', () => {
+    const r = run([bill({ dueDay: 31 })], '2026-02-10', 31);
+    expect(r.nextPayday).toBe('2026-02-28');
+    expect(r.items.map((u) => u.dueDate)).toEqual(['2026-02-28']);
+    expect(r.total).toBe(150_000);
+    // บิลวันที่ 30 บีบเป็น 28 ก.พ. เหมือนกัน ถูกหักด้วย
+    expect(run([bill({ dueDay: 30 })], '2026-02-10', 31).total).toBe(150_000);
+  });
+
+  it('บิลวันเงินเดือนที่จ่ายรอบนั้นแล้ว (lastPaidMonth) ไม่ถูกหัก', () => {
+    expect(run([bill({ dueDay: 25, lastPaidMonth: '2026-11' })], '2026-11-05', 25).total).toBe(0);
   });
 
   it('วันนี้คือวันเงินเดือนแต่บิลเดือนนี้ยังไม่จ่าย: นับเป็นบิลเลยกำหนดด้วย (ไม่หายไป)', () => {
