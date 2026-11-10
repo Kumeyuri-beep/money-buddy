@@ -7,7 +7,7 @@
 import { roundHalfUpBig } from '../money/round';
 import { safeAdd, safeSub } from '../money/safe';
 import { applyBuy, type Position } from './costBasis';
-import { assertPriceMicro, SATANG_DIVISOR, valueInSatang } from './units';
+import { assertPriceMicro, assertUnitsInRange, SATANG_DIVISOR, valueInSatang } from './units';
 
 export function dcaUnits(amountSatang: number, priceMicro: number): bigint {
   if (!Number.isSafeInteger(amountSatang) || amountSatang <= 0) {
@@ -16,6 +16,7 @@ export function dcaUnits(amountSatang: number, priceMicro: number): bigint {
   assertPriceMicro(priceMicro);
   const units = roundHalfUpBig(BigInt(amountSatang) * SATANG_DIVISOR, BigInt(priceMicro));
   if (units <= 0n) throw new RangeError('จำนวนเงินน้อยเกินไปจนได้หน่วยเป็น 0');
+  assertUnitsInRange(units);
   return units;
 }
 

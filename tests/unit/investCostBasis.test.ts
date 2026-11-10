@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyBuy, applySell, averageCostMicro, emptyPosition, replayTrades, type Trade } from '../../src/domain/invest/costBasis';
-import { parsePriceMicro, parseUnits, UNIT_SCALE } from '../../src/domain/invest/units';
+import { MAX_UNITS, parsePriceMicro, parseUnits, UNIT_SCALE } from '../../src/domain/invest/units';
 
 const U = (s: string) => parseUnits(s);
 const P = (s: string) => parsePriceMicro(s);
@@ -85,6 +85,36 @@ describe('ขาย: ต้นทุนเฉลี่ย + invariant (ตัว
     expect(s.costOut).toBe(0);
     expect(s.gross).toBe(0);
     expect(s.position.cost).toBe(5_000_000);
+  });
+});
+
+describe('ขอบเขตเพิ่มเติม (ผลตรวจ money-auditor)', () => {
+  it('ซื้อจนหน่วยรวมเกิน int64 ถูกปฏิเสธ', () => {
+    const p = applyBuy(emptyPosition(), { units: MAX_UNITS, amount: 100, fee: 0 });
+    expect(() => applyBuy(p, { units: 1n, amount: 1, fee: 0 })).toThrow(RangeError);
+  });
+  it('ขายที่ค่าธรรมเนียม = เงินที่ขายได้พอดี: net = 0 ผ่าน', () => {
+    const p = applyBuy(emptyPosition(), { units: UNIT_SCALE, amount: 10_000, fee: 0 });
+    const s = applySell(p, { units: UNIT_SCALE, priceMicro: P('100'), fee: 10_000 });
+    expect(s.net).toBe(0);
+    expect(s.gain).toBe(-10_000);
+  });
+  it('ตำแหน่งที่ไม่ถูกต้อง (มีหน่วยแต่ต้นทุน 0) ถูกปฏิเสธตอนขาย', () => {
+    expect(() => applySell({ units: UNIT_SCALE, cost: 0 }, { units: 1n, priceMicro: P('1'), fee: 0 })).toThrow(RangeError);
+  });
+  it('ต้นทุนใกล้ 2^53 กับหน่วยมาก: costOut ยังแม่นยำและต้นทุนรวมสมดุล', () => {
+    const p = applyBuy(emptyPosition(), { units: U('1000000'), amount: 9_000_000_000_000_000, fee: 0 });
+    const s = applySell(p, { units: U('333333'), priceMicro: 1, fee: 0 });
+    expect(s.costOut + s.position.cost).toBe(9_000_000_000_000_000);
+    expect(s.costOut).toBe(2_999_997_000_000_000);
+  });
+  it('averageCostMicro เกินช่วงปลอดภัยโยน RangeError (ผู้เรียกต้องจับ)', () => {
+    const p = applyBuy(emptyPosition(), { units: 1n, amount: 100_000, fee: 0 });
+    expect(() => averageCostMicro(p)).toThrow(RangeError);
+  });
+  it('ขายที่ gross = 0 สตางค์: ฟังก์ชันคืนผล (ระดับรายการต้องปฏิเสธเอง)', () => {
+    const p = applyBuy(emptyPosition(), { units: U('1000'), amount: 5_000_000, fee: 0 });
+    expect(applySell(p, { units: 1n, priceMicro: 1, fee: 0 }).gross).toBe(0);
   });
 });
 

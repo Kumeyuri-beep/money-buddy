@@ -446,7 +446,8 @@ select { font: inherit; }
 /* ถัวเฉลี่ยต้นทุน (เครื่องคิดเลข) */
 .avg-sub { margin: 20px 0 8px; font-size: 1rem; }
 .avg-result { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 24px; margin: 0 0 12px; }
-.avg-result dt { color: var(--muted, inherit); font-size: 0.85rem; }
-.avg-result dd { margin: 2px 0 0; font-size: 1.15rem; }
-.avg-result .avg-new { font-weight: 600; }
-ul.form-error { padding-left: 18px; margin: 0 0 12px; }
+.avg-result dt { color: var(--muted); font-size: 0.85rem; }
+.avg-result dd { margin: 2px 0 0; font-size: 1.2rem; }
+.avg-result .avg-new { font-size: 1.6rem; font-weight: 600; color: var(--gold); }
+.field input[aria-invalid='true'] { border-color: var(--expense); }
+.avg-err { margin: 4px 0 0; color: var(--expense); font-size: 0.85rem; }

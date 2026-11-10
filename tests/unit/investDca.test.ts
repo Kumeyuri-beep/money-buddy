@@ -11,6 +11,9 @@ describe('dcaUnits: units = ปัดครั้งเดียว (A × 10^12 
     expect(dcaUnits(1, parsePriceMicro('3'))).toBe(parseUnits('0.00333333'));
     expect(dcaUnits(1, parsePriceMicro('0.01'))).toBe(UNIT_SCALE);
   });
+  it('units เกินเพดาน int64 ถูกปฏิเสธ', () => {
+    expect(() => dcaUnits(9_000_000_000_000_000, 1)).toThrow(RangeError);
+  });
   it('units เป็น 0 / A ≤ 0 / ราคา 0 ถูกปฏิเสธ', () => {
     expect(() => dcaUnits(1, 10 ** 14)).toThrow(RangeError);
     expect(() => dcaUnits(0, 1_000_000)).toThrow(RangeError);

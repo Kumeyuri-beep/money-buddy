@@ -47,6 +47,7 @@ const NAV_BOTTOM: { id: ViewId; short: string; icon: string }[] = [
   { id: 'today', short: 'ภาพรวม', icon: NAV_MAIN[0]!.icon },
   { id: 'ledger', short: 'รายการ', icon: NAV_MAIN[1]!.icon },
   { id: 'bills', short: 'บิล', icon: NAV_MAIN[2]!.icon },
+  { id: 'averaging', short: 'ถัวเฉลี่ย', icon: NAV_TOOLS[2]!.icon },
   { id: 'account', short: 'โปรไฟล์', icon: NAV_TOOLS[3]!.icon },
 ];
 

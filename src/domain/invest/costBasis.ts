@@ -9,7 +9,7 @@
 
 import { roundHalfUpBig } from '../money/round';
 import { safeAdd, safeSub } from '../money/safe';
-import { assertPriceMicro, SATANG_DIVISOR, toSafeSatang, valueInSatang } from './units';
+import { assertPriceMicro, assertUnitsInRange, SATANG_DIVISOR, toSafeSatang, valueInSatang } from './units';
 
 export interface Position {
   /** จำนวนหน่วย x 10^8 */
@@ -53,10 +53,15 @@ export function applyBuy(position: Position, input: BuyInput): Position {
   assertSatangInt(input.amount, 'มูลค่าซื้อ', 1);
   assertSatangInt(input.fee, 'ค่าธรรมเนียม', 0);
   const cost = safeAdd(position.cost, safeAdd(input.amount, input.fee));
-  return { units: position.units + input.units, cost };
+  const units = position.units + input.units;
+  assertUnitsInRange(units);
+  return { units, cost };
 }
 
 export function applySell(position: Position, input: SellInput): SellResult {
+  if (position.units < 0n || !Number.isSafeInteger(position.cost) || position.cost < 0 || (position.units > 0n && position.cost < 1)) {
+    throw new RangeError('ตำแหน่งการลงทุนไม่ถูกต้อง');
+  }
   if (input.units <= 0n) throw new RangeError('จำนวนหน่วยที่ขายต้องมากกว่า 0');
   if (input.units > position.units) throw new RangeError('ขายเกินจำนวนหน่วยที่ถืออยู่');
   assertSatangInt(input.fee, 'ค่าธรรมเนียม', 0);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { roundHalfUpBig } from '../../src/domain/money/round';
-import { formatUnits, parsePriceMicro, parseUnits, UNIT_SCALE, valueInSatang } from '../../src/domain/invest/units';
+import { formatUnits, MAX_UNITS, parsePriceMicro, parseUnits, UNIT_SCALE, valueInSatang } from '../../src/domain/invest/units';
 
 describe('roundHalfUpBig (R8 เวอร์ชัน BigInt)', () => {
   it('ปัดครึ่งออกจากศูนย์ ทั้งบวกและลบ', () => {
@@ -36,9 +36,17 @@ describe('parseUnits (จำนวนหน่วย 10^8, R9/R17)', () => {
       expect(() => parseUnits(bad), bad).toThrow(SyntaxError);
     }
   });
-  it('ใหญ่เกินช่วงที่รับ (เกิน 10^12 หน่วย) ถูกปฏิเสธ', () => {
-    expect(parseUnits('999999999999')).toBe(999_999_999_999n * UNIT_SCALE);
-    expect(() => parseUnits('1000000000000')).toThrow(RangeError);
+  it('เพดาน = int64 สูงสุด (92,233,720,368.54775807 หน่วย) เพื่อเก็บใน bigint ของฐานข้อมูลได้', () => {
+    expect(parseUnits('92233720368.54775807')).toBe(MAX_UNITS);
+    expect(() => parseUnits('92233720368.54775808')).toThrow(RangeError);
+    expect(() => parseUnits('999999999999')).toThrow(RangeError);
+  });
+  it('ตัวคั่นหลักพันต้องเป็นกลุ่มละ 3 หลัก · ช่องว่างกลางตัวเลขไม่รับ', () => {
+    for (const bad of ['1,5', '1,2,3', '1 000', '12,34', ',5', '1,000,']) {
+      expect(() => parseUnits(bad), bad).toThrow(SyntaxError);
+      expect(() => parsePriceMicro(bad), bad).toThrow(SyntaxError);
+    }
+    expect(parseUnits('1,234,567.5')).toBe(123_456_750_000_000n);
   });
   it('".5" และ "5." อ่านได้', () => {
     expect(parseUnits('.5')).toBe(50_000_000n);
@@ -57,7 +65,7 @@ describe('parsePriceMicro (ราคาต่อหน่วย micro-baht)', ()
     expect(parsePriceMicro('1.0000004')).toBe(1_000_000);
   });
   it('ต่ำกว่า 0.000001 / ศูนย์ / ลบ / scientific ถูกปฏิเสธ (ไม่ปัดเป็น 0 เงียบๆ)', () => {
-    for (const bad of ['0', '0.0000004', '-1', '1e3', '', 'abc']) {
+    for (const bad of ['0', '0.0000004', '-1', '-0', '1.2.3', '.', '1e3', '', 'abc']) {
       expect(() => parsePriceMicro(bad), bad).toThrow(SyntaxError);
     }
   });

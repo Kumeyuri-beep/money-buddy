@@ -8,6 +8,7 @@ import { applyBuy, averageCostMicro, type Position } from '../domain/invest/cost
 import { dcaUnits } from '../domain/invest/dca';
 import { formatUnits, parsePriceMicro, parseUnits } from '../domain/invest/units';
 import { formatMicro } from '../domain/money/micro';
+import { safeAdd } from '../domain/money/safe';
 import { parseBahtToSatang } from '../domain/money/satang';
 
 export interface AveragingForm {
@@ -36,7 +37,14 @@ export type AveragingResult =
       newAvgPrice: string;
       oldAvgPrice: string | null;
     }
-  | { ok: false; errors: string[] };
+  | { ok: false; errors: AveragingError[] };
+
+export interface AveragingError {
+  field: keyof AveragingForm;
+  message: string;
+  /** true = แค่ยังไม่กรอก (หน้าจอแสดงหลังผู้ใช้แตะช่องนั้นแล้วเท่านั้น) */
+  missing: boolean;
+}
 
 const blank = (s: string): boolean => s.trim() === '';
 
@@ -44,38 +52,45 @@ function messageOf(e: unknown): string {
   return e instanceof Error ? e.message : 'ข้อมูลไม่ถูกต้อง';
 }
 
-function nonNegativeBaht(text: string, label: string, errors: string[], required: boolean, min: number): number | null {
+function nonNegativeBaht(
+  text: string,
+  field: keyof AveragingForm,
+  label: string,
+  errors: AveragingError[],
+  required: boolean,
+  min: number,
+): number | null {
   if (blank(text)) {
-    if (required) errors.push(`กรอก${label}`);
+    if (required) errors.push({ field, message: `กรอก${label}`, missing: true });
     return required ? null : 0;
   }
   try {
     const v = parseBahtToSatang(text);
     if (v < min) {
-      errors.push(`${label}ต้อง${min >= 1 ? 'มากกว่า 0' : 'ไม่ติดลบ'}`);
+      errors.push({ field, message: `${label}ต้อง${min >= 1 ? 'มากกว่า 0' : 'ไม่ติดลบ'}`, missing: false });
       return null;
     }
     return v;
   } catch {
-    errors.push(`${label}ไม่ถูกต้อง`);
+    errors.push({ field, message: `${label}ไม่ถูกต้อง`, missing: false });
     return null;
   }
 }
 
 export function computeAveraging(form: AveragingForm): AveragingResult {
-  const errors: string[] = [];
+  const errors: AveragingError[] = [];
 
-  const amount = nonNegativeBaht(form.buyAmount, 'เงินที่จะซื้อ', errors, true, 1);
-  const fee = nonNegativeBaht(form.fee, 'ค่าธรรมเนียม', errors, false, 0);
-  const holdCost = nonNegativeBaht(form.holdCost, 'ต้นทุนรวมที่ถืออยู่', errors, false, 0);
+  const amount = nonNegativeBaht(form.buyAmount, 'buyAmount', 'เงินที่จะซื้อ', errors, true, 1);
+  const fee = nonNegativeBaht(form.fee, 'fee', 'ค่าธรรมเนียม', errors, false, 0);
+  const holdCost = nonNegativeBaht(form.holdCost, 'holdCost', 'ต้นทุนรวมที่ถืออยู่', errors, false, 0);
 
   let priceMicro: number | null = null;
-  if (blank(form.price)) errors.push('กรอกราคาต่อหน่วย');
+  if (blank(form.price)) errors.push({ field: 'price', message: 'กรอกราคาต่อหน่วย', missing: true });
   else {
     try {
       priceMicro = parsePriceMicro(form.price);
     } catch (e) {
-      errors.push(messageOf(e));
+      errors.push({ field: 'price', message: messageOf(e), missing: false });
     }
   }
 
@@ -84,13 +99,13 @@ export function computeAveraging(form: AveragingForm): AveragingResult {
     try {
       holdUnits = parseUnits(form.holdUnits);
     } catch (e) {
-      errors.push(messageOf(e));
+      errors.push({ field: 'holdUnits', message: messageOf(e), missing: false });
     }
   }
   const hasUnits = !blank(form.holdUnits);
   const hasCost = !blank(form.holdCost) && holdCost !== null && holdCost > 0;
-  if (hasUnits && !hasCost && errors.length === 0) errors.push('ถือหน่วยอยู่ ต้องกรอกต้นทุนรวมที่ถืออยู่ด้วย');
-  if (!hasUnits && !blank(form.holdCost)) errors.push('กรอกต้นทุนรวมแล้ว ต้องกรอกจำนวนหน่วยที่ถืออยู่ด้วย');
+  if (hasUnits && !hasCost && errors.length === 0) errors.push({ field: 'holdCost', message: 'ถือหน่วยอยู่ ต้องกรอกต้นทุนรวมที่ถืออยู่ด้วย', missing: false });
+  if (!hasUnits && !blank(form.holdCost)) errors.push({ field: 'holdUnits', message: 'กรอกต้นทุนรวมแล้ว ต้องกรอกจำนวนหน่วยที่ถืออยู่ด้วย', missing: false });
 
   if (errors.length > 0 || amount === null || fee === null || holdCost === null || priceMicro === null) {
     return { ok: false, errors };
@@ -107,11 +122,11 @@ export function computeAveraging(form: AveragingForm): AveragingResult {
       boughtUnits: formatUnits(bought),
       newUnits: formatUnits(next.units),
       newCost: next.cost,
-      totalPaid: amount + fee,
+      totalPaid: safeAdd(amount, fee),
       newAvgPrice: newAvg === null ? '—' : formatMicro(newAvg),
       oldAvgPrice: oldAvg === null ? null : formatMicro(oldAvg),
     };
   } catch (e) {
-    return { ok: false, errors: [messageOf(e)] };
+    return { ok: false, errors: [{ field: 'buyAmount', message: messageOf(e), missing: false }] };
   }
 }

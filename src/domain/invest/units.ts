@@ -11,12 +11,13 @@ import { roundHalfUpBig } from '../money/round';
 export const UNIT_SCALE = 100_000_000n;
 const UNIT_DECIMALS = 8;
 const PRICE_DECIMALS = 6;
-/** หน่วยสูงสุดที่รับ (หน่วยเต็ม) กันค่าผิดปกติ */
-const MAX_WHOLE_UNITS = 999_999_999_999n;
+/** จำนวนหน่วยสูงสุด (x 10^8) = int64 สูงสุด เพื่อให้เก็บในคอลัมน์ bigint ของฐานข้อมูลได้ (ผลตรวจ money-auditor) */
+export const MAX_UNITS = 2n ** 63n - 1n;
 /** units x priceMicro / SATANG_DIVISOR = สตางค์ (10^8 x 10^6 / 10^2 สตางค์ต่อบาท... = 10^12) */
 export const SATANG_DIVISOR = 1_000_000_000_000n;
 
-const PLAIN_DECIMAL = /^(\d+)?(?:\.(\d*))?$/;
+/** ตัวคั่นหลักพันต้องเป็นกลุ่มละ 3 หลัก ("1,5" และ "1,2,3" ถูกปฏิเสธ) ช่องว่างกลางตัวเลขไม่รับ */
+const PLAIN_DECIMAL = /^(\d{1,3}(?:,\d{3})+|\d+)?(?:\.(\d*))?$/;
 
 interface Decimal {
   int: string;
@@ -25,9 +26,9 @@ interface Decimal {
 
 /** อ่านเลขทศนิยมล้วน: ไม่รับเครื่องหมาย, scientific, ข้อความว่าง · ตัด "," และช่องว่าง */
 function readDecimal(input: string, label: string): Decimal {
-  const cleaned = input.replace(/[,\s]/g, '');
+  const cleaned = input.trim();
   const m = PLAIN_DECIMAL.exec(cleaned);
-  const int = m?.[1] ?? '';
+  const int = (m?.[1] ?? '').replace(/,/g, '');
   const frac = m?.[2] ?? '';
   if (!m || (int === '' && frac === '')) throw new SyntaxError(`อ่าน${label}ไม่ได้: "${input}"`);
   return { int: int === '' ? '0' : int, frac };
@@ -45,8 +46,12 @@ export function parseUnits(input: string): bigint {
   const d = readDecimal(input, 'จำนวนหน่วย');
   const value = scaleUp(d, UNIT_DECIMALS);
   if (value === 0n) throw new SyntaxError('จำนวนหน่วยต้องมากกว่า 0 (ละเอียดสุด 8 ตำแหน่ง)');
-  if (value > MAX_WHOLE_UNITS * UNIT_SCALE + UNIT_SCALE - 1n) throw new RangeError('จำนวนหน่วยมากเกินช่วงที่รองรับ');
+  assertUnitsInRange(value);
   return value;
+}
+
+export function assertUnitsInRange(units: bigint): void {
+  if (units > MAX_UNITS) throw new RangeError('จำนวนหน่วยมากเกินช่วงที่รองรับ');
 }
 
 /** "12.3456" -> 12_345_600 micro-baht · ต่ำกว่า 0.000001 บาท/ลบ/ศูนย์ ปฏิเสธ (ไม่ปัดเป็น 0 เงียบๆ) */
