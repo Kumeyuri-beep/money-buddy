@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { thaiIsoDate } from '../app/dates';
 import { buildInitialLedger, DEFAULT_WALLETS, SetupError, type WalletInput } from '../app/setup';
+import { MAX_NAME_LENGTH } from '../domain/ledger/limits';
 import { ImportBackupPanel } from './ImportBackupPanel';
 import { useRepository } from './RepositoryContext';
 
@@ -48,6 +49,7 @@ export function Setup({ onDone }: SetupProps) {
               <input
                 id={`name-${i}`}
                 type="text"
+                maxLength={MAX_NAME_LENGTH}
                 value={w.name}
                 onChange={(e) => update(i, { name: e.target.value })}
               />

@@ -5,6 +5,7 @@ import { buildEntry, counterOptions, entryToForm, walletOptions, type FormKind }
 import { newId } from '../app/ids';
 import { findDuplicateEntry } from '../app/slipDuplicates';
 import type { SlipDraft } from '../app/slipParser';
+import { MAX_MEMO_LENGTH } from '../domain/ledger/limits';
 import type { Account, Entry } from '../domain/ledger/types';
 import { useRepository } from './RepositoryContext';
 
@@ -319,6 +320,7 @@ export function AddEntryDialog({ accounts, entries = [], scan, editing, onClose,
             <input
               id="entry-memo"
               type="text"
+              maxLength={MAX_MEMO_LENGTH}
               placeholder="เช่น กาแฟหน้าออฟฟิศ"
               value={memo}
               onChange={(e) => setMemo(e.target.value)}

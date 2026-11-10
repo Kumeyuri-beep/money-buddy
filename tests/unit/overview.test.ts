@@ -14,7 +14,7 @@ import {
 } from '../../src/domain/ledger/overview';
 import type { Account, Entry } from '../../src/domain/ledger/types';
 import { parseBahtToSatang as baht } from '../../src/domain/money/satang';
-import { buildOverview } from '../../src/app/overview';
+import { buildOverview, tryBuildOverview } from '../../src/app/overview';
 
 const accounts: Account[] = [
   { id: 'w1', type: 'asset', name: 'CashFlow', currency: 'THB', sortOrder: 0 },
@@ -497,5 +497,29 @@ describe('buildOverview: สถานะการ์ด (value / needs-setup / w
     const o = buildOverview(accounts, entries, '2026-11-02');
     expect(o.income).toMatchObject({ total: 0 });
     expect(o.outgoing).toMatchObject({ total: 0 });
+  });
+});
+
+describe('tryBuildOverview: ดักเฉพาะยอดเกินช่วงปลอดภัย (RangeError) ไม่กลืน error ชนิดอื่น', () => {
+  const MAX = Number.MAX_SAFE_INTEGER;
+  const rawEntry = (id: string, lines: [string, number][]): Entry =>
+    ({ id, date: '2026-11-02', memo: '', source: 'manual', createdAt: 0, lines: lines.map(([accountId, amount]) => ({ accountId, amount })) }) as unknown as Entry;
+
+  it('ข้อมูลปกติ = ok พร้อม overview เหมือน buildOverview', () => {
+    const list = [e('2026-11-02', [['food', baht('100')], ['w1', -baht('100')]])];
+    const result = tryBuildOverview(accounts, list, '2026-11-05');
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.overview).toEqual(buildOverview(accounts, list, '2026-11-05'));
+  });
+  it('ยอดสะสมเกิน MAX_SAFE_INTEGER = ok:false เหตุผล out-of-range (ไม่โยน)', () => {
+    const list = [rawEntry('a', [['food', MAX], ['w1', -MAX]]), rawEntry('b', [['food', 1], ['w1', -1]])];
+    expect(tryBuildOverview(accounts, list, '2026-11-05')).toEqual({ ok: false, reason: 'out-of-range' });
+  });
+  it('RangeError จาก balanceOf ของกระเป๋า (asset) ที่ไม่ผ่านบัญชีรายจ่าย ก็ = out-of-range', () => {
+    const list = [rawEntry('a', [['w1', MAX], ['opening', -MAX]]), rawEntry('b', [['w1', 1], ['opening', -1]])];
+    expect(tryBuildOverview(accounts, list, '2026-11-05')).toEqual({ ok: false, reason: 'out-of-range' });
+  });
+  it('error ชนิดอื่น (เช่นข้อมูลพัง TypeError) ถูกโยนต่อ ไม่ถูกกลืนเป็นข้อความยอดใหญ่', () => {
+    expect(() => tryBuildOverview(null as unknown as Account[], [], '2026-11-05')).toThrow(TypeError);
   });
 });

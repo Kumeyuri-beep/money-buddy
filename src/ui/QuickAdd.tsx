@@ -3,6 +3,7 @@ import { thaiIsoDate, thaiDayLabel } from '../app/dates';
 import { buildEntry, counterOptions, walletOptions, type FormKind } from '../app/entryForm';
 import { newId } from '../app/ids';
 import { learnFromHistory, parseQuickText } from '../app/quickText';
+import { MAX_MEMO_LENGTH } from '../domain/ledger/limits';
 import type { Entry } from '../domain/ledger/types';
 import { formatBaht, parseBahtToSatang } from '../domain/money/satang';
 import type { Ledger } from '../storage/repository';
@@ -86,6 +87,7 @@ export function QuickAdd({ ledger, onSaved }: QuickAddProps) {
         <input
           id="quick-text"
           type="text"
+          maxLength={MAX_MEMO_LENGTH}
           autoComplete="off"
           placeholder="พิมพ์สั้นๆ เช่น กาแฟ 65"
           title="ตัวอย่าง: กาแฟ 65 / เงินเดือน 17000 เข้า Mainframe / โอน 2500 ไป Vault / เมื่อวาน ข้าว 50"
