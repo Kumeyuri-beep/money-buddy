@@ -53,6 +53,23 @@ begin
   r := pg_temp.fails($$ update public.bills set last_paid_month = '2026-10' where id = 'b1' $$);
   if r is null or r not like '%ตรงๆ%' then raise exception 'FAIL: T3 ย้อน lastPaidMonth ตรงๆ ได้ หรือถูกปฏิเสธด้วยเหตุผลอื่น (%)', r; end if;
 
+  -- T3b upsert (insert ... on conflict do update) เป็นอีกทางหนึ่งของการ "แก้ตรงๆ": ต้องถูกปฏิเสธเหมือน UPDATE
+  --   แถวที่เสนอ (last_paid_month = 2026-11) ผ่านด่าน insert เพราะมีรายการจ่ายรองรับ แต่ส่วน do update ที่ล้าง/ย้อนค่าต้องถูกปฏิเสธโดยด่าน update
+  r := pg_temp.fails($$ insert into public.bills (id, name, amount, due_day, last_paid_month) values ('b1', 'net', 500, 5, '2026-11') on conflict (user_id, id) do update set last_paid_month = null $$);
+  if r is null or r not like '%แก้ตรงๆ%' then raise exception 'FAIL: T3b upsert ล้าง lastPaidMonth ได้ หรือถูกปฏิเสธด้วยเหตุผลอื่น (%)', r; end if;
+  r := pg_temp.fails($$ insert into public.bills (id, name, amount, due_day, last_paid_month) values ('b1', 'net', 500, 5, '2026-11') on conflict (user_id, id) do update set last_paid_month = '2026-10' $$);
+  if r is null or r not like '%แก้ตรงๆ%' then raise exception 'FAIL: T3b upsert ย้อน lastPaidMonth ได้ หรือถูกปฏิเสธด้วยเหตุผลอื่น (%)', r; end if;
+  select last_paid_month into v_paid from public.bills where id = 'b1';
+  if v_paid is distinct from '2026-11' then raise exception 'FAIL: T3b หลัง upsert ที่ถูกปฏิเสธ lastPaidMonth เปลี่ยน (%)', v_paid; end if;
+  -- ...แต่ upsert ที่ do update แก้ช่องอื่น (ชื่อ) ต้องสำเร็จ และ lastPaidMonth คงเดิม (ด่าน insert ไม่ได้ปิดการ upsert ทั้งหมด)
+  insert into public.bills (id, name, amount, due_day, last_paid_month) values ('b1', 'net-renamed', 500, 5, '2026-11')
+    on conflict (user_id, id) do update set name = excluded.name;
+  perform pg_temp.settle();
+  select last_paid_month into v_paid from public.bills where id = 'b1';
+  if v_paid is distinct from '2026-11' then raise exception 'FAIL: T3b upsert แก้ชื่อแล้ว lastPaidMonth เปลี่ยน (%)', v_paid; end if;
+  select name into r from public.bills where id = 'b1';
+  if r is distinct from 'net-renamed' then raise exception 'FAIL: T3b upsert แก้ชื่อไม่สำเร็จ (%)', r; end if;
+
   -- T4 แก้ฟิลด์อื่นของบิลได้ตามปกติ · lastPaidMonth ไม่เปลี่ยน
   update public.bills set name = 'net2', amount = 600, archived = false where id = 'b1';
   select last_paid_month into v_paid from public.bills where id = 'b1';
@@ -96,6 +113,8 @@ begin
   -- T7b หลังยกเลิกการจ่าย (entries_guard ครอบด้วย app.bill_paid_path) ตัวแปรต้องไม่ค้าง: ตั้งค่าตรงๆ ต้องยังถูกปฏิเสธ
   r := pg_temp.fails($$ update public.bills set last_paid_month = '2026-11' where id = 'b1' $$);
   if r is null or r not like '%ตรงๆ%' then raise exception 'FAIL: T7b หลังยกเลิกการจ่ายตั้ง lastPaidMonth ตรงๆ ได้ (ตัวแปรเส้นทางจ่ายค้าง) (%)', r; end if;
+  -- A มีบิลรหัส 'ib' เหมือนของ B (ว่าง ไม่เคยจ่าย) ไว้ให้ T9 พิสูจน์ว่าคำสั่งผู้ดูแลกรอง user_id จริง
+  insert into public.bills (id, name, amount, due_day) values ('ib', 'n', 5, 1);
   perform pg_temp.logout();
 
   -- T8 นำเข้า: บิลพก lastPaidMonth มาจากไฟล์ได้ (ผู้ใช้ B ว่าง)
@@ -111,10 +130,15 @@ begin
 
   -- T9 บทบาทระบบซ่อมบำรุงได้
   execute 'set local role service_role';
-  update public.bills set last_paid_month = '2026-10' where id = 'ib';
+  update public.bills set last_paid_month = '2026-10' where id = 'ib' and user_id = ub;
+  get diagnostics n = row_count;
   execute 'reset role';
-  select last_paid_month into v_paid from public.bills where id = 'ib';
+  if n <> 1 then raise exception 'FAIL: T9 คำสั่งผู้ดูแลต้องแก้ 1 แถว (ได้ %)', n; end if;
+  select last_paid_month into v_paid from public.bills where id = 'ib' and user_id = ub;
   if v_paid is distinct from '2026-10' then raise exception 'FAIL: T9 service_role แก้ไม่ได้'; end if;
+  -- คำสั่งผู้ดูแลกรอง user_id: บิลรหัส 'ib' ของ A (รหัสเดียวกับของ B) ไม่ถูกแตะ ยังว่าง
+  select last_paid_month into v_paid from public.bills where id = 'ib' and user_id = ua;
+  if v_paid is not null then raise exception 'FAIL: T9 คำสั่งผู้ดูแลกระทบบิลรหัสเดียวกันของผู้ใช้อื่น (%)', v_paid; end if;
 
   raise exception 'TESTS_PASSED (rollback แล้ว ไม่มีข้อมูลทดสอบเหลือ)';
 end
