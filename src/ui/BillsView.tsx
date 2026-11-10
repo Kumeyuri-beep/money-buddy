@@ -1,7 +1,7 @@
 import { friendlyError } from '../app/errorText';
 import { useState, type FormEvent } from 'react';
 import { settingsFromForm, settingsToForm, type SettingsForm } from '../app/billForm';
-import { billRows, type BillRow } from '../app/billsView';
+import { archivedBills, billRows, type BillRow } from '../app/billsView';
 import { thaiDayLabel } from '../app/dates';
 import type { FinanceSettings } from '../domain/bills/settings';
 import type { Bill } from '../domain/bills/types';
@@ -24,6 +24,8 @@ interface Props {
   onDelete: (bill: Bill) => void;
   onPay: (row: BillRow) => void;
   onCancelPay: (bill: Bill) => void;
+  /** นำบิลที่เก็บถาวรกลับมาแสดงในรายการใช้งาน */
+  onUnarchive: (bill: Bill) => void;
   onSaveSettings: (settings: FinanceSettings) => Promise<void>;
   onClearSnapshot: () => void;
 }
@@ -36,8 +38,9 @@ const STATUS_TEXT: Record<BillRow['status'], string> = {
 };
 
 /** หน้า "บิลและเป้า": บิลประจำ, วันเงินเดือน, เป้าออม, เป้างบ และสำเนาก่อนอัปเกรด */
-export function BillsView({ bills, settings, snapshot, today, onAdd, onEdit, onDelete, onPay, onCancelPay, onSaveSettings, onClearSnapshot }: Props) {
+export function BillsView({ bills, settings, snapshot, today, onAdd, onEdit, onDelete, onPay, onCancelPay, onUnarchive, onSaveSettings, onClearSnapshot }: Props) {
   const rows = billRows(bills, today);
+  const archived = archivedBills(bills);
   const [form, setForm] = useState<SettingsForm>(() => settingsToForm(settings));
   const [error, setError] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState(false);
@@ -210,6 +213,40 @@ export function BillsView({ bills, settings, snapshot, today, onAdd, onEdit, onD
           </ul>
         )}
       </section>
+
+      {archived.length > 0 && (
+        <section className="solid card" aria-labelledby="archived-title">
+          <details className="archived-details">
+            <summary id="archived-title">บิลที่เก็บถาวร ({archived.length})</summary>
+            <p className="muted small">
+              บิลเหล่านี้ถูกซ่อนจากรายการใช้งานและไม่ถูกนับในเงินที่ต้องกันไว้ ข้อมูลและรายการจ่ายที่เคยบันทึกไม่หาย นำกลับมาได้
+            </p>
+            <ul className="bill-list">
+              {archived.map((bill) => (
+                <li className="tx bill-row" key={bill.id}>
+                  <div className="tx-main">
+                    <div>{bill.name}</div>
+                    <div className="muted small">
+                      ทุกวันที่ {bill.dueDay}
+                      {bill.lastPaidMonth !== undefined ? ` · จ่ายล่าสุดรอบ ${bill.lastPaidMonth}` : ''}
+                    </div>
+                  </div>
+                  <div className="bill-figures">
+                    <span className="num bill-amount">
+                      {Number.isSafeInteger(bill.amount) && bill.amount > 0 ? formatBaht(satang(bill.amount)) : '-'}
+                    </span>
+                  </div>
+                  <div className="tx-actions">
+                    <button className="btn btn-small" aria-label={`นำบิล ${bill.name} กลับมา`} onClick={() => onUnarchive(bill)}>
+                      นำกลับมา
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </details>
+        </section>
+      )}
 
       {snapshot && (
         <section className="solid card" aria-labelledby="snapshot-title">
