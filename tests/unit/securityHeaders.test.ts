@@ -40,7 +40,7 @@ describe('ส่วนหัวความปลอดภัยใน vercel.js
     expect(csp.get('frame-ancestors')).toEqual(["'none'"]);
   });
 
-  it('ติดต่อออกนอกเฉพาะ Supabase ของโปรเจกต์นี้ (ไม่ใช้ wildcard) · ฟอนต์จาก Google เท่านั้น', () => {
+  it('ติดต่อออกนอกเฉพาะ Supabase ของโปรเจกต์นี้ (ไม่ใช้ wildcard) · ฟอนต์โหลดจากโดเมนเองเท่านั้น', () => {
     const connect = csp.get('connect-src') ?? [];
     expect(connect).toEqual(["'self'", 'https://otndefvbosbunonmmuwn.supabase.co']);
     for (const [name, values] of csp) {
@@ -50,13 +50,24 @@ describe('ส่วนหัวความปลอดภัยใน vercel.js
         expect(v, `${name} ${v}`).not.toMatch(/\*\./);
       }
     }
-    expect(csp.get('font-src')).toEqual(['https://fonts.gstatic.com']);
+    expect(csp.get('font-src')).toEqual(["'self'"]);
     // รัดแล้ว (หลังเจ้าของลอง Preview): ไม่มีรูป data:/blob: ไม่มี worker จาก Blob ไม่มีฟอร์มที่ส่งแบบเบราว์เซอร์เอง ไม่มี manifest
     expect(csp.get('img-src')).toEqual(["'self'"]);
     expect(csp.get('worker-src')).toEqual(["'self'"]);
     expect(csp.get('form-action')).toEqual(["'none'"]);
     expect(csp.has('manifest-src')).toBe(false);
-    expect(csp.get('style-src')).toEqual(["'self'", 'https://fonts.googleapis.com']);
+    expect(csp.get('style-src')).toEqual(["'self'"]);
+  });
+
+  it('ฟอนต์ self-host: ไม่มีการเรียก Google Fonts ทั้งใน index.html, CSP และซอร์ส · โหลดฟอนต์จากแพ็กเกจในโปรเจกต์', () => {
+    expect(indexHtml).not.toMatch(/fonts\.(googleapis|gstatic)\.com/);
+    expect(headerOf('Content-Security-Policy')).not.toMatch(/googleapis|gstatic/);
+    const main = sources['/src/main.tsx'] ?? '';
+    for (const weight of [400, 500, 600, 700]) {
+      expect(main, String(weight)).toContain(`@fontsource/ibm-plex-sans-thai/${weight}.css`);
+    }
+    // ไฟล์รวมมี unicode-range (ชุดไทยกับละตินไม่ทับกัน) · ห้ามนำเข้าไฟล์แยกชุดที่ไม่มี unicode-range
+    expect(main).not.toMatch(/ibm-plex-sans-thai\/(thai|latin)(-ext)?-\d{3}\.css/);
   });
 
   it('ส่วนหัวอื่นครบ', () => {
@@ -79,11 +90,11 @@ describe('โค้ดต้นทางสอดคล้องกับ CSP', 
     expect(indexHtml).not.toMatch(/\sstyle\s*=/i);
   });
 
-  it('ทุกโดเมนภายนอกใน index.html ได้รับอนุญาตใน CSP', () => {
+  it('index.html ไม่เรียกโดเมนภายนอกเลย (ฟอนต์ self-host) · ถ้าอนาคตมี ทุกโดเมนต้องได้รับอนุญาตใน CSP', () => {
     const csp = directives(headerOf('Content-Security-Policy'));
     const allowed = [...csp.values()].flat();
     const origins = new Set((indexHtml.match(/https:\/\/[a-z0-9.-]+/gi) ?? []).map((o) => o.toLowerCase()));
-    expect(origins.size).toBeGreaterThan(0);
+    expect([...origins]).toEqual([]);
     for (const origin of origins) expect(allowed, origin).toContain(origin);
   });
 

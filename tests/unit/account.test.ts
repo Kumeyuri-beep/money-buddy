@@ -172,8 +172,11 @@ describe('นโยบายความเป็นส่วนตัว (เ�
     expect(PRIVACY_SUMMARY.join(' ')).toMatch(/ผู้ดูแลระบบ.*(เข้าถึง|อ่าน)/);
     expect(all).toMatch(/อ่านข้อมูลของคุณได้/);
   });
-  it('ระบุผู้ประมวลผลและที่เก็บข้อมูล: Supabase, Vercel, สิงคโปร์, นอกประเทศไทย, Google Fonts', () => {
-    for (const word of ['Supabase', 'Vercel', 'สิงคโปร์', 'นอกประเทศไทย', 'Google Fonts']) expect(all, word).toContain(word);
+  it('ระบุผู้ประมวลผลและที่เก็บข้อมูล: Supabase, Vercel, สิงคโปร์, นอกประเทศไทย', () => {
+    for (const word of ['Supabase', 'Vercel', 'สิงคโปร์', 'นอกประเทศไทย']) expect(all, word).toContain(word);
+  });
+  it('ไม่อ้างผู้ให้บริการที่ระบบไม่ได้ใช้แล้ว: ฟอนต์โหลดจากโดเมนเอง ไม่มี Google Fonts', () => {
+    expect(all).not.toContain('Google');
   });
   it('ระบุสิทธิ: ดาวน์โหลด, ลบบัญชี, ยืนยันด้วยรหัสผ่าน, สำเนาในเบราว์เซอร์ไม่ถูกลบ, ไม่ขายข้อมูล, ไม่เก็บรูปสลิป', () => {
     for (const word of ['ดาวน์โหลดข้อมูลของฉัน', 'ลบบัญชี', 'ยืนยันด้วยรหัสผ่าน', 'ไม่ลบสำเนา', 'ไม่ขาย', 'ไม่เก็บรูปสลิป']) expect(all, word).toContain(word);
