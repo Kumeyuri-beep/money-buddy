@@ -8,7 +8,7 @@ interface Props {
   onOpenBills: () => void;
 }
 
-/** บิลที่จะถึง (glass-lite): ยังไม่จ่ายและครบกำหนดก่อนเงินเดือนถัดไป (หรือ 30 วันข้างหน้าถ้ายังไม่ตั้งวันเงินเดือน) */
+/** บิลที่จะถึง (glass-lite): ยังไม่จ่ายและครบกำหนดถึงวันเงินเดือนถัดไป รวมวันนั้น (หรือ 30 วันข้างหน้าถ้ายังไม่ตั้งวันเงินเดือน) */
 export function UpcomingBillsPanel({ finance, today, onOpenBills }: Props) {
   const panel = buildUpcomingPanel(finance, today);
   return (
