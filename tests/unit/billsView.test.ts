@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { billRows } from '../../src/app/billsView';
+import { archivedBills, billRows } from '../../src/app/billsView';
 import type { Bill } from '../../src/domain/bills/types';
 
 const bill = (over: Partial<Bill> = {}): Bill => ({ id: 'b1', name: 'ค่าเน็ต', amount: 59_900, dueDay: 10, ...over });
@@ -51,5 +51,34 @@ describe('billRows (สถานะบิลบนหน้าจอ ใช้�
   it('รหัสซ้ำ: ตัวที่สองเป็น invalid (ไม่นับซ้ำ)', () => {
     const rows = billRows([bill(), bill({ name: 'ซ้ำ' })], '2026-11-04');
     expect(rows.filter((r) => r.status === 'invalid')).toHaveLength(1);
+  });
+});
+
+describe('archivedBills (หน้ารวมบิลที่เก็บถาวร)', () => {
+  it('คืนเฉพาะบิลที่ archived === true', () => {
+    const list = archivedBills([bill({ id: 'a', archived: true }), bill({ id: 'b' }), bill({ id: 'c', archived: false })]);
+    expect(list.map((b) => b.id)).toEqual(['a']);
+  });
+  it('ไม่มีบิลเก็บถาวร = อาร์เรย์ว่าง · ลิสต์ว่างก็ได้ว่าง', () => {
+    expect(archivedBills([bill()])).toEqual([]);
+    expect(archivedBills([])).toEqual([]);
+  });
+  it('เรียงตามชื่อ (ไทย) แล้วตามรหัส ให้ผลคงที่', () => {
+    const list = archivedBills([
+      bill({ id: 'z', name: 'ข', archived: true }),
+      bill({ id: 'y', name: 'ก', archived: true }),
+      bill({ id: 'x', name: 'ก', archived: true }),
+    ]);
+    expect(list.map((b) => b.id)).toEqual(['x', 'y', 'z']);
+  });
+  it('บิลเก็บถาวรที่ข้อมูลผิดรูปก็แสดง (ไม่หายเงียบ) และไม่แก้ต้นฉบับ', () => {
+    const input = [bill({ id: 'bad', amount: 0, archived: true })];
+    expect(archivedBills(input).map((b) => b.id)).toEqual(['bad']);
+    expect(input[0]?.archived).toBe(true);
+  });
+  it('บิลที่เก็บถาวรไม่โผล่ใน billRows (ไม่ถูกนับในรายการใช้งาน)', () => {
+    const bills = [bill({ id: 'a', archived: true }), bill({ id: 'b' })];
+    expect(billRows(bills, '2026-11-04').map((r) => r.bill.id)).toEqual(['b']);
+    expect(archivedBills(bills).map((b) => b.id)).toEqual(['a']);
   });
 });

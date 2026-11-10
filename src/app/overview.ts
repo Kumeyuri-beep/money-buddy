@@ -43,6 +43,26 @@ export interface Overview {
   runway: CardState<{ tenths: number; targetTenths: number }>;
 }
 
+export type OverviewResult = { ok: true; overview: Overview } | { ok: false; reason: 'out-of-range' };
+
+/**
+ * buildOverview ที่ดักเฉพาะ RangeError (ยอดเกินช่วงปลอดภัย R1) แล้วคืน ok:false ให้หน้าจอแสดงข้อความยอดใหญ่
+ * error ชนิดอื่น (ข้อมูลพัง/บั๊ก) โยนต่อให้ ErrorBoundary แทนการกลืนเป็นข้อความผิดความหมาย
+ */
+export function tryBuildOverview(
+  accounts: readonly Account[],
+  entries: readonly Entry[],
+  today: string,
+  finance?: FinanceInput,
+): OverviewResult {
+  try {
+    return { ok: true, overview: buildOverview(accounts, entries, today, finance) };
+  } catch (e) {
+    if (e instanceof RangeError) return { ok: false, reason: 'out-of-range' };
+    throw e;
+  }
+}
+
 /** ประกอบการ์ดสรุปของเดือนที่ `today` (YYYY-MM-DD) อยู่ ไม่มีสูตรเงินของตัวเอง เรียก domain เท่านั้น */
 export function buildOverview(
   accounts: readonly Account[],

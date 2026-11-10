@@ -4,6 +4,7 @@ import { billFromForm, billToForm, type BillForm } from '../app/billForm';
 import { newId } from '../app/ids';
 import { walletOptions } from '../app/entryForm';
 import type { Bill } from '../domain/bills/types';
+import { MAX_NAME_LENGTH } from '../domain/ledger/limits';
 import type { Account } from '../domain/ledger/types';
 import { useRepository } from './RepositoryContext';
 
@@ -78,6 +79,7 @@ export function BillDialog({ accounts, editing, today, onClose, onSaved }: Props
           <input
             id="bill-name"
             type="text"
+            maxLength={MAX_NAME_LENGTH}
             ref={nameRef}
             autoComplete="off"
             placeholder="เช่น ค่าอินเทอร์เน็ต"

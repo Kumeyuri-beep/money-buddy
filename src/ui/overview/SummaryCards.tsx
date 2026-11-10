@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { LOW_DAYS_THRESHOLD, type FinanceInput } from '../../app/billsOverview';
 import { thaiDayLabel } from '../../app/dates';
-import { buildOverview } from '../../app/overview';
+import { tryBuildOverview } from '../../app/overview';
 import type { Overview } from '../../app/overview';
 import {
   formatMonthsTenths,
@@ -297,17 +297,16 @@ function RunwayCard({ state }: { state: Overview['runway'] }) {
 }
 
 export function SummaryCards({ accounts, entries, today, finance, onOpenLedger, onOpenBills }: SummaryCardsProps) {
-  // ถ้าข้อมูลเกินช่วงปลอดภัย (backlog: ยอดใหญ่) ไม่ปล่อยให้หน้าพัง
-  let o: Overview;
-  try {
-    o = buildOverview(accounts, entries, today, finance);
-  } catch {
+  // ยอดเกินช่วงปลอดภัย (RangeError) แสดงข้อความ · error ชนิดอื่นโยนต่อให้ ErrorBoundary (ไม่กลืนเป็นข้อความยอดใหญ่)
+  const result = tryBuildOverview(accounts, entries, today, finance);
+  if (!result.ok) {
     return (
       <p className="form-error" role="alert">
         คำนวณสรุปภาพรวมไม่ได้ เพราะยอดเงินสูงเกินช่วงที่รองรับ
       </p>
     );
   }
+  const o: Overview = result.overview;
   const topWalletId = o.income.kind === 'value' ? o.income.topWalletId : null;
   const walletName = accounts.find((a) => a.id === topWalletId)?.name ?? null;
 

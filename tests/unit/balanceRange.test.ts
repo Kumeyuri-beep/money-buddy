@@ -43,7 +43,7 @@ describe('balanceOf: ช่วงปลอดภัย', () => {
     }
   });
   it('-0 และยอดหักล้างกันพอดี = 0 (ไม่ใช่ -0)', () => {
-    expect(Object.is(balanceOf('w', [raw('a', [['w', -0]])]) + 0, 0)).toBe(true);
+    expect(Object.is(balanceOf('w', [raw('a', [['w', -0]])]), 0)).toBe(true);
     expect(balanceOf('w', [raw('a', [['w', 500]]), raw('b', [['w', -500]])])).toBe(0);
     const liab: Account = { id: 'w', type: 'liability', name: 'w', currency: 'THB' };
     expect(Object.is(naturalBalance(liab, []), 0)).toBe(true);
