@@ -21,6 +21,16 @@ const RANK: Record<BillRowStatus, number> = { invalid: 0, overdue: 1, due: 2, pa
  * แถวสำหรับหน้า "บิลประจำ": สถานะมาจากฟังก์ชัน domain (payableCycle) ไม่คิดสูตรเองในหน้าจอ
  * บิลข้อมูลเสียแสดงเป็น invalid พร้อมเหตุผล (ไม่ซ่อน) บิลเก็บถาวรถูกข้าม
  */
+/**
+ * บิลที่เก็บถาวร (archived === true) สำหรับหน้ารวมบิลที่เก็บถาวร: เรียงตามชื่อ (ไทย) แล้วตามรหัสให้ผลคงที่
+ * แสดงทุกใบรวมถึงข้อมูลผิดรูป (ไม่ซ่อน) · ไม่คำนวณเงิน ไม่แก้ต้นฉบับ
+ */
+export function archivedBills(bills: readonly Bill[]): Bill[] {
+  return bills
+    .filter((bill) => bill.archived === true)
+    .sort((a, b) => a.name.localeCompare(b.name, 'th') || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
 export function billRows(bills: readonly Bill[], today: string): BillRow[] {
   const rows: BillRow[] = [];
   const seen = new Set<string>();

@@ -288,6 +288,21 @@ export function App() {
     });
   };
 
+  /** นำบิลที่เก็บถาวรกลับมา (เลิกทำ = เก็บถาวรอีกครั้ง) · ไม่แตะรายการเงิน */
+  const unarchiveBill = (bill: Bill) => {
+    void run(async () => {
+      await repo.updateBill({ ...bill, archived: false });
+      return {
+        message: `นำบิลกลับมาแสดงแล้ว: ${bill.name}`,
+        undo: () =>
+          run(async () => {
+            await repo.updateBill({ ...bill, archived: true });
+            return { message: `เก็บถาวรบิลอีกครั้งแล้ว: ${bill.name}` };
+          }),
+      };
+    });
+  };
+
   const billPaid = (row: BillRow, result: PayBillResult) => {
     setDialog(null);
     void run(async () => ({
@@ -387,6 +402,7 @@ export function App() {
           onDelete={removeBill}
           onPay={(row) => setDialog({ mode: 'pay', row })}
           onCancelPay={cancelPaymentOfBill}
+          onUnarchive={unarchiveBill}
           onSaveSettings={async (settings) => {
             await repo.saveSettings(settings);
             await refresh();
