@@ -19,16 +19,23 @@
 create function private.delete_entry_batch(p_user uuid) returns boolean
 language plpgsql security definer set search_path = ''
 as $$
+declare
+  v_ids text[];
 begin
-  with cand as (
-    select e.id from public.entries e where e.user_id = p_user order by e.id limit 500
-  ), cnt as (
-    select c.id, (select count(*) from public.lines l where l.user_id = p_user and l.entry_id = c.id) as n from cand c
-  ), cum as (
-    select id, sum(n) over (order by id) as s, row_number() over (order by id) as rn from cnt
-  )
-  delete from public.entries e using cum
-   where e.user_id = p_user and e.id = cum.id and (cum.s <= 20000 or cum.rn = 1);
+  -- คำนวณรหัสรายการของชุดนี้ครั้งเดียวเป็นอาร์เรย์ แล้วลบด้วย = any(...) (ฉบับ delete ... using cte ค้างเมื่อชุด 500 รายการ)
+  select array_agg(t.id) into v_ids from (
+    select c.id,
+           sum(c.n) over (order by c.id) as s,
+           row_number() over (order by c.id) as rn
+      from (
+        select e.id, (select count(*) from public.lines l where l.user_id = p_user and l.entry_id = e.id) as n
+          from (select x.id from public.entries x where x.user_id = p_user order by x.id limit 500) e
+      ) c
+  ) t
+  where t.s <= 20000 or t.rn = 1;
+  if v_ids is not null then
+    delete from public.entries where user_id = p_user and id = any(v_ids);
+  end if;
   return exists (select 1 from public.entries where user_id = p_user);
 end
 $$;
