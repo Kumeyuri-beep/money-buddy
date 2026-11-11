@@ -39,6 +39,15 @@ function assertTestUser(id: string): void {
   if (!ok) throw new Error('หยุด: ไม่ใช่ผู้ใช้ทดสอบ a/b ของรอบนี้ ไม่ลบอะไร');
 }
 
+/** นับแถวด้วยสิทธิ์ผู้ดูแล (ข้าม RLS) ตามเงื่อนไข · ใช้ยืนยันว่าคำสั่งที่ถูกปฏิเสธไม่ได้เขียน/ย้ายแถวจริง */
+async function adminCount(table: string, filters: Record<string, string>): Promise<number> {
+  let q = admin.from(table).select('*', { count: 'exact', head: true });
+  for (const [k, v] of Object.entries(filters)) q = q.eq(k, v);
+  const { count, error } = await q;
+  if (error) throw new Error('นับแถวด้วยสิทธิ์ผู้ดูแลไม่สำเร็จที่ตาราง ' + table);
+  return count ?? 0;
+}
+
 // ลำดับตาม FK เดิม: รายการ → บิล → บัญชี (ลบบัญชีลงทุน cascade ไปสินทรัพย์/รายการ/ราคา) → ตั้งค่า
 async function wipe(index: number): Promise<void> {
   const { id } = await signedIn(index);
@@ -154,6 +163,7 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     const tradeBody = { kind: 'buy', date: '2026-11-06', units: '1', amount: 1, fee: 0, withholding: 0, memo: '' };
     const forgedTrade = await client.from('trades').insert({ user_id: aId, id: 'forge-t', asset_id: ASSET.id, ...tradeBody });
     expect(forgedTrade.error?.code).toBe(RLS);
+    expect(await adminCount('trades', { id: 'forge-t' })).toBe(0); // ไม่มีแถวถูกเขียนจริง
     const ctrlTrade = await client.from('trades').insert({ user_id: B.id, id: 'forge-t', asset_id: bOwn.id, ...tradeBody });
     expect(ctrlTrade.error).toBeNull();
     const ctrlTradeDel = await client.from('trades').delete().eq('id', 'forge-t').select('id');
@@ -163,6 +173,7 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     const priceBody = { date: '2026-11-12', price_micro: 5 };
     const forgedPrice = await client.from('asset_prices').insert({ user_id: aId, asset_id: ASSET.id, ...priceBody });
     expect(forgedPrice.error?.code).toBe(RLS);
+    expect(await adminCount('asset_prices', { asset_id: ASSET.id, date: '2026-11-12' })).toBe(0);
     const ctrlPrice = await client.from('asset_prices').insert({ user_id: B.id, asset_id: bOwn.id, ...priceBody });
     expect(ctrlPrice.error).toBeNull();
     const ctrlPriceDel = await client.from('asset_prices').delete().eq('asset_id', bOwn.id).eq('date', '2026-11-12').select('asset_id');
@@ -170,6 +181,7 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     expect(ctrlPriceDel.data).toHaveLength(1);
     const forgedUpsert = await client.from('asset_prices').upsert({ user_id: aId, asset_id: ASSET.id, date: '2026-11-10', price_micro: 5 }, { onConflict: 'user_id,asset_id,date' });
     expect(forgedUpsert.error).not.toBeNull();
+    expect(await adminCount('asset_prices', { asset_id: ASSET.id, date: '2026-11-10', price_micro: '11000000' })).toBe(1); // ราคาของ A ไม่ถูกแก้
 
     // assets: ตาราง assets มี BEFORE trigger assets_guard (security invoker) ที่ตรวจว่าบัญชีเป็นบัญชีลงทุนของ user_id นั้น
     // ซึ่ง B มองบัญชีของ A ไม่เห็น (RLS ของ accounts) → ถูกปฏิเสธด้วย 23514 "ก่อน" ถึงเงื่อนไข WITH CHECK ของ assets · ผลคือปลอมไม่ได้เหมือนกัน
@@ -192,25 +204,33 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
 
     // ผูกสินทรัพย์/รายการสมุดของ A จากแถวของตัวเอง: FK รวม user_id ปฏิเสธ (23503)
     const crossAsset = await client.from('trades').insert({ id: 'cross-t', asset_id: ASSET.id, kind: 'buy', date: '2026-11-06', units: '1', amount: 1 });
-    expect(crossAsset.error?.code).toBe(FK);
+    expect(crossAsset.error?.code).toBe(FK); // trades ไม่มี trigger ก่อนหน้า: RLS ผ่าน (user_id ของ B เอง) แล้ว FK ปฏิเสธ
+    expect(await adminCount('trades', { id: 'cross-t' })).toBe(0);
     const aEntryId = (await a.loadLedger()).entries[0]!.id;
     const crossEntry = await client.from('trades').insert({ id: 'cross-e', asset_id: bOwn.id, kind: 'buy', date: '2026-11-06', units: '1', amount: 1, entry_id: aEntryId });
     expect(crossEntry.error?.code).toBe(FK);
+    expect(await adminCount('trades', { id: 'cross-e' })).toBe(0);
     const bAssetOnAAccount = await client.from('assets').insert({ id: 'b-steal-acc', name: 'x', account_id: 'inv-asset-live' });
-    expect(bAssetOnAAccount.error?.code).toBe(FK); // บัญชีลงทุนของ A ใช้ไม่ได้
+    // assets_guard (BEFORE trigger) ตรวจก่อน FK: B มองบัญชีของ A ไม่เห็น จึงปฏิเสธด้วย 23514 (ไม่ใช่ 23503)
+    expect(bAssetOnAAccount.error?.code).toBe('23514');
+    expect(await adminCount('assets', { id: 'b-steal-acc' })).toBe(0);
 
     // "ยัดข้อมูลของตัวเองเข้าบัญชีคนอื่น" ด้วย update: with check ต้องปฏิเสธ (42501) ทั้ง 3 ตาราง
     await b.addTrade(trade({ id: 'b-trade', assetId: bOwn.id, units: '100000000', amount: 1000 }));
     await b.savePrice({ assetId: bOwn.id, date: '2026-11-10', priceMicro: 1_000_000 });
     const moveTrade = await client.from('trades').update({ user_id: aId }).eq('id', 'b-trade');
-    expect(moveTrade.error?.code).toBe(RLS);
+    expect(moveTrade.error?.code).toBe(RLS); // update user_id ไม่ผ่าน assets_guard/trigger ใด: WITH CHECK ปฏิเสธ
+    expect(await adminCount('trades', { id: 'b-trade', user_id: B.id })).toBe(1);
     const moveAsset = await client.from('assets').update({ user_id: aId }).eq('id', bOwn.id);
-    expect(moveAsset.error?.code).toBe(RLS);
+    expect(moveAsset.error?.code).toBe(RLS); // assets_guard ทำงานเฉพาะ insert หรือ update of account_id จึงไม่ถูกเรียกที่นี่
+    expect(await adminCount('assets', { id: bOwn.id, user_id: B.id })).toBe(1);
     const movePrice = await client.from('asset_prices').update({ user_id: aId }).eq('asset_id', bOwn.id);
     expect(movePrice.error?.code).toBe(RLS);
+    expect(await adminCount('asset_prices', { asset_id: bOwn.id, user_id: B.id })).toBe(1);
     // ย้ายรายการของตัวเองไปชี้สินทรัพย์ของ A: FK ปฏิเสธ
     const repoint = await client.from('trades').update({ asset_id: ASSET.id }).eq('id', 'b-trade');
-    expect(repoint.error?.code).toBe(FK);
+    expect(repoint.error?.code).toBe(FK); // trades ไม่มี trigger ก่อนหน้า: RLS ผ่านแล้ว FK ปฏิเสธ
+    expect(await adminCount('trades', { id: 'b-trade', asset_id: bOwn.id })).toBe(1);
 
     // ข้อมูลของ A ยังครบเหมือนเดิมหลังความพยายามทั้งหมด
     const check = await a.loadInvestments();
