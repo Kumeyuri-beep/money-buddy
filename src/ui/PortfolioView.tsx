@@ -190,7 +190,8 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
     setTradeForm(emptyTradeForm(assetId, kind, today));
     setTradeErrors([]);
     setWalletError('');
-    setWalletId((cur) => (wallets.some((w) => w.id === cur) ? cur : (wallets[0]?.id ?? '')));
+    // ไม่เลือกกระเป๋าให้เองเมื่อมีหลายใบ (เรื่องเงิน: ให้ผู้ใช้เลือกเอง) · มีใบเดียวเลือกให้
+    setWalletId((cur) => (wallets.some((w) => w.id === cur) ? cur : wallets.length === 1 ? wallets[0]!.id : ''));
     setPanel({ type: 'trade', assetId });
     setMessage(null);
   };
@@ -208,7 +209,7 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
     setTradeErrors([]);
     const needWallet = tradeNeedsWallet(built.trade.kind);
     if (needWallet && !wallets.some((w) => w.id === walletId)) {
-      setWalletError('เลือกกระเป๋าเงินที่ใช้จ่ายหรือรับเงิน');
+      setWalletError(wallets.length === 0 ? 'ยังไม่มีกระเป๋าเงินสด เพิ่มกระเป๋าก่อนจึงจะบันทึกได้' : 'เลือกกระเป๋าเงินที่ใช้จ่ายหรือรับเงิน');
       document.getElementById('pf-wallet')?.focus();
       return;
     }
@@ -216,7 +217,7 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
     const ok = await act(async () => {
       await repo.recordTrade({ trade: built.trade, walletId: needWallet ? walletId : undefined });
       onLedgerChanged();
-    }, built.trade.kind === 'reinvest' ? 'บันทึกปันผลลงทุนต่อแล้ว (ไม่มีเงินสดเข้า-ออก)' : `บันทึก${KIND_LABEL[built.trade.kind]}แล้ว และปรับยอดกระเป๋าเงินในสมุดบัญชีให้แล้ว`);
+    }, built.trade.kind === 'reinvest' ? 'บันทึกปันผลลงทุนต่อแล้ว (ไม่มีเงินสดเข้า-ออก)' : `บันทึก${KIND_LABEL[built.trade.kind]}แล้ว ปรับยอดกระเป๋า "${wallets.find((w) => w.id === walletId)?.name ?? ''}" ให้แล้ว`);
     if (ok) setPanel(null);
   };
 
@@ -263,7 +264,8 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
   const noValue = pricedCount === 0 && t.unpriced > 0;
   const partial = pricedCount > 0 && t.unpriced > 0;
   const closeOnEscape = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') setPanel(null);
+    // Esc ที่ปิดรายการตัวเลือก (select) ไม่ควรปิดทั้งฟอร์มจนข้อมูลที่กรอกหาย
+    if (e.key === 'Escape' && !e.defaultPrevented && (e.target as HTMLElement).tagName !== 'SELECT') setPanel(null);
   };
 
   return (
@@ -274,8 +276,8 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
       </div>
 
       <div className="notice" role="note">
-        <p>ซื้อ ขาย และปันผลที่บันทึกที่นี่ปรับยอดกระเป๋าเงินที่เลือกในสมุดบัญชีให้อัตโนมัติ กำไร ขาดทุน และปันผลแสดงแยกที่หน้านี้ ไม่นับเป็นรายรับรายจ่ายปกติ (เช่น เงินเดือน)</p>
-        <p>รายการที่บันทึกไว้ก่อนหน้านี้ (ยังไม่ผูกสมุด) ไม่ได้ปรับยอดกระเป๋าเงินย้อนหลัง</p>
+        <p>ซื้อ ขาย และปันผลจะเพิ่มหรือลดเงินในกระเป๋าที่คุณเลือกให้เอง กำไร ขาดทุน และปันผลดูที่หน้านี้ ไม่รวมกับรายรับรายจ่ายประจำวัน</p>
+        <p>รายการเก่าที่บันทึกก่อนหน้านี้ไม่ได้ปรับยอดกระเป๋าย้อนหลัง</p>
         <p>ราคาเป็นตัวเลขที่คุณกรอกเอง ไม่ใช่ราคาตลาดสด</p>
       </div>
 
@@ -437,9 +439,12 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
                   value={walletId}
                   aria-invalid={walletError !== '' ? true : undefined}
                   aria-describedby={walletError !== '' ? 'pf-wallet-err' : undefined}
-                  onChange={(e) => setWalletId(e.target.value)}
+                  onChange={(e) => {
+                    setWalletId(e.target.value);
+                    setWalletError('');
+                  }}
                 >
-                  {wallets.length === 0 && <option value="">ยังไม่มีกระเป๋าเงินสด</option>}
+                  <option value="">{wallets.length === 0 ? 'ยังไม่มีกระเป๋าเงินสด' : 'เลือกกระเป๋า'}</option>
                   {wallets.map((w) => (
                     <option key={w.id} value={w.id}>
                       {w.name}
