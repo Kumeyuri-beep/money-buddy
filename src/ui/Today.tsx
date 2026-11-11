@@ -1,6 +1,7 @@
 import type { Ledger } from '../storage/repository';
 import { CashFlowSankey } from './overview/CashFlowSankey';
 import type { FinanceInput } from '../app/billsOverview';
+import { AllocationPanel } from './overview/AllocationPanel';
 import { RetirementPanel } from './overview/EmptyPanels';
 import { UpcomingBillsPanel } from './overview/UpcomingBillsPanel';
 import { RecentEntries } from './overview/RecentEntries';
@@ -13,11 +14,12 @@ interface TodayProps {
   onOpenLedger: () => void;
   finance: FinanceInput;
   onOpenBills: () => void;
+  onOpenPortfolio: () => void;
   /** "วันนี้" ตามเวลาไทย (YYYY-MM-DD) จาก App ซึ่งอัปเดตเองเมื่อข้ามเที่ยงคืน */
   today: string;
 }
 
-export function Today({ ledger, onAdd, onOpenLedger, finance, onOpenBills, today }: TodayProps) {
+export function Today({ ledger, onAdd, onOpenLedger, finance, onOpenBills, onOpenPortfolio, today }: TodayProps) {
   const { accounts, entries } = ledger;
 
   return (
@@ -33,6 +35,10 @@ export function Today({ ledger, onAdd, onOpenLedger, finance, onOpenBills, today
 
       <div className="row">
         <RecentEntries accounts={accounts} entries={entries} today={today} onAdd={onAdd} onOpenLedger={onOpenLedger} />
+        <AllocationPanel today={today} onOpenPortfolio={onOpenPortfolio} />
+      </div>
+
+      <div className="row">
         <RetirementPanel />
       </div>
     </>
