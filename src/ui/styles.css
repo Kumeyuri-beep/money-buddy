@@ -455,3 +455,7 @@ select { font: inherit; }
 /* พอร์ตการลงทุน */
 .notice { margin: 0 0 16px; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(242, 208, 107, 0.45); background: rgba(242, 208, 107, 0.08); font-size: 0.9rem; }
 .stale { color: var(--gold); }
+.notice p { margin: 0; }
+.confirm-delete { border-color: var(--expense); color: var(--expense); font-weight: 600; }
+@media (prefers-reduced-transparency: reduce) { .notice { background: #1d1b12; } }
+@media (max-width: 720px) { .bill-row .bill-figures { grid-column: 1 / -1; justify-content: flex-start; } }

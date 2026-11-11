@@ -60,7 +60,8 @@ export function buildPortfolio(data: InvestmentData, today: string): Portfolio {
 
   for (const asset of [...data.assets].sort(byName)) {
     const trades = data.trades.filter((t) => t.assetId === asset.id);
-    const prices = data.prices.filter((p) => p.assetId === asset.id).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    // ราคาที่ลงวันที่ในอนาคต (พิมพ์ปีผิด) ไม่ถูกใช้เป็นราคาล่าสุด
+    const prices = data.prices.filter((p) => p.assetId === asset.id && p.date <= today).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
     const last = prices.at(-1);
     const latestPrice = last ? { priceMicro: last.priceMicro, date: last.date } : null;
     const priceStale = latestPrice !== null && daysBetween(latestPrice.date, today) > STALE_PRICE_DAYS;

@@ -152,6 +152,33 @@ describe('buildPortfolio: สรุปพอร์ตจากรายการ
     expect(p.totals.cost).toBe(10_000);
   });
 
+it('ราคาที่ลงวันที่ในอนาคต (พิมพ์ปีผิด) ไม่ถูกใช้เป็นราคาล่าสุด', () => {
+    const prices: AssetPrice[] = [
+      { assetId: 'a1', date: '2026-11-18', priceMicro: 11_000_000 },
+      { assetId: 'a1', date: '2999-11-20', priceMicro: 99_000_000 },
+    ];
+    const row = buildPortfolio(data({ assets: [asset('a1', 'inv1')], trades: [trade({})], prices }), TODAY).rows[0]!;
+    expect(row.latestPrice).toEqual({ priceMicro: 11_000_000, date: '2026-11-18' });
+  });
+
+  it('สินทรัพย์ปนกัน (มีราคา/ไม่มีราคา): มูลค่าและกำไรรวมเฉพาะที่มีราคา · ต้นทุนรวมทุกตัว · นับ unpriced', () => {
+    const p = buildPortfolio(
+      data({
+        assets: [asset('a1', 'inv1'), asset('a2', 'inv2')],
+        trades: [trade({}), trade({ id: 't2', assetId: 'a2' })],
+        prices: [{ assetId: 'a1', date: TODAY, priceMicro: 12_000_000 }],
+      }),
+      TODAY,
+    );
+    expect(p.totals).toMatchObject({ cost: 20_000, value: 12_000, unrealized: 2_000, unpriced: 1 });
+  });
+
+  it('ปันผลลงทุนต่อเพิ่มทั้งหน่วยและต้นทุนในพอร์ต', () => {
+    const reinvest = trade({ id: 'r', kind: 'reinvest', date: '2026-11-05', createdAt: '2026-11-05T06:00:00.000Z', units: '100000000', amount: 900 });
+    const row = buildPortfolio(data({ assets: [asset('a1', 'inv1')], trades: [trade({}), reinvest] }), TODAY).rows[0]!;
+    expect(row.position).toEqual({ units: 1_100_000_000n, cost: 10_900 });
+  });
+
   it('เรียงสินทรัพย์ที่เก็บถาวรไว้ท้าย แล้วตามชื่อ', () => {
     const p = buildPortfolio(data({ assets: [{ ...asset('a1', 'inv1'), archived: true }, asset('a2', 'inv2')] }), TODAY);
     expect(p.rows.map((r) => r.asset.id)).toEqual(['a2', 'a1']);
