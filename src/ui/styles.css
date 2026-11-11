@@ -481,3 +481,8 @@ select { font: inherit; }
 .row-actions, .form-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .row-actions .btn, .form-actions .btn { min-height: 44px; }
 @media (max-width: 720px) { .form-actions { justify-content: flex-start; } }
+
+/* การ์ดแชร์สัดส่วนพอร์ต */
+.share-canvas { display: block; width: min(100%, 360px); height: auto; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.14); margin: 8px 0 12px; }
+.check-row { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; color: var(--text); }
+.check-row input { width: 22px; height: 22px; }

@@ -13,6 +13,7 @@ import { formatBaht, satang } from '../domain/money/satang';
 import { StorageError, nextCreatedAt } from '../storage/repository';
 import { friendlyError } from '../app/errorText';
 import { DcaPlansCard } from './DcaPlansCard';
+import { ShareCardPanel } from './ShareCardPanel';
 import { useRepository } from './RepositoryContext';
 
 interface Props {
@@ -107,6 +108,7 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
   const [tradeForm, setTradeForm] = useState<TradeForm>(emptyTradeForm('', 'buy', today));
   const [walletId, setWalletId] = useState('');
   const [walletError, setWalletError] = useState('');
+  const [shareOpen, setShareOpen] = useState(false);
   const [newWalletName, setNewWalletName] = useState('');
   const [newWalletError, setNewWalletError] = useState('');
   const [tradeErrors, setTradeErrors] = useState<TradeFormError[]>([]);
@@ -363,8 +365,15 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
         )}
         <p className="muted small">กำไร/ขาดทุนจากต้นทุน ไม่ใช่ผลตอบแทนต่อปี</p>
         <p className="muted small">ต้นทุนเฉลี่ย = ราคาเฉลี่ยที่คุณจ่ายต่อหน่วย รวมค่าธรรมเนียมซื้อ อาจต่างจากแอปโบรกเกอร์เล็กน้อยจากการปัดเศษ</p>
+        {hasAssets && !shareOpen && (
+          <button type="button" className="btn btn-ghost btn-small" onClick={() => setShareOpen(true)}>
+            สร้างการ์ดแชร์สัดส่วนพอร์ต
+          </button>
+        )}
       </section>
       )}
+
+      {shareOpen && hasAssets && <ShareCardPanel portfolio={portfolio} today={today} onClose={() => setShareOpen(false)} />}
 
       {hasAssets && data !== null && (
         <DcaPlansCard
