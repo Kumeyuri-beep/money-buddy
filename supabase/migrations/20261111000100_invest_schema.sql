@@ -12,6 +12,8 @@
 --  * รุ่นแรก THB เท่านั้น (currency = 'THB')
 --  * ลบ cascade: ลบผู้ใช้ → ทุกตาราง · ลบบัญชีลงทุน → สินทรัพย์ → รายการ/ราคา · ลบ Entry → รายการลงทุนที่ผูกกับ Entry นั้น
 --    (ฟังก์ชันล้างข้อมูล/ลบบัญชี/ยกเลิกนำเข้าเดิมจึงทำงานต่อได้โดยไม่ต้องแก้: ลบ entries → bills → accounts ตามลำดับเดิม)
+--  * เพดานแถวต่อผู้ใช้: assets 200 · trades 10,000 · asset_prices 10,000 (กันลบไม่ทัน 8 วินาที · ดูหัวข้อ 2.1)
+--  * trades.entry_id: ยังไม่ตรวจว่า Entry เป็นรายการที่ถูกต้อง (ทำ guard ตอน P4 ที่เริ่มผูกจริง)
 --  * ข้อมูลมาจากฝั่งผู้ใช้: ตรวจรูปแบบที่ฐานข้อมูล (check) ไม่พึ่งเว็บ · RLS เจ้าของแถว + ด่านเปลี่ยนรหัส เหมือนตารางเดิม
 
 -- ---------------------------------------------------------------------------
@@ -27,8 +29,9 @@ language plpgsql security invoker set search_path = ''
 as $$
 begin
   if (new.type <> old.type or new.currency <> old.currency or new.kind <> old.kind)
-     and exists (select 1 from public.lines l where l.user_id = old.user_id and l.account_id = old.id) then
-    raise exception 'เปลี่ยนชนิด สกุลเงิน หรือประเภทบัญชีที่มีรายการแล้วไม่ได้' using errcode = '23514';
+     and (exists (select 1 from public.lines l where l.user_id = old.user_id and l.account_id = old.id)
+          or exists (select 1 from public.assets s where s.user_id = old.user_id and s.account_id = old.id)) then
+    raise exception 'เปลี่ยนชนิด สกุลเงิน หรือประเภทบัญชีที่มีรายการหรือสินทรัพย์ผูกอยู่แล้วไม่ได้' using errcode = '23514';
   end if;
   return new;
 end
@@ -84,7 +87,7 @@ create table public.trades (
   units text check (
     units is null or (
       units ~ '^[1-9][0-9]{0,18}$'
-      and (char_length(units) < 19 or units <= '9223372036854775807')
+      and (char_length(units) < 19 or units collate "C" <= '9223372036854775807')
     )
   ),
   -- ราคาต่อหน่วย micro-baht (ขายต้องมี · ซื้อมีเพื่อแสดงผลได้)
@@ -128,6 +131,36 @@ create table public.asset_prices (
 );
 
 -- ---------------------------------------------------------------------------
+-- 2.1 เพดานจำนวนแถวต่อผู้ใช้ (ผลตรวจ security-auditor ข้อ 1): ฟังก์ชันล้างข้อมูล/ลบบัญชีลบตารางเหล่านี้ตามลำดับท้ายๆ
+--     ในคำสั่งเดียว ถ้าไม่มีเพดานผู้ใช้สร้างแถวได้ไม่จำกัดจนลบไม่ทันเพดานเวลา 8 วินาทีของ authenticated (ลบข้อมูลตาม PDPA ไม่ได้)
+--     ตรวจระดับคำสั่ง (นับครั้งเดียวต่อคำสั่ง ไม่ใช่ต่อแถว) · เพดานอาจเกินได้เล็กน้อยเมื่อสองคำสั่งเขียนพร้อมกัน ไม่กระทบเป้าหมาย
+-- ---------------------------------------------------------------------------
+create function private.enforce_invest_limits() returns trigger
+language plpgsql security invoker set search_path = ''
+as $$
+declare
+  v_cap integer := case tg_table_name when 'assets' then 200 else 10000 end;
+  v_user uuid;
+  v_n bigint;
+begin
+  for v_user in select distinct user_id from new_rows loop
+    execute format('select count(*) from public.%I where user_id = $1', tg_table_name) into v_n using v_user;
+    if v_n > v_cap then
+      raise exception 'จำนวนข้อมูลลงทุนเกินเพดาน (% แถวต่อผู้ใช้ในตาราง %)', v_cap, tg_table_name using errcode = '54000';
+    end if;
+  end loop;
+  return null;
+end
+$$;
+
+create trigger assets_limit_trg after insert on public.assets
+  referencing new table as new_rows for each statement execute function private.enforce_invest_limits();
+create trigger trades_limit_trg after insert on public.trades
+  referencing new table as new_rows for each statement execute function private.enforce_invest_limits();
+create trigger asset_prices_limit_trg after insert on public.asset_prices
+  referencing new table as new_rows for each statement execute function private.enforce_invest_limits();
+
+-- ---------------------------------------------------------------------------
 -- 3. RLS: เจ้าของแถวเท่านั้น + ต้องเปลี่ยนรหัสแล้ว (restrictive) · anon ไม่มีสิทธิ์ เหมือนตารางเดิม
 -- ---------------------------------------------------------------------------
 do $$
@@ -147,6 +180,20 @@ begin
   end loop;
 end
 $$;
+
+-- ขณะเซสชันนำเข้าเปิด เขียนข้อมูลได้เฉพาะทางนำเข้า (เหมือนห้าตารางเดิมใน 20261109000200) · ฟังก์ชัน security definer ไม่ติดนโยบายนี้
+do $do$
+declare
+  t text;
+  c text := '(not (select private.import_session_exists())) or coalesce(current_setting(''app.import_ledger'', true), '''') = ''on''';
+begin
+  foreach t in array array['assets', 'trades', 'asset_prices'] loop
+    execute format('create policy %I on public.%I as restrictive for insert to authenticated with check (%s)', t || '_import_lock_ins', t, c);
+    execute format('create policy %I on public.%I as restrictive for update to authenticated using (%s) with check (%s)', t || '_import_lock_upd', t, c, c);
+    execute format('create policy %I on public.%I as restrictive for delete to authenticated using (%s)', t || '_import_lock_del', t, c);
+  end loop;
+end
+$do$;
 
 revoke all on public.assets, public.trades, public.asset_prices from public, anon, authenticated;
 grant select, insert, update, delete on public.assets, public.trades, public.asset_prices to authenticated;

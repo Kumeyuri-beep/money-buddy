@@ -76,6 +76,15 @@ begin
   if r is null then raise exception 'FAIL: T4 ชื่อยาวเกิน 200 ได้'; end if;
   insert into public.assets (id, name, kind, account_id) values ('a2', 'หุ้น ข', 'stock', 'inv2');
 
+  -- T4b ห้ามพลิก kind/type/currency ของบัญชีที่มีสินทรัพย์ผูกอยู่ (แม้ยังไม่มีรายการในสมุด) · ห้ามย้ายสินทรัพย์ไปบัญชีปกติ
+  r := pg_temp.fails($$ update public.accounts set kind = 'normal' where id = 'inv2' $$);
+  if r is null or r not like '%สินทรัพย์ผูกอยู่%' then raise exception 'FAIL: T4b พลิก kind ของบัญชีที่มีสินทรัพย์ได้ (%)', r; end if;
+  r := pg_temp.fails($$ update public.accounts set currency = 'USD' where id = 'inv2' $$);
+  if r is null then raise exception 'FAIL: T4b เปลี่ยนสกุลบัญชีที่มีสินทรัพย์ได้'; end if;
+  r := pg_temp.fails($$ update public.assets set account_id = 'w1' where id = 'a2' $$);
+  if r is null or r not like '%บัญชีลงทุน%' then raise exception 'FAIL: T4b ย้ายสินทรัพย์ไปกระเป๋าได้ (%)', r; end if;
+  update public.assets set name = 'หุ้น ข (แก้ชื่อ)' where id = 'a2';  -- แก้ฟิลด์อื่นได้ตามปกติ
+
   -- T5 รูปแบบรายการลงทุน (check ที่ฐานข้อมูล ไม่พึ่งเว็บ)
   -- 5.1 ซื้อปกติ ผูก Entry (e-buy1) · ขายต้องมีราคา · ปันผล/ปันผลลงทุนต่อ
   insert into public.trades (id, asset_id, kind, date, units, price_micro, amount, fee, entry_id)
@@ -108,7 +117,8 @@ begin
   if r is null then raise exception 'FAIL: T5 รายการลงทุนของสินทรัพย์ที่ไม่มีได้'; end if;
   -- 5.3 รูปแบบ units: เพดาน int64 (R17) · ไม่ขึ้นต้นด้วย 0 · ไม่ลบ · ไม่ทศนิยม/scientific
   insert into public.trades (id, asset_id, kind, date, units, amount) values ('u-max', 'a2', 'buy', '2026-11-07', '9223372036854775807', 100);
-  foreach k in array array['9223372036854775808', '9999999999999999999', '10000000000000000000', '0', '012', '-5', '1.5', '1e3', '', ' 5', 'abc'] loop
+  insert into public.trades (id, asset_id, kind, date, units, amount) values ('u-one', 'a2', 'buy', '2026-11-07', '1', 100), ('u-19', 'a2', 'buy', '2026-11-07', '1000000000000000000', 100);
+  foreach k in array array['9223372036854775808', '9999999999999999999', '10000000000000000000', '0', '012', '-5', '1.5', '1e3', '', ' 5', '5 ', 'abc'] loop
     r := pg_temp.fails(format($f$ insert into public.trades (id, asset_id, kind, date, units, amount) values ('u-bad', 'a2', 'buy', '2026-11-07', %L, 100) $f$, k));
     if r is null then raise exception 'FAIL: T5 units "%" ถูกรับ', k; end if;
   end loop;
@@ -136,21 +146,42 @@ begin
   if r is null then raise exception 'FAIL: T7 B ใส่สินทรัพย์ในชื่อ A ได้'; end if;
   r := pg_temp.fails($$ insert into public.trades (id, asset_id, kind, date, units, amount) values ('b-x', 'a1', 'buy', '2026-11-06', '100', 100) $$);
   if r is null then raise exception 'FAIL: T7 B ผูกรายการกับสินทรัพย์ของ A ได้'; end if;
+  r := pg_temp.fails($$ insert into public.trades (id, asset_id, kind, date, units, amount, entry_id) values ('b-e', 'a1', 'buy', '2026-11-06', '100', 100, 'e-buy1') $$);
+  if r is null then raise exception 'FAIL: T7 B ผูกรายการกับ Entry ของ A ได้'; end if;
+  update public.asset_prices set price_micro = 1; get diagnostics n = row_count; if n <> 0 then raise exception 'FAIL: T7 B แก้ราคาของ A ได้'; end if;
+  delete from public.asset_prices;                get diagnostics n = row_count; if n <> 0 then raise exception 'FAIL: T7 B ลบราคาของ A ได้'; end if;
   insert into public.assets (id, name, account_id) values ('a1', 'ของ B', 'inv1');  -- รหัสซ้ำกับของ A ได้ (คนละผู้ใช้)
   perform pg_temp.settle();
   perform pg_temp.logout();
 
   -- T8 ผู้ใช้ที่ยังไม่เปลี่ยนรหัส (ด่าน can_use_data) ใช้ตารางลงทุนไม่ได้
+  --    ใส่แถวของ uc ในฐานะผู้ดูแล (ข้าม RLS) เพื่อให้ผล "เห็น 0 แถว" และ "แก้ไม่ได้" มาจากด่านจริง ไม่ใช่เพราะไม่มีข้อมูล
+  insert into public.accounts (user_id, id, type, name, currency, kind) values (uc, 'invc', 'asset', 'ของ C', 'THB', 'investment');
+  insert into public.assets (user_id, id, name, account_id) values (uc, 'ac', 'ของ C', 'invc');
+  insert into public.trades (user_id, id, asset_id, kind, date, units, amount) values (uc, 'tc', 'ac', 'buy', '2026-11-06', '100', 100);
+  insert into public.asset_prices (user_id, asset_id, date, price_micro) values (uc, 'ac', '2026-11-10', 1000);
   perform pg_temp.login(uc);
-  r := pg_temp.fails($$ insert into public.assets (id, name, account_id) values ('c1', 'x', 'inv1') $$);
-  if r is null then raise exception 'FAIL: T8 ผู้ใช้ที่ยังไม่เปลี่ยนรหัสเพิ่มสินทรัพย์ได้'; end if;
-  select count(*) into n from public.assets; if n <> 0 then raise exception 'FAIL: T8 เห็นข้อมูล'; end if;
+  select count(*) into n from public.assets;       if n <> 0 then raise exception 'FAIL: T8 เห็นสินทรัพย์ทั้งที่ยังไม่เปลี่ยนรหัส (%)', n; end if;
+  select count(*) into n from public.trades;       if n <> 0 then raise exception 'FAIL: T8 เห็นรายการลงทุน (%)', n; end if;
+  select count(*) into n from public.asset_prices; if n <> 0 then raise exception 'FAIL: T8 เห็นราคา (%)', n; end if;
+  update public.assets set name = 'hack';          get diagnostics n = row_count; if n <> 0 then raise exception 'FAIL: T8 แก้สินทรัพย์ได้'; end if;
+  r := pg_temp.fails($$ insert into public.trades (id, asset_id, kind, date, units, amount) values ('c2', 'ac', 'buy', '2026-11-07', '100', 100) $$);
+  if r is null then raise exception 'FAIL: T8 เพิ่มรายการลงทุนได้ทั้งที่ยังไม่เปลี่ยนรหัส'; end if;
   perform pg_temp.logout();
+  -- ด่านต้องมีจริงในแคตตาล็อก: RLS เปิด + policy gate/own/import_lock ครบทั้ง 3 ตาราง
+  if exists (select 1 from pg_class where oid in ('public.assets'::regclass, 'public.trades'::regclass, 'public.asset_prices'::regclass) and not relrowsecurity)
+    then raise exception 'FAIL: T8 ตารางลงทุนไม่ได้เปิด RLS'; end if;
+  for k in select unnest(array['assets', 'trades', 'asset_prices']) loop
+    select count(*) into n from pg_policies where schemaname = 'public' and tablename = k
+      and policyname in (k || '_own', k || '_gate', k || '_import_lock_ins', k || '_import_lock_upd', k || '_import_lock_del');
+    if n <> 5 then raise exception 'FAIL: T8 policy ของ % ไม่ครบ (พบ %)', k, n; end if;
+  end loop;
 
   -- T9 anon เข้าตารางลงทุนไม่ได้ (สิทธิ์ระดับตาราง)
   if has_table_privilege('anon', 'public.assets', 'select') or has_table_privilege('anon', 'public.trades', 'select')
      or has_table_privilege('anon', 'public.asset_prices', 'select') then raise exception 'FAIL: T9 anon อ่านตารางลงทุนได้'; end if;
-  if has_table_privilege('authenticated', 'public.trades', 'truncate') then raise exception 'FAIL: T9 authenticated truncate ได้'; end if;
+  if has_table_privilege('authenticated', 'public.assets', 'truncate') or has_table_privilege('authenticated', 'public.trades', 'truncate')
+     or has_table_privilege('authenticated', 'public.asset_prices', 'truncate') then raise exception 'FAIL: T9 authenticated truncate ได้'; end if;
 
   -- T10 ลบ Entry ที่ผูก = ลบรายการลงทุนที่ผูกตาม (cascade) · รายการอื่นคงอยู่
   perform pg_temp.login(ua);
@@ -181,6 +212,21 @@ begin
   select count(*) into n from public.asset_prices where user_id = ua; if n <> 0 then raise exception 'FAIL: T11 ราคาเหลือหลังล้าง (%)', n; end if;
   select count(*) into n from public.accounts where user_id = ua;     if n <> 0 then raise exception 'FAIL: T11 บัญชีเหลือหลังล้าง (%)', n; end if;
   select count(*) into n from public.assets where user_id = ub;       if n <> 1 then raise exception 'FAIL: T11 ล้างของ A กระทบข้อมูลของ B (%)', n; end if;
+
+  -- T11b เพดานแถว (ผลตรวจ security-auditor ข้อ 1): trades ไม่เกิน 10,000 ต่อผู้ใช้ · สินทรัพย์ไม่เกิน 200
+  --      ใส่เป็นชุดเดียวในฐานะผู้ดูแล (ตรวจระดับคำสั่ง) แล้วทดลองลบด้วย reset_my_ledger_step: ต้องไม่หมดเวลา
+  insert into public.accounts (user_id, id, type, name, currency) values (ub, 'w1x', 'asset', 'w', 'THB') on conflict do nothing;
+  insert into public.trades (user_id, id, asset_id, kind, date, units, amount)
+    select ub, 'bulk-' || i, 'a1', 'buy', date '2026-11-06', '100', 100 from generate_series(1, 10000) i;
+  r := pg_temp.fails($$ insert into public.trades (user_id, id, asset_id, kind, date, units, amount) values ((select user_id from public.assets where id = 'a1' limit 1), 'bulk-over', 'a1', 'buy', date '2026-11-06', '100', 100) $$);
+  if r is null or r not like '%เกินเพดาน%' then raise exception 'FAIL: T11b trades เกิน 10,000 ได้ (%)', r; end if;
+  r := pg_temp.fails($$ insert into public.trades (user_id, id, asset_id, kind, date, units, amount) select user_id, 'bulk2-' || i, 'a1', 'buy', date '2026-11-06', '100', 100 from public.assets, generate_series(1, 5) i where id = 'a1' $$);
+  if r is null or r not like '%เกินเพดาน%' then raise exception 'FAIL: T11b ใส่ทีเดียวเกินเพดานได้ (%)', r; end if;
+  insert into public.accounts (user_id, id, type, name, currency, kind) select ub, 'bi' || i, 'asset', 'x', 'THB', 'investment' from generate_series(1, 199) i;
+  insert into public.assets (user_id, id, name, account_id) select ub, 'bs' || i, 'x', 'bi' || i from generate_series(1, 199) i;
+  r := pg_temp.fails($$ insert into public.accounts (user_id, id, type, name, currency, kind) values ((select user_id from public.assets where id = 'a1' limit 1), 'bi-over', 'asset', 'x', 'THB', 'investment') $$);
+  r := pg_temp.fails($$ insert into public.assets (user_id, id, name, account_id) values ((select user_id from public.assets where id = 'a1' limit 1), 'bs-over', 'x', 'bi-over') $$);
+  if r is null or r not like '%เกินเพดาน%' then raise exception 'FAIL: T11b สินทรัพย์เกิน 200 ได้ (%)', r; end if;
 
   -- T12 ลบบัญชีผู้ใช้ (delete_my_account_step) ที่มีข้อมูลลงทุน: ต้องลบสะอาด ไม่ติด FK
   perform pg_temp.login(ub);
