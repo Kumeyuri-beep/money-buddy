@@ -1,4 +1,4 @@
-import { isCashWallet } from '../domain/ledger/accountKind';
+import { isCashWallet, isInvestResultAccount } from '../domain/ledger/accountKind';
 import { isValidIsoDate } from '../domain/ledger/entry';
 import type { Account, Entry, NewEntry } from '../domain/ledger/types';
 import { parseBahtToSatang, satang, toBahtString } from '../domain/money/satang';
@@ -33,7 +33,7 @@ export function walletOptions(accounts: readonly Account[]): Account[] {
 /** ตัวเลือกช่องที่สอง (หมวดหรือกระเป๋าปลายทาง) ตามประเภทรายการ */
 export function counterOptions(accounts: readonly Account[], kind: FormKind, walletId: string): Account[] {
   if (kind === 'transfer') return walletOptions(accounts).filter((a) => a.id !== walletId);
-  return accounts.filter((a) => a.type === kind && a.currency === 'THB' && !a.archived);
+  return accounts.filter((a) => a.type === kind && a.currency === 'THB' && !a.archived && !isInvestResultAccount(a));
 }
 
 /**

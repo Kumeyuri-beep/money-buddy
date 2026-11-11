@@ -80,7 +80,8 @@ describe('PDPA (M2-E): ยอมรับนโยบาย · ลบบัญ�
     await repo.saveSettings({ payDay: 5 });
     // ข้อมูลลงทุนของ C (พิสูจน์ว่าลบบัญชีตาม PDPA ลบตารางลงทุนด้วย)
     await repo.addAsset({ id: 'asset-c', name: 'กองทุน C', kind: 'fund' });
-    await repo.addTrade({ id: 'trade-c', assetId: 'asset-c', kind: 'buy', date: '2026-11-05', createdAt: '2026-11-05T03:00:00.000Z', units: '100000000', amount: 1000, fee: 0, withholding: 0, memo: '' });
+    const wallet = (await repo.loadLedger()).accounts.find((x) => x.type === 'asset' && x.kind !== 'investment')!.id;
+    await repo.recordTrade({ walletId: wallet, trade: { id: 'trade-c', assetId: 'asset-c', kind: 'buy', date: '2026-11-05', createdAt: '2026-11-05T03:00:00.000Z', units: '100000000', amount: 1000, fee: 0, withholding: 0, memo: '' } });
     await repo.savePrice({ assetId: 'asset-c', date: '2026-11-10', priceMicro: 1_000_000 });
     for (const table of ['assets', 'trades', 'asset_prices']) {
       const before = await admin.from(table).select('*', { count: 'exact', head: true }).eq('user_id', id);

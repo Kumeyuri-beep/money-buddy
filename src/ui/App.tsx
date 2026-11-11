@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { thaiIsoDate, thaiMonthKeyLabel } from '../app/dates';
 import { describeEntry } from '../app/describe';
+import { walletOptions } from '../app/entryForm';
 import { learnFromHistory } from '../app/quickText';
 import { formatBaht, satang } from '../domain/money/satang';
 import { draftFromOcrTexts, type SlipDraft } from '../app/slipParser';
@@ -396,7 +397,7 @@ export function App() {
       ) : view === 'averaging' ? (
         <AveragingView />
       ) : view === 'portfolio' ? (
-        <PortfolioView today={today} onLedgerChanged={() => void refresh()} />
+        <PortfolioView today={today} wallets={walletOptions(accounts).map((a) => ({ id: a.id, name: a.name }))} onLedgerChanged={() => void refresh()} />
       ) : view === 'bills' ? (
         <BillsView
           bills={state.bills}

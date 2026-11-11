@@ -1,5 +1,6 @@
 import { roundHalfUp } from '../money/round';
 import { safeAdd, safeSub } from '../money/safe';
+import { isInvestResultAccount } from './accountKind';
 import { indexAccounts } from './entry';
 import type { Account, Entry } from './types';
 
@@ -92,7 +93,7 @@ function sumByAccount(
     if (entry.date < range.from || entry.date > range.to) continue;
     for (const line of entry.lines) {
       const account = byId.get(line.accountId);
-      if (!account || account.currency !== CURRENCY) continue;
+      if (!account || account.currency !== CURRENCY || isInvestResultAccount(account)) continue;
       if (account.type === 'income') income.set(account.id, safeSub(income.get(account.id) ?? 0, line.amount));
       else if (account.type === 'expense') {
         const key = groupBills && entry.source === 'recurring' ? BILLS_ID : account.id;
@@ -245,7 +246,7 @@ export function cashFlowMonths(accounts: readonly Account[], entries: readonly E
   for (const entry of entries) {
     for (const line of entry.lines) {
       const account = byId.get(line.accountId);
-      if (account && account.currency === CURRENCY && (account.type === 'income' || account.type === 'expense')) {
+      if (account && account.currency === CURRENCY && !isInvestResultAccount(account) && (account.type === 'income' || account.type === 'expense')) {
         candidates.add(monthOf(entry.date));
         break;
       }

@@ -118,7 +118,9 @@ describe('ไฟล์ตั้งค่าโปรเจกต์', () => {
     const deny = (JSON.parse(claude) as { permissions: { deny: string[] } }).permissions.deny;
     for (const tool of ['Bash', 'PowerShell']) {
       for (const pattern of [
-        'npm run admin:*',
+        'npm run admin:create-user*',
+        'npm run admin:reset-password*',
+        'npm run admin:spike*',
         'node *scripts/create-user*',
         'node *scripts/reset-password*',
         'node *scripts/spike-auth*',
@@ -130,6 +132,24 @@ describe('ไฟล์ตั้งค่าโปรเจกต์', () => {
     for (const tool of ['Bash', 'PowerShell']) {
       expect(deny, tool + ' vitest.live').toContain(tool + '(*vitest.live*)');
     }
+    // โหมดอัตโนมัติระดับ 2 (เจ้าของอนุมัติ 11 พ.ย. 2569): อนุญาตเฉพาะ admin:live-contract คำสั่งเดียว · admin script อื่นยัง deny
+    const perms = (JSON.parse(claude) as { permissions: { deny: string[]; allow?: string[] } }).permissions;
+    const allow = perms.allow ?? [];
+    for (const tool of ['Bash', 'PowerShell']) {
+      expect(deny, tool + ' deny admin:* กว้างต้องไม่มี (ไม่งั้นบล็อก live-contract)').not.toContain(tool + '(npm run admin:*)');
+      expect(deny.some((d) => d.startsWith(tool + '(') && d.includes('admin:live-contract')), tool).toBe(false);
+      expect(allow, tool).toContain(tool + '(npm run admin:live-contract)');
+    }
+    for (const rule of allow) {
+      expect(rule, rule).not.toMatch(/admin:(create-user|reset-password|spike)/);
+      expect(rule, rule).not.toMatch(/^(Bash|PowerShell)\(npm run admin:\*/);
+    }
+    // merge เองได้เฉพาะ squash + ลบ branch · รูปแบบอื่นของ gh pr merge และ rebase ยัง deny
+    expect(allow).toContain('Bash(gh pr merge --squash --delete-branch*)');
+    for (const flag of ['--admin', '--rebase', '--merge', '--auto']) {
+      expect(deny, flag).toContain('Bash(gh pr merge * ' + flag + '*)');
+    }
+    expect(deny).toContain('Bash(git rebase*)');
     // กฎ git push เดิมยังอยู่ครบ
     expect(deny).toContain('Bash(git push)');
     expect(deny).toContain('Bash(git push --force*)');

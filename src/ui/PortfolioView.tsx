@@ -3,6 +3,7 @@ import { thaiDayLabel } from '../app/dates';
 import { daysBetween } from '../domain/bills/calendar';
 import { newId } from '../app/ids';
 import { buildPortfolio, type AssetRowView } from '../app/portfolio';
+import { tradeNeedsWallet } from '../domain/invest/ledgerLink';
 import { buildTradeRecord, emptyTradeForm, type TradeField, type TradeForm, type TradeFormError } from '../app/tradeForm';
 import { emptyInvestments, type AssetKind, type InvestmentData, type TradeKind, type TradeRecord } from '../domain/invest/types';
 import { formatUnits, parsePriceMicro } from '../domain/invest/units';
@@ -15,6 +16,8 @@ import { useRepository } from './RepositoryContext';
 
 interface Props {
   today: string;
+  /** กระเป๋าเงินสดบาทที่เลือกจ่าย/รับเงินได้ */
+  wallets: readonly { id: string; name: string }[];
   /** แจ้งเมื่อสร้างสินทรัพย์ (เพิ่มบัญชีลงทุนในสมุด) ให้แอปโหลดสมุดใหม่ */
   onLedgerChanged: () => void;
 }
@@ -90,8 +93,8 @@ function FieldInput(props: {
   );
 }
 
-/** หน้า "พอร์ตการลงทุน" (P3): สินทรัพย์ รายการซื้อขายปันผล ราคาที่กรอกเอง · ยังไม่ผูกสมุดบัญชีคู่ (P4) */
-export function PortfolioView({ today, onLedgerChanged }: Props) {
+/** หน้า "พอร์ตการลงทุน": สินทรัพย์ รายการซื้อขายปันผล (ผูกสมุดบัญชีคู่ P4) ราคาที่กรอกเอง */
+export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
   const repo = useRepository();
   const [data, setData] = useState<InvestmentData | null>(null);
   const [loadError, setLoadError] = useState('');
@@ -101,6 +104,8 @@ export function PortfolioView({ today, onLedgerChanged }: Props) {
   const [assetName, setAssetName] = useState('');
   const [assetKind, setAssetKind] = useState<AssetKind>('fund');
   const [tradeForm, setTradeForm] = useState<TradeForm>(emptyTradeForm('', 'buy', today));
+  const [walletId, setWalletId] = useState('');
+  const [walletError, setWalletError] = useState('');
   const [tradeErrors, setTradeErrors] = useState<TradeFormError[]>([]);
   const [priceForm, setPriceForm] = useState({ date: today, price: '' });
   const [priceError, setPriceError] = useState('');
@@ -184,6 +189,8 @@ export function PortfolioView({ today, onLedgerChanged }: Props) {
     openerRef.current = opener ?? null;
     setTradeForm(emptyTradeForm(assetId, kind, today));
     setTradeErrors([]);
+    setWalletError('');
+    setWalletId((cur) => (wallets.some((w) => w.id === cur) ? cur : (wallets[0]?.id ?? '')));
     setPanel({ type: 'trade', assetId });
     setMessage(null);
   };
@@ -199,9 +206,17 @@ export function PortfolioView({ today, onLedgerChanged }: Props) {
       return;
     }
     setTradeErrors([]);
+    const needWallet = tradeNeedsWallet(built.trade.kind);
+    if (needWallet && !wallets.some((w) => w.id === walletId)) {
+      setWalletError('เลือกกระเป๋าเงินที่ใช้จ่ายหรือรับเงิน');
+      document.getElementById('pf-wallet')?.focus();
+      return;
+    }
+    setWalletError('');
     const ok = await act(async () => {
-      await repo.addTrade(built.trade);
-    }, `บันทึก${KIND_LABEL[built.trade.kind]}แล้ว ยอดกระเป๋าเงินยังไม่เปลี่ยน (การหักเงินอัตโนมัติจะมาในรุ่นถัดไป)`);
+      await repo.recordTrade({ trade: built.trade, walletId: needWallet ? walletId : undefined });
+      onLedgerChanged();
+    }, built.trade.kind === 'reinvest' ? 'บันทึกปันผลลงทุนต่อแล้ว (ไม่มีเงินสดเข้า-ออก)' : `บันทึก${KIND_LABEL[built.trade.kind]}แล้ว และปรับยอดกระเป๋าเงินในสมุดบัญชีให้แล้ว`);
     if (ok) setPanel(null);
   };
 
@@ -233,7 +248,10 @@ export function PortfolioView({ today, onLedgerChanged }: Props) {
       return;
     }
     setConfirmDelete('');
-    await act(() => repo.deleteTrade(t.id), 'ลบรายการแล้ว');
+    await act(async () => {
+      await repo.deleteTrade(t.id);
+      onLedgerChanged();
+    }, t.entryId !== undefined ? 'ลบรายการแล้ว และคืนยอดกระเป๋าเงินในสมุดบัญชีให้แล้ว' : 'ลบรายการแล้ว');
   };
 
   const t = portfolio.totals;
@@ -256,7 +274,8 @@ export function PortfolioView({ today, onLedgerChanged }: Props) {
       </div>
 
       <div className="notice" role="note">
-        <p>บันทึกที่นี่ไม่เปลี่ยนยอดกระเป๋าเงินและรายรับรายจ่าย (จะผูกกับสมุดบัญชีในรุ่นถัดไป)</p>
+        <p>ซื้อ ขาย และปันผลที่บันทึกที่นี่ปรับยอดกระเป๋าเงินที่เลือกในสมุดบัญชีให้อัตโนมัติ กำไร ขาดทุน และปันผลแสดงแยกที่หน้านี้ ไม่นับเป็นรายรับรายจ่ายปกติ (เช่น เงินเดือน)</p>
+        <p>รายการที่บันทึกไว้ก่อนหน้านี้ (ยังไม่ผูกสมุด) ไม่ได้ปรับยอดกระเป๋าเงินย้อนหลัง</p>
         <p>ราคาเป็นตัวเลขที่คุณกรอกเอง ไม่ใช่ราคาตลาดสด</p>
       </div>
 
@@ -410,6 +429,30 @@ export function PortfolioView({ today, onLedgerChanged }: Props) {
                 </>
               )}
             </div>
+            {tradeNeedsWallet(k) && (
+              <div className="field">
+                <label htmlFor="pf-wallet">{k === 'buy' ? 'จ่ายจากกระเป๋า' : 'รับเงินเข้ากระเป๋า'}</label>
+                <select
+                  id="pf-wallet"
+                  value={walletId}
+                  aria-invalid={walletError !== '' ? true : undefined}
+                  aria-describedby={walletError !== '' ? 'pf-wallet-err' : undefined}
+                  onChange={(e) => setWalletId(e.target.value)}
+                >
+                  {wallets.length === 0 && <option value="">ยังไม่มีกระเป๋าเงินสด</option>}
+                  {wallets.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name}
+                    </option>
+                  ))}
+                </select>
+                {walletError !== '' && (
+                  <p id="pf-wallet-err" className="avg-err">
+                    {walletError}
+                  </p>
+                )}
+              </div>
+            )}
             <div className="field">
               <label htmlFor="pf-memo">หมายเหตุ (ไม่บังคับ)</label>
               <input

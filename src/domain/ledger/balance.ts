@@ -1,4 +1,5 @@
 import { safeAdd, safeSub } from '../money/safe';
+import { isInvestResultAccount } from './accountKind';
 import { indexAccounts } from './entry';
 import type { Account, AccountType, Currency, Entry, EntryKind } from './types';
 
@@ -69,7 +70,7 @@ export function periodTotals(
     if (entry.date < range.from || entry.date > range.to) continue;
     for (const line of entry.lines) {
       const account = byId.get(line.accountId);
-      if (!account || account.currency !== currency) continue;
+      if (!account || account.currency !== currency || isInvestResultAccount(account)) continue; // บัญชีผลลงทุนแสดงแยกที่หน้าพอร์ต (R17)
       // บวก/ลบแบบตรวจช่วงปลอดภัย: เกิน ±MAX_SAFE_INTEGER = RangeError (R1) ไม่ปล่อยให้เพี้ยนเงียบ
       if (account.type === 'income') income = safeSub(income, line.amount);
       else if (account.type === 'expense') expense = safeAdd(expense, line.amount);
@@ -84,7 +85,9 @@ export function classifyEntry(accounts: readonly Account[], entry: Entry): Entry
   let hasIncome = false;
   let hasExpense = false;
   for (const line of entry.lines) {
-    const type = byId.get(line.accountId)?.type;
+    const account = byId.get(line.accountId);
+    if (account && isInvestResultAccount(account)) continue;
+    const type = account?.type;
     if (type === 'expense') hasExpense = true;
     if (type === 'income') hasIncome = true;
   }

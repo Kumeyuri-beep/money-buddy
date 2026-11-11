@@ -1,6 +1,6 @@
 import { roundHalfUp } from '../money/round';
 import { safeAdd, safeSub } from '../money/safe';
-import { isCashWallet } from './accountKind';
+import { isCashWallet, isInvestResultAccount } from './accountKind';
 import { indexAccounts } from './entry';
 import { naturalBalance, periodTotals } from './balance';
 import type { Account, Entry } from './types';
@@ -220,7 +220,7 @@ export function incomeChannels(
     let touchesIncome = false;
     for (const line of entry.lines) {
       const account = byId.get(line.accountId);
-      if (account?.type === 'income' && account.currency === CURRENCY) {
+      if (account?.type === 'income' && account.currency === CURRENCY && !isInvestResultAccount(account)) {
         touchesIncome = true;
         incomeNet.set(account.id, safeSub(incomeNet.get(account.id) ?? 0, line.amount));
       }

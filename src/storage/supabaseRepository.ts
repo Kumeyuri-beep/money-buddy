@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { chunkEntries } from '../domain/backup/chunk';
-import { checkTradeAdd, checkTradeDelete } from '../domain/invest/rules';
+import { buildTradeEntry, TradeLinkError } from '../domain/invest/ledgerLink';
+import { checkTradeAdd, checkTradeDelete, replayRecords } from '../domain/invest/rules';
 import { lengthWithin, MAX_NAME_LENGTH } from '../domain/ledger/limits';
 import { ASSET_KINDS, TRADE_KINDS, emptyInvestments, isEmptyInvestments, type Asset, type AssetPrice, type InvestmentData, type TradeRecord } from '../domain/invest/types';
 import { SINGLE_IMPORT_MAX_ENTRIES, SINGLE_IMPORT_MAX_LINES, type BackupData } from '../domain/backup/parseBackup';
@@ -713,7 +714,11 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       return { id, name, kind: input.kind, accountId };
     },
 
-    async addTrade(trade) {
+    async recordTrade({ trade, walletId }) {
+      const found = await client.from('assets').select('*').eq('id', trade.assetId).maybeSingle();
+      check(found.error);
+      if (!found.data) throw new StorageError('ไม่พบสินทรัพย์นี้');
+      const asset = rowToAsset(found.data as AssetRow);
       const siblings = await fetchAll<TradeRow>(
         'trades',
         (from, to) => client.from('trades').select('*').eq('asset_id', trade.assetId).order('id').range(from, to),
@@ -721,25 +726,31 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
         'id',
         { column: 'asset_id', value: trade.assetId },
       );
-      const problem = checkTradeAdd(siblings.map(rowToTrade), trade);
+      const existing = siblings.map(rowToTrade);
+      const problem = checkTradeAdd(existing, trade);
       if (problem) throw new StorageError(problem);
-      const row = {
-        id: trade.id,
-        asset_id: trade.assetId,
-        kind: trade.kind,
-        date: trade.date,
-        created_at: trade.createdAt,
-        units: trade.units ?? null,
-        price_micro: trade.priceMicro ?? null,
-        amount: trade.amount ?? null,
-        fee: trade.fee,
-        withholding: trade.withholding,
-        memo: trade.memo,
-        entry_id: trade.entryId ?? null,
-      };
-      const { error } = await client.from('trades').insert(row);
-      check(error);
-      return trade;
+      let entryId = '';
+      let built;
+      try {
+        const sell = trade.kind === 'sell' ? replayRecords([...existing, trade]).sells.find((s) => s.id === trade.id)?.result : undefined;
+        entryId = `${trade.id}-entry`;
+        built = buildTradeEntry({ trade, assetName: asset.name, assetAccountId: asset.accountId, walletId, entryId, sell });
+      } catch (e) {
+        if (e instanceof TradeLinkError) throw new StorageError(e.message);
+        throw e;
+      }
+      const linked: TradeRecord = { ...trade, entryId };
+      // ครั้งเดียว: ฐานข้อมูลสร้างรายการในสมุด + รายการลงทุนในธุรกรรมเดียว · trigger ตรวจลำดับ/ขายเกินซ้ำ (กันสองแท็บ)
+      await rpc('record_trade', {
+        p_trade: {
+          id: linked.id, assetId: linked.assetId, kind: linked.kind, date: linked.date, createdAt: linked.createdAt,
+          units: linked.units, priceMicro: linked.priceMicro, amount: linked.amount, fee: linked.fee,
+          withholding: linked.withholding, memo: linked.memo,
+        },
+        p_entry: entryToJson(built.entry),
+        p_accounts: built.resultAccountIds.map((id) => ({ id })),
+      });
+      return linked;
     },
 
     async deleteTrade(id) {
@@ -756,6 +767,11 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       );
       const problem = checkTradeDelete(siblings.map(rowToTrade), id);
       if (problem) throw new StorageError(problem);
+      if (target.entryId !== undefined) {
+        // ผูกสมุด: ลบรายการในสมุด (ฐานข้อมูลลบรายการลงทุนตาม และตรวจลำดับซ้ำ) ห้ามลบรายการลงทุนตรงๆ ไม่งั้นยอดในสมุดค้าง
+        await deleteEntryRow(target.entryId);
+        return;
+      }
       const del = await client.from('trades').delete().eq('id', id).select('id');
       check(del.error);
       if ((del.data ?? []).length !== 1) throw new StorageError('ลบรายการไม่สำเร็จ (ไม่พบรายการ)');
