@@ -144,21 +144,56 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     expect(delPrice.error).toBeNull();
     expect(delPrice.data).toEqual([]);
 
-    // เขียนในชื่อ A (user_id ของ A): ต้องถูก RLS ปฏิเสธ (42501) ไม่ใช่ error อื่น
-    const forgedAsset = await client.from('assets').insert({ user_id: aId, id: 'forged', name: 'x', account_id: 'inv-forged' });
-    expect(forgedAsset.error?.code).toBe(RLS);
-    const forgedTrade = await client.from('trades').insert({ user_id: aId, id: 'forged-t', asset_id: ASSET.id, kind: 'buy', date: '2026-11-06', units: '1', amount: 1 });
+    // สินทรัพย์ของ B เอง: ใช้เป็น control ด้านล่าง และเป็นเป้าของกรณีข้ามผู้ใช้
+    const bOwn = await b.addAsset({ id: 'b-own', name: 'ของ B', kind: 'fund' });
+
+    // ---- เขียนในชื่อ A (user_id ของ A) ผ่าน REST ----
+    // trades / asset_prices: payload ถูกต้องทุกช่อง (ผ่าน check constraint ของตาราง) ต่างจาก control แค่ user_id (และสินทรัพย์ของผู้ใช้นั้นเอง)
+    // RLS (WITH CHECK) ทำงานก่อน check constraint/FK ดังนั้นต้องได้ 42501 · control: payload เดียวกันของ B เอง ต้องผ่าน (แล้วลบทิ้ง)
+    // พิสูจน์ว่า 42501 มาจาก RLS ไม่ใช่เพราะข้อมูลผิดรูปแบบ
+    const tradeBody = { kind: 'buy', date: '2026-11-06', units: '1', amount: 1, fee: 0, withholding: 0, memo: '' };
+    const forgedTrade = await client.from('trades').insert({ user_id: aId, id: 'forge-t', asset_id: ASSET.id, ...tradeBody });
     expect(forgedTrade.error?.code).toBe(RLS);
-    const forgedPrice = await client.from('asset_prices').insert({ user_id: aId, asset_id: ASSET.id, date: '2026-11-12', price_micro: 5 });
+    const ctrlTrade = await client.from('trades').insert({ user_id: B.id, id: 'forge-t', asset_id: bOwn.id, ...tradeBody });
+    expect(ctrlTrade.error).toBeNull();
+    const ctrlTradeDel = await client.from('trades').delete().eq('id', 'forge-t').select('id');
+    expect(ctrlTradeDel.error).toBeNull();
+    expect(ctrlTradeDel.data).toHaveLength(1);
+
+    const priceBody = { date: '2026-11-12', price_micro: 5 };
+    const forgedPrice = await client.from('asset_prices').insert({ user_id: aId, asset_id: ASSET.id, ...priceBody });
     expect(forgedPrice.error?.code).toBe(RLS);
+    const ctrlPrice = await client.from('asset_prices').insert({ user_id: B.id, asset_id: bOwn.id, ...priceBody });
+    expect(ctrlPrice.error).toBeNull();
+    const ctrlPriceDel = await client.from('asset_prices').delete().eq('asset_id', bOwn.id).eq('date', '2026-11-12').select('asset_id');
+    expect(ctrlPriceDel.error).toBeNull();
+    expect(ctrlPriceDel.data).toHaveLength(1);
     const forgedUpsert = await client.from('asset_prices').upsert({ user_id: aId, asset_id: ASSET.id, date: '2026-11-10', price_micro: 5 }, { onConflict: 'user_id,asset_id,date' });
     expect(forgedUpsert.error).not.toBeNull();
+
+    // assets: ตาราง assets มี BEFORE trigger assets_guard (security invoker) ที่ตรวจว่าบัญชีเป็นบัญชีลงทุนของ user_id นั้น
+    // ซึ่ง B มองบัญชีของ A ไม่เห็น (RLS ของ accounts) → ถูกปฏิเสธด้วย 23514 "ก่อน" ถึงเงื่อนไข WITH CHECK ของ assets · ผลคือปลอมไม่ได้เหมือนกัน
+    // (ไม่ใช่ข้อบกพร่อง: BEFORE trigger ทำงานก่อน RLS) ส่วนเงื่อนไข WITH CHECK ของ assets พิสูจน์ด้วยการ update user_id ด้านล่าง (42501)
+    const forgedAsset = await client.from('assets').insert({ user_id: aId, id: 'forge-a', name: 'x', kind: 'fund', account_id: 'inv-asset-live' });
+    expect(forgedAsset.error?.code).toBe('23514');
+    const forgedAssetRow = await admin.from('assets').select('id').eq('id', 'forge-a');
+    expect(forgedAssetRow.data).toEqual([]); // ไม่มีแถวปลอมหลงเหลือ
+    // control: payload เดียวกันแต่เป็นของ B เอง (บัญชีลงทุนของ B เอง) ต้องผ่าน แล้วลบทิ้ง
+    const ctrlAcc = await client.from('accounts').insert({ id: 'inv-ctrl', type: 'asset', name: 'ctrl', currency: 'THB', kind: 'investment' });
+    expect(ctrlAcc.error).toBeNull();
+    const ctrlAsset = await client.from('assets').insert({ user_id: B.id, id: 'forge-a', name: 'x', kind: 'fund', account_id: 'inv-ctrl' });
+    expect(ctrlAsset.error).toBeNull();
+    const ctrlAssetDel = await client.from('assets').delete().eq('id', 'forge-a').select('id');
+    expect(ctrlAssetDel.error).toBeNull();
+    expect(ctrlAssetDel.data).toHaveLength(1);
+    const ctrlAccDel = await client.from('accounts').delete().eq('id', 'inv-ctrl').select('id');
+    expect(ctrlAccDel.error).toBeNull();
+    expect(ctrlAccDel.data).toHaveLength(1);
 
     // ผูกสินทรัพย์/รายการสมุดของ A จากแถวของตัวเอง: FK รวม user_id ปฏิเสธ (23503)
     const crossAsset = await client.from('trades').insert({ id: 'cross-t', asset_id: ASSET.id, kind: 'buy', date: '2026-11-06', units: '1', amount: 1 });
     expect(crossAsset.error?.code).toBe(FK);
     const aEntryId = (await a.loadLedger()).entries[0]!.id;
-    const bOwn = await b.addAsset({ id: 'b-own', name: 'ของ B', kind: 'fund' }); // สินทรัพย์ของ B เอง
     const crossEntry = await client.from('trades').insert({ id: 'cross-e', asset_id: bOwn.id, kind: 'buy', date: '2026-11-06', units: '1', amount: 1, entry_id: aEntryId });
     expect(crossEntry.error?.code).toBe(FK);
     const bAssetOnAAccount = await client.from('assets').insert({ id: 'b-steal-acc', name: 'x', account_id: 'inv-asset-live' });
