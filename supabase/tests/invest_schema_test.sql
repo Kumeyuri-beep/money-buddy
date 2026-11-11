@@ -87,8 +87,10 @@ begin
 
   -- T5 รูปแบบรายการลงทุน (check ที่ฐานข้อมูล ไม่พึ่งเว็บ)
   -- 5.1 ซื้อปกติ ผูก Entry (e-buy1) · ขายต้องมีราคา · ปันผล/ปันผลลงทุนต่อ
+  perform set_config('app.record_trade', 't-buy1', true); -- (P4) รายการที่ผูก entry_id ต้องมาจาก record_trade
   insert into public.trades (id, asset_id, kind, date, units, price_micro, amount, fee, entry_id)
     values ('t-buy1', 'a1', 'buy', '2026-11-05', '500000000', 10000000, 50000, 5, 'e-buy1');
+  perform set_config('app.record_trade', '', true);
   insert into public.trades (id, asset_id, kind, date, units, price_micro, fee)
     values ('t-sell1', 'a1', 'sell', '2026-11-20', '100000000', 12000000, 3);
   insert into public.trades (id, asset_id, kind, date, amount, withholding)
@@ -186,18 +188,24 @@ begin
   -- T10 ลบ Entry ที่ผูก = ลบรายการลงทุนที่ผูกตาม (cascade) · รายการอื่นคงอยู่
   perform pg_temp.login(ua);
   select count(*) into n from public.trades where entry_id = 'e-buy1'; if n <> 1 then raise exception 'FAIL: T10 ไม่พบรายการที่ผูก'; end if;
+  -- (P4) ซื้อที่ลงวันที่ก่อนรายการขายล่าสุดลบไม่ได้จนกว่าจะลบรายการขายก่อน (entries_trade_guard)
+  r := pg_temp.fails($$ delete from public.entries where id = 'e-buy1' $$);
+  if r is null or r not like '%ขายล่าสุด%' then raise exception 'FAIL: T10 ลบ Entry ซื้อก่อนรายการขายได้ (%)', r; end if;
+  delete from public.trades where id = 't-sell1';
   delete from public.entries where id = 'e-buy1';
   perform pg_temp.settle();
   select count(*) into n from public.trades where id = 't-buy1'; if n <> 0 then raise exception 'FAIL: T10 ลบ Entry แล้วรายการลงทุนยังอยู่'; end if;
-  select count(*) into n from public.trades where id = 't-sell1'; if n <> 1 then raise exception 'FAIL: T10 รายการอื่นหายตาม'; end if;
+  select count(*) into n from public.trades where id = 't-div1'; if n <> 1 then raise exception 'FAIL: T10 รายการอื่นหายตาม'; end if;
   perform pg_temp.logout();
 
   -- T11 ล้างข้อมูล (reset_my_ledger_step) ผู้ใช้ที่มีข้อมูลลงทุน: ฟังก์ชันเดิมต้องผ่านจนถึง done และตารางลงทุนว่าง
   --     (ไม่ต้องแก้ฟังก์ชันเดิม: ลบ entries → bills → accounts แล้ว cascade ถึง assets/trades/asset_prices)
   perform pg_temp.login(ua);
   perform public.create_entry(buy1);                                     -- เพิ่มรายการผูกอีกชุดก่อนล้าง
+  perform set_config('app.record_trade', 't-buy2', true);
   insert into public.trades (id, asset_id, kind, date, units, price_micro, amount, entry_id)
     values ('t-buy2', 'a1', 'buy', '2026-11-05', '500000000', 10000000, 50000, 'e-buy1');
+  perform set_config('app.record_trade', '', true);
   perform pg_temp.settle();
   n := 0;
   loop

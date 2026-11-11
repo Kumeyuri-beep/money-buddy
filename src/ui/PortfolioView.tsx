@@ -3,6 +3,7 @@ import { thaiDayLabel } from '../app/dates';
 import { daysBetween } from '../domain/bills/calendar';
 import { newId } from '../app/ids';
 import { buildPortfolio, type AssetRowView } from '../app/portfolio';
+import { tradeNeedsWallet } from '../domain/invest/ledgerLink';
 import { buildTradeRecord, emptyTradeForm, type TradeField, type TradeForm, type TradeFormError } from '../app/tradeForm';
 import { emptyInvestments, type AssetKind, type InvestmentData, type TradeKind, type TradeRecord } from '../domain/invest/types';
 import { formatUnits, parsePriceMicro } from '../domain/invest/units';
@@ -15,6 +16,8 @@ import { useRepository } from './RepositoryContext';
 
 interface Props {
   today: string;
+  /** กระเป๋าเงินสดบาทที่เลือกจ่าย/รับเงินได้ */
+  wallets: readonly { id: string; name: string }[];
   /** แจ้งเมื่อสร้างสินทรัพย์ (เพิ่มบัญชีลงทุนในสมุด) ให้แอปโหลดสมุดใหม่ */
   onLedgerChanged: () => void;
 }
@@ -90,8 +93,8 @@ function FieldInput(props: {
   );
 }
 
-/** หน้า "พอร์ตการลงทุน" (P3): สินทรัพย์ รายการซื้อขายปันผล ราคาที่กรอกเอง · ยังไม่ผูกสมุดบัญชีคู่ (P4) */
-export function PortfolioView({ today, onLedgerChanged }: Props) {
+/** หน้า "พอร์ตการลงทุน": สินทรัพย์ รายการซื้อขายปันผล (ผูกสมุดบัญชีคู่ P4) ราคาที่กรอกเอง */
+export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
   const repo = useRepository();
   const [data, setData] = useState<InvestmentData | null>(null);
   const [loadError, setLoadError] = useState('');
@@ -101,6 +104,8 @@ export function PortfolioView({ today, onLedgerChanged }: Props) {
   const [assetName, setAssetName] = useState('');
   const [assetKind, setAssetKind] = useState<AssetKind>('fund');
   const [tradeForm, setTradeForm] = useState<TradeForm>(emptyTradeForm('', 'buy', today));
+  const [walletId, setWalletId] = useState('');
+  const [walletError, setWalletError] = useState('');
   const [tradeErrors, setTradeErrors] = useState<TradeFormError[]>([]);
   const [priceForm, setPriceForm] = useState({ date: today, price: '' });
   const [priceError, setPriceError] = useState('');
@@ -184,6 +189,9 @@ export function PortfolioView({ today, onLedgerChanged }: Props) {
     openerRef.current = opener ?? null;
     setTradeForm(emptyTradeForm(assetId, kind, today));
     setTradeErrors([]);
+    setWalletError('');
+    // ไม่เลือกกระเป๋าให้เองเมื่อมีหลายใบ (เรื่องเงิน: ให้ผู้ใช้เลือกเอง) · มีใบเดียวเลือกให้
+    setWalletId((cur) => (wallets.some((w) => w.id === cur) ? cur : wallets.length === 1 ? wallets[0]!.id : ''));
     setPanel({ type: 'trade', assetId });
     setMessage(null);
   };
@@ -199,9 +207,17 @@ export function PortfolioView({ today, onLedgerChanged }: Props) {
       return;
     }
     setTradeErrors([]);
+    const needWallet = tradeNeedsWallet(built.trade.kind);
+    if (needWallet && !wallets.some((w) => w.id === walletId)) {
+      setWalletError(wallets.length === 0 ? 'ยังไม่มีกระเป๋าเงินสด เพิ่มกระเป๋าก่อนจึงจะบันทึกได้' : 'เลือกกระเป๋าเงินที่ใช้จ่ายหรือรับเงิน');
+      document.getElementById('pf-wallet')?.focus();
+      return;
+    }
+    setWalletError('');
     const ok = await act(async () => {
-      await repo.addTrade(built.trade);
-    }, `บันทึก${KIND_LABEL[built.trade.kind]}แล้ว ยอดกระเป๋าเงินยังไม่เปลี่ยน (การหักเงินอัตโนมัติจะมาในรุ่นถัดไป)`);
+      await repo.recordTrade({ trade: built.trade, walletId: needWallet ? walletId : undefined });
+      onLedgerChanged();
+    }, built.trade.kind === 'reinvest' ? 'บันทึกปันผลลงทุนต่อแล้ว (ไม่มีเงินสดเข้า-ออก)' : `บันทึก${KIND_LABEL[built.trade.kind]}แล้ว ปรับยอดกระเป๋า "${wallets.find((w) => w.id === walletId)?.name ?? ''}" ให้แล้ว`);
     if (ok) setPanel(null);
   };
 
@@ -233,7 +249,10 @@ export function PortfolioView({ today, onLedgerChanged }: Props) {
       return;
     }
     setConfirmDelete('');
-    await act(() => repo.deleteTrade(t.id), 'ลบรายการแล้ว');
+    await act(async () => {
+      await repo.deleteTrade(t.id);
+      onLedgerChanged();
+    }, t.entryId !== undefined ? 'ลบรายการแล้ว และคืนยอดกระเป๋าเงินในสมุดบัญชีให้แล้ว' : 'ลบรายการแล้ว');
   };
 
   const t = portfolio.totals;
@@ -245,7 +264,8 @@ export function PortfolioView({ today, onLedgerChanged }: Props) {
   const noValue = pricedCount === 0 && t.unpriced > 0;
   const partial = pricedCount > 0 && t.unpriced > 0;
   const closeOnEscape = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') setPanel(null);
+    // Esc ที่ปิดรายการตัวเลือก (select) ไม่ควรปิดทั้งฟอร์มจนข้อมูลที่กรอกหาย
+    if (e.key === 'Escape' && !e.defaultPrevented && (e.target as HTMLElement).tagName !== 'SELECT') setPanel(null);
   };
 
   return (
@@ -256,7 +276,8 @@ export function PortfolioView({ today, onLedgerChanged }: Props) {
       </div>
 
       <div className="notice" role="note">
-        <p>บันทึกที่นี่ไม่เปลี่ยนยอดกระเป๋าเงินและรายรับรายจ่าย (จะผูกกับสมุดบัญชีในรุ่นถัดไป)</p>
+        <p>ซื้อ ขาย และปันผลจะเพิ่มหรือลดเงินในกระเป๋าที่คุณเลือกให้เอง กำไร ขาดทุน และปันผลดูที่หน้านี้ ไม่รวมกับรายรับรายจ่ายประจำวัน</p>
+        <p>รายการเก่าที่บันทึกก่อนหน้านี้ไม่ได้ปรับยอดกระเป๋าย้อนหลัง</p>
         <p>ราคาเป็นตัวเลขที่คุณกรอกเอง ไม่ใช่ราคาตลาดสด</p>
       </div>
 
@@ -410,6 +431,33 @@ export function PortfolioView({ today, onLedgerChanged }: Props) {
                 </>
               )}
             </div>
+            {tradeNeedsWallet(k) && (
+              <div className="field">
+                <label htmlFor="pf-wallet">{k === 'buy' ? 'จ่ายจากกระเป๋า' : 'รับเงินเข้ากระเป๋า'}</label>
+                <select
+                  id="pf-wallet"
+                  value={walletId}
+                  aria-invalid={walletError !== '' ? true : undefined}
+                  aria-describedby={walletError !== '' ? 'pf-wallet-err' : undefined}
+                  onChange={(e) => {
+                    setWalletId(e.target.value);
+                    setWalletError('');
+                  }}
+                >
+                  <option value="">{wallets.length === 0 ? 'ยังไม่มีกระเป๋าเงินสด' : 'เลือกกระเป๋า'}</option>
+                  {wallets.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name}
+                    </option>
+                  ))}
+                </select>
+                {walletError !== '' && (
+                  <p id="pf-wallet-err" className="avg-err">
+                    {walletError}
+                  </p>
+                )}
+              </div>
+            )}
             <div className="field">
               <label htmlFor="pf-memo">หมายเหตุ (ไม่บังคับ)</label>
               <input

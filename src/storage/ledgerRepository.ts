@@ -52,8 +52,13 @@ export interface LedgerRepository {
   loadInvestments(): Promise<InvestmentData>;
   /** สร้างสินทรัพย์ + บัญชีลงทุน (kind = investment) ของมัน · ล้มกลางทางจะลบบัญชีที่สร้างทิ้ง */
   addAsset(input: { id: string; name: string; kind: AssetKind }): Promise<Asset>;
-  /** ตรวจกติกาลำดับ/ขายเกิน (domain/invest/rules) ก่อนเขียน · ยังไม่ผูกสมุดบัญชีคู่ (P4) */
-  addTrade(trade: TradeRecord): Promise<TradeRecord>;
+  /**
+   * บันทึกรายการลงทุน + รายการในสมุดบัญชีคู่ในธุรกรรมเดียว (P4 · RPC record_trade)
+   * ตรวจกติกาลำดับ/ขายเกิน (domain/invest/rules) ก่อนส่ง และฐานข้อมูลตรวจซ้ำ (trigger กันสองแท็บ)
+   * walletId = กระเป๋าเงินสดที่จ่าย/รับเงิน (ปันผลลงทุนต่อไม่ใช้)
+   */
+  recordTrade(input: { trade: TradeRecord; walletId?: string }): Promise<TradeRecord>;
+  /** รายการที่ผูกสมุด = ลบรายการในสมุด (รายการลงทุนถูกลบตาม) · รายการเก่าที่ยังไม่ผูก = ลบตรงๆ ตามกติกาเดียวกัน */
   deleteTrade(id: string): Promise<void>;
   /** ราคาล่าสุดที่ผู้ใช้กรอกเอง (หนึ่งราคาต่อสินทรัพย์ต่อวัน · กรอกซ้ำวันเดิม = แก้ราคา) */
   savePrice(price: AssetPrice): Promise<void>;
@@ -87,7 +92,7 @@ export function createDexieRepository(db: MoneyDB): LedgerRepository {
     saveSettings: (settings) => dexie.saveSettings(db, settings),
     loadInvestments: () => Promise.resolve(emptyInvestments()),
     addAsset: () => Promise.reject(localInvestError()),
-    addTrade: () => Promise.reject(localInvestError()),
+    recordTrade: () => Promise.reject(localInvestError()),
     deleteTrade: () => Promise.reject(localInvestError()),
     savePrice: () => Promise.reject(localInvestError()),
   };

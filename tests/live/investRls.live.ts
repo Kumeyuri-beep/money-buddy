@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { buildInitialLedger } from '../../src/app/setup';
 import { parseBackup } from '../../src/domain/backup/parseBackup';
+import { isCashWallet } from '../../src/domain/ledger/accountKind';
 import { cashBalance } from '../../src/domain/ledger/overview';
 import type { TradeRecord } from '../../src/domain/invest/types';
 import { StorageError } from '../../src/storage/repository';
@@ -63,6 +64,12 @@ async function repoFor(index: number): Promise<LedgerRepository> {
   return createSupabaseRepository(client, id, { getPasswordForReset: async () => live.users[index]!.password });
 }
 
+/** บันทึกรายการลงทุนผ่าน record_trade ด้วยกระเป๋าเงินสดแรกของผู้ใช้ (ไม่มีกระเป๋า = ให้ repository แจ้งว่าไม่พบสินทรัพย์/กระเป๋า) */
+async function rec(r: LedgerRepository, t: TradeRecord): Promise<TradeRecord> {
+  const wallet = (await r.loadLedger()).accounts.find(isCashWallet)?.id ?? 'no-wallet';
+  return r.recordTrade({ trade: t, walletId: t.kind === 'reinvest' ? undefined : wallet });
+}
+
 const ASSET = { id: 'asset-live', name: 'กองทุนทดสอบ', kind: 'fund' as const };
 const ASSET2 = { id: 'asset-live2', name: 'หุ้นทดสอบ', kind: 'stock' as const };
 const trade = (over: Partial<TradeRecord>): TradeRecord => ({
@@ -80,15 +87,15 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     await wipe(1);
     await a.saveInitialLedger(buildInitialLedger([{ name: 'เงินสดของ A', opening: '1000' }], '2026-11-01'));
     await a.addAsset(ASSET);
-    await a.addTrade(trade({}));
-    await a.addTrade(trade({ id: 'trade-sell', kind: 'sell', date: '2026-11-20', createdAt: '2026-11-20T03:00:00.000Z', units: '100000000', priceMicro: 12_000_000, amount: undefined, fee: 3 }));
-    await a.addTrade(trade({ id: 'trade-div', kind: 'dividend', date: '2026-11-25', createdAt: '2026-11-25T03:00:00.000Z', units: undefined, priceMicro: undefined, amount: 1000, fee: 0, withholding: 100 }));
+    await rec(a, trade({}));
+    await rec(a, trade({ id: 'trade-sell', kind: 'sell', date: '2026-11-20', createdAt: '2026-11-20T03:00:00.000Z', units: '100000000', priceMicro: 12_000_000, amount: undefined, fee: 3 }));
+    await rec(a, trade({ id: 'trade-div', kind: 'dividend', date: '2026-11-25', createdAt: '2026-11-25T03:00:00.000Z', units: undefined, priceMicro: undefined, amount: 1000, fee: 0, withholding: 100 }));
     await a.savePrice({ assetId: ASSET.id, date: '2026-11-10', priceMicro: 11_000_000 });
     // สินทรัพย์ที่สอง (พิสูจน์ว่า addTrade/deleteTrade อ่านรายการของสินทรัพย์เดียวได้เมื่อมีหลายสินทรัพย์)
     await a.addAsset(ASSET2);
-    await a.addTrade(trade({ id: 'trade-buy2', assetId: ASSET2.id }));
+    await rec(a, trade({ id: 'trade-buy2', assetId: ASSET2.id }));
     await a.deleteTrade('trade-buy2');
-    await a.addTrade(trade({ id: 'trade-buy2', assetId: ASSET2.id }));
+    await rec(a, trade({ id: 'trade-buy2', assetId: ASSET2.id }));
   });
   afterAll(async () => {
     await wipe(0);
@@ -105,13 +112,13 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     expect(inv.prices).toEqual([{ assetId: ASSET.id, date: '2026-11-10', priceMicro: 11_000_000 }]);
     const ledger = await a.loadLedger();
     expect(ledger.accounts.find((x) => x.id === 'inv-asset-live')?.kind).toBe('investment');
-    expect(cashBalance(ledger.accounts, ledger.entries, '2026-11-30')).toBe(100_000); // 1,000 บาท (ไม่รวมบัญชีลงทุน)
+    expect(cashBalance(ledger.accounts, ledger.entries, '2026-11-30')).toBe(2_087); // เริ่ม 1,000 บาท (100,000 สตางค์) − ซื้อ 50,005 + ขาย 1,197 + ปันผลสุทธิ 900 − ซื้อ 50,005 (ผูกสมุด P4 · ไม่รวมบัญชีลงทุน)
   });
 
   it('ผ่าน repository: B ไม่เห็น · เพิ่มรายการ/ราคาให้สินทรัพย์ของ A ไม่ได้ · ลบรายการของ A ไม่ได้ · ข้อมูลของ A ไม่เปลี่ยน', async () => {
     const empty = await b.loadInvestments();
     expect(empty).toEqual({ assets: [], trades: [], prices: [] });
-    await expect(b.addTrade(trade({ id: 'b-steal' }))).rejects.toThrow(StorageError); // FK: ไม่มีสินทรัพย์นี้ของ B
+    await expect(rec(b, trade({ id: 'b-steal' }))).rejects.toThrow(StorageError); // FK: ไม่มีสินทรัพย์นี้ของ B
     await expect(b.savePrice({ assetId: ASSET.id, date: '2026-11-11', priceMicro: 1 })).rejects.toThrow(StorageError);
     await expect(b.deleteTrade('trade-sell')).rejects.toThrow(/ไม่พบ/);
     const after = await a.loadInvestments();
@@ -208,7 +215,7 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     expect(await adminCount('trades', { id: 'cross-t' })).toBe(0);
     const aEntryId = (await a.loadLedger()).entries[0]!.id;
     const crossEntry = await client.from('trades').insert({ id: 'cross-e', asset_id: bOwn.id, kind: 'buy', date: '2026-11-06', units: '1', amount: 1, entry_id: aEntryId });
-    expect(crossEntry.error?.code).toBe(FK);
+    expect(crossEntry.error?.code).toBe(RLS); // (P4) trigger กัน entry_id ที่ไม่ได้มาจาก record_trade ทำงานก่อน FK
     expect(await adminCount('trades', { id: 'cross-e' })).toBe(0);
     const bAssetOnAAccount = await client.from('assets').insert({ id: 'b-steal-acc', name: 'x', account_id: 'inv-asset-live' });
     // assets_guard (BEFORE trigger) ตรวจก่อน FK: B มองบัญชีของ A ไม่เห็น จึงปฏิเสธด้วย 23514 (ไม่ใช่ 23503)
@@ -216,7 +223,7 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     expect(await adminCount('assets', { id: 'b-steal-acc' })).toBe(0);
 
     // "ยัดข้อมูลของตัวเองเข้าบัญชีคนอื่น" ด้วย update: with check ต้องปฏิเสธ (42501) ทั้ง 3 ตาราง
-    await b.addTrade(trade({ id: 'b-trade', assetId: bOwn.id, units: '100000000', amount: 1000 }));
+    await rec(b, trade({ id: 'b-trade', assetId: bOwn.id, units: '100000000', amount: 1000 }));
     await b.savePrice({ assetId: bOwn.id, date: '2026-11-10', priceMicro: 1_000_000 });
     const moveTrade = await client.from('trades').update({ user_id: aId }).eq('id', 'b-trade');
     expect(moveTrade.error?.code).toBe(RLS); // update user_id ไม่ผ่าน assets_guard/trigger ใด: WITH CHECK ปฏิเสธ
@@ -229,7 +236,7 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     expect(await adminCount('asset_prices', { asset_id: bOwn.id, user_id: B.id })).toBe(1);
     // ย้ายรายการของตัวเองไปชี้สินทรัพย์ของ A: FK ปฏิเสธ
     const repoint = await client.from('trades').update({ asset_id: ASSET.id }).eq('id', 'b-trade');
-    expect(repoint.error?.code).toBe(FK); // trades ไม่มี trigger ก่อนหน้า: RLS ผ่านแล้ว FK ปฏิเสธ
+    expect(repoint.error?.code).toBe(RLS); // (P4) trades_update_guard (BEFORE UPDATE) ปฏิเสธการแก้ตรงๆ ก่อน FK
     expect(await adminCount('trades', { id: 'b-trade', asset_id: bOwn.id })).toBe(1);
 
     // ข้อมูลของ A ยังครบเหมือนเดิมหลังความพยายามทั้งหมด
@@ -260,8 +267,8 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
   });
 
   it('กติกาลำดับ/ขายเกินที่ repository บังคับ: เพิ่มซื้อก่อนรายการขาย/ขายเกินที่ถือ/ลบซื้อก่อนขาย ถูกปฏิเสธ', async () => {
-    await expect(a.addTrade(trade({ id: 'late-buy', date: '2026-11-15', createdAt: '2026-11-15T03:00:00.000Z' }))).rejects.toThrow(/รายการขาย/);
-    await expect(a.addTrade(trade({ id: 'oversell', kind: 'sell', date: '2026-11-26', createdAt: '2026-11-26T03:00:00.000Z', units: '9999999999', amount: undefined, priceMicro: 1_000_000 }))).rejects.toThrow(/ถือ/);
+    await expect(rec(a, trade({ id: 'late-buy', date: '2026-11-15', createdAt: '2026-11-15T03:00:00.000Z' }))).rejects.toThrow(/รายการขาย/);
+    await expect(rec(a, trade({ id: 'oversell', kind: 'sell', date: '2026-11-26', createdAt: '2026-11-26T03:00:00.000Z', units: '9999999999', amount: undefined, priceMicro: 1_000_000 }))).rejects.toThrow(/ถือ/);
     await expect(a.deleteTrade('trade-buy')).rejects.toThrow(/รายการขาย/);
     expect((await a.loadInvestments()).trades).toHaveLength(4);
   });
@@ -286,7 +293,7 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     expect(inv.prices).toEqual(snapshot.investments?.prices);
     const ledgerB = await b.loadLedger();
     expect(ledgerB.accounts.find((x) => x.id === 'inv-asset-live')?.kind).toBe('investment');
-    expect(cashBalance(ledgerB.accounts, ledgerB.entries, '2026-11-30')).toBe(100_000);
+    expect(cashBalance(ledgerB.accounts, ledgerB.entries, '2026-11-30')).toBe(2_087); // เท่ากับของ A (นำเข้าทั้งสมุดและรายการลงทุนที่ผูก)
     // ส่งออกของ B ซ้ำ = ข้อมูลลงทุนเดิม (round-trip)
     const again = await b.exportSnapshot(new Date('2026-11-12T00:00:00.000Z'));
     expect(again.investments).toEqual(snapshot.investments);
