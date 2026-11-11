@@ -2,7 +2,7 @@ import type { BackupData } from '../domain/backup/parseBackup';
 import type { FinanceSettings } from '../domain/bills/settings';
 import type { Bill } from '../domain/bills/types';
 import { emptyInvestments, type Asset, type AssetKind, type AssetPrice, type InvestmentData, type TradeRecord } from '../domain/invest/types';
-import type { Entry, NewEntry } from '../domain/ledger/types';
+import type { Account, Entry, NewEntry } from '../domain/ledger/types';
 import type { MoneyDB } from './db';
 import * as dexie from './repository';
 import { StorageError, type Ledger, type PayBillOptions, type PayBillResult, type Snapshot } from './repository';
@@ -52,6 +52,8 @@ export interface LedgerRepository {
   loadInvestments(): Promise<InvestmentData>;
   /** สร้างสินทรัพย์ + บัญชีลงทุน (kind = investment) ของมัน · ล้มกลางทางจะลบบัญชีที่สร้างทิ้ง */
   addAsset(input: { id: string; name: string; kind: AssetKind }): Promise<Asset>;
+  /** สร้างกระเป๋าเงินสดบาท (บัญชี asset ไม่ใช่บัญชีลงทุน ยอดเริ่มต้น 0) · ใช้เมื่อยังไม่มีกระเป๋าให้ผูกรายการลงทุน */
+  addWallet(input: { id: string; name: string }): Promise<Account>;
   /**
    * บันทึกรายการลงทุน + รายการในสมุดบัญชีคู่ในธุรกรรมเดียว (P4 · RPC record_trade)
    * ตรวจกติกาลำดับ/ขายเกิน (domain/invest/rules) ก่อนส่ง และฐานข้อมูลตรวจซ้ำ (trigger กันสองแท็บ)
@@ -92,6 +94,7 @@ export function createDexieRepository(db: MoneyDB): LedgerRepository {
     saveSettings: (settings) => dexie.saveSettings(db, settings),
     loadInvestments: () => Promise.resolve(emptyInvestments()),
     addAsset: () => Promise.reject(localInvestError()),
+    addWallet: () => Promise.reject(localInvestError()),
     recordTrade: () => Promise.reject(localInvestError()),
     deleteTrade: () => Promise.reject(localInvestError()),
     savePrice: () => Promise.reject(localInvestError()),

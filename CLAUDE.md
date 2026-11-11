@@ -77,13 +77,16 @@ Commit ต้องระบุกฎที่แตะ เช่น `[R1,R8,R16
 **merge เอง** ด้วย `gh pr merge <เลข> --squash --delete-branch` เท่านั้น เมื่อครบทุกข้อ:
 - CI ผ่านทั้งหมด
 - ผู้ช่วยที่เกี่ยวข้อง (money-auditor / security-auditor / design-critic ตามหัวข้อโหมดทำงานเอง) ตรวจผ่านและแก้ตามผลแล้ว
+- PR ที่แตะฐานข้อมูลหรือ `tests/live/`: `admin:live-contract` บน branch ของ PR ผ่านแล้ว (ดูหัวข้อชุดทดสอบจริงด้านล่าง)
 - `headRefOid` ของ PR (ตรวจด้วย `gh pr view --json headRefOid`) ตรงกับ commit ล่าสุดที่ push ของ branch นั้น
 
 **migration**
 - ใส่เองได้เฉพาะแบบ "เพิ่ม": `create`, `add column`, `create or replace function` ต้อง dry-run แบบ rollback ผ่านก่อน แล้วรันเทสต์ SQL ทุกไฟล์หลังใส่ ให้ขึ้น TESTS_PASSED ทุกไฟล์
 - migration ที่มี `drop`, `delete`, `truncate` หรือเปลี่ยนชนิดคอลัมน์ **ห้ามใส่เอง** ให้เปิด PR เป็น draft แล้วหยุดรอเจ้าของ
 
-**หลัง merge ทุก PR ที่แตะฐานข้อมูล** รัน `npm run admin:live-contract` บน `main` (คำสั่งนี้คำสั่งเดียวที่อนุญาต) ถ้าล้ม **หยุดทันทีแล้วรอเจ้าของ** ห้ามแก้ policy หรือ trigger เพื่อให้เทสต์ผ่าน
+**ชุดทดสอบจริง (`npm run admin:live-contract` คำสั่งนี้คำสั่งเดียวที่อนุญาต)** สำหรับ PR ที่แตะฐานข้อมูล (migration, `supabase/`, `src/storage/`) หรือ `tests/live/`:
+- ต้องรันบน **branch ของ PR** และผ่านก่อน merge (เพิ่มเป็นเงื่อนไขของข้อ merge เอง) แล้วรัน **ซ้ำบน `main` หลัง merge**
+- ถ้าล้มที่ใดที่หนึ่ง **หยุดทันทีแล้วรอเจ้าของ** (ก่อน merge = ไม่ merge) ห้ามแก้ policy หรือ trigger เพื่อให้เทสต์ผ่าน · แก้เทสต์ที่ตั้งค่าผิดได้เฉพาะเมื่อเจ้าของอนุญาตเป็นรายกรณี
 
 **หยุดรอเจ้าของเมื่อ**
 - เทสต์ล้มซ้ำ 2 รอบ

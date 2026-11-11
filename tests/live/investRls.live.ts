@@ -223,7 +223,17 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     expect(await adminCount('assets', { id: 'b-steal-acc' })).toBe(0);
 
     // "ยัดข้อมูลของตัวเองเข้าบัญชีคนอื่น" ด้วย update: with check ต้องปฏิเสธ (42501) ทั้ง 3 ตาราง
+    // (P4) รายการลงทุนต้องผูกกระเป๋าเงินสด: B ต้องมีกระเป๋าของตัวเองก่อน · และต้องใช้กระเป๋า/สินทรัพย์ของ A ไม่ได้ (พิสูจน์เหมือนเดิม)
+    const bWallet = await client.from('accounts').insert({ id: 'b-wallet', type: 'asset', name: 'กระเป๋าของ B', currency: 'THB' });
+    expect(bWallet.error).toBeNull();
+    const aWalletId = (await a.loadLedger()).accounts.find(isCashWallet)!.id;
+    await expect(b.recordTrade({ trade: trade({ id: 'b-use-a-wallet', assetId: bOwn.id, units: '100000000', amount: 1000 }), walletId: aWalletId })).rejects.toThrow(StorageError);
+    expect(await adminCount('trades', { id: 'b-use-a-wallet' })).toBe(0);
+    expect(await adminCount('entries', { id: 'b-use-a-wallet-entry' })).toBe(0);
+    await expect(b.recordTrade({ trade: trade({ id: 'b-use-a-asset', assetId: ASSET.id }), walletId: 'b-wallet' })).rejects.toThrow(StorageError);
+    expect(await adminCount('trades', { id: 'b-use-a-asset' })).toBe(0);
     await rec(b, trade({ id: 'b-trade', assetId: bOwn.id, units: '100000000', amount: 1000 }));
+    expect(await adminCount('trades', { id: 'b-trade', user_id: B.id })).toBe(1);
     await b.savePrice({ assetId: bOwn.id, date: '2026-11-10', priceMicro: 1_000_000 });
     const moveTrade = await client.from('trades').update({ user_id: aId }).eq('id', 'b-trade');
     expect(moveTrade.error?.code).toBe(RLS); // update user_id ไม่ผ่าน assets_guard/trigger ใด: WITH CHECK ปฏิเสธ
@@ -299,6 +309,18 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     expect(again.investments).toEqual(snapshot.investments);
     // ของ A ไม่เปลี่ยนจากการนำเข้าของ B
     expect(await a.loadInvestments()).toEqual(inv);
+  });
+
+  it('addWallet: สร้างกระเป๋าเงินสดบาท (ยอด 0) · ไม่นับเป็นบัญชีลงทุน · ชื่อว่าง/รหัสซ้ำถูกปฏิเสธ · ของ A ไม่เห็น', async () => {
+    await wipe(1);
+    const created = await b.addWallet({ id: 'wallet-new', name: 'กระเป๋าใหม่' });
+    expect(created).toMatchObject({ id: 'wallet-new', type: 'asset', currency: 'THB', kind: 'normal' });
+    const ledger = await b.loadLedger();
+    expect(ledger.accounts.find(isCashWallet)?.id).toBe('wallet-new');
+    expect(cashBalance(ledger.accounts, ledger.entries, '2026-11-30')).toBe(0);
+    await expect(b.addWallet({ id: 'wallet-new', name: 'ซ้ำ' })).rejects.toThrow(StorageError);
+    await expect(b.addWallet({ id: 'wallet-x', name: '   ' })).rejects.toThrow(StorageError);
+    expect((await a.loadLedger()).accounts.some((x) => x.id === 'wallet-new')).toBe(false);
   });
 
   it('นำเข้าไฟล์ที่ข้อมูลลงทุนเสียถูกฐานข้อมูล/ตัวตรวจปฏิเสธ ไม่เหลือข้อมูลลงทุนครึ่งเดียว', async () => {

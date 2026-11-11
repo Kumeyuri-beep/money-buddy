@@ -472,3 +472,4 @@ select { font: inherit; }
 .confirm-delete { border-color: var(--expense); color: var(--expense); font-weight: 600; }
 @media (prefers-reduced-transparency: reduce) { .notice { background: #1d1b12; } }
 @media (max-width: 720px) { .bill-row .bill-figures { grid-column: 1 / -1; justify-content: flex-start; } }
+.notice .btn { align-self: flex-start; }
