@@ -228,7 +228,7 @@ export function incomeChannels(
     if (!touchesIncome) continue;
     for (const line of entry.lines) {
       const account = byId.get(line.accountId);
-      if (account?.type === 'asset' && account.currency === CURRENCY) {
+      if (account && isCashWallet(account)) {
         walletIn.set(account.id, safeAdd(walletIn.get(account.id) ?? 0, line.amount));
       }
     }

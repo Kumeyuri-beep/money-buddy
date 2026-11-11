@@ -5,6 +5,7 @@ import { payAmountProblem } from '../domain/bills/payAmount';
 import { billProblem, markBillPaid, payableCycle } from '../domain/bills/schedule';
 import { sanitizeSettings, settingsProblem, type FinanceSettings } from '../domain/bills/settings';
 import type { Bill } from '../domain/bills/types';
+import { isCashWallet } from '../domain/ledger/accountKind';
 import { createEntry } from '../domain/ledger/entry';
 import { runIntegrityCheck } from '../domain/ledger/integrity';
 import type { Account, AccountType, Entry, EntrySource, NewEntry } from '../domain/ledger/types';
@@ -503,7 +504,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       const accounts = await loadAccounts();
       const wallet = accounts.find((a) => a.id === walletId);
       const category = accounts.find((a) => a.id === categoryId);
-      if (!wallet || wallet.type !== 'asset' || wallet.currency !== 'THB' || wallet.archived === true) {
+      if (!wallet || !isCashWallet(wallet)) {
         throw new StorageError('กระเป๋าที่จ่ายต้องเป็นกระเป๋าเงินบาทที่ใช้งานอยู่');
       }
       if (!category || category.type !== 'expense' || category.currency !== 'THB' || category.archived === true) {
