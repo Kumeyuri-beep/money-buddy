@@ -186,10 +186,14 @@ begin
   -- T10 ลบ Entry ที่ผูก = ลบรายการลงทุนที่ผูกตาม (cascade) · รายการอื่นคงอยู่
   perform pg_temp.login(ua);
   select count(*) into n from public.trades where entry_id = 'e-buy1'; if n <> 1 then raise exception 'FAIL: T10 ไม่พบรายการที่ผูก'; end if;
+  -- (P4) ซื้อที่ลงวันที่ก่อนรายการขายล่าสุดลบไม่ได้จนกว่าจะลบรายการขายก่อน (entries_trade_guard)
+  r := pg_temp.fails($$ delete from public.entries where id = 'e-buy1' $$);
+  if r is null or r not like '%ขายล่าสุด%' then raise exception 'FAIL: T10 ลบ Entry ซื้อก่อนรายการขายได้ (%)', r; end if;
+  delete from public.trades where id = 't-sell1';
   delete from public.entries where id = 'e-buy1';
   perform pg_temp.settle();
   select count(*) into n from public.trades where id = 't-buy1'; if n <> 0 then raise exception 'FAIL: T10 ลบ Entry แล้วรายการลงทุนยังอยู่'; end if;
-  select count(*) into n from public.trades where id = 't-sell1'; if n <> 1 then raise exception 'FAIL: T10 รายการอื่นหายตาม'; end if;
+  select count(*) into n from public.trades where id = 't-div1'; if n <> 1 then raise exception 'FAIL: T10 รายการอื่นหายตาม'; end if;
   perform pg_temp.logout();
 
   -- T11 ล้างข้อมูล (reset_my_ledger_step) ผู้ใช้ที่มีข้อมูลลงทุน: ฟังก์ชันเดิมต้องผ่านจนถึง done และตารางลงทุนว่าง
