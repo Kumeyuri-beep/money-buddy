@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { MobileMenu } from './MobileMenu';
 
-export type ViewId = 'today' | 'ledger' | 'bills' | 'account' | 'averaging' | 'portfolio';
+export type ViewId = 'today' | 'ledger' | 'bills' | 'account' | 'averaging' | 'portfolio' | 'retirement';
 
 interface ShellProps {
   children: ReactNode;
@@ -37,7 +37,7 @@ const NAV_MAIN: NavItem[] = [
 ];
 
 const NAV_TOOLS: NavItem[] = [
-  { id: null, label: 'วางแผนเกษียณ', icon: 'M12 7v5l3 2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z' },
+  { id: 'retirement', label: 'วางแผนเกษียณ', icon: 'M12 7v5l3 2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z' },
   { id: null, label: 'คำนวณภาษี', icon: 'M6 3h12v18H6zM9 7h6M9 12h.01M12 12h.01M15 12h.01M9 16h.01M12 16h.01M15 16h.01' },
   { id: 'averaging', label: 'ถัวเฉลี่ยต้นทุน', icon: 'M3 7l6 6 4-4 8 8M21 11v6h-6' },
   { id: 'account', label: 'โปรไฟล์', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0' },

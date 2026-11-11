@@ -32,6 +32,7 @@ import { LedgerView } from './LedgerView';
 import { Setup } from './Setup';
 import { AveragingView } from './AveragingView';
 import { PortfolioView } from './PortfolioView';
+import { RetirementView } from './RetirementView';
 import { Shell, type ViewId } from './Shell';
 import { ScanStatus } from './ScanStatus';
 import { Toast } from './Toast';
@@ -391,12 +392,15 @@ export function App() {
           finance={{ bills: state.bills, settings: state.settings }}
           onOpenBills={() => setView('bills')}
           onOpenPortfolio={() => setView('portfolio')}
+          onOpenRetirement={() => setView('retirement')}
           today={today}
         />
       ) : view === 'account' ? (
         <AccountView />
       ) : view === 'averaging' ? (
         <AveragingView />
+      ) : view === 'retirement' ? (
+        <RetirementView />
       ) : view === 'portfolio' ? (
         <PortfolioView today={today} wallets={walletOptions(accounts).map((a) => ({ id: a.id, name: a.name }))} onLedgerChanged={() => void refresh()} />
       ) : view === 'bills' ? (
