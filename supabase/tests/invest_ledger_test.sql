@@ -162,6 +162,35 @@ begin
     raise exception 'FAIL: T6 ลบตามลำดับแล้วยังมีแถวค้าง'; end if;
 
   -- T7 ผู้ใช้ B ใช้สินทรัพย์ของ A ไม่ได้ (record_trade ไม่เห็น a1) และบัญชี inv-* ที่เป็นชนิดผิดถูกปฏิเสธ
+  -- T9 (เสริมความแข็งแรง 20261111000400) basedOn กันสองแท็บ · ปัดเงินขายด้วยจำนวนเต็ม · แก้/ชี้ entry_id ตรงๆ ไม่ได้ · ลบสินทรัพย์ที่ผูกสมุดไม่ได้
+  perform public.record_trade('{"id":"t-a2","assetId":"a2","kind":"buy","date":"2026-11-13","units":"200000000000000000","priceMicro":1,"amount":1000,"fee":0,"basedOn":0}',
+    '{"id":"e-a2","date":"2026-11-13","memo":"b","source":"manual","lines":[{"accountId":"inv2","amount":1000},{"accountId":"w1","amount":-1000}]}', '[]');
+  r := pg_temp.fails($q$ select public.record_trade(
+    '{"id":"t-a2x","assetId":"a2","kind":"buy","date":"2026-11-13","units":"1","priceMicro":1,"amount":1,"fee":0,"basedOn":0}'::jsonb,
+    '{"id":"e-a2x","date":"2026-11-13","memo":"b","source":"manual","lines":[{"accountId":"inv2","amount":1},{"accountId":"w1","amount":-1}]}'::jsonb, '[]') $q$);
+  if r is null or r not like '40001|%' then raise exception 'FAIL: T9 basedOn ไม่ตรงผ่านได้ (%)', r; end if;
+  -- เศษ .4999… ต้องปัดลง: units x price = 123456499999999999 → 123456.499999999999 สตางค์ = 123456 (ไม่ปัดสองรอบเป็น 123457)
+  perform public.record_trade('{"id":"t-rd","assetId":"a2","kind":"sell","date":"2026-11-14","units":"123456499999999999","priceMicro":1,"fee":0,"basedOn":1}',
+    '{"id":"e-rd","date":"2026-11-14","memo":"s","source":"manual","lines":[{"accountId":"w1","amount":123456},{"accountId":"inv2","amount":-617},{"accountId":"inv-gain","amount":-122839}]}', '[{"id":"inv-gain"}]');
+  perform pg_temp.settle();
+  r := pg_temp.fails($q$ update public.trades set amount = 1 where id = 't-rd' $q$);
+  if r is null then raise exception 'FAIL: T9 แก้ยอดรายการลงทุนตรงๆ ได้'; end if;
+  r := pg_temp.fails($q$ update public.trades set units = '1' where id = 't-a2' $q$);
+  if r is null or r not like '42501|%' then raise exception 'FAIL: T9 แก้หน่วยตรงๆ ได้ (%)', r; end if;
+  r := pg_temp.fails($q$ update public.trades set entry_id = 'sys' where id = 't-a2' $q$);
+  if r is null or r not like '42501|%' then raise exception 'FAIL: T9 ย้าย entry_id ได้ (%)', r; end if;
+  update public.trades set memo = 'ok' where id = 't-a2';
+  r := pg_temp.fails($q$ insert into public.trades (id, asset_id, kind, date, units, amount, entry_id) values ('t-forge', 'a2', 'buy', '2026-11-20', '1', 1, 'sys') $q$);
+  if r is null or r not like '42501|%' then raise exception 'FAIL: T9 ชี้ entry_id เองได้ (%)', r; end if;
+  r := pg_temp.fails($q$ delete from public.assets where id = 'a2' $q$);
+  if r is null or r not like '23514|%' then raise exception 'FAIL: T9 ลบสินทรัพย์ที่ผูกสมุดได้ (%)', r; end if;
+  if pg_temp.ac(ua, $q$ select ((select count(*) from public.assets where id = 'a2') + (select count(*) from public.trades where id in ('t-a2', 't-rd')) + (select count(*) from public.trades where id in ('t-forge', 't-a2x')) * 100)::int $q$) <> 3 then
+    raise exception 'FAIL: T9 แถวไม่ตรงที่คาด'; end if;
+  -- ลบตามลำดับ (ขายก่อน) ได้ผ่านการลบรายการในสมุด
+  delete from public.entries where id = 'e-rd';
+  delete from public.entries where id = 'e-a2';
+  perform pg_temp.settle();
+
   perform pg_temp.login(ub);
   perform public.setup_ledger(acc, ent);
   insert into public.accounts (id, type, name, currency, kind) values ('inv9', 'asset', 'กองทุน ค', 'THB', 'investment'), ('inv-wht', 'income', 'ชื่อซ้ำชนิดผิด', 'THB', 'normal');

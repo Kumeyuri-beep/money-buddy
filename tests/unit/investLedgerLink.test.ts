@@ -125,6 +125,21 @@ describe('buildTradeEntry: รูปแบบรายการในสมุ�
     expect(tradeNeedsWallet('buy') && tradeNeedsWallet('sell') && tradeNeedsWallet('dividend')).toBe(true);
   });
 
+  it('ไม่เปลี่ยนยอดเงินใดเลย (net 0 และ costOut 0) = ปฏิเสธ · walletId ว่าง = ปฏิเสธ', () => {
+    const sell = { position: { units: 1n, cost: 1 }, gross: 5, net: 0, costOut: 0, gain: 0 };
+    const trade: TradeRecord = { ...base, id: 't2', kind: 'sell', units: '1', priceMicro: 1, fee: 5 };
+    expect(() => buildTradeEntry({ ...common, trade, sell })).toThrow(TradeLinkError);
+    const buy: TradeRecord = { ...base, id: 't1', kind: 'buy', units: '1', amount: 1, fee: 0 };
+    expect(() => buildTradeEntry({ ...common, walletId: '', trade: buy })).toThrow(TradeLinkError);
+  });
+
+  it('ยอดเงินเป็น 0 (ข้อมูลผิดรูป) ไม่สร้าง Entry ที่ผ่านด่าน (น้อยกว่า 2 บรรทัด)', () => {
+    const zero: TradeRecord = { ...base, id: 't1', kind: 'buy', units: '1', amount: 0, fee: 0 };
+    expect(() => buildTradeEntry({ ...common, trade: zero })).toThrow(TradeLinkError);
+    const reinvest: TradeRecord = { ...base, id: 't4', kind: 'reinvest', units: '1', amount: 0, fee: 0 };
+    expect(() => buildTradeEntry({ ...common, walletId: undefined, trade: reinvest })).toThrow(TradeLinkError);
+  });
+
   it('หมายเหตุของผู้ใช้ต่อท้ายชื่อรายการ', () => {
     const trade: TradeRecord = { ...base, id: 't1', kind: 'buy', units: '1', amount: 1, fee: 0, memo: 'DCA เดือนนี้' };
     expect(buildTradeEntry({ ...common, trade }).entry.memo).toBe('ซื้อ กองทุน ก · DCA เดือนนี้');

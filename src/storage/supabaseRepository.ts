@@ -746,6 +746,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
           id: linked.id, assetId: linked.assetId, kind: linked.kind, date: linked.date, createdAt: linked.createdAt,
           units: linked.units, priceMicro: linked.priceMicro, amount: linked.amount, fee: linked.fee,
           withholding: linked.withholding, memo: linked.memo,
+          basedOn: existing.length, // จำนวนรายการเดิมที่ใช้คำนวณต้นทุน · ฐานข้อมูลเทียบหลังล็อก (กันสองแท็บ)
         },
         p_entry: entryToJson(built.entry),
         p_accounts: built.resultAccountIds.map((id) => ({ id })),

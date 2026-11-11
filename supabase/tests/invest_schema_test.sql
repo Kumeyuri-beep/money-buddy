@@ -87,8 +87,10 @@ begin
 
   -- T5 รูปแบบรายการลงทุน (check ที่ฐานข้อมูล ไม่พึ่งเว็บ)
   -- 5.1 ซื้อปกติ ผูก Entry (e-buy1) · ขายต้องมีราคา · ปันผล/ปันผลลงทุนต่อ
+  perform set_config('app.record_trade', 't-buy1', true); -- (P4) รายการที่ผูก entry_id ต้องมาจาก record_trade
   insert into public.trades (id, asset_id, kind, date, units, price_micro, amount, fee, entry_id)
     values ('t-buy1', 'a1', 'buy', '2026-11-05', '500000000', 10000000, 50000, 5, 'e-buy1');
+  perform set_config('app.record_trade', '', true);
   insert into public.trades (id, asset_id, kind, date, units, price_micro, fee)
     values ('t-sell1', 'a1', 'sell', '2026-11-20', '100000000', 12000000, 3);
   insert into public.trades (id, asset_id, kind, date, amount, withholding)
@@ -200,8 +202,10 @@ begin
   --     (ไม่ต้องแก้ฟังก์ชันเดิม: ลบ entries → bills → accounts แล้ว cascade ถึง assets/trades/asset_prices)
   perform pg_temp.login(ua);
   perform public.create_entry(buy1);                                     -- เพิ่มรายการผูกอีกชุดก่อนล้าง
+  perform set_config('app.record_trade', 't-buy2', true);
   insert into public.trades (id, asset_id, kind, date, units, price_micro, amount, entry_id)
     values ('t-buy2', 'a1', 'buy', '2026-11-05', '500000000', 10000000, 50000, 'e-buy1');
+  perform set_config('app.record_trade', '', true);
   perform pg_temp.settle();
   n := 0;
   loop

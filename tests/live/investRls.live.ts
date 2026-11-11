@@ -215,7 +215,7 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     expect(await adminCount('trades', { id: 'cross-t' })).toBe(0);
     const aEntryId = (await a.loadLedger()).entries[0]!.id;
     const crossEntry = await client.from('trades').insert({ id: 'cross-e', asset_id: bOwn.id, kind: 'buy', date: '2026-11-06', units: '1', amount: 1, entry_id: aEntryId });
-    expect(crossEntry.error?.code).toBe(FK);
+    expect(crossEntry.error?.code).toBe(RLS); // (P4) trigger กัน entry_id ที่ไม่ได้มาจาก record_trade ทำงานก่อน FK
     expect(await adminCount('trades', { id: 'cross-e' })).toBe(0);
     const bAssetOnAAccount = await client.from('assets').insert({ id: 'b-steal-acc', name: 'x', account_id: 'inv-asset-live' });
     // assets_guard (BEFORE trigger) ตรวจก่อน FK: B มองบัญชีของ A ไม่เห็น จึงปฏิเสธด้วย 23514 (ไม่ใช่ 23503)
@@ -236,7 +236,7 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     expect(await adminCount('asset_prices', { asset_id: bOwn.id, user_id: B.id })).toBe(1);
     // ย้ายรายการของตัวเองไปชี้สินทรัพย์ของ A: FK ปฏิเสธ
     const repoint = await client.from('trades').update({ asset_id: ASSET.id }).eq('id', 'b-trade');
-    expect(repoint.error?.code).toBe(FK); // trades ไม่มี trigger ก่อนหน้า: RLS ผ่านแล้ว FK ปฏิเสธ
+    expect(repoint.error?.code).toBe(RLS); // (P4) trades_update_guard (BEFORE UPDATE) ปฏิเสธการแก้ตรงๆ ก่อน FK
     expect(await adminCount('trades', { id: 'b-trade', asset_id: bOwn.id })).toBe(1);
 
     // ข้อมูลของ A ยังครบเหมือนเดิมหลังความพยายามทั้งหมด
