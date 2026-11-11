@@ -8,7 +8,7 @@ export function RetirementPanel({ onOpen }: { onOpen: () => void }) {
       <button type="button" className="card-link" onClick={onOpen}>
         เปิดเครื่องคิดเลขเกษียณ →
       </button>
-      <p className="muted small">เป็นการประมาณการ ไม่ใช่ยอดจริง · ความคืบหน้าตามพอร์ตจริงจะมาในรุ่นถัดไป</p>
+      <p className="muted small">เป็นการประมาณการ ไม่ใช่ยอดจริง · ความคืบหน้าตามพอร์ตจริงเร็วๆ นี้</p>
     </section>
   );
 }

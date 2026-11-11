@@ -25,7 +25,8 @@ export interface RetirementForm {
 export type RetirementFormField = keyof RetirementForm;
 
 export interface RetirementFormError {
-  field: RetirementFormField;
+  /** 'general' = ปัญหาที่ไม่ผูกกับช่องใดช่องหนึ่ง (เช่น ตัวเลขรวมใหญ่เกินกว่าจะคำนวณ) */
+  field: RetirementFormField | 'general';
   message: string;
 }
 
@@ -107,7 +108,7 @@ export function buildRetirementInput(form: RetirementForm): RetirementFormResult
     try {
       const v = parseBahtToSatang(text.replace(/฿/g, ''));
       if (/^\s*[+-]/.test(text)) {
-        err(field, `${label}ต้องไม่ติดลบ`);
+        err(field, `${label}ไม่ต้องใส่เครื่องหมาย + หรือ - (ต้องไม่ติดลบ)`);
         return Number.NaN;
       }
       return v;
@@ -136,6 +137,6 @@ export function buildRetirementInput(form: RetirementForm): RetirementFormResult
     return { ok: true, input, result: computeRetirement(input) };
   } catch (e) {
     // ตัวเลขใหญ่เกินกว่าจะแสดงได้ (เช่นค่าใช้จ่ายสูงมาก × หลายสิบปี) ไม่ทำให้หน้าล้ม
-    return { ok: false, errors: [{ field: 'monthlyExpense', message: e instanceof Error ? e.message : 'คำนวณไม่ได้' }] };
+    return { ok: false, errors: [{ field: 'general', message: e instanceof Error ? e.message : 'คำนวณไม่ได้' }] };
   }
 }
