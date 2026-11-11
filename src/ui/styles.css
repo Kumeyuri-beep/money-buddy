@@ -451,3 +451,7 @@ select { font: inherit; }
 .avg-result .avg-new { font-size: 1.6rem; font-weight: 600; color: var(--gold); }
 .field input[aria-invalid='true'] { border-color: var(--expense); }
 .avg-err { margin: 4px 0 0; color: var(--expense); font-size: 0.85rem; }
+
+/* พอร์ตการลงทุน */
+.notice { margin: 0 0 16px; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(242, 208, 107, 0.45); background: rgba(242, 208, 107, 0.08); font-size: 0.9rem; }
+.stale { color: var(--gold); }

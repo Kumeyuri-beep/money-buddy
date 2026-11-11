@@ -1,10 +1,11 @@
 import type { BackupData } from '../domain/backup/parseBackup';
 import type { FinanceSettings } from '../domain/bills/settings';
 import type { Bill } from '../domain/bills/types';
+import { emptyInvestments, type Asset, type AssetKind, type AssetPrice, type InvestmentData, type TradeRecord } from '../domain/invest/types';
 import type { Entry, NewEntry } from '../domain/ledger/types';
 import type { MoneyDB } from './db';
 import * as dexie from './repository';
-import type { Ledger, PayBillOptions, PayBillResult, Snapshot } from './repository';
+import { StorageError, type Ledger, type PayBillOptions, type PayBillResult, type Snapshot } from './repository';
 
 /**
  * ช่องทางเดียวที่หน้าจอใช้อ่าน/เขียนข้อมูลการเงิน (แผน M2 ข้อ 4.4)
@@ -46,7 +47,19 @@ export interface LedgerRepository {
 
   loadSettings(): Promise<FinanceSettings>;
   saveSettings(settings: FinanceSettings): Promise<FinanceSettings>;
+
+  // ---- พอร์ตลงทุน (P3) · ออนไลน์เท่านั้น (ที่เก็บในเครื่องไม่รองรับ: อ่านได้ว่าง เขียนแล้วแจ้งข้อผิดพลาด) ----
+  loadInvestments(): Promise<InvestmentData>;
+  /** สร้างสินทรัพย์ + บัญชีลงทุน (kind = investment) ของมัน · ล้มกลางทางจะลบบัญชีที่สร้างทิ้ง */
+  addAsset(input: { id: string; name: string; kind: AssetKind }): Promise<Asset>;
+  /** ตรวจกติกาลำดับ/ขายเกิน (domain/invest/rules) ก่อนเขียน · ยังไม่ผูกสมุดบัญชีคู่ (P4) */
+  addTrade(trade: TradeRecord): Promise<TradeRecord>;
+  deleteTrade(id: string): Promise<void>;
+  /** ราคาล่าสุดที่ผู้ใช้กรอกเอง (หนึ่งราคาต่อสินทรัพย์ต่อวัน · กรอกซ้ำวันเดิม = แก้ราคา) */
+  savePrice(price: AssetPrice): Promise<void>;
 }
+
+const localInvestError = (): StorageError => new StorageError('พอร์ตลงทุนใช้ได้เฉพาะบัญชีออนไลน์ (ที่เก็บในเครื่องไม่รองรับ)');
 
 /** implementation เดิม (IndexedDB) ห่อฟังก์ชันใน repository.ts ไม่เปลี่ยนพฤติกรรม */
 export function createDexieRepository(db: MoneyDB): LedgerRepository {
@@ -72,5 +85,10 @@ export function createDexieRepository(db: MoneyDB): LedgerRepository {
     abortUnfinishedImport: () => Promise.resolve(),
     loadSettings: () => dexie.loadSettings(db),
     saveSettings: (settings) => dexie.saveSettings(db, settings),
+    loadInvestments: () => Promise.resolve(emptyInvestments()),
+    addAsset: () => Promise.reject(localInvestError()),
+    addTrade: () => Promise.reject(localInvestError()),
+    deleteTrade: () => Promise.reject(localInvestError()),
+    savePrice: () => Promise.reject(localInvestError()),
   };
 }
