@@ -17,7 +17,7 @@ import {
   type TradeKind,
   type TradeRecord,
 } from '../invest/types';
-import { MAX_UNITS } from '../invest/units';
+import { MAX_UNITS, valueInSatang } from '../invest/units';
 import { isValidIsoDate } from '../ledger/entry';
 import { lengthWithin, MAX_ID_LENGTH, MAX_MEMO_LENGTH, MAX_NAME_LENGTH } from '../ledger/limits';
 import type { Account, Entry } from '../ledger/types';
@@ -26,6 +26,9 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 const UNSAFE_TEXT = /[\p{Cc}‪-‮⁦-⁩]/u;
 const UNITS_TEXT = /^[1-9][0-9]{0,18}$/;
 const MAX_SAFE = Number.MAX_SAFE_INTEGER;
+/** เวลาบันทึก ISO มีเขตเวลา (ไม่รับแบบไม่มี Z ที่ตีความตามเครื่อง) ปี 1900-2999 */
+const ISO_INSTANT = /^(19|2[0-9])\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d{1,9})?(Z|[+-]\d\d:\d\d)$/;
+const validInstant = (v: unknown): v is string => typeof v === 'string' && ISO_INSTANT.test(v) && !Number.isNaN(Date.parse(v));
 const short = (v: unknown): string => {
   const s = typeof v === 'string' ? v : String(v);
   return s.length > 24 ? `${s.slice(0, 24)}…` : s;
@@ -112,8 +115,8 @@ export function parseInvestments(
     if (typeof memo !== 'string' || memo.length > MAX_MEMO_LENGTH || UNSAFE_TEXT.test(memo.replace(/[\r\n\t]/g, ''))) {
       return add(`${tag}: หมายเหตุไม่ถูกต้อง (ไม่เกิน ${MAX_MEMO_LENGTH} ตัวอักษร ไม่มีอักขระควบคุม)`);
     }
-    if (createdAt !== undefined && (typeof createdAt !== 'string' || Number.isNaN(Date.parse(createdAt)))) {
-      return add(`${tag}: createdAt ไม่ถูกต้อง`);
+    if (createdAt !== undefined && !validInstant(createdAt)) {
+      return add(`${tag}: createdAt ต้องเป็นเวลา ISO มีเขตเวลา เช่น 2026-11-05T03:00:00.000Z`);
     }
     if (!isSafeInt(fee, 0)) return add(`${tag}: ค่าธรรมเนียมต้องเป็นสตางค์จำนวนเต็ม ≥ 0`);
     if (!isSafeInt(withholding, 0)) return add(`${tag}: ภาษีหัก ณ ที่จ่ายต้องเป็นสตางค์จำนวนเต็ม ≥ 0`);
@@ -176,6 +179,17 @@ export function parseInvestments(
       if (t.kind === 'buy') own.push({ kind: 'buy', id: t.id, date: t.date, createdAt: t.createdAt, units: BigInt(t.units as string), amount: t.amount as number, fee: t.fee });
       else if (t.kind === 'reinvest') own.push({ kind: 'buy', id: t.id, date: t.date, createdAt: t.createdAt, units: BigInt(t.units as string), amount: t.amount as number, fee: 0 });
       else if (t.kind === 'sell') own.push({ kind: 'sell', id: t.id, date: t.date, createdAt: t.createdAt, units: BigInt(t.units as string), priceMicro: t.priceMicro as number, fee: t.fee });
+    }
+    for (const t of out.trades) {
+      if (t.assetId !== asset.id || t.kind !== 'sell') continue;
+      let gross = 0;
+      try {
+        gross = valueInSatang(BigInt(t.units as string), t.priceMicro as number);
+      } catch {
+        add(`รายการลงทุน (${short(t.id)}): มูลค่าที่ขายเกินช่วงที่คำนวณได้`);
+        continue;
+      }
+      if (gross === 0) add(`รายการลงทุน (${short(t.id)}): ขายแล้วได้เงิน 0 สตางค์ (หน่วยน้อยหรือราคาต่ำเกินไป) บันทึกไม่ได้`);
     }
     try {
       replayTrades(own);

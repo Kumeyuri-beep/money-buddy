@@ -151,6 +151,64 @@ describe('ไฟล์สำรอง: ข้อมูลลงทุน (invest
   });
 });
 
+describe('เพิ่มเติมตามผลตรวจ money-auditor', () => {
+  const sell = (over: Record<string, unknown> = {}) => ({ id: 's1', assetId: 'a1', kind: 'sell', date: '2026-11-20', createdAt: '2026-11-20T03:00:00.000Z', units: '100000000', priceMicro: 12_000_000, fee: 0, withholding: 0, memo: '', ...over });
+  const ok = (trades: unknown[]) => parseBackup(file(inv({ trades, prices: [] })), TODAY).ok;
+
+  it('ขายที่ได้เงิน 0 สตางค์ถูกปฏิเสธ (หน่วยน้อย x ราคาต่ำ)', () => {
+    expect(ok([buy({ entryId: undefined }), sell({ units: '1', priceMicro: 1 })])).toBe(false);
+    expect(ok([buy({ entryId: undefined }), sell()])).toBe(true);
+  });
+  it('มูลค่าขายเกินช่วงปลอดภัยถูกปฏิเสธ ไม่ทำให้พัง', () => {
+    const big = buy({ entryId: undefined, units: '9223372036854775807', amount: 1 });
+    expect(ok([big, sell({ units: '9223372036854775807', priceMicro: 9_000_000_000_000_000 })])).toBe(false);
+  });
+  it('createdAt: ต้องเป็น ISO มีเขตเวลา · ไม่มี Z / รูปแบบอื่น / ปีนอกช่วง ถูกปฏิเสธ', () => {
+    for (const c of ['2026-11-05T03:00:00', '2026', 'Nov 5 2026', '+275760-09-13T00:00:00Z', '1800-01-01T00:00:00Z', 5, null]) {
+      expect(ok([buy({ entryId: undefined, createdAt: c })]), String(c)).toBe(false);
+    }
+    expect(ok([buy({ entryId: undefined, createdAt: '2026-11-05T10:00:00+07:00' })])).toBe(true);
+  });
+  it('วันเดียวกัน: เรียงด้วย createdAt (ซื้อ 03:00 ขาย 04:00 ผ่าน · ขายก่อนซื้อไม่ผ่าน)', () => {
+    const b = buy({ entryId: undefined, date: '2026-11-20', createdAt: '2026-11-20T03:00:00.000Z' });
+    expect(ok([b, sell({ createdAt: '2026-11-20T04:00:00.000Z' })])).toBe(true);
+    expect(ok([b, sell({ createdAt: '2026-11-20T02:00:00.000Z' })])).toBe(false);
+  });
+  it('ขายหมดพอดีผ่าน · ซื้อใหม่หลังขายหมดผ่าน', () => {
+    const b = buy({ entryId: undefined, units: '300000000' });
+    const all = sell({ units: '300000000' });
+    const again = buy({ id: 't9', entryId: undefined, date: '2026-12-01', createdAt: '2026-12-01T03:00:00.000Z' });
+    expect(ok([b, all])).toBe(true);
+    expect(ok([b, all, again])).toBe(true);
+  });
+  it('ฟิลด์ null ที่ควรไม่มี (units/priceMicro ของปันผล) ถูกปฏิเสธ', () => {
+    const div = { id: 'd1', assetId: 'a1', kind: 'dividend', date: '2026-11-25', createdAt: '2026-11-25T03:00:00.000Z', amount: 1000, fee: 0, withholding: 0, memo: '' };
+    expect(ok([div])).toBe(true);
+    expect(ok([{ ...div, units: null }])).toBe(false);
+    expect(ok([{ ...div, priceMicro: null }])).toBe(false);
+  });
+  it('round-trip จริง: ข้อมูลลงทุน → JSON → ตรวจไฟล์ → เท่าเดิมทุกฟิลด์', () => {
+    const original = {
+      assets: [{ id: 'a1', name: 'กองทุน ก', kind: 'fund', accountId: 'inv1', archived: true }],
+      trades: [
+        buy(),
+        sell(),
+        { id: 'd1', assetId: 'a1', kind: 'dividend', date: '2026-11-25', createdAt: '2026-11-25T03:00:00.000Z', amount: 1000, fee: 0, withholding: 100, memo: 'ปันผล' },
+        { id: 'r1', assetId: 'a1', kind: 'reinvest', date: '2026-11-26', createdAt: '2026-11-26T03:00:00.000Z', units: '1000000', amount: 900, fee: 0, withholding: 0, memo: '' },
+      ],
+      prices: [{ assetId: 'a1', date: '2026-11-10', priceMicro: 11_000_000 }],
+    };
+    const first = parseBackup(file(original), TODAY);
+    if (!first.ok) throw new Error(first.problems.join('\n'));
+    const exported = JSON.stringify(first.data.investments);
+    const second = parseBackup(file(JSON.parse(exported)), TODAY);
+    if (!second.ok) throw new Error(second.problems.join('\n'));
+    expect(second.data.investments).toEqual(first.data.investments);
+    expect(first.data.investments?.assets[0]?.archived).toBe(true);
+    expect(first.data.investments?.trades.find((t) => t.id === 'd1')).toMatchObject({ withholding: 100, memo: 'ปันผล' });
+  });
+});
+
 describe('แปลงแถวฐานข้อมูล: สินทรัพย์ รายการ ราคา', () => {
   it('rowToAsset: archived เฉพาะเมื่อจริง · kind แปลกถูกปฏิเสธ', () => {
     expect(rowToAsset({ id: 'a1', name: 'x', kind: 'fund', account_id: 'inv1', archived: false })).toEqual({ id: 'a1', name: 'x', kind: 'fund', accountId: 'inv1' });

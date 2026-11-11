@@ -524,8 +524,8 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       // ไม่มีธุรกรรมอ่านข้ามคำขอ: อ่านแล้วอ่านบิลซ้ำเพื่อเทียบ (บิลเปลี่ยน = มีการจ่าย/แก้แทรก) ไม่ตรงอ่านใหม่ สูงสุด 3 รอบ
       for (let attempt = 0; attempt < 3; attempt++) {
         const [ledger, bills, settings, investments] = await Promise.all([loadLedger(), loadBills(), loadSettings(), loadInvestments()]);
-        const again = await loadBills();
-        if (JSON.stringify(again) === JSON.stringify(bills)) {
+        const [again, againInvestments] = await Promise.all([loadBills(), loadInvestments()]);
+        if (JSON.stringify(again) === JSON.stringify(bills) && JSON.stringify(againInvestments) === JSON.stringify(investments)) {
           // ข้อมูลลงทุนใส่ในไฟล์เฉพาะเมื่อมี (ไฟล์ของผู้ที่ไม่ใช้พอร์ตลงทุนเหมือนเดิมทุกประการ)
           return { schemaVersion: SCHEMA_VERSION, exportedAt: now.toISOString(), ...ledger, bills, settings, ...(isEmptyInvestments(investments) ? {} : { investments }) };
         }
