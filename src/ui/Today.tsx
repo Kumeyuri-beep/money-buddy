@@ -15,11 +15,12 @@ interface TodayProps {
   finance: FinanceInput;
   onOpenBills: () => void;
   onOpenPortfolio: () => void;
+  onOpenRetirement: () => void;
   /** "วันนี้" ตามเวลาไทย (YYYY-MM-DD) จาก App ซึ่งอัปเดตเองเมื่อข้ามเที่ยงคืน */
   today: string;
 }
 
-export function Today({ ledger, onAdd, onOpenLedger, finance, onOpenBills, onOpenPortfolio, today }: TodayProps) {
+export function Today({ ledger, onAdd, onOpenLedger, finance, onOpenBills, onOpenPortfolio, onOpenRetirement, today }: TodayProps) {
   const { accounts, entries } = ledger;
 
   return (
@@ -39,7 +40,7 @@ export function Today({ ledger, onAdd, onOpenLedger, finance, onOpenBills, onOpe
       </div>
 
       <div className="row row-half">
-        <RetirementPanel />
+        <RetirementPanel onOpen={onOpenRetirement} />
       </div>
     </>
   );

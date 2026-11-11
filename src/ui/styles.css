@@ -498,3 +498,8 @@ select { font: inherit; }
 .alloc-dot { width: 14px; height: 14px; border-radius: 4px; flex: none; }
 .alloc-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .alloc-pct { font-weight: 600; }
+
+/* เครื่องคิดเลขเกษียณ: ช่องอายุ/อัตราสั้นๆ เรียง 2-3 คอลัมน์บนจอแคบ · ปุ่มหลักเต็มแถวบนมือถือ · ผลลัพธ์เลื่อนมาไม่ชนหัวหน้า */
+.field-row-compact .field { flex: 1 1 110px; }
+#rt-result-title { scroll-margin-top: 16px; }
+@media (max-width: 720px) { .btn-grow { flex: 1 1 100%; } }

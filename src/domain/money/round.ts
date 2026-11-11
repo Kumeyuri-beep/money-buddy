@@ -35,3 +35,13 @@ export function roundHalfUpBig(numerator: bigint, denominator: bigint): bigint {
   const rounded = (n % d) * 2n >= d ? q + 1n : q;
   return negative ? -rounded : rounded;
 }
+
+/**
+ * ปัดขึ้น (ceiling) ของ numerator / denominator สำหรับจำนวนเต็มบวกเท่านั้น (ร่างกฎ R18 · ข้อยกเว้นของ R8 รออนุมัติเจ้าของ)
+ * ใช้เฉพาะ "เงินที่ต้องมี" และ "เงินเก็บต่อเดือน" ของเครื่องคิดเลขเกษียณ (ตัวเลขวางแผนไม่ประเมินต่ำ) ห้ามใช้กับยอดบัญชีจริง
+ */
+export function ceilDivBig(numerator: bigint, denominator: bigint): bigint {
+  if (denominator <= 0n) throw new RangeError('ceilDivBig: ตัวหารต้องเป็นบวก');
+  if (numerator < 0n) throw new RangeError('ceilDivBig: ตัวตั้งต้องไม่ติดลบ');
+  return (numerator + denominator - 1n) / denominator;
+}
