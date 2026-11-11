@@ -371,8 +371,8 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
           assets={data.assets}
           trades={data.trades}
           today={today}
-          onBuy={(assetId, amountText) => {
-            openTrade(assetId, 'buy');
+          onBuy={(assetId, amountText, opener) => {
+            openTrade(assetId, 'buy', opener);
             setTradeForm((f) => ({ ...f, amount: amountText }));
           }}
         />

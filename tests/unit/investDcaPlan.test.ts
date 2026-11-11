@@ -116,3 +116,25 @@ describe('ไฟล์สำรองรวมแผน DCA (ผ่าน settin
     if (!r.ok) expect(r.problems.join(' | ')).toContain('แผนซื้อประจำ');
   });
 });
+
+describe('ผลตรวจ money-auditor: เดือนเริ่มของแผนใหม่, ต้นเดือนที่มีรอบเก่าค้าง, จำนวนเงินใกล้เพดาน', () => {
+  it('สร้างแผนหลังวันครบกำหนดของเดือนนี้ = เริ่มเดือนหน้า (ไม่เตือน "เลยมา" ทันที) · วันครบกำหนดคือวันนี้ = เริ่มเดือนนี้', async () => {
+    const { dcaStartMonth } = await import('../../src/domain/invest/dcaPlan');
+    expect(dcaStartMonth('2026-11-20', 5)).toBe('2026-12');
+    expect(dcaStartMonth('2026-11-05', 5)).toBe('2026-11');
+    expect(dcaStartMonth('2026-11-02', 5)).toBe('2026-11');
+    expect(dcaStartMonth('2026-12-20', 5)).toBe('2027-01');
+    const p = plan({ startMonth: dcaStartMonth('2026-11-20', 5) });
+    expect(dcaStatus(p, [], '2026-11-20')).toMatchObject({ state: 'upcoming', cycle: '2026-12' });
+  });
+  it('ต้นเดือน ก่อนวันครบกำหนด แต่เดือนก่อนค้างอยู่ = due ของเดือนก่อน', () => {
+    const s = dcaStatus(plan({ startMonth: '2026-10' }), [], '2026-11-02');
+    expect(s).toMatchObject({ state: 'due', cycle: '2026-10', dueDate: '2026-10-05' });
+  });
+  it('จำนวนเงินใกล้เพดาน: สตางค์ → ข้อความในฟอร์ม → สตางค์ ย้อนกลับตรงทุกค่า', async () => {
+    const { parseBahtToSatang, satang, toBahtString } = await import('../../src/domain/money/satang');
+    for (const n of [1, 99, 100, 123_456_789, Number.MAX_SAFE_INTEGER]) {
+      expect(parseBahtToSatang(toBahtString(satang(n)))).toBe(n);
+    }
+  });
+});

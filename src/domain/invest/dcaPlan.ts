@@ -64,6 +64,9 @@ export function sanitizeDcaPlans(raw: unknown): DcaPlan[] {
 
 const monthOf = (date: string): string => date.slice(0, 7);
 
+/** เดือนถัดไปของ YYYY-MM (ข้ามปีได้) */
+export const nextMonthKey = (month: string): string => addMonths(month, 1);
+
 function addMonths(month: string, delta: number): string {
   const [y, m] = month.split('-').map(Number) as [number, number];
   const idx = y * 12 + (m - 1) + delta;
@@ -79,6 +82,12 @@ export function dcaDueDate(month: string, dayOfMonth: number): string {
   const iso = `${month}-${String(day).padStart(2, '0')}`;
   if (!isValidIsoDate(iso)) throw new RangeError(`วันที่ไม่ถูกต้อง: ${iso}`);
   return iso;
+}
+
+/** เดือนที่เริ่มนับของแผนใหม่: สร้างหลังวันครบกำหนดของเดือนนี้แล้ว = เดือนหน้า (ไม่เตือน "เลยมา" ทันทีทั้งที่เพิ่งตั้ง) · วันครบกำหนดคือวันนี้ = เดือนนี้ */
+export function dcaStartMonth(today: string, dayOfMonth: number): string {
+  const thisMonth = monthOf(today);
+  return dcaDueDate(thisMonth, dayOfMonth) < today ? nextMonthKey(thisMonth) : thisMonth;
 }
 
 export type DcaStatus =
