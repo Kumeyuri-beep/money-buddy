@@ -312,6 +312,8 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
     build: (from: number, to: number) => PromiseLike<{ data: unknown; error: DbError | null }>,
     keyOf: (row: T) => string = (row) => (row as { id: string }).id,
     countColumn = 'id',
+    /** อ่านเฉพาะแถวที่ column = value: คำสั่งนับต้องกรองเหมือนกัน (ไม่งั้นจำนวนไม่ตรงแล้วล้มทุกครั้ง) */
+    scope?: { column: string; value: string },
   ): Promise<T[]> {
     for (let attempt = 0; attempt < 3; attempt++) {
       const byId = new Map<string, T>();
@@ -322,7 +324,8 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
         for (const row of rows) byId.set(keyOf(row), row);
         if (rows.length < PAGE) break;
       }
-      const { count, error } = await client.from(table).select(countColumn, { count: 'exact', head: true });
+      const counter = client.from(table).select(countColumn, { count: 'exact', head: true });
+      const { count, error } = await (scope ? counter.eq(scope.column, scope.value) : counter);
       check(error);
       if (count === null || count === undefined || count === byId.size) return [...byId.values()];
     }
@@ -703,14 +706,21 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       check(acc.error);
       const ins = await client.from('assets').insert({ id, name, kind: input.kind, account_id: accountId });
       if (ins.error) {
-        await client.from('accounts').delete().eq('id', accountId); // ล้างบัญชีที่สร้างไว้ (ไม่มีรายการอ้างอิง)
+        // ล้างบัญชีที่เพิ่งสร้างไว้ (เฉพาะบัญชีลงทุน · ไม่มีรายการอ้างอิง) ถ้าล้างไม่สำเร็จเหลือบัญชีลงทุนว่างๆ ไม่กระทบยอดเงินสด
+        await client.from('accounts').delete().eq('id', accountId).eq('kind', 'investment');
         check(ins.error);
       }
       return { id, name, kind: input.kind, accountId };
     },
 
     async addTrade(trade) {
-      const siblings = await fetchAll<TradeRow>('trades', (from, to) => client.from('trades').select('*').eq('asset_id', trade.assetId).order('id').range(from, to));
+      const siblings = await fetchAll<TradeRow>(
+        'trades',
+        (from, to) => client.from('trades').select('*').eq('asset_id', trade.assetId).order('id').range(from, to),
+        (row) => row.id,
+        'id',
+        { column: 'asset_id', value: trade.assetId },
+      );
       const problem = checkTradeAdd(siblings.map(rowToTrade), trade);
       if (problem) throw new StorageError(problem);
       const row = {
@@ -737,7 +747,13 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       check(found.error);
       if (!found.data) throw new StorageError('ไม่พบรายการนี้ อาจถูกลบไปแล้ว');
       const target = rowToTrade(found.data as TradeRow);
-      const siblings = await fetchAll<TradeRow>('trades', (from, to) => client.from('trades').select('*').eq('asset_id', target.assetId).order('id').range(from, to));
+      const siblings = await fetchAll<TradeRow>(
+        'trades',
+        (from, to) => client.from('trades').select('*').eq('asset_id', target.assetId).order('id').range(from, to),
+        (row) => row.id,
+        'id',
+        { column: 'asset_id', value: target.assetId },
+      );
       const problem = checkTradeDelete(siblings.map(rowToTrade), id);
       if (problem) throw new StorageError(problem);
       const del = await client.from('trades').delete().eq('id', id).select('id');

@@ -179,6 +179,14 @@ it('ราคาที่ลงวันที่ในอนาคต (พิ�
     expect(row.position).toEqual({ units: 1_100_000_000n, cost: 10_900 });
   });
 
+  it('ปันผลรวมล้นช่วงปลอดภัย (ข้อมูลผิดปกติ) ไม่ทำให้ทั้งหน้าพัง: แถวนั้นแจ้งข้อผิดพลาด ยอดรวมของพอร์ตไม่ปนครึ่งๆ กลางๆ', () => {
+    const big = (id: string): TradeRecord => ({ id, assetId: 'a1', kind: 'dividend', date: '2026-11-06', createdAt: '2026-11-06T03:00:00.000Z', amount: Number.MAX_SAFE_INTEGER, fee: 0, withholding: 0, memo: '' });
+    const p = buildPortfolio(data({ assets: [asset('a1', 'inv1'), asset('a2', 'inv2')], trades: [big('d1'), big('d2'), trade({ id: 'ok', assetId: 'a2' })] }), TODAY);
+    expect(p.rows[0]!.error).toBeTruthy();
+    expect(p.rows[1]!.error).toBeUndefined();
+    expect(p.totals).toMatchObject({ cost: 10_000, dividends: 0 });
+  });
+
   it('เรียงสินทรัพย์ที่เก็บถาวรไว้ท้าย แล้วตามชื่อ', () => {
     const p = buildPortfolio(data({ assets: [{ ...asset('a1', 'inv1'), archived: true }, asset('a2', 'inv2')] }), TODAY);
     expect(p.rows.map((r) => r.asset.id)).toEqual(['a2', 'a1']);

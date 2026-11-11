@@ -78,6 +78,14 @@ describe('PDPA (M2-E): ยอมรับนโยบาย · ลบบัญ�
     await repo.saveInitialLedger(buildInitialLedger([{ name: 'ของ C', opening: '10' }], '2026-11-01'));
     await repo.addBill({ id: 'bill-c', name: 'บิล C', amount: 1, dueDay: 1 }, '2026-11-04');
     await repo.saveSettings({ payDay: 5 });
+    // ข้อมูลลงทุนของ C (พิสูจน์ว่าลบบัญชีตาม PDPA ลบตารางลงทุนด้วย)
+    await repo.addAsset({ id: 'asset-c', name: 'กองทุน C', kind: 'fund' });
+    await repo.addTrade({ id: 'trade-c', assetId: 'asset-c', kind: 'buy', date: '2026-11-05', createdAt: '2026-11-05T03:00:00.000Z', units: '100000000', amount: 1000, fee: 0, withholding: 0, memo: '' });
+    await repo.savePrice({ assetId: 'asset-c', date: '2026-11-10', priceMicro: 1_000_000 });
+    for (const table of ['assets', 'trades', 'asset_prices']) {
+      const before = await admin.from(table).select('*', { count: 'exact', head: true }).eq('user_id', id);
+      expect(before.count, table).toBeGreaterThan(0);
+    }
     const aBefore = (await (await repoFor(0)).loadLedger()).entries.length;
     // cooldown 24 ชม. หลังเปลี่ยนรหัส (M2-F): แม้รหัสถูก ลบบัญชี/ล้างข้อมูลไม่ได้ จนกว่าจะพ้นเวลา
     const cooling = await client.rpc('delete_my_account_step', { p_password: live.users[2]!.password });
@@ -92,7 +100,7 @@ describe('PDPA (M2-E): ยอมรับนโยบาย · ลบบัญ�
     const ok = await client.rpc('delete_my_account_step', { p_password: live.users[2]!.password });
     expect(ok.error).toBeNull();
     expect(ok.data).toBe('done'); // สมุดเล็ก (< 500 รายการ) จบในชุดเดียว
-    for (const table of ['accounts', 'entries', 'lines', 'bills', 'settings', 'profiles']) {
+    for (const table of ['accounts', 'entries', 'lines', 'bills', 'settings', 'profiles', 'assets', 'trades', 'asset_prices']) {
       const left = await admin.from(table).select('*', { count: 'exact', head: true }).eq('user_id', id);
       expect(left.error, table).toBeNull();
       expect(left.count, table).toBe(0);
@@ -241,7 +249,7 @@ describe('แยกข้อมูลระหว่างผู้ใช้ (RL
     const aId = (await signedIn(0)).id;
     const { client: bc, id: bId } = await signedIn(1);
     // อ่าน: ไม่เห็นแถวของ A แม้ระบุ user_id หรือ id ตรงๆ
-    for (const table of ['accounts', 'entries', 'lines', 'bills', 'settings', 'profiles']) {
+    for (const table of ['accounts', 'entries', 'lines', 'bills', 'settings', 'profiles', 'assets', 'trades', 'asset_prices']) {
       const byUser = await bc.from(table).select('*').eq('user_id', aId);
       expect(byUser.error, table).toBeNull();
       expect(byUser.data ?? [], table).toHaveLength(0);

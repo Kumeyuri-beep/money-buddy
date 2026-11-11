@@ -65,12 +65,12 @@ export function buildPortfolio(data: InvestmentData, today: string): Portfolio {
     const last = prices.at(-1);
     const latestPrice = last ? { priceMicro: last.priceMicro, date: last.date } : null;
     const priceStale = latestPrice !== null && daysBetween(latestPrice.date, today) > STALE_PRICE_DAYS;
-    const dividendsNet = trades
-      .filter((t) => t.kind === 'dividend')
-      .reduce((sum, t) => safeAdd(sum, (t.amount as number) - t.withholding), 0);
-
     let row: AssetRowView;
     try {
+      const dividendsNet = trades
+        .filter((t) => t.kind === 'dividend')
+        .reduce((sum, t) => safeAdd(sum, (t.amount as number) - t.withholding), 0);
+      const next = { ...totals }; // รวมยอดในสำเนา: ถ้าแถวนี้ล้ม (เช่น ผลรวมล้นช่วง) ยอดรวมไม่ปนครึ่งๆ กลางๆ
       const replay = replayRecords(trades);
       const position = replay.position;
       let avg: number | null = null;
@@ -81,14 +81,16 @@ export function buildPortfolio(data: InvestmentData, today: string): Portfolio {
       }
       const market = position.units > 0n ? marketSummary(position, latestPrice?.priceMicro ?? null) : null;
       row = { asset, position, avgCostMicro: avg, latestPrice, priceStale, market, realizedGain: replay.realizedGain, dividendsNet };
-      totals.cost = safeAdd(totals.cost, position.cost);
-      totals.realized = safeAdd(totals.realized, replay.realizedGain);
+      next.cost = safeAdd(next.cost, position.cost);
+      next.realized = safeAdd(next.realized, replay.realizedGain);
+      next.dividends = safeAdd(next.dividends, dividendsNet);
       if (market) {
-        totals.value = safeAdd(totals.value, market.value);
-        totals.unrealized = safeAdd(totals.unrealized, market.unrealized);
+        next.value = safeAdd(next.value, market.value);
+        next.unrealized = safeAdd(next.unrealized, market.unrealized);
       } else if (position.units > 0n) {
-        totals.unpriced += 1;
+        next.unpriced += 1;
       }
+      Object.assign(totals, next);
     } catch (e) {
       row = {
         asset,
@@ -98,11 +100,10 @@ export function buildPortfolio(data: InvestmentData, today: string): Portfolio {
         priceStale,
         market: null,
         realizedGain: 0,
-        dividendsNet,
+        dividendsNet: 0,
         error: e instanceof Error ? e.message : 'ข้อมูลรายการไม่สอดคล้อง',
       };
     }
-    totals.dividends = safeAdd(totals.dividends, dividendsNet);
     rows.push(row);
   }
   return { rows, totals };

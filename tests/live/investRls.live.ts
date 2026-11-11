@@ -55,6 +55,7 @@ async function repoFor(index: number): Promise<LedgerRepository> {
 }
 
 const ASSET = { id: 'asset-live', name: 'กองทุนทดสอบ', kind: 'fund' as const };
+const ASSET2 = { id: 'asset-live2', name: 'หุ้นทดสอบ', kind: 'stock' as const };
 const trade = (over: Partial<TradeRecord>): TradeRecord => ({
   id: 'trade-buy', assetId: ASSET.id, kind: 'buy', date: '2026-11-05', createdAt: '2026-11-05T03:00:00.000Z',
   units: '500000000', priceMicro: 10_000_000, amount: 50_000, fee: 5, withholding: 0, memo: '', ...over,
@@ -74,6 +75,11 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     await a.addTrade(trade({ id: 'trade-sell', kind: 'sell', date: '2026-11-20', createdAt: '2026-11-20T03:00:00.000Z', units: '100000000', priceMicro: 12_000_000, amount: undefined, fee: 3 }));
     await a.addTrade(trade({ id: 'trade-div', kind: 'dividend', date: '2026-11-25', createdAt: '2026-11-25T03:00:00.000Z', units: undefined, priceMicro: undefined, amount: 1000, fee: 0, withholding: 100 }));
     await a.savePrice({ assetId: ASSET.id, date: '2026-11-10', priceMicro: 11_000_000 });
+    // สินทรัพย์ที่สอง (พิสูจน์ว่า addTrade/deleteTrade อ่านรายการของสินทรัพย์เดียวได้เมื่อมีหลายสินทรัพย์)
+    await a.addAsset(ASSET2);
+    await a.addTrade(trade({ id: 'trade-buy2', assetId: ASSET2.id }));
+    await a.deleteTrade('trade-buy2');
+    await a.addTrade(trade({ id: 'trade-buy2', assetId: ASSET2.id }));
   });
   afterAll(async () => {
     await wipe(0);
@@ -82,8 +88,11 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
 
   it('A เห็นข้อมูลลงทุนของตัวเองครบ · บัญชีลงทุนของสินทรัพย์ไม่นับเป็นเงินสด', async () => {
     const inv = await a.loadInvestments();
-    expect(inv.assets).toEqual([{ id: ASSET.id, name: ASSET.name, kind: 'fund', accountId: 'inv-asset-live' }]);
-    expect(inv.trades.map((t) => t.id).sort()).toEqual(['trade-buy', 'trade-div', 'trade-sell']);
+    expect(inv.assets).toEqual([
+      { id: ASSET.id, name: ASSET.name, kind: 'fund', accountId: 'inv-asset-live' },
+      { id: ASSET2.id, name: ASSET2.name, kind: 'stock', accountId: 'inv-asset-live2' },
+    ]);
+    expect(inv.trades.map((t) => t.id).sort()).toEqual(['trade-buy', 'trade-buy2', 'trade-div', 'trade-sell']);
     expect(inv.prices).toEqual([{ assetId: ASSET.id, date: '2026-11-10', priceMicro: 11_000_000 }]);
     const ledger = await a.loadLedger();
     expect(ledger.accounts.find((x) => x.id === 'inv-asset-live')?.kind).toBe('investment');
@@ -97,72 +106,115 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     await expect(b.savePrice({ assetId: ASSET.id, date: '2026-11-11', priceMicro: 1 })).rejects.toThrow(StorageError);
     await expect(b.deleteTrade('trade-sell')).rejects.toThrow(/ไม่พบ/);
     const after = await a.loadInvestments();
-    expect(after.trades).toHaveLength(3);
+    expect(after.trades).toHaveLength(4);
     expect(after.prices).toHaveLength(1);
     expect((await b.loadInvestments()).trades).toHaveLength(0);
   });
 
-  it('ผ่าน REST ตรง: B อ่านได้ 0 แถว · แก้/ลบของ A ได้ 0 แถว · ใส่ user_id ของ A ไม่ได้ · ผูกสินทรัพย์/รายการสมุดของ A ไม่ได้', async () => {
+  it('ผ่าน REST ตรง: B อ่านได้ 0 แถว · แก้/ลบของ A ได้ 0 แถว · ใส่ user_id ของ A ไม่ได้ (RLS 42501) · ผูกสินทรัพย์/รายการสมุดของ A ไม่ได้ (FK 23503)', async () => {
     const { client } = await signedIn(1);
+    const aId = (await signedIn(0)).id;
+    const RLS = '42501';
+    const FK = '23503';
+    // อ่าน: A มีข้อมูลอยู่ก่อนแล้ว (จึงพิสูจน์ได้ว่า "ว่าง" มาจาก RLS ไม่ใช่ไม่มีข้อมูล)
     for (const table of ['assets', 'trades', 'asset_prices']) {
+      const readAsAdmin = await admin.from(table).select('*', { count: 'exact', head: true }).eq('user_id', aId);
+      expect(readAsAdmin.count, table).toBeGreaterThan(0);
       const read = await client.from(table).select('*');
-      expect(read.error).toBeNull();
-      expect(read.data).toEqual([]);
+      expect(read.error, table).toBeNull();
+      expect(read.data, table).toEqual([]);
     }
+    // แก้/ลบแถวของ A ด้วยรหัสจริง: ไม่มี error แต่ได้ 0 แถว (RLS กรองทิ้ง)
     const upd = await client.from('trades').update({ memo: 'hack' }).eq('id', 'trade-buy').select('id');
     expect(upd.error).toBeNull();
     expect(upd.data).toEqual([]);
     const updAsset = await client.from('assets').update({ name: 'hack' }).eq('id', ASSET.id).select('id');
-    expect(updAsset.data ?? []).toEqual([]);
+    expect(updAsset.error).toBeNull();
+    expect(updAsset.data).toEqual([]);
     const updPrice = await client.from('asset_prices').update({ price_micro: 1 }).eq('asset_id', ASSET.id).select('asset_id');
-    expect(updPrice.data ?? []).toEqual([]);
-    for (const [table, key] of [['trades', 'id'], ['assets', 'id'], ['asset_prices', 'asset_id']] as const) {
-      const del = await client.from(table).delete().eq(key, key === 'asset_id' ? ASSET.id : key === 'id' && table === 'assets' ? ASSET.id : 'trade-buy').select(key);
-      expect(del.error).toBeNull();
-      expect(del.data).toEqual([]);
-    }
-    // เขียนในชื่อ A (user_id ของ A) ถูก RLS ปฏิเสธ
-    const aId = (await signedIn(0)).id;
-    const forgedAsset = await client.from('assets').insert({ user_id: aId, id: 'forged', name: 'x', account_id: 'inv-asset-live' });
-    expect(forgedAsset.error).not.toBeNull();
+    expect(updPrice.error).toBeNull();
+    expect(updPrice.data).toEqual([]);
+    const delTrade = await client.from('trades').delete().eq('id', 'trade-buy').select('id');
+    expect(delTrade.error).toBeNull();
+    expect(delTrade.data).toEqual([]);
+    const delAsset = await client.from('assets').delete().eq('id', ASSET.id).select('id');
+    expect(delAsset.error).toBeNull();
+    expect(delAsset.data).toEqual([]);
+    const delPrice = await client.from('asset_prices').delete().eq('asset_id', ASSET.id).select('asset_id');
+    expect(delPrice.error).toBeNull();
+    expect(delPrice.data).toEqual([]);
+
+    // เขียนในชื่อ A (user_id ของ A): ต้องถูก RLS ปฏิเสธ (42501) ไม่ใช่ error อื่น
+    const forgedAsset = await client.from('assets').insert({ user_id: aId, id: 'forged', name: 'x', account_id: 'inv-forged' });
+    expect(forgedAsset.error?.code).toBe(RLS);
     const forgedTrade = await client.from('trades').insert({ user_id: aId, id: 'forged-t', asset_id: ASSET.id, kind: 'buy', date: '2026-11-06', units: '1', amount: 1 });
-    expect(forgedTrade.error).not.toBeNull();
-    // เขียนในชื่อตัวเองแต่อ้างสินทรัพย์/รายการสมุดของ A: FK แบบรวม user_id ปฏิเสธ
+    expect(forgedTrade.error?.code).toBe(RLS);
+    const forgedPrice = await client.from('asset_prices').insert({ user_id: aId, asset_id: ASSET.id, date: '2026-11-12', price_micro: 5 });
+    expect(forgedPrice.error?.code).toBe(RLS);
+    const forgedUpsert = await client.from('asset_prices').upsert({ user_id: aId, asset_id: ASSET.id, date: '2026-11-10', price_micro: 5 }, { onConflict: 'user_id,asset_id,date' });
+    expect(forgedUpsert.error).not.toBeNull();
+
+    // ผูกสินทรัพย์/รายการสมุดของ A จากแถวของตัวเอง: FK รวม user_id ปฏิเสธ (23503)
     const crossAsset = await client.from('trades').insert({ id: 'cross-t', asset_id: ASSET.id, kind: 'buy', date: '2026-11-06', units: '1', amount: 1 });
-    expect(crossAsset.error).not.toBeNull();
-    const aLedger = await (await repoFor(0)).loadLedger();
-    const aEntryId = aLedger.entries[0]!.id;
-    const bAsset = await client.from('assets').insert({ id: 'b-own', name: 'x', account_id: 'inv-asset-live' });
-    expect(bAsset.error).not.toBeNull(); // บัญชีลงทุนของ A ใช้ไม่ได้
-    const crossEntry = await client.from('trades').insert({ id: 'cross-e', asset_id: 'b-own', kind: 'buy', date: '2026-11-06', units: '1', amount: 1, entry_id: aEntryId });
-    expect(crossEntry.error).not.toBeNull();
-    // ข้อมูลของ A ยังครบหลังความพยายามทั้งหมด
+    expect(crossAsset.error?.code).toBe(FK);
+    const aEntryId = (await a.loadLedger()).entries[0]!.id;
+    const bOwn = await b.addAsset({ id: 'b-own', name: 'ของ B', kind: 'fund' }); // สินทรัพย์ของ B เอง
+    const crossEntry = await client.from('trades').insert({ id: 'cross-e', asset_id: bOwn.id, kind: 'buy', date: '2026-11-06', units: '1', amount: 1, entry_id: aEntryId });
+    expect(crossEntry.error?.code).toBe(FK);
+    const bAssetOnAAccount = await client.from('assets').insert({ id: 'b-steal-acc', name: 'x', account_id: 'inv-asset-live' });
+    expect(bAssetOnAAccount.error?.code).toBe(FK); // บัญชีลงทุนของ A ใช้ไม่ได้
+
+    // "ยัดข้อมูลของตัวเองเข้าบัญชีคนอื่น" ด้วย update: with check ต้องปฏิเสธ (42501) ทั้ง 3 ตาราง
+    await b.addTrade(trade({ id: 'b-trade', assetId: bOwn.id, units: '100000000', amount: 1000 }));
+    await b.savePrice({ assetId: bOwn.id, date: '2026-11-10', priceMicro: 1_000_000 });
+    const moveTrade = await client.from('trades').update({ user_id: aId }).eq('id', 'b-trade');
+    expect(moveTrade.error?.code).toBe(RLS);
+    const moveAsset = await client.from('assets').update({ user_id: aId }).eq('id', bOwn.id);
+    expect(moveAsset.error?.code).toBe(RLS);
+    const movePrice = await client.from('asset_prices').update({ user_id: aId }).eq('asset_id', bOwn.id);
+    expect(movePrice.error?.code).toBe(RLS);
+    // ย้ายรายการของตัวเองไปชี้สินทรัพย์ของ A: FK ปฏิเสธ
+    const repoint = await client.from('trades').update({ asset_id: ASSET.id }).eq('id', 'b-trade');
+    expect(repoint.error?.code).toBe(FK);
+
+    // ข้อมูลของ A ยังครบเหมือนเดิมหลังความพยายามทั้งหมด
     const check = await a.loadInvestments();
-    expect(check.assets).toHaveLength(1);
+    expect(check.assets.map((x) => x.name)).toEqual([ASSET.name, ASSET2.name]);
+    expect(check.trades).toHaveLength(4);
     expect(check.trades.find((t) => t.id === 'trade-buy')?.memo).toBe('');
-    expect(check.trades).toHaveLength(3);
+    expect(check.prices).toHaveLength(1);
     expect(check.prices[0]?.priceMicro).toBe(11_000_000);
+    // ... และข้อมูลของ B มีแค่ของ B เอง
+    const bInv = await b.loadInvestments();
+    expect(bInv.assets.map((x) => x.id)).toEqual(['b-own']);
+    expect(bInv.trades.map((t) => t.id)).toEqual(['b-trade']);
   });
 
-  it('anon (ไม่ล็อกอิน) อ่านตารางลงทุนไม่ได้', async () => {
+  it('anon (ไม่ล็อกอิน) อ่าน/เขียน/ลบตารางลงทุนไม่ได้', async () => {
     const anon = createClient(live.url, live.anonKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
     for (const table of ['assets', 'trades', 'asset_prices']) {
       const res = await anon.from(table).select('*');
       expect(res.error !== null || (res.data ?? []).length === 0).toBe(true);
+      const ins = await anon.from(table).insert(table === 'assets' ? { id: 'anon', name: 'x', account_id: 'x' } : table === 'trades' ? { id: 'anon', asset_id: 'x', kind: 'buy', date: '2026-11-06', units: '1', amount: 1 } : { asset_id: 'x', date: '2026-11-06', price_micro: 1 });
+      expect(ins.error, table).not.toBeNull();
+      const del = await anon.from(table).delete().neq('user_id', '00000000-0000-0000-0000-000000000000').select('*');
+      expect(del.error !== null || (del.data ?? []).length === 0, table).toBe(true);
     }
+    const aStill = await a.loadInvestments();
+    expect(aStill.trades).toHaveLength(4);
   });
 
   it('กติกาลำดับ/ขายเกินที่ repository บังคับ: เพิ่มซื้อก่อนรายการขาย/ขายเกินที่ถือ/ลบซื้อก่อนขาย ถูกปฏิเสธ', async () => {
     await expect(a.addTrade(trade({ id: 'late-buy', date: '2026-11-15', createdAt: '2026-11-15T03:00:00.000Z' }))).rejects.toThrow(/รายการขาย/);
     await expect(a.addTrade(trade({ id: 'oversell', kind: 'sell', date: '2026-11-26', createdAt: '2026-11-26T03:00:00.000Z', units: '9999999999', amount: undefined, priceMicro: 1_000_000 }))).rejects.toThrow(/ถือ/);
     await expect(a.deleteTrade('trade-buy')).rejects.toThrow(/รายการขาย/);
-    expect((await a.loadInvestments()).trades).toHaveLength(3);
+    expect((await a.loadInvestments()).trades).toHaveLength(4);
   });
 
   it('ส่งออกไฟล์สำรองมีข้อมูลลงทุนครบ → ตรวจไฟล์ผ่าน → นำเข้าเป็นของ B ได้ครบ (kind, สินทรัพย์, รายการ, ราคา) โดยของ A ไม่เปลี่ยน', async () => {
     const snapshot = await a.exportSnapshot(new Date('2026-11-12T00:00:00.000Z'));
-    expect(snapshot.investments?.assets).toHaveLength(1);
-    expect(snapshot.investments?.trades).toHaveLength(3);
+    expect(snapshot.investments?.assets).toHaveLength(2);
+    expect(snapshot.investments?.trades).toHaveLength(4);
     expect(snapshot.investments?.prices).toHaveLength(1);
     const text = JSON.stringify(snapshot);
     const parsed = parseBackup(text, '2026-11-12');
