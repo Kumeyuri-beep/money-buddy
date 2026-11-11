@@ -227,7 +227,7 @@ function ReviewBody({ read, onImport, onBack }: { read: Extract<BackupFileRead, 
   return (
     <div className="migrate-body">
       <p>
-        ไฟล์ "{read.fileName}" พบ {read.summary.accounts} บัญชี · {read.summary.entries} รายการ · {read.summary.bills} บิล ตรวจแล้ว: ตัวเลขเงินถูกต้อง และทุกรายการบวกลบลงตัว ขั้นถัดไปจะแสดงยอดแต่ละบัญชีให้เทียบกับไฟล์
+        ไฟล์ "{read.fileName}" พบ {read.summary.accounts} บัญชี · {read.summary.entries} รายการ · {read.summary.bills} บิล{read.summary.assets !== undefined ? ` · ${read.summary.assets} สินทรัพย์ลงทุน · ${read.summary.trades ?? 0} รายการลงทุน` : ''} ตรวจแล้ว: ตัวเลขเงินถูกต้อง และทุกรายการบวกลบลงตัว ขั้นถัดไปจะแสดงยอดแต่ละบัญชีให้เทียบกับไฟล์
       </p>
       {read.warnings.length > 0 && (
         <div className="slip-warn" role="note">

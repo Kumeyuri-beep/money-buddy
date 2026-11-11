@@ -215,7 +215,6 @@ begin
 
   -- T11b เพดานแถว (ผลตรวจ security-auditor ข้อ 1): trades ไม่เกิน 10,000 ต่อผู้ใช้ · สินทรัพย์ไม่เกิน 200
   --      ใส่เป็นชุดเดียวในฐานะผู้ดูแล (ตรวจระดับคำสั่ง) แล้วทดลองลบด้วย reset_my_ledger_step: ต้องไม่หมดเวลา
-  insert into public.accounts (user_id, id, type, name, currency) values (ub, 'w1x', 'asset', 'w', 'THB') on conflict do nothing;
   insert into public.trades (user_id, id, asset_id, kind, date, units, amount)
     select ub, 'bulk-' || i, 'a1', 'buy', date '2026-11-06', '100', 100 from generate_series(1, 10000) i;
   r := pg_temp.fails($$ insert into public.trades (user_id, id, asset_id, kind, date, units, amount) values ((select user_id from public.assets where id = 'a1' limit 1), 'bulk-over', 'a1', 'buy', date '2026-11-06', '100', 100) $$);
@@ -230,7 +229,7 @@ begin
 
   -- T12 ลบบัญชีผู้ใช้ (delete_my_account_step) ที่มีข้อมูลลงทุน: ต้องลบสะอาด ไม่ติด FK
   perform pg_temp.login(ub);
-  insert into public.trades (id, asset_id, kind, date, units, amount) values ('b-t1', 'a1', 'buy', '2026-11-06', '100', 100);
+  -- (ub มีรายการลงทุน 10,000 แถวจาก T11b แล้ว: ห้ามเพิ่มอีกเพราะชนเพดาน)
   insert into public.asset_prices (asset_id, date, price_micro) values ('a1', '2026-11-10', 1000000);
   perform pg_temp.settle();
   n := 0;

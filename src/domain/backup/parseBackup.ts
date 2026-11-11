@@ -3,6 +3,8 @@ import { settingsProblem, type FinanceSettings } from '../bills/settings';
 import type { Bill } from '../bills/types';
 import { createEntry, LedgerError } from '../ledger/entry';
 import { accountProblem, lengthWithin, MAX_ID_LENGTH } from '../ledger/limits';
+import type { InvestmentData } from '../invest/types';
+import { parseInvestments } from './parseInvestments';
 import { safeAdd } from '../money/safe';
 import type { Account, Entry, EntrySource, NewEntry } from '../ledger/types';
 
@@ -35,6 +37,8 @@ export interface BackupData {
   entries: Entry[];
   bills: Bill[];
   settings: FinanceSettings;
+  /** ข้อมูลลงทุน (พอร์ตลงทุน) ไม่มี = ไม่มีข้อมูลลงทุนในไฟล์ */
+  investments?: InvestmentData;
 }
 
 export interface BackupSummary {
@@ -42,6 +46,9 @@ export interface BackupSummary {
   accounts: number;
   entries: number;
   bills: number;
+  /** จำนวนสินทรัพย์/รายการลงทุนในไฟล์ (ไม่มี = ไม่มีข้อมูลลงทุน) */
+  assets?: number;
+  trades?: number;
 }
 
 export type ParseResult =
@@ -304,6 +311,9 @@ export function parseBackup(text: string, today: string): ParseResult {
   const accountsOk = accounts.length === rawAccounts.length;
   const entries = parseEntries(rawEntries, accounts, accountsOk, p);
   const bills = accountsOk ? parseBills(rawBills, accounts, today, p) : [];
+  // ข้อมูลลงทุนต้องตรวจเมื่อบัญชีและรายการผ่านแล้วเท่านั้น (อ้างอิงบัญชีลงทุนและ Entry)
+  const investments = accountsOk ? parseInvestments(root.investments, accounts, entries, (m) => p.add(m)) : undefined;
+  const hasInvestments = investments !== undefined && (investments.assets.length > 0 || investments.trades.length > 0 || investments.prices.length > 0);
 
   const rawSettings = isObject(root.settings) ? root.settings : {};
   const settings: FinanceSettings = {};
@@ -326,8 +336,14 @@ export function parseBackup(text: string, today: string): ParseResult {
   if (p.any) return { ok: false, problems: p.result() };
   return {
     ok: true,
-    data: { accounts, entries, bills, settings },
-    summary: { schemaVersion: schemaVersion as number, accounts: accounts.length, entries: entries.length, bills: bills.length },
+    data: { accounts, entries, bills, settings, ...(hasInvestments ? { investments } : {}) },
+    summary: {
+      schemaVersion: schemaVersion as number,
+      accounts: accounts.length,
+      entries: entries.length,
+      bills: bills.length,
+      ...(hasInvestments ? { assets: investments.assets.length, trades: investments.trades.length } : {}),
+    },
     warnings,
   };
 }
