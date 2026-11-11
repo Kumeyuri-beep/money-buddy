@@ -442,3 +442,12 @@ select { font: inherit; }
 
 /* ปุ่มออกจากระบบใต้การ์ดโปรไฟล์ในแถบเมนู */
 .nav-signout { width: 100%; margin-bottom: 6px; border-color: rgba(255, 255, 255, 0.35); }
+
+/* ถัวเฉลี่ยต้นทุน (เครื่องคิดเลข) */
+.avg-sub { margin: 20px 0 8px; font-size: 1rem; }
+.avg-result { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 24px; margin: 0 0 12px; }
+.avg-result dt { color: var(--muted); font-size: 0.85rem; }
+.avg-result dd { margin: 2px 0 0; font-size: 1.2rem; }
+.avg-result .avg-new { font-size: 1.6rem; font-weight: 600; color: var(--gold); }
+.field input[aria-invalid='true'] { border-color: var(--expense); }
+.avg-err { margin: 4px 0 0; color: var(--expense); font-size: 0.85rem; }

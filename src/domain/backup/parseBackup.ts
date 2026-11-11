@@ -88,14 +88,19 @@ function parseAccounts(raw: unknown[], p: Problems): Account[] {
   raw.forEach((item, i) => {
     const label = `บัญชีที่ ${i + 1}`;
     if (!isObject(item)) return p.add(`${label}: ไม่ใช่วัตถุ`);
-    const { id, type, name, currency, archived, sortOrder } = item;
+    const { id, type, name, currency, archived, sortOrder, kind } = item;
     if (typeof id !== 'string' || typeof type !== 'string' || typeof name !== 'string' || typeof currency !== 'string') {
       return p.add(`${label}: ต้องมี id, type, name, currency เป็นข้อความ`);
     }
     if (hasUnsafeText(id) || hasUnsafeText(name)) return p.add(`${label} (${short(id)}): รหัส/ชื่อมีอักขระควบคุม`);
     if (archived !== undefined && typeof archived !== 'boolean') return p.add(`${label} (${short(id)}): archived ต้องเป็นจริง/เท็จ`);
     if (sortOrder !== undefined && typeof sortOrder !== 'number') return p.add(`${label} (${short(id)}): sortOrder ต้องเป็นตัวเลข`);
+    if (kind !== undefined && kind !== 'normal' && kind !== 'investment') {
+      return p.add(`${label} (${short(id)}): kind ต้องเป็น normal หรือ investment`);
+    }
+    if (kind === 'investment' && type !== 'asset') return p.add(`${label} (${short(id)}): บัญชีลงทุนต้องเป็นบัญชีสินทรัพย์`);
     const account = { id, type, name, currency } as Account;
+    if (kind === 'investment') account.kind = 'investment';
     if (archived !== undefined) account.archived = archived;
     if (sortOrder !== undefined) account.sortOrder = sortOrder;
     const problem = accountProblem(account);
@@ -188,8 +193,8 @@ function parseBills(raw: unknown[], accounts: Account[], today: string, p: Probl
     if (bill.lastPaidMonth !== undefined && bill.lastPaidMonth > month) {
       return p.add(`${tag}: lastPaidMonth (${bill.lastPaidMonth}) เป็นเดือนในอนาคต`);
     }
-    if (bill.walletId !== undefined && byId.get(bill.walletId)?.type !== 'asset') {
-      return p.add(`${tag}: กระเป๋าที่จ่ายต้องเป็นกระเป๋าที่มีอยู่จริง`);
+    if (bill.walletId !== undefined && (byId.get(bill.walletId)?.type !== 'asset' || byId.get(bill.walletId)?.kind === 'investment')) {
+      return p.add(`${tag}: กระเป๋าที่จ่ายต้องเป็นกระเป๋าเงินสดที่มีอยู่จริง (ไม่ใช่บัญชีลงทุน)`);
     }
     if (bill.categoryId !== undefined && byId.get(bill.categoryId)?.type !== 'expense') {
       return p.add(`${tag}: หมวดต้องเป็นหมวดรายจ่ายที่มีอยู่จริง`);

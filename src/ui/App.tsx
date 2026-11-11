@@ -29,6 +29,7 @@ import { Header } from './Header';
 import { IntegrityBanner, IntegrityStatus } from './Integrity';
 import { LedgerView } from './LedgerView';
 import { Setup } from './Setup';
+import { AveragingView } from './AveragingView';
 import { Shell, type ViewId } from './Shell';
 import { ScanStatus } from './ScanStatus';
 import { Toast } from './Toast';
@@ -391,6 +392,8 @@ export function App() {
         />
       ) : view === 'account' ? (
         <AccountView />
+      ) : view === 'averaging' ? (
+        <AveragingView />
       ) : view === 'bills' ? (
         <BillsView
           bills={state.bills}

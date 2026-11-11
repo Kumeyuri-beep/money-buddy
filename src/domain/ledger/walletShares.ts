@@ -1,3 +1,4 @@
+import { isCashWallet } from './accountKind';
 import { balanceOf } from './balance';
 import type { Account, Entry } from './types';
 
@@ -19,7 +20,7 @@ export interface WalletShare {
  */
 export function walletShares(accounts: readonly Account[], entries: readonly Entry[]): WalletShare[] {
   const wallets = accounts
-    .filter((a) => a.type === 'asset' && a.currency === 'THB' && !a.archived)
+    .filter(isCashWallet)
     .map((a) => ({ id: a.id, name: a.name, balance: balanceOf(a.id, entries) }));
 
   const positiveTotal = wallets.reduce((s, w) => (w.balance > 0 ? s + BigInt(w.balance) : s), 0n);

@@ -3,6 +3,7 @@ import { payAmountProblem } from '../domain/bills/payAmount';
 import { billProblem, markBillPaid, payableCycle } from '../domain/bills/schedule';
 import { sanitizeSettings, settingsProblem, type FinanceSettings } from '../domain/bills/settings';
 import type { Bill } from '../domain/bills/types';
+import { isCashWallet } from '../domain/ledger/accountKind';
 import { createEntry } from '../domain/ledger/entry';
 import { runIntegrityCheck } from '../domain/ledger/integrity';
 import type { Account, Entry, NewEntry } from '../domain/ledger/types';
@@ -226,7 +227,7 @@ export async function assertBillWritableWith(getAccount: (id: string) => Promise
   if (bill.id.trim() === '') throw new StorageError('บิลไม่ถูกต้อง: รหัสบิลต้องไม่ว่าง');
   if (bill.walletId !== undefined) {
     const wallet = await getAccount(bill.walletId);
-    if (!wallet || wallet.type !== 'asset') throw new StorageError('บิลไม่ถูกต้อง: กระเป๋าที่จ่ายต้องเป็นกระเป๋าที่มีอยู่จริง');
+    if (!wallet || wallet.type !== 'asset' || wallet.kind === 'investment') throw new StorageError('บิลไม่ถูกต้อง: กระเป๋าที่จ่ายต้องเป็นกระเป๋าที่มีอยู่จริง');
   }
   if (bill.categoryId !== undefined) {
     const category = await getAccount(bill.categoryId);
@@ -379,7 +380,7 @@ export async function payBill(db: MoneyDB, billId: string, options: PayBillOptio
     const accounts = await db.accounts.toArray();
     const wallet = accounts.find((a) => a.id === walletId);
     const category = accounts.find((a) => a.id === categoryId);
-    if (!wallet || wallet.type !== 'asset' || wallet.currency !== 'THB' || wallet.archived === true) {
+    if (!wallet || !isCashWallet(wallet)) {
       throw new StorageError('กระเป๋าที่จ่ายต้องเป็นกระเป๋าเงินบาทที่ใช้งานอยู่');
     }
     if (!category || category.type !== 'expense' || category.currency !== 'THB' || category.archived === true) {

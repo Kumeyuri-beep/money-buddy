@@ -1,5 +1,6 @@
 import { roundHalfUp } from '../money/round';
 import { safeAdd, safeSub } from '../money/safe';
+import { isCashWallet } from './accountKind';
 import { indexAccounts } from './entry';
 import { naturalBalance, periodTotals } from './balance';
 import type { Account, Entry } from './types';
@@ -81,7 +82,7 @@ export function netWorthAt(accounts: readonly Account[], entries: readonly Entry
 export function cashBalance(accounts: readonly Account[], entries: readonly Entry[], date: string): number {
   const upTo = entriesUpTo(entries, date);
   return sumNatural(
-    accounts.filter((a) => a.type === 'asset' && a.currency === CURRENCY && !a.archived),
+    accounts.filter(isCashWallet),
     upTo,
   );
 }
@@ -227,7 +228,7 @@ export function incomeChannels(
     if (!touchesIncome) continue;
     for (const line of entry.lines) {
       const account = byId.get(line.accountId);
-      if (account?.type === 'asset' && account.currency === CURRENCY) {
+      if (account && isCashWallet(account)) {
         walletIn.set(account.id, safeAdd(walletIn.get(account.id) ?? 0, line.amount));
       }
     }

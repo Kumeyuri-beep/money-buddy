@@ -1,3 +1,4 @@
+import { isCashWallet } from '../domain/ledger/accountKind';
 import { isValidIsoDate } from '../domain/ledger/entry';
 import type { Account, Entry, NewEntry } from '../domain/ledger/types';
 import { parseBahtToSatang, satang, toBahtString } from '../domain/money/satang';
@@ -26,7 +27,7 @@ export interface EntryForm {
 
 /** กระเป๋าเงินบาทที่ใช้งานอยู่ */
 export function walletOptions(accounts: readonly Account[]): Account[] {
-  return accounts.filter((a) => a.type === 'asset' && a.currency === 'THB' && !a.archived);
+  return accounts.filter(isCashWallet);
 }
 
 /** ตัวเลือกช่องที่สอง (หมวดหรือกระเป๋าปลายทาง) ตามประเภทรายการ */
@@ -126,6 +127,8 @@ export function entryToForm(accounts: readonly Account[], entry: Entry): EntryFo
     return { ...base, kind: 'income', walletId: to.id, counterId: from.id };
   }
   if (to.type === 'asset' && from.type === 'asset') {
+    // โอนเข้า/ออกบัญชีลงทุนแก้ผ่านฟอร์มนี้ไม่ได้ (ฟอร์มรู้จักแต่กระเป๋าเงินสด)
+    if (to.kind === 'investment' || from.kind === 'investment') return null;
     return { ...base, kind: 'transfer', walletId: from.id, counterId: to.id };
   }
   return null;

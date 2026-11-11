@@ -5,6 +5,7 @@ import { payAmountProblem } from '../domain/bills/payAmount';
 import { billProblem, markBillPaid, payableCycle } from '../domain/bills/schedule';
 import { sanitizeSettings, settingsProblem, type FinanceSettings } from '../domain/bills/settings';
 import type { Bill } from '../domain/bills/types';
+import { isCashWallet } from '../domain/ledger/accountKind';
 import { createEntry } from '../domain/ledger/entry';
 import { runIntegrityCheck } from '../domain/ledger/integrity';
 import type { Account, AccountType, Entry, EntrySource, NewEntry } from '../domain/ledger/types';
@@ -66,6 +67,8 @@ export interface AccountRow {
   currency: string;
   archived: boolean;
   sort_order: number | null;
+  /** ไม่มี/normal = บัญชีทั่วไป · investment = บัญชีลงทุน (ฐานข้อมูลหลัง migration พอร์ตลงทุน P2) */
+  kind?: string;
 }
 
 export interface EntryRow {
@@ -104,6 +107,8 @@ function safeInt(value: unknown, what: string): number {
 export function rowToAccount(row: AccountRow): Account {
   const account: Account = { id: row.id, type: row.type as AccountType, name: row.name, currency: row.currency };
   if (row.archived) account.archived = true;
+  if (row.kind === 'investment') account.kind = 'investment';
+  else if (row.kind !== undefined && row.kind !== 'normal') throw new StorageError(`ข้อมูลจากเซิร์ฟเวอร์ไม่ถูกต้อง: ประเภทบัญชี "${row.kind}"`);
   if (row.sort_order !== null && row.sort_order !== undefined) account.sortOrder = row.sort_order;
   return account;
 }
@@ -111,6 +116,7 @@ export function rowToAccount(row: AccountRow): Account {
 export function accountToJson(a: Account): Record<string, unknown> {
   const out: Record<string, unknown> = { id: a.id, type: a.type, name: a.name, currency: a.currency };
   if (a.archived !== undefined) out.archived = a.archived;
+  if (a.kind === 'investment') out.kind = a.kind;
   if (a.sortOrder !== undefined) out.sortOrder = a.sortOrder;
   return out;
 }
@@ -498,7 +504,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       const accounts = await loadAccounts();
       const wallet = accounts.find((a) => a.id === walletId);
       const category = accounts.find((a) => a.id === categoryId);
-      if (!wallet || wallet.type !== 'asset' || wallet.currency !== 'THB' || wallet.archived === true) {
+      if (!wallet || !isCashWallet(wallet)) {
         throw new StorageError('กระเป๋าที่จ่ายต้องเป็นกระเป๋าเงินบาทที่ใช้งานอยู่');
       }
       if (!category || category.type !== 'expense' || category.currency !== 'THB' || category.archived === true) {
