@@ -9,6 +9,7 @@ import { StorageError } from '../../src/storage/repository';
 import { createSupabaseRepository } from '../../src/storage/supabaseRepository';
 import type { LedgerRepository } from '../../src/storage/ledgerRepository';
 import { loadAdmin } from '../../scripts/lib/admin.mjs';
+import { liveClientOptions, wipeUserTables } from './liveHelpers';
 
 /**
  * พอร์ตลงทุน P3: ยืนยันกับ Supabase จริงว่าตาราง assets / trades / asset_prices แยกข้อมูลต่อผู้ใช้ (RLS)
@@ -26,7 +27,7 @@ async function signedIn(index: number): Promise<{ client: SupabaseClient; id: st
   const user = live.users[index]!;
   const cached = sessions.get(user.email);
   if (cached) return cached;
-  const client = createClient(live.url, live.anonKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+  const client = createClient(live.url, live.anonKey, liveClientOptions);
   const { data, error } = await client.auth.signInWithPassword({ email: user.email, password: user.password });
   if (error || !data.user) throw new Error('ล็อกอินผู้ใช้ทดสอบไม่สำเร็จ');
   const session = { client, id: data.user.id };
@@ -53,10 +54,7 @@ async function adminCount(table: string, filters: Record<string, string>): Promi
 async function wipe(index: number): Promise<void> {
   const { id } = await signedIn(index);
   assertTestUser(id);
-  for (const table of ['entries', 'bills', 'accounts', 'settings']) {
-    const { error } = await admin.from(table).delete().eq('user_id', id);
-    if (error) throw new Error('ล้างข้อมูลผู้ใช้ทดสอบไม่สำเร็จที่ตาราง ' + table);
-  }
+  await wipeUserTables(admin, id, ['entries', 'bills', 'accounts', 'settings']);
 }
 
 async function repoFor(index: number): Promise<LedgerRepository> {
@@ -263,7 +261,7 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
   });
 
   it('anon (ไม่ล็อกอิน) อ่าน/เขียน/ลบตารางลงทุนไม่ได้', async () => {
-    const anon = createClient(live.url, live.anonKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+    const anon = createClient(live.url, live.anonKey, liveClientOptions);
     for (const table of ['assets', 'trades', 'asset_prices']) {
       const res = await anon.from(table).select('*');
       expect(res.error !== null || (res.data ?? []).length === 0).toBe(true);

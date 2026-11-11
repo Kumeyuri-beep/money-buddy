@@ -7,6 +7,7 @@ import { createSupabaseRepository } from '../../src/storage/supabaseRepository';
 import type { LedgerRepository } from '../../src/storage/ledgerRepository';
 import { describeRepositoryContract } from '../unit/repositoryContract';
 import { loadAdmin } from '../../scripts/lib/admin.mjs';
+import { liveClientOptions, wipeUserTables } from './liveHelpers';
 
 /**
  * M2-C2/M2-F: เทสต์สัญญาชุดเดียวกับ Dexie รันกับ Supabase จริง + เทสต์แยกข้อมูลระหว่างผู้ใช้ 2 คน (RLS)
@@ -19,7 +20,7 @@ async function signedIn(index: number): Promise<{ client: SupabaseClient; id: st
   const user = live.users[index]!;
   const cached = sessions.get(user.email);
   if (cached) return cached;
-  const client = createClient(live.url, live.anonKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+  const client = createClient(live.url, live.anonKey, liveClientOptions);
   const { data, error } = await client.auth.signInWithPassword({ email: user.email, password: user.password });
   if (error || !data.user) throw new Error('ล็อกอินผู้ใช้ทดสอบไม่สำเร็จ');
   const session = { client, id: data.user.id };
@@ -32,10 +33,7 @@ async function signedIn(index: number): Promise<{ client: SupabaseClient; id: st
 const admin = loadAdmin().client;
 async function wipe(index: number): Promise<void> {
   const { id } = await signedIn(index);
-  for (const table of ['entries', 'bills', 'accounts', 'settings']) {
-    const { error } = await admin.from(table).delete().eq('user_id', id);
-    if (error) throw new Error('ล้างข้อมูลผู้ใช้ทดสอบไม่สำเร็จที่ตาราง ' + table);
-  }
+  await wipeUserTables(admin, id, ['entries', 'bills', 'accounts', 'settings']);
 }
 
 async function repoFor(index: number): Promise<LedgerRepository> {
@@ -106,7 +104,7 @@ describe('PDPA (M2-E): ยอมรับนโยบาย · ลบบัญ�
       expect(left.error, table).toBeNull();
       expect(left.count, table).toBe(0);
     }
-    const again = createClient(live.url, live.anonKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+    const again = createClient(live.url, live.anonKey, liveClientOptions);
     const login = await again.auth.signInWithPassword({ email: live.users[2]!.email, password: live.users[2]!.password });
     expect(login.error).not.toBeNull();
     expect((await (await repoFor(0)).loadLedger()).entries.length).toBe(aBefore);
@@ -287,7 +285,7 @@ describe('แยกข้อมูลระหว่างผู้ใช้ (RL
   });
 
   it('M2-F: สมัครเอง / เข้าสู่ระบบแบบไม่ระบุตัวตน ถูกปฏิเสธ (ปิดที่เซิร์ฟเวอร์ ไม่ใช่แค่ซ่อนปุ่ม)', async () => {
-    const anon = createClient(live.url, live.anonKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+    const anon = createClient(live.url, live.anonKey, liveClientOptions);
     const email = `signup-probe-${Math.random().toString(36).slice(2)}@users.money-buddy.internal`;
     const signUp = await anon.auth.signUp({ email, password: 'Probe-Password-1x' });
     expect(signUp.error).not.toBeNull();
@@ -299,7 +297,7 @@ describe('แยกข้อมูลระหว่างผู้ใช้ (RL
   });
 
   it('คนที่ไม่ได้ล็อกอิน (anon) อ่านและเรียก RPC ไม่ได้เลย', async () => {
-    const anon = createClient(live.url, live.anonKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+    const anon = createClient(live.url, live.anonKey, liveClientOptions);
     const read = await anon.from('entries').select('id');
     expect(read.error !== null || (read.data ?? []).length === 0).toBe(true);
     const rpc = await anon.rpc('reset_my_ledger', { p_password: 'x' });
