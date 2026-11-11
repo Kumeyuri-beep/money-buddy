@@ -13,12 +13,17 @@ export type Currency = string; // 'THB', 'USD', ...
 
 export type EntrySource = 'manual' | 'ocr' | 'quick' | 'recurring' | 'debt' | 'import' | 'system';
 
+/** normal = บัญชีทั่วไป (ค่าตั้งต้น) · investment = บัญชีเก็บต้นทุนสินทรัพย์ลงทุน ไม่นับเป็นเงินสด/SAFE-TO-SPEND (R17) */
+export type AccountKind = 'normal' | 'investment';
+
 export interface Account {
   id: string;
   type: AccountType;
   name: string;
   currency: Currency;
   archived?: boolean;
+  /** ไม่มี = normal (ข้อมูลเดิมทุกบัญชี) */
+  kind?: AccountKind;
   /** ลำดับแสดงผล (น้อยมาก่อน) ไม่มีค่า = ไว้ท้ายสุด */
   sortOrder?: number;
 }
