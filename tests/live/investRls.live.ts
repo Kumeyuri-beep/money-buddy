@@ -311,6 +311,21 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     expect(await a.loadInvestments()).toEqual(inv);
   });
 
+  it('แผนซื้อประจำ (DCA): เก็บใน settings · บันทึกค่าตั้งค่าอื่นโดยไม่ส่งแผนไม่ลบแผนเดิม · ส่งอาร์เรย์ว่าง = ลบ · แผนผิดรูปถูกปฏิเสธ · ของ A ไม่เห็น', async () => {
+    await wipe(1);
+    const plan = { id: 'dca-1', assetId: 'asset-live', amount: 100_000, dayOfMonth: 31, startMonth: '2026-11' };
+    await b.saveSettings({ payDay: 25, dcaPlans: [plan] });
+    expect((await b.loadSettings()).dcaPlans).toEqual([plan]);
+    // เหมือนหน้าบิลที่สร้างค่าตั้งค่าใหม่ทั้งก้อนโดยไม่รู้จักแผน
+    await b.saveSettings({ payDay: 10 });
+    expect(await b.loadSettings()).toEqual({ payDay: 10, dcaPlans: [plan] });
+    await expect(b.saveSettings({ dcaPlans: [{ ...plan, amount: 0 }] })).rejects.toThrow(StorageError);
+    expect((await b.loadSettings()).dcaPlans).toEqual([plan]);
+    expect((await a.loadSettings()).dcaPlans).toBeUndefined();
+    await b.saveSettings({ payDay: 10, dcaPlans: [] });
+    expect((await b.loadSettings()).dcaPlans).toBeUndefined();
+  });
+
   it('addWallet: สร้างกระเป๋าเงินสดบาท (ยอด 0) · ไม่นับเป็นบัญชีลงทุน · ชื่อว่าง/รหัสซ้ำถูกปฏิเสธ · ของ A ไม่เห็น', async () => {
     await wipe(1);
     const created = await b.addWallet({ id: 'wallet-new', name: 'กระเป๋าใหม่' });

@@ -473,3 +473,11 @@ select { font: inherit; }
 @media (prefers-reduced-transparency: reduce) { .notice { background: #1d1b12; } }
 @media (max-width: 720px) { .bill-row .bill-figures { grid-column: 1 / -1; justify-content: flex-start; } }
 .notice .btn { align-self: flex-start; }
+
+/* แผนซื้อประจำ (DCA): รายการพื้นทึบ ปุ่มจัดแถวและตัดบรรทัดบนจอแคบ */
+.list-plain { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.row-item { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px 16px; padding: 12px 14px; border-radius: 14px; background: #0c0e15; border: 1px solid rgba(255, 255, 255, 0.1); }
+.row-item p { margin: 4px 0 0; }
+.row-actions, .form-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.row-actions .btn, .form-actions .btn { min-height: 44px; }
+@media (max-width: 720px) { .form-actions { justify-content: flex-start; } }

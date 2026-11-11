@@ -12,6 +12,7 @@ import { formatMicro } from '../domain/money/micro';
 import { formatBaht, satang } from '../domain/money/satang';
 import { StorageError, nextCreatedAt } from '../storage/repository';
 import { friendlyError } from '../app/errorText';
+import { DcaPlansCard } from './DcaPlansCard';
 import { useRepository } from './RepositoryContext';
 
 interface Props {
@@ -363,6 +364,18 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
         <p className="muted small">กำไร/ขาดทุนจากต้นทุน ไม่ใช่ผลตอบแทนต่อปี</p>
         <p className="muted small">ต้นทุนเฉลี่ย = ราคาเฉลี่ยที่คุณจ่ายต่อหน่วย รวมค่าธรรมเนียมซื้อ อาจต่างจากแอปโบรกเกอร์เล็กน้อยจากการปัดเศษ</p>
       </section>
+      )}
+
+      {hasAssets && data !== null && (
+        <DcaPlansCard
+          assets={data.assets}
+          trades={data.trades}
+          today={today}
+          onBuy={(assetId, amountText, opener) => {
+            openTrade(assetId, 'buy', opener);
+            setTradeForm((f) => ({ ...f, amount: amountText }));
+          }}
+        />
       )}
 
       <section className="solid card" aria-labelledby="pf-add-title">

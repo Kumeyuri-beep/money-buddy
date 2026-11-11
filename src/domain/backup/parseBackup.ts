@@ -317,7 +317,7 @@ export function parseBackup(text: string, today: string): ParseResult {
 
   const rawSettings = isObject(root.settings) ? root.settings : {};
   const settings: FinanceSettings = {};
-  for (const key of ['payDay', 'monthlySavingsGoal', 'monthlyBudget', 'nextPaydayOverride'] as const) {
+  for (const key of ['payDay', 'monthlySavingsGoal', 'monthlyBudget', 'nextPaydayOverride', 'dcaPlans'] as const) {
     if (rawSettings[key] !== undefined) (settings as Record<string, unknown>)[key] = rawSettings[key];
   }
   const settingsIssue = settingsProblem(settings);
