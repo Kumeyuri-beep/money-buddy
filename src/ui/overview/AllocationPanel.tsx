@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { buildAllocationModel, describeAllocation } from '../../app/allocationView';
+import { buildAllocationModel, describeAllocation, type AllocationModel } from '../../app/allocationView';
 import { friendlyError } from '../../app/errorText';
 import { buildPortfolio } from '../../app/portfolio';
 import { formatBps } from '../../domain/invest/allocation';
@@ -36,14 +36,24 @@ export function AllocationPanel({ today, onOpenPortfolio }: Props) {
     };
   }, [repo]);
 
-  const model = useMemo(() => (data === null ? null : buildAllocationModel(buildPortfolio(data, today), { showNames: true, maxVisible: 6 })), [data, today]);
+  // สร้างโมเดลภายใน try/catch: ข้อมูลพังเฉพาะการ์ดนี้ ไม่ทำให้ทั้งหน้าภาพรวมล้ม
+  const built = useMemo((): { model: AllocationModel | null; failure: string } => {
+    if (data === null) return { model: null, failure: '' };
+    try {
+      return { model: buildAllocationModel(buildPortfolio(data, today), { showNames: true, maxVisible: 6 }), failure: '' };
+    } catch (e) {
+      return { model: null, failure: friendlyError(e) };
+    }
+  }, [data, today]);
+  const model = built.model;
+  const failure = error !== '' ? error : built.failure;
 
   return (
     <section className="glass-lite card empty-panel" aria-labelledby="alloc-title">
       <h2 id="alloc-title">สัดส่วนพอร์ตลงทุน</h2>
-      {error !== '' ? (
-        <p role="status" className="small">
-          โหลดข้อมูลลงทุนไม่สำเร็จ: {error}
+      {failure !== '' ? (
+        <p role="alert" className="small">
+          แสดงสัดส่วนพอร์ตไม่สำเร็จ: {failure}
         </p>
       ) : data === null ? (
         <p className="muted small" role="status">
@@ -74,14 +84,12 @@ export function AllocationPanel({ today, onOpenPortfolio }: Props) {
           </ul>
           <p className="muted small">{model.basis === 'value' ? 'คิดตามมูลค่า (ราคาที่คุณกรอก)' : 'คิดตามต้นทุน เพราะยังกรอกราคาไม่ครบ'}</p>
           {model.excluded > 0 && (
-            <p role="status" className="small">
-              ⚠ มี {model.excluded} สินทรัพย์ที่ไม่ถูกนับ (ข้อมูลผิดพลาดหรือมูลค่าเป็น 0) ตรวจที่หน้าพอร์ต
+            <p className="small">
+              ⚠ มี {model.excluded} รายการที่ยังไม่ถูกนับ เพราะข้อมูลไม่ครบหรือมูลค่าเป็น 0 ไปตรวจที่หน้าพอร์ต
             </p>
           )}
           {model.stalePrices && (
-            <p role="status" className="small">
-              ⚠ มีราคาที่กรอกไว้นานกว่า 7 วัน
-            </p>
+            <p className="small">⚠ มีราคาที่กรอกไว้เก่ากว่า 7 วัน ควรอัปเดตที่หน้าพอร์ต</p>
           )}
           <button type="button" className="card-link" onClick={onOpenPortfolio}>
             ดูพอร์ตทั้งหมด →

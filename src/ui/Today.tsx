@@ -38,7 +38,7 @@ export function Today({ ledger, onAdd, onOpenLedger, finance, onOpenBills, onOpe
         <AllocationPanel today={today} onOpenPortfolio={onOpenPortfolio} />
       </div>
 
-      <div className="row">
+      <div className="row row-half">
         <RetirementPanel />
       </div>
     </>
