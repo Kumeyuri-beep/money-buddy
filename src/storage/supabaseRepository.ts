@@ -66,6 +66,8 @@ export interface AccountRow {
   currency: string;
   archived: boolean;
   sort_order: number | null;
+  /** ไม่มี/normal = บัญชีทั่วไป · investment = บัญชีลงทุน (ฐานข้อมูลหลัง migration พอร์ตลงทุน P2) */
+  kind?: string;
 }
 
 export interface EntryRow {
@@ -104,6 +106,8 @@ function safeInt(value: unknown, what: string): number {
 export function rowToAccount(row: AccountRow): Account {
   const account: Account = { id: row.id, type: row.type as AccountType, name: row.name, currency: row.currency };
   if (row.archived) account.archived = true;
+  if (row.kind === 'investment') account.kind = 'investment';
+  else if (row.kind !== undefined && row.kind !== 'normal') throw new StorageError(`ข้อมูลจากเซิร์ฟเวอร์ไม่ถูกต้อง: ประเภทบัญชี "${row.kind}"`);
   if (row.sort_order !== null && row.sort_order !== undefined) account.sortOrder = row.sort_order;
   return account;
 }
@@ -111,6 +115,7 @@ export function rowToAccount(row: AccountRow): Account {
 export function accountToJson(a: Account): Record<string, unknown> {
   const out: Record<string, unknown> = { id: a.id, type: a.type, name: a.name, currency: a.currency };
   if (a.archived !== undefined) out.archived = a.archived;
+  if (a.kind === 'investment') out.kind = a.kind;
   if (a.sortOrder !== undefined) out.sortOrder = a.sortOrder;
   return out;
 }
