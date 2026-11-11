@@ -486,3 +486,15 @@ select { font: inherit; }
 .share-canvas { display: block; width: min(100%, 360px); height: auto; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.14); margin: 8px 0 12px; }
 .check-row { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; color: var(--text); }
 .check-row input { width: 22px; height: 22px; }
+
+/* สัดส่วนพอร์ตในหน้าภาพรวม (glass-lite): แถบสัดส่วน + รายการ ป้ายและ % กำกับเสมอ ไม่ใช้สีอย่างเดียว */
+.alloc-bar { display: flex; height: 18px; border-radius: 9px; overflow: hidden; margin: 12px 0; border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(0, 0, 0, 0.25); }
+.alloc-seg { display: block; height: 100%; min-width: 4px; box-shadow: inset -2px 0 0 rgba(15, 17, 23, 0.9); }
+.alloc-seg:last-child { box-shadow: none; }
+/* แถวที่มีการ์ดเดียว (เช่น เป้าเกษียณที่ยังว่าง): กว้างครึ่งแถวเท่าการ์ดแถวบน ไม่ยืดเต็มจอ */
+@media (min-width: 721px) { .row-half > * { flex: 0 1 calc(50% - 10px); } }
+.alloc-legend { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.alloc-legend li { display: flex; align-items: center; gap: 10px; min-height: 28px; }
+.alloc-dot { width: 14px; height: 14px; border-radius: 4px; flex: none; }
+.alloc-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.alloc-pct { font-weight: 600; }

@@ -390,6 +390,7 @@ export function App() {
           onOpenLedger={() => setView('ledger')}
           finance={{ bills: state.bills, settings: state.settings }}
           onOpenBills={() => setView('bills')}
+          onOpenPortfolio={() => setView('portfolio')}
           today={today}
         />
       ) : view === 'account' ? (

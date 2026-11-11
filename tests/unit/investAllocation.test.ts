@@ -223,3 +223,15 @@ describe('ความเป็นส่วนตัวของการ์ด�
     expect(panel).toContain("const FILE_NAME = 'portfolio-share.png'");
   });
 });
+
+describe('การ์ดสัดส่วนในหน้าภาพรวม: แสดงเฉพาะสัดส่วน ไม่แสดงยอดเงิน', () => {
+  const panel = Object.values(
+    import.meta.glob('/src/ui/overview/AllocationPanel.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>,
+  )[0] ?? '';
+  it('ไม่ใช้ตัวจัดรูปแบบเงิน และไม่เรียกเครือข่ายเอง (อ่านผ่าน repository เหมือนหน้าพอร์ต)', () => {
+    expect(panel.length).toBeGreaterThan(200);
+    expect(panel).not.toMatch(/formatBaht|satang|toBahtString|formatMicro|\.cost\b|\.value\b|totals/);
+    expect(panel).not.toMatch(/\bfetch\s*\(|XMLHttpRequest|sendBeacon|localStorage|sessionStorage/);
+    expect(panel).toContain('buildAllocationModel');
+  });
+});
