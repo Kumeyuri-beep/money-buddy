@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { chunkEntries } from '../domain/backup/chunk';
+import { ASSET_KINDS, TRADE_KINDS, emptyInvestments, isEmptyInvestments, type Asset, type AssetPrice, type InvestmentData, type TradeRecord } from '../domain/invest/types';
 import { SINGLE_IMPORT_MAX_ENTRIES, SINGLE_IMPORT_MAX_LINES, type BackupData } from '../domain/backup/parseBackup';
 import { payAmountProblem } from '../domain/bills/payAmount';
 import { billProblem, markBillPaid, payableCycle } from '../domain/bills/schedule';
@@ -121,6 +122,88 @@ export function accountToJson(a: Account): Record<string, unknown> {
   return out;
 }
 
+export interface AssetRow {
+  id: string;
+  name: string;
+  kind: string;
+  account_id: string;
+  archived: boolean;
+}
+
+export interface TradeRow {
+  id: string;
+  asset_id: string;
+  kind: string;
+  date: string;
+  created_at: string;
+  /** ข้อความจำนวนเต็ม x 10^8 (ไม่ใช่ number: เกิน 2^53 ได้) */
+  units: string | null;
+  price_micro: number | string | null;
+  amount: number | string | null;
+  fee: number | string;
+  withholding: number | string;
+  memo: string;
+  entry_id: string | null;
+}
+
+export interface PriceRow {
+  asset_id: string;
+  date: string;
+  price_micro: number | string;
+}
+
+export function rowToAsset(row: AssetRow): Asset {
+  if (!(ASSET_KINDS as readonly string[]).includes(row.kind)) throw new StorageError(`ข้อมูลจากเซิร์ฟเวอร์ไม่ถูกต้อง: ชนิดสินทรัพย์ "${row.kind}"`);
+  const asset: Asset = { id: row.id, name: row.name, kind: row.kind as Asset['kind'], accountId: row.account_id };
+  if (row.archived) asset.archived = true;
+  return asset;
+}
+
+export function rowToTrade(row: TradeRow): TradeRecord {
+  if (!(TRADE_KINDS as readonly string[]).includes(row.kind)) throw new StorageError(`ข้อมูลจากเซิร์ฟเวอร์ไม่ถูกต้อง: ชนิดรายการลงทุน "${row.kind}"`);
+  if (row.units !== null && (typeof row.units !== 'string' || !/^[0-9]{1,19}$/.test(row.units))) {
+    throw new StorageError('ข้อมูลจากเซิร์ฟเวอร์ไม่ถูกต้อง: จำนวนหน่วยไม่ใช่ข้อความจำนวนเต็ม');
+  }
+  const trade: TradeRecord = {
+    id: row.id,
+    assetId: row.asset_id,
+    kind: row.kind as TradeRecord['kind'],
+    date: row.date,
+    createdAt: new Date(row.created_at).toISOString(),
+    fee: safeInt(row.fee, 'ค่าธรรมเนียม'),
+    withholding: safeInt(row.withholding, 'ภาษีหัก ณ ที่จ่าย'),
+    memo: row.memo,
+  };
+  if (row.units !== null) trade.units = row.units;
+  if (row.price_micro !== null) trade.priceMicro = safeInt(row.price_micro, 'ราคาต่อหน่วย');
+  if (row.amount !== null) trade.amount = safeInt(row.amount, 'มูลค่า');
+  if (row.entry_id !== null) trade.entryId = row.entry_id;
+  return trade;
+}
+
+export function rowToPrice(row: PriceRow): AssetPrice {
+  return { assetId: row.asset_id, date: row.date, priceMicro: safeInt(row.price_micro, 'ราคา') };
+}
+
+export function assetToJson(a: Asset): Record<string, unknown> {
+  const out: Record<string, unknown> = { id: a.id, name: a.name, kind: a.kind, accountId: a.accountId };
+  if (a.archived === true) out.archived = true;
+  return out;
+}
+
+export function tradeToJson(t: TradeRecord): Record<string, unknown> {
+  const out: Record<string, unknown> = { id: t.id, assetId: t.assetId, kind: t.kind, date: t.date, createdAt: t.createdAt, fee: t.fee, withholding: t.withholding, memo: t.memo };
+  if (t.units !== undefined) out.units = t.units;
+  if (t.priceMicro !== undefined) out.priceMicro = t.priceMicro;
+  if (t.amount !== undefined) out.amount = t.amount;
+  if (t.entryId !== undefined) out.entryId = t.entryId;
+  return out;
+}
+
+export function investmentsToJson(d: InvestmentData): Record<string, unknown> {
+  return { assets: d.assets.map(assetToJson), trades: d.trades.map(tradeToJson), prices: d.prices.map((p) => ({ assetId: p.assetId, date: p.date, priceMicro: p.priceMicro })) };
+}
+
 export function rowToEntry(row: EntryRow): Entry {
   const lines = [...(row.lines ?? [])]
     .sort((a, b) => a.idx - b.idx)
@@ -212,9 +295,12 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
    * ตัดแถวซ้ำด้วย id (ถ้ามีการเขียนแทรกระหว่างหน้า) และเทียบจำนวนแถวกับ count ของตาราง · ไม่ตรง = อ่านใหม่ (สูงสุด 3 รอบ)
    * ไม่ตรงทุกรอบ (เช่น เพดานแถวของเซิร์ฟเวอร์ต่ำกว่า PAGE) = ปฏิเสธ ไม่ปล่อยข้อมูลขาดเงียบๆ
    */
-  async function fetchAll<T extends { id: string }>(
+  /** keyOf = กุญแจเฉพาะของแถว (ค่าตั้งต้น id) · countColumn = คอลัมน์ที่ใช้นับจำนวนทั้งหมดเทียบ (ตารางไม่มี id เช่น asset_prices ต้องระบุ) */
+  async function fetchAll<T>(
     table: string,
     build: (from: number, to: number) => PromiseLike<{ data: unknown; error: DbError | null }>,
+    keyOf: (row: T) => string = (row) => (row as { id: string }).id,
+    countColumn = 'id',
   ): Promise<T[]> {
     for (let attempt = 0; attempt < 3; attempt++) {
       const byId = new Map<string, T>();
@@ -222,10 +308,10 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
         const { data, error } = await build(from, from + PAGE - 1);
         check(error);
         const rows = (data ?? []) as T[];
-        for (const row of rows) byId.set(row.id, row);
+        for (const row of rows) byId.set(keyOf(row), row);
         if (rows.length < PAGE) break;
       }
-      const { count, error } = await client.from(table).select('id', { count: 'exact', head: true });
+      const { count, error } = await client.from(table).select(countColumn, { count: 'exact', head: true });
       check(error);
       if (count === null || count === undefined || count === byId.size) return [...byId.values()];
     }
@@ -332,6 +418,32 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
     return { accounts, entries };
   }
 
+  /** ข้อมูลลงทุนของผู้ใช้ (RLS กรองเฉพาะของตัวเอง) · เรียงให้ผลคงที่ */
+  async function loadInvestments(): Promise<InvestmentData> {
+    const [assets, trades, prices] = await Promise.all([
+      fetchAll<AssetRow>('assets', (from, to) => client.from('assets').select('*').order('id').range(from, to)),
+      fetchAll<TradeRow>('trades', (from, to) => client.from('trades').select('*').order('date').order('created_at').order('id').range(from, to)),
+      fetchAll<PriceRow>(
+        'asset_prices',
+        (from, to) => client.from('asset_prices').select('*').order('asset_id').order('date').range(from, to),
+        (row) => `${row.asset_id}\u0000${row.date}`,
+        'asset_id',
+      ),
+    ]);
+    return { assets: assets.map(rowToAsset), trades: trades.map(rowToTrade), prices: prices.map(rowToPrice) };
+  }
+
+  /** นำเข้าข้อมูลลงทุนหลังสมุดบัญชีนำเข้าเสร็จ (ฟังก์ชันฐานข้อมูลเดียว อะตอมมิก) · ล้ม = สมุดนำเข้าแล้วแต่ข้อมูลลงทุนยังไม่เข้า */
+  async function importInvestments(d: InvestmentData | undefined): Promise<void> {
+    if (isEmptyInvestments(d)) return;
+    try {
+      await rpc('import_ledger_investments', { p_data: investmentsToJson(d ?? emptyInvestments()) });
+    } catch (e) {
+      const reason = e instanceof StorageError ? e.message : 'เกิดข้อผิดพลาด';
+      throw new StorageError(`นำเข้าสมุดบัญชีสำเร็จแล้ว แต่นำเข้าข้อมูลลงทุนไม่สำเร็จ (${reason}) ข้อมูลลงทุนยังไม่เข้า (ไม่ได้เข้าครึ่งเดียว) แจ้งผู้ดูแลระบบหรือลองนำเข้าข้อมูลลงทุนอีกครั้งภายหลัง`);
+    }
+  }
+
   async function loadSettings(): Promise<FinanceSettings> {
     const { data, error } = await client.from('settings').select('value').maybeSingle();
     check(error);
@@ -411,10 +523,11 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
     async exportSnapshot(now: Date = new Date()): Promise<Snapshot> {
       // ไม่มีธุรกรรมอ่านข้ามคำขอ: อ่านแล้วอ่านบิลซ้ำเพื่อเทียบ (บิลเปลี่ยน = มีการจ่าย/แก้แทรก) ไม่ตรงอ่านใหม่ สูงสุด 3 รอบ
       for (let attempt = 0; attempt < 3; attempt++) {
-        const [ledger, bills, settings] = await Promise.all([loadLedger(), loadBills(), loadSettings()]);
+        const [ledger, bills, settings, investments] = await Promise.all([loadLedger(), loadBills(), loadSettings(), loadInvestments()]);
         const again = await loadBills();
         if (JSON.stringify(again) === JSON.stringify(bills)) {
-          return { schemaVersion: SCHEMA_VERSION, exportedAt: now.toISOString(), ...ledger, bills, settings };
+          // ข้อมูลลงทุนใส่ในไฟล์เฉพาะเมื่อมี (ไฟล์ของผู้ที่ไม่ใช้พอร์ตลงทุนเหมือนเดิมทุกประการ)
+          return { schemaVersion: SCHEMA_VERSION, exportedAt: now.toISOString(), ...ledger, bills, settings, ...(isEmptyInvestments(investments) ? {} : { investments }) };
         }
       }
       throw new StorageError('ข้อมูลเปลี่ยนระหว่างสำรอง ลองใหม่อีกครั้ง');
@@ -572,7 +685,11 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       const settingsIssue = settingsProblem(data.settings);
       if (settingsIssue) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${settingsIssue}`);
       const totalLines = data.entries.reduce((n, e) => n + e.lines.length, 0);
-      if (data.entries.length > SINGLE_IMPORT_MAX_ENTRIES || totalLines > SINGLE_IMPORT_MAX_LINES) return importChunked(data, onProgress);
+      if (data.entries.length > SINGLE_IMPORT_MAX_ENTRIES || totalLines > SINGLE_IMPORT_MAX_LINES) {
+        const chunked = await importChunked(data, onProgress);
+        await importInvestments(data.investments);
+        return chunked;
+      }
       // ครั้งเดียว: ฐานข้อมูลเขียนทุกส่วนในธุรกรรมเดียว ผิดข้อใด = ย้อนกลับทั้งก้อน · มีข้อมูลอยู่แล้ว = ปฏิเสธ
       const out = (await rpc('import_ledger', {
         p_data: {
@@ -583,6 +700,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
         },
       })) as { accounts?: number; entries?: number; bills?: number } | null;
       onProgress?.(data.entries.length, data.entries.length);
+      await importInvestments(data.investments);
       return { accounts: out?.accounts ?? 0, entries: out?.entries ?? 0, bills: out?.bills ?? 0 };
     },
 

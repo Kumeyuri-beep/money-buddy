@@ -316,7 +316,7 @@ function ReviewBody({ read, onImport, onBack }: { read: Extract<LocalRead, { ok:
   return (
     <div className="migrate-body">
       <p>
-        พบ {read.summary.accounts} บัญชี · {read.summary.entries} รายการ · {read.summary.bills} บิล ผ่านการตรวจทุกข้อ (ยอดเป็นสตางค์จำนวนเต็ม ทุกรายการสมดุล) ยอดต่อบัญชีจะแสดงเทียบกับออนไลน์ในขั้นตรวจยอด
+        พบ {read.summary.accounts} บัญชี · {read.summary.entries} รายการ · {read.summary.bills} บิล{read.summary.assets !== undefined ? ` · ${read.summary.assets} สินทรัพย์ลงทุน · ${read.summary.trades ?? 0} รายการลงทุน` : ''} ผ่านการตรวจทุกข้อ (ยอดเป็นสตางค์จำนวนเต็ม ทุกรายการสมดุล) ยอดต่อบัญชีจะแสดงเทียบกับออนไลน์ในขั้นตรวจยอด
       </p>
       {read.warnings.length > 0 && (
         <div className="slip-warn" role="note">

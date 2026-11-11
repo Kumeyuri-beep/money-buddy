@@ -8,6 +8,7 @@ import { createEntry } from '../domain/ledger/entry';
 import { runIntegrityCheck } from '../domain/ledger/integrity';
 import type { Account, Entry, NewEntry } from '../domain/ledger/types';
 import type { BackupData } from '../domain/backup/parseBackup';
+import { isEmptyInvestments, type InvestmentData } from '../domain/invest/types';
 import { SCHEMA_VERSION, type MoneyDB } from './db';
 
 export interface Ledger {
@@ -20,6 +21,8 @@ export interface Snapshot extends Ledger {
   exportedAt: string;
   bills: Bill[];
   settings: FinanceSettings;
+  /** ข้อมูลลงทุน (เฉพาะที่เก็บออนไลน์ · ไม่มี = ไม่มีข้อมูลลงทุน) */
+  investments?: InvestmentData;
 }
 
 let lastStamp = 0;
@@ -93,6 +96,8 @@ export async function saveInitialLedger(db: MoneyDB, ledger: Ledger): Promise<vo
  * ตรวจซ้ำที่นี่ด้วย (Integrity + บิล) เพื่อไม่พึ่งว่าผู้เรียกตรวจมาแล้ว
  */
 export async function importBackup(db: MoneyDB, data: BackupData): Promise<{ accounts: number; entries: number; bills: number }> {
+  // ที่เก็บในเครื่อง (Dexie) ไม่รองรับข้อมูลลงทุน: ปฏิเสธชัดเจนแทนที่จะทิ้งข้อมูลเงียบๆ
+  if (!isEmptyInvestments(data.investments)) throw new StorageError('ที่เก็บข้อมูลในเครื่องไม่รองรับข้อมูลลงทุน นำเข้าไฟล์นี้ได้เฉพาะบัญชีออนไลน์');
   const report = runIntegrityCheck(data.accounts, data.entries);
   if (!report.ok) throw new StorageError(`ข้อมูลนำเข้าไม่ผ่านการตรวจ: ${report.issues[0]?.message ?? ''}`);
   for (const bill of data.bills) {
