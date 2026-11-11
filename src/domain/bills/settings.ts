@@ -3,6 +3,7 @@
  * ยอดเงินเป็นสตางค์จำนวนเต็มไม่ติดลบเสมอ (กฎ R1) ตัวแปลงจากข้อความผู้ใช้อยู่ที่ขอบ UI (R2) ไม่ใช่ที่นี่
  */
 
+import { dcaPlanProblem, sanitizeDcaPlans, MAX_DCA_PLANS, type DcaPlan } from '../invest/dcaPlan';
 import { isValidIsoDate } from '../ledger/entry';
 
 export interface FinanceSettings {
@@ -14,6 +15,8 @@ export interface FinanceSettings {
   monthlyBudget?: number;
   /** วันเงินเดือนถัดไปที่กำหนดเอง YYYY-MM-DD (ใช้ครั้งเดียว หมดอายุเมื่อถึงวันนั้น) ไม่ตั้ง = คำนวณจาก payDay */
   nextPaydayOverride?: string;
+  /** แผนซื้อประจำ (DCA) แบบตัวเตือน (พอร์ตลงทุน P5) · ไม่ตั้ง = ยังไม่มีแผน */
+  dcaPlans?: DcaPlan[];
 }
 
 const isSatang = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
@@ -31,6 +34,17 @@ export function settingsProblem(s: FinanceSettings): string | null {
   if (s.nextPaydayOverride !== undefined && !isValidIsoDate(s.nextPaydayOverride)) {
     return `วันเงินเดือนถัดไปต้องเป็นวันที่ที่มีจริง YYYY-MM-DD (ได้รับ ${String(s.nextPaydayOverride)})`;
   }
+  if (s.dcaPlans !== undefined) {
+    if (!Array.isArray(s.dcaPlans)) return 'แผนซื้อประจำต้องเป็นอาร์เรย์';
+    if (s.dcaPlans.length > MAX_DCA_PLANS) return `แผนซื้อประจำมีได้ไม่เกิน ${MAX_DCA_PLANS} แผน`;
+    const ids = new Set<string>();
+    for (const p of s.dcaPlans) {
+      const problem = dcaPlanProblem(p);
+      if (problem) return `แผนซื้อประจำ: ${problem}`;
+      if (ids.has(p.id)) return 'แผนซื้อประจำมีรหัสซ้ำ';
+      ids.add(p.id);
+    }
+  }
   return null;
 }
 
@@ -43,5 +57,9 @@ export function sanitizeSettings(raw: unknown): FinanceSettings {
   if (isSatang(r.monthlySavingsGoal)) out.monthlySavingsGoal = r.monthlySavingsGoal;
   if (isSatang(r.monthlyBudget)) out.monthlyBudget = r.monthlyBudget;
   if (typeof r.nextPaydayOverride === 'string' && isValidIsoDate(r.nextPaydayOverride)) out.nextPaydayOverride = r.nextPaydayOverride;
+  if (Array.isArray(r.dcaPlans)) {
+    const plans = sanitizeDcaPlans(r.dcaPlans);
+    if (plans.length > 0) out.dcaPlans = plans;
+  }
   return out;
 }
