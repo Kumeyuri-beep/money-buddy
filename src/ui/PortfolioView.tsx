@@ -211,7 +211,7 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
     setTradeErrors([]);
     const needWallet = tradeNeedsWallet(built.trade.kind);
     if (needWallet && !wallets.some((w) => w.id === walletId)) {
-      setWalletError(wallets.length === 0 ? 'ยังไม่มีกระเป๋าเงินสด สร้างกระเป๋าด้านบนก่อนจึงจะบันทึกได้' : 'เลือกกระเป๋าเงินที่ใช้จ่ายหรือรับเงิน');
+      setWalletError(wallets.length === 0 ? 'ยังไม่มีกระเป๋าเงินสด สร้างกระเป๋าก่อนจึงจะบันทึกได้' : 'เลือกกระเป๋าเงินที่ใช้จ่ายหรือรับเงิน');
       document.getElementById(wallets.length === 0 ? 'pf-newwallet' : 'pf-wallet')?.focus();
       return;
     }
@@ -235,11 +235,13 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
     const ok = await act(async () => {
       await repo.addWallet({ id, name });
       onLedgerChanged();
-    }, `สร้างกระเป๋า "${name}" แล้ว เลือกใช้ได้ในช่องกระเป๋า`);
+    }, `สร้างกระเป๋า "${name}" แล้ว และเลือกให้เรียบร้อย`);
     if (ok) {
       setNewWalletName('');
       setWalletId(id);
       setWalletError('');
+      // กล่องสร้างกระเป๋าหายไปแล้ว: ย้ายโฟกัสไปช่องเลือกกระเป๋า ไม่ให้โฟกัสหลุดไปที่ตัวหน้า
+      window.requestAnimationFrame(() => document.getElementById('pf-wallet')?.focus());
     }
   };
 
@@ -456,7 +458,7 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
             {tradeNeedsWallet(k) && wallets.length === 0 && (
               <div className="field notice" role="group" aria-labelledby="pf-nowallet-title">
                 <p id="pf-nowallet-title">
-                  <strong>ยังไม่มีกระเป๋าเงินสด</strong> ต้องสร้างกระเป๋าก่อนจึงจะบันทึกซื้อขายได้ เพราะเงินที่ซื้อหรือขายจะถูกหักหรือเข้ากระเป๋านั้น
+                  <strong>ยังไม่มีกระเป๋าเงินสด</strong> ต้องมีกระเป๋าก่อนบันทึก เพราะเงินจากการซื้อ ขาย หรือปันผลจะหักหรือเข้ากระเป๋านี้
                 </p>
                 <label htmlFor="pf-newwallet">ชื่อกระเป๋าใหม่</label>
                 <input
@@ -466,11 +468,12 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
                   maxLength={100}
                   value={newWalletName}
                   placeholder="เช่น เงินสด หรือ บัญชีธนาคาร"
-                  aria-invalid={newWalletError !== '' ? true : undefined}
-                  aria-describedby={newWalletError !== '' ? 'pf-newwallet-err' : undefined}
+                  aria-invalid={newWalletError !== '' || walletError !== '' ? true : undefined}
+                  aria-describedby={[newWalletError !== '' ? 'pf-newwallet-err' : '', walletError !== '' ? 'pf-newwallet-werr' : ''].filter(Boolean).join(' ') || undefined}
                   onChange={(e) => {
                     setNewWalletName(e.target.value);
                     setNewWalletError('');
+                    setWalletError('');
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
@@ -480,12 +483,12 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
                   }}
                 />
                 {newWalletError !== '' && (
-                  <p id="pf-newwallet-err" className="avg-err">
+                  <p id="pf-newwallet-err" className="avg-err" role="alert">
                     {newWalletError}
                   </p>
                 )}
                 {walletError !== '' && (
-                  <p className="avg-err" role="alert">
+                  <p id="pf-newwallet-werr" className="avg-err" role="alert">
                     {walletError}
                   </p>
                 )}
@@ -507,7 +510,7 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
                     setWalletError('');
                   }}
                 >
-                  <option value="">{wallets.length === 0 ? 'ยังไม่มีกระเป๋าเงินสด' : 'เลือกกระเป๋า'}</option>
+                  <option value="">เลือกกระเป๋า</option>
                   {wallets.map((w) => (
                     <option key={w.id} value={w.id}>
                       {w.name}
