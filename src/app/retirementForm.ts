@@ -5,6 +5,7 @@
  */
 
 import { computeRetirement, retirementProblems, type ProblemField, type RetirementInput, type RetirementResult } from '../domain/retirement/projection';
+import { parseRateToBps } from '../domain/money/rate';
 import { parseBahtToSatang } from '../domain/money/satang';
 
 export interface RetirementForm {
@@ -29,6 +30,16 @@ export interface RetirementFormError {
 }
 
 export type RetirementFormResult = { ok: true; input: RetirementInput; result: RetirementResult } | { ok: false; errors: RetirementFormError[] };
+
+/** ข้อความเตือนบังคับ (ร่างกฎ R18 ข้อ 18.1) ต้องแสดงติดกับผลลัพธ์ทุกครั้ง */
+export const RETIREMENT_DISCLAIMER =
+  'ตัวเลขนี้เป็นประมาณการจากสมมติฐานที่คุณกรอก ไม่ใช่ยอดในบัญชีของคุณ ผลตอบแทน เงินเฟ้อ และอายุขัยจริงอาจต่างจากที่ตั้งไว้ ไม่ใช่คำแนะนำการลงทุนและไม่ใช่การรับประกันผลลัพธ์';
+
+/** ข้อจำกัดที่ต้องบอกผู้ใช้ (R18 ข้อ 18.1) */
+export const RETIREMENT_LIMITATIONS = 'การคำนวณนี้ไม่รวมภาษี ค่าธรรมเนียม บำนาญหรือประกันสังคม และความเสี่ยงที่จะอยู่ยืนกว่าที่ตั้งไว้';
+
+export const RETIREMENT_REAL_RETURN_WARNING = 'ผลตอบแทนหลังเกษียณต่ำกว่าเงินเฟ้อ เงินจะหมดเร็วกว่าที่รู้สึก';
+export const RETIREMENT_ON_TRACK_NOTE = 'เงินที่เก็บไว้แล้วถึงเป้าตามสมมติฐานแล้ว';
 
 export const DEFAULT_RETIRE_AGE = '60';
 export const DEFAULT_INFLATION = '3';
@@ -56,15 +67,6 @@ const FIELD_OF: Record<ProblemField, RetirementFormField> = {
 };
 
 const INT = /^\d{1,3}$/;
-const PERCENT = /^(\d{1,3})(?:\.(\d{1,2}))?$/;
-
-/** "3" → 300, "3.5" → 350, "3.55" → 355 · ไม่รับติดลบ/เครื่องหมาย %/มากกว่า 2 ตำแหน่ง */
-export function parsePercentToBps(text: string): number | null {
-  const m = PERCENT.exec(text.trim().replace(/\s*%$/, ''));
-  if (!m) return null;
-  const frac = (m[2] ?? '').padEnd(2, '0');
-  return Number(m[1]) * 100 + Number(frac);
-}
 
 export function buildRetirementInput(form: RetirementForm): RetirementFormResult {
   const errors: RetirementFormError[] = [];
@@ -89,9 +91,9 @@ export function buildRetirementInput(form: RetirementForm): RetirementFormResult
       err(field, `กรอก${label} (% ต่อปี)`);
       return Number.NaN;
     }
-    const bps = parsePercentToBps(text);
+    const bps = parseRateToBps(text);
     if (bps === null) {
-      err(field, `${label}ไม่ถูกต้อง (ตัวเลข % ทศนิยมไม่เกิน 2 ตำแหน่ง เช่น 3 หรือ 4.5)`);
+      err(field, `${label}ไม่ถูกต้อง (ใส่ตัวเลข % ทศนิยมไม่เกิน 2 ตำแหน่ง ไม่ต้องใส่เครื่องหมาย % เช่น 3 หรือ 4.5)`);
       return Number.NaN;
     }
     return bps;

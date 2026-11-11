@@ -1,8 +1,14 @@
 import { useMemo, useRef, useState, type FormEvent } from 'react';
-import { buildRetirementInput, emptyRetirementForm, type RetirementForm, type RetirementFormError, type RetirementFormField, type RetirementFormResult } from '../app/retirementForm';
+import { buildRetirementInput, emptyRetirementForm, RETIREMENT_DISCLAIMER, RETIREMENT_LIMITATIONS, RETIREMENT_ON_TRACK_NOTE, RETIREMENT_REAL_RETURN_WARNING, type RetirementForm, type RetirementFormError, type RetirementFormField, type RetirementFormResult } from '../app/retirementForm';
 import { formatBaht, satang } from '../domain/money/satang';
 
 const baht = (n: number): string => formatBaht(satang(n));
+/** bps → ข้อความ % ด้วยจำนวนเต็ม (355 → "3.55%") */
+const bpsText = (bps: number): string => {
+  const whole = (bps - (bps % 100)) / 100;
+  const frac = bps % 100;
+  return frac === 0 ? `${whole}%` : `${whole}.${String(frac).padStart(2, '0')}%`;
+};
 
 interface FieldProps {
   id: string;
@@ -100,7 +106,7 @@ export function RetirementView() {
 
       <div className="notice" role="note">
         <p>
-          <strong>นี่คือการประมาณการ ไม่ใช่ยอดจริงและไม่ใช่คำแนะนำการลงทุน</strong> ผลลัพธ์ขึ้นกับสมมติฐานที่คุณกรอก (เงินเฟ้อ ผลตอบแทน อายุที่คาดว่าจะอยู่) ซึ่งในความเป็นจริงเปลี่ยนไปได้ ไม่มีการรับประกันผล
+          <strong>เครื่องมือนี้ให้ตัวเลขประมาณการ</strong> {RETIREMENT_DISCLAIMER}
         </p>
         <p>ตัวเลขที่นี่ไม่ถูกบันทึกลงสมุดบัญชี และไม่เกี่ยวกับยอดเงินในกระเป๋าของคุณ</p>
       </div>
@@ -138,34 +144,44 @@ export function RetirementView() {
           <h2 id="rt-result-title" ref={resultRef} tabIndex={-1}>
             ผลประมาณการ
           </h2>
-          <p className="muted small" role="note">
-            ประมาณการจากสมมติฐานข้างบน ไม่ใช่ยอดจริง ปัดขึ้นเป็นสตางค์เพื่อไม่ให้ประเมินต่ำ
+          <p className="small" role="note">
+            {RETIREMENT_DISCLAIMER}
+          </p>
+          {result.result.realReturnNegativeAfter && (
+            <p className="small" role="note">
+              ⚠ {RETIREMENT_REAL_RETURN_WARNING}
+            </p>
+          )}
+          <p className="muted small">
+            สมมติฐานที่ใช้: อายุตอนนี้ {result.input.currentAge} ปี · เกษียณที่ {result.input.retireAge} ปี · อยู่ถึง {result.input.lifeExpectancy} ปี · ค่าใช้จ่าย {baht(result.input.monthlyExpense)} ต่อเดือน (ราคาวันนี้) ·
+            เงินเฟ้อ {bpsText(result.input.inflationBps)} · ผลตอบแทนก่อนเกษียณ {bpsText(result.input.returnBeforeBps)} · หลังเกษียณ {bpsText(result.input.returnAfterBps)} ต่อปี
+            {result.input.currentSavings !== undefined && result.input.currentSavings > 0 ? ` · เงินที่เก็บไว้แล้ว ${baht(result.input.currentSavings)}` : ''}
           </p>
           <dl className="avg-result">
             <div>
-              <dt>ต้องเก็บเดือนละ (ประมาณ)</dt>
-              <dd className="num">{result.result.monthlySaving === 0 ? 'ไม่ต้องเก็บเพิ่ม' : baht(result.result.monthlySaving)}</dd>
+              <dt>ต้องเก็บเดือนละ (ประมาณการ)</dt>
+              <dd className="num">{result.result.monthlySaving === 0 ? RETIREMENT_ON_TRACK_NOTE : baht(result.result.monthlySaving)}</dd>
             </div>
             <div>
-              <dt>เงินที่ต้องมี ณ วันเกษียณ (ประมาณ)</dt>
+              <dt>เงินที่ควรมี ณ วันเกษียณ (ประมาณการ)</dt>
               <dd className="num">{baht(result.result.requiredAtRetirement)}</dd>
             </div>
             <div>
-              <dt>เทียบเป็นมูลค่าวันนี้ (ประมาณ)</dt>
+              <dt>เทียบเป็นมูลค่าวันนี้ (ประมาณการ)</dt>
               <dd className="num">{baht(result.result.requiredInTodayMoney)}</dd>
             </div>
             <div>
-              <dt>ค่าใช้จ่ายต่อเดือน ณ วันเกษียณ (ประมาณ)</dt>
+              <dt>ค่าใช้จ่ายต่อเดือน ณ วันเกษียณ (ประมาณการ)</dt>
               <dd className="num">{baht(result.result.monthlyExpenseAtRetirement)}</dd>
             </div>
             {result.input.currentSavings !== undefined && result.input.currentSavings > 0 && (
               <>
                 <div>
-                  <dt>เงินที่เก็บไว้แล้วจะโตเป็น (ประมาณ)</dt>
+                  <dt>เงินที่เก็บไว้แล้วจะโตเป็น (ประมาณการ)</dt>
                   <dd className="num">{baht(result.result.currentSavingsAtRetirement)}</dd>
                 </div>
                 <div>
-                  <dt>ส่วนที่ยังขาด (ประมาณ)</dt>
+                  <dt>ส่วนที่ยังขาด (ประมาณการ)</dt>
                   <dd className="num">{baht(result.result.shortfall)}</dd>
                 </div>
               </>
@@ -174,6 +190,7 @@ export function RetirementView() {
           <p className="muted small">
             อีก {result.result.yearsToRetire} ปีถึงเกษียณ แล้วใช้เงินต่ออีก {result.result.retirementYears} ปี · คิดดอกเบี้ยทบต้นรายเดือน (อัตราต่อปี ÷ 12) ถอนเงินต้นเดือน ปรับตามเงินเฟ้อปีละครั้ง
           </p>
+          <p className="muted small">{RETIREMENT_LIMITATIONS}</p>
           <details>
             <summary>วิธีคิดแบบสั้น</summary>
             <ol className="muted small">
