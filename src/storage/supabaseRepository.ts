@@ -714,6 +714,16 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       return { id, name, kind: input.kind, accountId };
     },
 
+    async addWallet(input) {
+      const id = String(input.id ?? '').trim();
+      const name = String(input.name ?? '').trim();
+      if (id === '' || id.length > 90) throw new StorageError('รหัสกระเป๋าไม่ถูกต้อง');
+      if (!lengthWithin(name, 1, MAX_NAME_LENGTH)) throw new StorageError(`ชื่อกระเป๋าต้องยาว 1-${MAX_NAME_LENGTH} ตัวอักษร`);
+      const { error } = await client.from('accounts').insert({ id, type: 'asset', name, currency: 'THB', kind: 'normal' });
+      check(error);
+      return { id, type: 'asset', name, currency: 'THB', kind: 'normal' };
+    },
+
     async recordTrade({ trade, walletId }) {
       const found = await client.from('assets').select('*').eq('id', trade.assetId).maybeSingle();
       check(found.error);

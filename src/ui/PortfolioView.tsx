@@ -106,6 +106,8 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
   const [tradeForm, setTradeForm] = useState<TradeForm>(emptyTradeForm('', 'buy', today));
   const [walletId, setWalletId] = useState('');
   const [walletError, setWalletError] = useState('');
+  const [newWalletName, setNewWalletName] = useState('');
+  const [newWalletError, setNewWalletError] = useState('');
   const [tradeErrors, setTradeErrors] = useState<TradeFormError[]>([]);
   const [priceForm, setPriceForm] = useState({ date: today, price: '' });
   const [priceError, setPriceError] = useState('');
@@ -209,8 +211,8 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
     setTradeErrors([]);
     const needWallet = tradeNeedsWallet(built.trade.kind);
     if (needWallet && !wallets.some((w) => w.id === walletId)) {
-      setWalletError(wallets.length === 0 ? 'ยังไม่มีกระเป๋าเงินสด เพิ่มกระเป๋าก่อนจึงจะบันทึกได้' : 'เลือกกระเป๋าเงินที่ใช้จ่ายหรือรับเงิน');
-      document.getElementById('pf-wallet')?.focus();
+      setWalletError(wallets.length === 0 ? 'ยังไม่มีกระเป๋าเงินสด สร้างกระเป๋าด้านบนก่อนจึงจะบันทึกได้' : 'เลือกกระเป๋าเงินที่ใช้จ่ายหรือรับเงิน');
+      document.getElementById(wallets.length === 0 ? 'pf-newwallet' : 'pf-wallet')?.focus();
       return;
     }
     setWalletError('');
@@ -219,6 +221,26 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
       onLedgerChanged();
     }, built.trade.kind === 'reinvest' ? 'บันทึกปันผลลงทุนต่อแล้ว (ไม่มีเงินสดเข้า-ออก)' : `บันทึก${KIND_LABEL[built.trade.kind]}แล้ว ปรับยอดกระเป๋า "${wallets.find((w) => w.id === walletId)?.name ?? ''}" ให้แล้ว`);
     if (ok) setPanel(null);
+  };
+
+  const createWallet = async () => {
+    const name = newWalletName.trim();
+    if (name === '') {
+      setNewWalletError('กรอกชื่อกระเป๋า เช่น "เงินสด" หรือ "บัญชีธนาคาร"');
+      document.getElementById('pf-newwallet')?.focus();
+      return;
+    }
+    setNewWalletError('');
+    const id = newId('wallet');
+    const ok = await act(async () => {
+      await repo.addWallet({ id, name });
+      onLedgerChanged();
+    }, `สร้างกระเป๋า "${name}" แล้ว เลือกใช้ได้ในช่องกระเป๋า`);
+    if (ok) {
+      setNewWalletName('');
+      setWalletId(id);
+      setWalletError('');
+    }
   };
 
   const submitPrice = async (e: FormEvent) => {
@@ -431,7 +453,48 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
                 </>
               )}
             </div>
-            {tradeNeedsWallet(k) && (
+            {tradeNeedsWallet(k) && wallets.length === 0 && (
+              <div className="field notice" role="group" aria-labelledby="pf-nowallet-title">
+                <p id="pf-nowallet-title">
+                  <strong>ยังไม่มีกระเป๋าเงินสด</strong> ต้องสร้างกระเป๋าก่อนจึงจะบันทึกซื้อขายได้ เพราะเงินที่ซื้อหรือขายจะถูกหักหรือเข้ากระเป๋านั้น
+                </p>
+                <label htmlFor="pf-newwallet">ชื่อกระเป๋าใหม่</label>
+                <input
+                  id="pf-newwallet"
+                  type="text"
+                  autoComplete="off"
+                  maxLength={100}
+                  value={newWalletName}
+                  placeholder="เช่น เงินสด หรือ บัญชีธนาคาร"
+                  aria-invalid={newWalletError !== '' ? true : undefined}
+                  aria-describedby={newWalletError !== '' ? 'pf-newwallet-err' : undefined}
+                  onChange={(e) => {
+                    setNewWalletName(e.target.value);
+                    setNewWalletError('');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void createWallet();
+                    }
+                  }}
+                />
+                {newWalletError !== '' && (
+                  <p id="pf-newwallet-err" className="avg-err">
+                    {newWalletError}
+                  </p>
+                )}
+                {walletError !== '' && (
+                  <p className="avg-err" role="alert">
+                    {walletError}
+                  </p>
+                )}
+                <button type="button" className="btn btn-small" disabled={busy} onClick={() => void createWallet()}>
+                  สร้างกระเป๋า
+                </button>
+              </div>
+            )}
+            {tradeNeedsWallet(k) && wallets.length > 0 && (
               <div className="field">
                 <label htmlFor="pf-wallet">{k === 'buy' ? 'จ่ายจากกระเป๋า' : 'รับเงินเข้ากระเป๋า'}</label>
                 <select
