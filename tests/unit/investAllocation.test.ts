@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { drawShareCard } from '../../src/ui/shareCardCanvas';
 import { buildAllocationModel, describeAllocation, OTHER_KEY } from '../../src/app/allocationView';
 import { buildPortfolio } from '../../src/app/portfolio';
 import { allocateBps, formatBps, groupSmallShares, TOTAL_BPS } from '../../src/domain/invest/allocation';
@@ -35,6 +36,10 @@ describe('allocateBps: แบ่ง 10,000 bps ตามน้ำหนักด
     expect(sumBps(r)).toBe(TOTAL_BPS);
     expect(r.find((x) => x.key === 'b')?.bps).toBe(0);
   });
+  it('key ซ้ำ = RangeError (กันแจกเศษผิด) · -0 ถูกข้ามเหมือน 0', () => {
+    expect(() => allocateBps([{ key: 'a', weight: 1 }, { key: 'a', weight: 1 }])).toThrow(RangeError);
+    expect(allocateBps([{ key: 'a', weight: 5 }, { key: 'z', weight: -0 }])).toEqual([{ key: 'a', bps: 10_000 }]);
+  });
   it('น้ำหนักติดลบ/ทศนิยม/NaN = RangeError', () => {
     for (const weight of [-1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1]) {
       expect(() => allocateBps([{ key: 'a', weight }]), String(weight)).toThrow(RangeError);
@@ -59,6 +64,8 @@ describe('groupSmallShares / formatBps', () => {
     expect(formatBps(1235)).toBe('12.4%');
     expect(formatBps(5000)).toBe('50%');
     expect(formatBps(10_000)).toBe('100%');
+    expect(formatBps(9995)).toBe('100%');
+    expect(formatBps(9994)).toBe('99.9%');
     expect(formatBps(9999)).toBe('100%');
     expect(() => formatBps(10_001)).toThrow(RangeError);
     expect(() => formatBps(1.5)).toThrow(RangeError);
@@ -109,7 +116,7 @@ describe('buildAllocationModel: โมเดลที่ใช้วาดกา
     const numbers: number[] = [];
     JSON.stringify(m, (_k, v) => (typeof v === 'number' ? (numbers.push(v), v) : v));
     expect(numbers.every((n) => Number.isInteger(n) && n >= 0 && n <= TOTAL_BPS)).toBe(true);
-    expect(Object.keys(m).sort()).toEqual(['basis', 'holdings', 'slices']);
+    expect(Object.keys(m).sort()).toEqual(['basis', 'excluded', 'holdings', 'slices', 'stalePrices']);
     for (const s of m.slices) expect(Object.keys(s).sort()).toEqual(['bps', 'isOther', 'key', 'label']);
   });
   it('สินทรัพย์เกิน maxVisible รวมเป็น "อื่นๆ"', () => {
@@ -120,10 +127,72 @@ describe('buildAllocationModel: โมเดลที่ใช้วาดกา
     expect(m.slices[2]).toMatchObject({ label: 'อื่นๆ', isOther: true });
     expect(sumBps(m.slices)).toBe(TOTAL_BPS);
   });
+  it('สินทรัพย์ข้อมูลผิดพลาดหรือมูลค่า 0 สตางค์ ไม่ถูกนับเงียบๆ: excluded บอกจำนวน · ราคาเก่าติดธง', () => {
+    const base = data();
+    const tiny = data({
+      assets: [...base.assets, { id: 'a3', name: 'จิ๋ว', kind: 'fund', accountId: 'inv-a3' }, { id: 'a4', name: 'เสีย', kind: 'fund', accountId: 'inv-a4' }],
+      trades: [
+        ...base.trades,
+        trade({ id: 't3', assetId: 'a3', units: '1', amount: 1 }),
+        trade({ id: 't4', assetId: 'a4', kind: 'sell', units: '100000000', priceMicro: 1_000_000, amount: undefined }), // ขายโดยไม่มีหน่วย = ข้อมูลผิดพลาด
+      ],
+      prices: [
+        { assetId: 'a1', date: '2026-10-01', priceMicro: 1_000_000 }, { assetId: 'a2', date: '2026-11-09', priceMicro: 1_000_000 },
+        { assetId: 'a3', date: '2026-11-09', priceMicro: 1 },
+      ],
+    });
+    const m = buildAllocationModel(buildPortfolio(tiny, TODAY))!;
+    expect(m.basis).toBe('value');
+    expect(m.excluded).toBe(2); // a4 ผิดพลาด + a3 มูลค่า 0 สตางค์
+    expect(m.stalePrices).toBe(true); // a1 ราคาเก่ากว่า 7 วัน
+    expect(sumBps(m.slices)).toBe(TOTAL_BPS);
+    expect(buildAllocationModel(buildPortfolio(data(), TODAY))!.excluded).toBe(0);
+  });
   it('describeAllocation ใช้ป้ายตามที่เลือกเท่านั้น', () => {
     const p = buildPortfolio(data(), TODAY);
     expect(describeAllocation(buildAllocationModel(p)!, formatBps)).toBe('สัดส่วนพอร์ตตามต้นทุน: สินทรัพย์ 1 75% · สินทรัพย์ 2 25%');
     expect(describeAllocation(buildAllocationModel(p, { showNames: true })!, formatBps)).toContain('กองทุนลับ ก');
+  });
+});
+
+/** ctx ปลอมที่จดทุกข้อความที่ถูกวาดลงรูป (ตรวจว่ารูปมีอะไรจริง ไม่ใช่แค่ตรวจซอร์ส) */
+function recordDraw(model: ReturnType<typeof buildAllocationModel> & object, asOf: string): string[] {
+  const texts: string[] = [];
+  const noop = () => undefined;
+  const ctx = {
+    createLinearGradient: () => ({ addColorStop: noop }),
+    fillRect: noop, beginPath: noop, save: noop, restore: noop, clip: noop, fill: noop, rect: noop,
+    measureText: (t: string) => ({ width: t.length * 10 }),
+    fillText: (t: string) => void texts.push(t),
+    fillStyle: '', font: '', textAlign: '', textBaseline: '',
+  };
+  drawShareCard(ctx as unknown as CanvasRenderingContext2D, model, asOf);
+  return texts;
+}
+
+describe('รูปที่วาดจริง: ไม่มียอดเงิน/ชื่อจริง (ตรวจข้อความทุกบรรทัดที่ส่งให้ fillText)', () => {
+  const p = buildPortfolio(data(), TODAY);
+  it('ปิดชื่อ: ไม่มีชื่อจริง ไม่มี "บาท" ไม่มี ฿ และตัวเลขทุกตัวเป็น % หรือเลขลำดับ "สินทรัพย์ N" หรือวันที่ที่ส่งเข้า', () => {
+    const texts = recordDraw(buildAllocationModel(p)!, 'ณ พ. 10 พ.ย.');
+    const all = texts.join('\n');
+    expect(all).not.toContain('ลับ');
+    expect(all).not.toMatch(/บาท|฿|สตางค์|หน่วย/);
+    for (const t of texts) {
+      const digits = t.replace(/สินทรัพย์ \d+/g, '').replace(/\d+(\.\d)?%/g, '').replace('ณ พ. 10 พ.ย.', '');
+      expect(digits, t).not.toMatch(/\d/);
+    }
+    expect(texts).toContain('75%');
+    expect(texts).toContain('25%');
+  });
+  it('เปิดชื่อ: มีชื่อจริงเท่านั้นที่เพิ่ม ยังไม่มียอดเงิน', () => {
+    const all = recordDraw(buildAllocationModel(p, { showNames: true })!, 'ณ x').join('\n');
+    expect(all).toContain('กองทุนลับ ก');
+    expect(all).not.toMatch(/บาท|฿|สตางค์|หน่วย/);
+  });
+  it('ชื่อมีอักขระควบคุม/ทิศทาง (U+202E) ถูกตัดออกก่อนวาด', () => {
+    const d = data({ assets: [{ id: 'a1', name: 'ก\u202Eข\u0007ค', kind: 'fund', accountId: 'inv-a1' }, data().assets[1]!] });
+    const m = buildAllocationModel(buildPortfolio(d, TODAY), { showNames: true })!;
+    expect(m.slices.map((s) => s.label)).toContain('กขค');
   });
 });
 

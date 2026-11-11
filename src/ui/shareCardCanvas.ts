@@ -21,11 +21,13 @@ function rrect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h
   else ctx.rect(x, y, w, h);
 }
 
+/** ตัดข้อความที่ยาวเกินด้วย … โดยตัดทีละ "กลุ่มอักษร" (ไม่ตัดกลางสระ/วรรณยุกต์ภาษาไทย) */
 function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
   if (ctx.measureText(text).width <= maxWidth) return text;
-  let t = text;
-  while (t.length > 1 && ctx.measureText(`${t}…`).width > maxWidth) t = t.slice(0, -1);
-  return `${t}…`;
+  const seg = typeof Intl !== 'undefined' && 'Segmenter' in Intl ? new Intl.Segmenter('th', { granularity: 'grapheme' }) : null;
+  const parts = seg ? Array.from(seg.segment(text), (x) => x.segment) : Array.from(text);
+  while (parts.length > 1 && ctx.measureText(`${parts.join('')}…`).width > maxWidth) parts.pop();
+  return `${parts.join('')}…`;
 }
 
 export function drawShareCard(ctx: CanvasRenderingContext2D, model: AllocationModel, asOfLabel: string): void {
@@ -44,7 +46,7 @@ export function drawShareCard(ctx: CanvasRenderingContext2D, model: AllocationMo
   ctx.fillText('สัดส่วนพอร์ตการลงทุน', 72, 130);
   ctx.fillStyle = '#c9cde0';
   ctx.font = `400 32px ${FONT}`;
-  ctx.fillText(`${model.basis === 'value' ? 'ตามมูลค่า' : 'ตามต้นทุน'} · ${asOfLabel}`, 72, 184);
+  ctx.fillText(`${model.basis === 'value' ? 'ตามมูลค่า (ราคาที่ผู้ใช้กรอก)' : 'ตามต้นทุน (ราคาที่ซื้อ)'} · ${asOfLabel}`, 72, 184);
 
   // แถบสัดส่วน (ความกว้างเป็นพิกเซลเพื่อวาดเท่านั้น ไม่ใช่ยอดเงิน)
   const barX = 72;
@@ -60,6 +62,11 @@ export function drawShareCard(ctx: CanvasRenderingContext2D, model: AllocationMo
     const w = (s.bps / 10_000) * barW;
     ctx.fillStyle = sliceColor(i, s.isOther);
     ctx.fillRect(x, barY, w + 1, barH);
+    // เส้นคั่นระหว่างช่วง (ไม่ให้แยกสีอย่างเดียว)
+    if (i > 0) {
+      ctx.fillStyle = '#0f1117';
+      ctx.fillRect(x - 1, barY, 2, barH);
+    }
     x += w;
   });
   ctx.restore();
@@ -84,7 +91,7 @@ export function drawShareCard(ctx: CanvasRenderingContext2D, model: AllocationMo
 
   ctx.textAlign = 'left';
   ctx.fillStyle = '#9fa4bb';
-  ctx.font = `400 30px ${FONT}`;
+  ctx.font = `400 34px ${FONT}`;
   ctx.fillText('แสดงเฉพาะสัดส่วน ไม่แสดงยอดเงิน', 72, H - 110);
   ctx.fillStyle = '#f2d06b';
   ctx.font = `700 34px ${FONT}`;

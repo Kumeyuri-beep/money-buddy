@@ -52,14 +52,14 @@ export function ShareCardPanel({ portfolio, today, onClose }: Props) {
       canvas.toBlob((b) => resolve(b), 'image/png');
     });
 
-  const canShareFiles = (): boolean => {
+  const canShareFiles = useMemo((): boolean => {
     if (typeof navigator === 'undefined' || typeof navigator.canShare !== 'function' || typeof navigator.share !== 'function') return false;
     try {
       return navigator.canShare({ files: [new File([], FILE_NAME, { type: 'image/png' })] });
     } catch {
       return false;
     }
-  };
+  }, []);
 
   const share = async () => {
     setNote('');
@@ -103,11 +103,24 @@ export function ShareCardPanel({ portfolio, today, onClose }: Props) {
               <input id="share-names" type="checkbox" checked={showNames} onChange={(e) => setShowNames(e.target.checked)} />
               แสดงชื่อกองทุน/หุ้นในรูป
             </label>
-            <p className="muted small">ปิดอยู่ = รูปใช้ "สินทรัพย์ 1, 2, …" ถ้าเปิด ใครเห็นรูปจะรู้ว่าคุณถืออะไรอยู่</p>
+            <p className="muted small">ปิดอยู่ = รูปใช้ “สินทรัพย์ 1, 2, …” ถ้าเปิด ใครเห็นรูปจะรู้ว่าคุณถืออะไรอยู่</p>
           </div>
           {model.basis === 'cost' && (
             <p className="muted small" role="note">
               สัดส่วนนี้คิดตามต้นทุน เพราะยังกรอกราคาไม่ครบทุกสินทรัพย์ (กรอกราคาครบแล้วจะคิดตามมูลค่า)
+            </p>
+          )}
+          <p className="muted small" role="note">
+            ข้อควรระวัง: ถ้าคุณเคยบอกยอดเงินของสินทรัพย์ใดไว้ที่อื่น คนอื่นอาจคำนวณยอดตัวอื่นจากสัดส่วนได้ · ถ้ามีสินทรัพย์เดียว รูปจะแสดง 100% · แชร์หลายวันคนดูจะเห็นสัดส่วนที่เปลี่ยน
+          </p>
+          {model.excluded > 0 && (
+            <p className="muted small" role="note">
+              มี {model.excluded} สินทรัพย์ที่ไม่ถูกนับในสัดส่วน (ข้อมูลรายการผิดพลาดหรือมูลค่าเป็น 0) สัดส่วนในรูปจึงรวมเป็น 100% ของส่วนที่นับเท่านั้น
+            </p>
+          )}
+          {model.stalePrices && (
+            <p className="muted small" role="note">
+              มีราคาที่กรอกไว้นานกว่า 7 วัน ตัวเลขอาจไม่ทันสมัย อัปเดตราคาก่อนแชร์ได้
             </p>
           )}
           <canvas
@@ -123,9 +136,9 @@ export function ShareCardPanel({ portfolio, today, onClose }: Props) {
               ปิด
             </button>
             <button type="button" className="btn btn-small" onClick={() => void save()}>
-              บันทึกรูป (PNG)
+              บันทึกเป็นรูป
             </button>
-            {canShareFiles() && (
+            {canShareFiles && (
               <button type="button" className="btn btn-primary btn-small" onClick={() => void share()}>
                 แชร์รูป
               </button>

@@ -26,7 +26,10 @@ export interface AllocationShare {
 export function allocateBps(items: readonly AllocationInput[]): AllocationShare[] {
   let total = 0n;
   const positive: { key: string; weight: bigint }[] = [];
+  const seen = new Set<string>();
   for (const it of items) {
+    if (seen.has(it.key)) throw new RangeError(`key ซ้ำ: ${it.key}`); // key ซ้ำทำให้แจกเศษผิด จึงปฏิเสธ
+    seen.add(it.key);
     if (!Number.isSafeInteger(it.weight) || it.weight < 0) throw new RangeError(`น้ำหนักไม่ถูกต้อง: ${String(it.weight)}`);
     if (it.weight === 0) continue;
     const w = BigInt(it.weight);
