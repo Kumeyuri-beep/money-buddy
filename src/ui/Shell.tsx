@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
+import { MobileMenu } from './MobileMenu';
 
-export type ViewId = 'today' | 'ledger' | 'bills' | 'account' | 'averaging';
+export type ViewId = 'today' | 'ledger' | 'bills' | 'account' | 'averaging' | 'portfolio';
 
 interface ShellProps {
   children: ReactNode;
@@ -30,7 +31,7 @@ const NAV_MAIN: NavItem[] = [
   { id: 'today', label: 'ภาพรวม', icon: 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z' },
   { id: 'ledger', label: 'รายรับ-รายจ่าย', icon: 'M7 7h13M16 3l4 4-4 4M17 17H4M8 13l-4 4 4 4' },
   { id: 'bills', label: 'บิลและเป้า', icon: 'M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6' },
-  { id: null, label: 'พอร์ตการลงทุน', icon: 'M3 8h18v12H3zM8 8V5h8v3' },
+  { id: 'portfolio', label: 'พอร์ตการลงทุน', icon: 'M3 8h18v12H3zM8 8V5h8v3' },
   { id: null, label: 'แผนลงทุน', icon: 'M4 20V11M10 20V5M16 20v-7M2 20h20' },
   { id: null, label: 'ปรับสมดุลพอร์ต', icon: 'M12 3v18M5 7h14M5 7l-3 6h6zM19 7l-3 6h6z' },
 ];
@@ -42,11 +43,12 @@ const NAV_TOOLS: NavItem[] = [
   { id: 'account', label: 'โปรไฟล์', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0' },
 ];
 
-/** แถบเมนูล่างบนมือถือ: เฉพาะหน้าที่มีจริง (ไม่แสดง "เร็วๆ นี้") ใช้ไอคอนชุดเดียวกับแถบข้าง */
+/** เมนูมือถือ (ปุ่มลอย → bottom sheet 3x2): เฉพาะหน้าที่มีจริง (ไม่แสดง "เร็วๆ นี้") ใช้ไอคอนชุดเดียวกับแถบข้าง */
 const NAV_BOTTOM: { id: ViewId; short: string; icon: string }[] = [
   { id: 'today', short: 'ภาพรวม', icon: NAV_MAIN[0]!.icon },
   { id: 'ledger', short: 'รายการ', icon: NAV_MAIN[1]!.icon },
-  { id: 'bills', short: 'บิล', icon: NAV_MAIN[2]!.icon },
+  { id: 'bills', short: 'บิลและเป้า', icon: NAV_MAIN[2]!.icon },
+  { id: 'portfolio', short: 'พอร์ต', icon: NAV_MAIN[3]!.icon },
   { id: 'averaging', short: 'ถัวเฉลี่ย', icon: NAV_TOOLS[2]!.icon },
   { id: 'account', short: 'โปรไฟล์', icon: NAV_TOOLS[3]!.icon },
 ];
@@ -134,22 +136,11 @@ export function Shell({ children, showNav = true, current = 'today', onNavigate,
       <main className="content">{children}</main>
 
       {showNav && (
-        <nav className="bottom-nav glass-lite" aria-label="เมนูหลัก (มือถือ)">
-          {NAV_BOTTOM.map(({ id, short, icon }) => {
-            const active = id === current;
-            return (
-              <button
-                key={id}
-                className={active ? 'bottom-nav-item bottom-nav-active' : 'bottom-nav-item'}
-                aria-current={active ? 'page' : undefined}
-                onClick={() => onNavigate?.(id)}
-              >
-                <Icon path={icon} />
-                <span>{short}</span>
-              </button>
-            );
-          })}
-        </nav>
+        <MobileMenu
+          items={NAV_BOTTOM.map(({ id, short, icon }) => ({ id, label: short, icon }))}
+          current={current}
+          onSelect={(id) => onNavigate?.(id)}
+        />
       )}
     </div>
   );

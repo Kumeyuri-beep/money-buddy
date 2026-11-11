@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { chunkEntries } from '../domain/backup/chunk';
+import { checkTradeAdd, checkTradeDelete } from '../domain/invest/rules';
+import { lengthWithin, MAX_NAME_LENGTH } from '../domain/ledger/limits';
 import { ASSET_KINDS, TRADE_KINDS, emptyInvestments, isEmptyInvestments, type Asset, type AssetPrice, type InvestmentData, type TradeRecord } from '../domain/invest/types';
 import { SINGLE_IMPORT_MAX_ENTRIES, SINGLE_IMPORT_MAX_LINES, type BackupData } from '../domain/backup/parseBackup';
 import { payAmountProblem } from '../domain/bills/payAmount';
@@ -310,6 +312,8 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
     build: (from: number, to: number) => PromiseLike<{ data: unknown; error: DbError | null }>,
     keyOf: (row: T) => string = (row) => (row as { id: string }).id,
     countColumn = 'id',
+    /** อ่านเฉพาะแถวที่ column = value: คำสั่งนับต้องกรองเหมือนกัน (ไม่งั้นจำนวนไม่ตรงแล้วล้มทุกครั้ง) */
+    scope?: { column: string; value: string },
   ): Promise<T[]> {
     for (let attempt = 0; attempt < 3; attempt++) {
       const byId = new Map<string, T>();
@@ -320,7 +324,8 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
         for (const row of rows) byId.set(keyOf(row), row);
         if (rows.length < PAGE) break;
       }
-      const { count, error } = await client.from(table).select(countColumn, { count: 'exact', head: true });
+      const counter = client.from(table).select(countColumn, { count: 'exact', head: true });
+      const { count, error } = await (scope ? counter.eq(scope.column, scope.value) : counter);
       check(error);
       if (count === null || count === undefined || count === byId.size) return [...byId.values()];
     }
@@ -687,6 +692,82 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
     },
 
     loadSettings,
+
+    loadInvestments,
+
+    async addAsset(input) {
+      const id = String(input.id ?? '').trim();
+      const name = String(input.name ?? '').trim();
+      if (id === '' || id.length > 90) throw new StorageError('รหัสสินทรัพย์ไม่ถูกต้อง');
+      if (!lengthWithin(name, 1, MAX_NAME_LENGTH)) throw new StorageError(`ชื่อสินทรัพย์ต้องยาว 1-${MAX_NAME_LENGTH} ตัวอักษร`);
+      if (!(ASSET_KINDS as readonly string[]).includes(input.kind)) throw new StorageError('ชนิดสินทรัพย์ไม่ถูกต้อง');
+      const accountId = `inv-${id}`;
+      const acc = await client.from('accounts').insert({ id: accountId, type: 'asset', name, currency: 'THB', kind: 'investment' });
+      check(acc.error);
+      const ins = await client.from('assets').insert({ id, name, kind: input.kind, account_id: accountId });
+      if (ins.error) {
+        // ล้างบัญชีที่เพิ่งสร้างไว้ (เฉพาะบัญชีลงทุน · ไม่มีรายการอ้างอิง) ถ้าล้างไม่สำเร็จเหลือบัญชีลงทุนว่างๆ ไม่กระทบยอดเงินสด
+        await client.from('accounts').delete().eq('id', accountId).eq('kind', 'investment');
+        check(ins.error);
+      }
+      return { id, name, kind: input.kind, accountId };
+    },
+
+    async addTrade(trade) {
+      const siblings = await fetchAll<TradeRow>(
+        'trades',
+        (from, to) => client.from('trades').select('*').eq('asset_id', trade.assetId).order('id').range(from, to),
+        (row) => row.id,
+        'id',
+        { column: 'asset_id', value: trade.assetId },
+      );
+      const problem = checkTradeAdd(siblings.map(rowToTrade), trade);
+      if (problem) throw new StorageError(problem);
+      const row = {
+        id: trade.id,
+        asset_id: trade.assetId,
+        kind: trade.kind,
+        date: trade.date,
+        created_at: trade.createdAt,
+        units: trade.units ?? null,
+        price_micro: trade.priceMicro ?? null,
+        amount: trade.amount ?? null,
+        fee: trade.fee,
+        withholding: trade.withholding,
+        memo: trade.memo,
+        entry_id: trade.entryId ?? null,
+      };
+      const { error } = await client.from('trades').insert(row);
+      check(error);
+      return trade;
+    },
+
+    async deleteTrade(id) {
+      const found = await client.from('trades').select('*').eq('id', id).maybeSingle();
+      check(found.error);
+      if (!found.data) throw new StorageError('ไม่พบรายการนี้ อาจถูกลบไปแล้ว');
+      const target = rowToTrade(found.data as TradeRow);
+      const siblings = await fetchAll<TradeRow>(
+        'trades',
+        (from, to) => client.from('trades').select('*').eq('asset_id', target.assetId).order('id').range(from, to),
+        (row) => row.id,
+        'id',
+        { column: 'asset_id', value: target.assetId },
+      );
+      const problem = checkTradeDelete(siblings.map(rowToTrade), id);
+      if (problem) throw new StorageError(problem);
+      const del = await client.from('trades').delete().eq('id', id).select('id');
+      check(del.error);
+      if ((del.data ?? []).length !== 1) throw new StorageError('ลบรายการไม่สำเร็จ (ไม่พบรายการ)');
+    },
+
+    async savePrice(price) {
+      if (!Number.isSafeInteger(price.priceMicro) || price.priceMicro <= 0) throw new StorageError('ราคาต้องเป็นจำนวนเต็ม micro-baht ที่มากกว่า 0');
+      const { error } = await client
+        .from('asset_prices')
+        .upsert({ user_id: userId, asset_id: price.assetId, date: price.date, price_micro: price.priceMicro }, { onConflict: 'user_id,asset_id,date' });
+      check(error);
+    },
 
     async importBackup(data: BackupData, onProgress?: ImportProgress) {
       const report = runIntegrityCheck(data.accounts, data.entries);

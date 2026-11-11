@@ -423,20 +423,33 @@ select { font: inherit; }
 .auth-card .actions { display: flex; flex-wrap: wrap; gap: 12px; }
 .auth-sep { border: 0; border-top: 1px solid rgba(255, 255, 255, 0.12); margin: 8px 0; width: 100%; }
 
-/* แถบเมนูล่างบนมือถือ (glass-lite ไม่มี blur · กลายเป็นพื้นทึบเมื่อลดความโปร่งใสผ่านกฎ .glass-lite ด้านบน) */
-.bottom-nav { display: none; }
-.bottom-nav-item { flex: 1 1 0; min-width: 44px; min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 6px 4px; border: 0; border-radius: 16px; background: transparent; color: rgba(244, 245, 250, 0.84); font-size: 12px; line-height: 1.2; }
-.bottom-nav-item:hover { background: rgba(255, 255, 255, 0.07); color: #fff; }
-.bottom-nav-active, .bottom-nav-active:hover { background: rgba(255, 255, 255, 0.15); color: #fff; font-weight: 600; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32); }
+/* เมนูมือถือแบบ pop up: ปุ่มลอยกลมมุมขวาล่าง → bottom sheet ตาราง 3x2 · sheet เป็นพื้นเกือบทึบ (ไม่โปร่งใส: เนื้อหาหลังต้องไม่ทะลุมารบกวนตัวหนังสือ) จึงไม่ต้องมีโหมดลดความโปร่งใสแยก */
+.fab, .sheet, .sheet-backdrop { display: none; }
 @media (max-width: 720px) {
-  /* เมนูหลักย้ายไปแถบล่าง: แถบข้างเหลือโลโก้ โปรไฟล์ และปุ่มท้ายแถบ */
+  /* เมนูหลักย้ายไปปุ่มลอย: แถบข้างเหลือโลโก้ โปรไฟล์ และปุ่มท้ายแถบ */
   .sidebar nav { display: none; }
-  .bottom-nav { position: fixed; left: 8px; right: 8px; bottom: max(8px, env(safe-area-inset-bottom)); z-index: 15; display: flex; gap: 4px; padding: 6px; border-radius: 22px; }
-  /* เว้นที่ท้ายหน้าไม่ให้แถบล่างบังเนื้อหา และยกข้อความแจ้งเตือน (toast) ขึ้นเหนือแถบ */
-  .page { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
-  .toast { bottom: calc(88px + env(safe-area-inset-bottom)); }
+  .fab { display: flex; position: fixed; right: calc(16px + env(safe-area-inset-right)); bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 15; width: 56px; height: 56px; align-items: center; justify-content: center; padding: 0; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.4); background: linear-gradient(145deg, #f7de8c, #c99a2e); color: #1a1505; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.6); }
+  .fab .ico { width: 26px; height: 26px; }
+  .sheet-backdrop { display: block; position: fixed; inset: 0; z-index: 40; background: rgba(5, 6, 10, 0.62); }
+  .sheet { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; background: linear-gradient(180deg, #232637, #10121a); border-top: 1px solid rgba(255, 255, 255, 0.22); box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.12); max-height: 85vh; max-height: 85dvh; overflow-y: auto; overscroll-behavior: contain; border-radius: 24px 24px 0 0; padding: 8px calc(16px + env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left)); touch-action: pan-y; }
+  /* เว้นที่ท้ายหน้าไม่ให้ปุ่มลอยบังปุ่มหลัก/ฟอร์ม และยกข้อความแจ้งเตือน (toast) ขึ้นเหนือปุ่มลอย */
+  .page { padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
+  .toast { bottom: calc(88px + env(safe-area-inset-bottom)); left: 16px; right: calc(88px + env(safe-area-inset-right)); margin: 0; width: auto; max-width: none; }
 }
-.bottom-nav-item { overflow-wrap: anywhere; }
+.fab[aria-expanded='true'] { visibility: hidden; }
+.sheet-handle { width: 40px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.35); margin: 4px auto 10px; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.sheet-head h2 { margin: 0; font-size: 1.05rem; }
+.sheet-close { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.06); }
+.sheet-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.sheet-item { width: 100%; min-height: 84px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 10px 4px; border-radius: 18px; border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.05); color: rgba(244, 245, 250, 0.92); font-size: 14px; line-height: 1.25; text-align: center; overflow-wrap: anywhere; }
+.sheet-item .ico { width: 26px; height: 26px; }
+.sheet-item:hover { background: rgba(255, 255, 255, 0.1); }
+.sheet-item-active, .sheet-item-active:hover { background: rgba(255, 255, 255, 0.16); border-color: var(--gold); color: #fff; font-weight: 600; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32); }
+@media (prefers-reduced-motion: no-preference) {
+  .sheet { animation: sheet-up 0.18s ease-out; }
+  @keyframes sheet-up { from { transform: translateY(32px); opacity: 0.6; } to { transform: none; opacity: 1; } }
+}
 .archived-details > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 600; }
 .archived-details > summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 8px; }
 
@@ -451,3 +464,11 @@ select { font: inherit; }
 .avg-result .avg-new { font-size: 1.6rem; font-weight: 600; color: var(--gold); }
 .field input[aria-invalid='true'] { border-color: var(--expense); }
 .avg-err { margin: 4px 0 0; color: var(--expense); font-size: 0.85rem; }
+
+/* พอร์ตการลงทุน */
+.notice { margin: 0 0 16px; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(242, 208, 107, 0.45); background: rgba(242, 208, 107, 0.08); font-size: 0.9rem; }
+.stale { color: var(--gold); }
+.notice p { margin: 0; }
+.confirm-delete { border-color: var(--expense); color: var(--expense); font-weight: 600; }
+@media (prefers-reduced-transparency: reduce) { .notice { background: #1d1b12; } }
+@media (max-width: 720px) { .bill-row .bill-figures { grid-column: 1 / -1; justify-content: flex-start; } }

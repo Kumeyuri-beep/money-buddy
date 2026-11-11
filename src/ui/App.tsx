@@ -30,6 +30,7 @@ import { IntegrityBanner, IntegrityStatus } from './Integrity';
 import { LedgerView } from './LedgerView';
 import { Setup } from './Setup';
 import { AveragingView } from './AveragingView';
+import { PortfolioView } from './PortfolioView';
 import { Shell, type ViewId } from './Shell';
 import { ScanStatus } from './ScanStatus';
 import { Toast } from './Toast';
@@ -394,6 +395,8 @@ export function App() {
         <AccountView />
       ) : view === 'averaging' ? (
         <AveragingView />
+      ) : view === 'portfolio' ? (
+        <PortfolioView today={today} onLedgerChanged={() => void refresh()} />
       ) : view === 'bills' ? (
         <BillsView
           bills={state.bills}
