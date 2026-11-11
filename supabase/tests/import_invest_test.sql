@@ -19,6 +19,11 @@ begin
   values (p_id, p_tag || '-ii@users.money-buddy.internal', extensions.crypt('old-password', extensions.gen_salt('bf')), 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000');
   update auth.users set encrypted_password = extensions.crypt('new-password', extensions.gen_salt('bf')) where id = p_id;
 end $$;
+create function pg_temp.mkuser_unchanged(p_id uuid) returns void language plpgsql as $$
+begin
+  insert into auth.users (id, email, encrypted_password, aud, role, instance_id)
+  values (p_id, 'e-ii@users.money-buddy.internal', extensions.crypt('old-password', extensions.gen_salt('bf')), 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000');
+end $$;
 grant execute on function pg_temp.settle(), pg_temp.fails(text), pg_temp.logout() to public;
 
 do $t$
@@ -27,6 +32,7 @@ declare
   ub uuid := gen_random_uuid();
   uc uuid := gen_random_uuid();
   ud uuid := gen_random_uuid();
+  ue uuid := gen_random_uuid();
   r text;
   n integer;
   k text;
@@ -104,19 +110,36 @@ begin
   select count(*) into n from public.assets; if n <> 0 then raise exception 'FAIL: T6 D เห็นสินทรัพย์ของคนอื่น (%)', n; end if;
   perform pg_temp.logout();
 
+  -- T6b เขียนข้ามผู้ใช้: D มี inv1 และ Entry e-buy1 รหัสเดียวกับของ A · นำเข้าแล้วต้องผูกกับของ D เอง ของ A ไม่เปลี่ยน
+  --      entryId ที่ D ไม่มี (มีแต่ของ A) ต้องชน FK
+  perform pg_temp.login(ud);
+  v := public.import_ledger(jsonb_build_object('accounts', accs, 'entries', ents));
+  perform pg_temp.settle();
+  r := pg_temp.fails($$ select public.import_ledger_investments('{"assets":[{"id":"a1","name":"x","kind":"fund","accountId":"inv1"}],"trades":[{"id":"zz","assetId":"a1","kind":"buy","date":"2026-11-05","units":"1","amount":1,"fee":0,"withholding":0,"memo":"","entryId":"only-in-a"}]}'::jsonb) $$);
+  if r is null or r not like '%foreign key%' then raise exception 'FAIL: T6b entryId ที่ D ไม่มีถูกรับ (%)', r; end if;
+  v := public.import_ledger_investments(invd);
+  perform pg_temp.settle();
+  perform pg_temp.logout();
+  select count(*) into n from public.trades where user_id = ud and entry_id = 'e-buy1'; if n <> 1 then raise exception 'FAIL: T6b รายการของ D ไม่ผูก Entry ของ D (%)', n; end if;
+  select count(*) into n from public.trades where user_id = ua; if n <> 2 then raise exception 'FAIL: T6b ข้อมูลของ A เปลี่ยน (%)', n; end if;
+  perform set_config('app.deleting_account', 'on', true);  -- ข้ามตัวกันลบรายการ system (ล้างข้อมูลทดสอบของ D)
+  delete from public.assets where user_id = ud;  -- เก็บ D ให้ว่างสำหรับ T7 (cascade ลบรายการ/ราคา)
+  delete from public.entries where user_id = ud; delete from public.bills where user_id = ud; delete from public.accounts where user_id = ud;
+  perform set_config('app.deleting_account', '', true);
+
   -- T7 kind แปลกในไฟล์ = ปฏิเสธทั้งการนำเข้า (ไม่เดาเป็นเงินสด) · รูปแบบข้อมูลลงทุนผิด/เกินเพดาน = ปฏิเสธ
   perform pg_temp.login(ud);
   r := pg_temp.fails($$ select public.import_ledger('{"accounts":[{"id":"w1","type":"asset","name":"x","currency":"THB","kind":"weird"},{"id":"open","type":"equity","name":"o","currency":"THB"}],"entries":[]}'::jsonb) $$);
-  if r is null then raise exception 'FAIL: T7 kind แปลกถูกรับ'; end if;
+  if r is null or r not like '%accounts_kind_check%' then raise exception 'FAIL: T7 kind แปลกถูกรับ หรือล้มด้วยเหตุผลอื่น (%)', r; end if;
   select count(*) into n from public.accounts; if n <> 0 then raise exception 'FAIL: T7 นำเข้าที่ล้มทิ้งบัญชีไว้ (%)', n; end if;
   v := public.import_ledger(jsonb_build_object('accounts', accs, 'entries', ents));
   perform pg_temp.settle();
   r := pg_temp.fails($$ select public.import_ledger_investments('[]'::jsonb) $$);
   if r is null or r not like '%รูปแบบ%' then raise exception 'FAIL: T7 รูปแบบไม่ใช่วัตถุถูกรับ (%)', r; end if;
   r := pg_temp.fails($$ select public.import_ledger_investments('{"assets":{"a":1}}'::jsonb) $$);
-  if r is null then raise exception 'FAIL: T7 assets ไม่ใช่อาร์เรย์ถูกรับ'; end if;
+  if r is null or r not like '%รูปแบบข้อมูลลงทุน%' then raise exception 'FAIL: T7 assets ไม่ใช่อาร์เรย์ถูกรับ หรือล้มด้วยเหตุผลอื่น (%)', r; end if;
   r := pg_temp.fails($$ select public.import_ledger_investments('{"assets":[1]}'::jsonb) $$);
-  if r is null then raise exception 'FAIL: T7 แถวไม่ใช่วัตถุถูกรับ'; end if;
+  if r is null or r not like '%ต้องเป็นวัตถุ%' then raise exception 'FAIL: T7 แถวไม่ใช่วัตถุถูกรับ หรือล้มด้วยเหตุผลอื่น (%)', r; end if;
   r := pg_temp.fails(format($f$ select public.import_ledger_investments(jsonb_build_object('trades', (select jsonb_agg('{"id":"x"}'::jsonb) from generate_series(1, 10001)))) $f$));
   if r is null or r not like '%เกินเพดาน%' then raise exception 'FAIL: T7 รายการเกิน 10,000 ถูกรับ (%)', r; end if;
   perform pg_temp.logout();
@@ -125,7 +148,13 @@ begin
   if has_function_privilege('anon', 'public.import_ledger_investments(jsonb)', 'execute') then raise exception 'FAIL: T8 anon เรียก import_ledger_investments ได้'; end if;
   if not has_function_privilege('authenticated', 'public.import_ledger_investments(jsonb)', 'execute') then raise exception 'FAIL: T8 authenticated เรียกไม่ได้'; end if;
   r := pg_temp.fails($$ select public.import_ledger_investments('{}'::jsonb) $$);
-  if r is null then raise exception 'FAIL: T8 ไม่ล็อกอินเรียกได้'; end if;
+  if r is null or r not like '%ต้องเข้าสู่ระบบ%' then raise exception 'FAIL: T8 ไม่ล็อกอินเรียกได้ หรือล้มด้วยเหตุผลอื่น (%)', r; end if;
+  -- ผู้ใช้ที่ยังไม่เปลี่ยนรหัส (must_change_password) เรียกไม่ได้
+  perform pg_temp.mkuser_unchanged(ue);
+  perform pg_temp.login(ue);
+  r := pg_temp.fails($$ select public.import_ledger_investments('{}'::jsonb) $$);
+  if r is null or r not like '%เปลี่ยนรหัสผ่าน%' then raise exception 'FAIL: T8 ผู้ใช้ที่ยังไม่เปลี่ยนรหัสเรียกได้ (%)', r; end if;
+  perform pg_temp.logout();
 
   raise exception 'TESTS_PASSED (rollback แล้ว ไม่มีข้อมูลทดสอบเหลือ)';
 end

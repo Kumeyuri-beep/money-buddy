@@ -43,7 +43,7 @@ interface DbError {
 
 const THAI = /[฀-๿]/;
 /** รหัส error ที่ฟังก์ชัน/trigger ของเราตั้งใจ raise พร้อมข้อความไทย (ข้อความอื่นของ Postgres เองไม่ส่งต่อ เพราะอาจมีค่าที่ผู้ใช้กรอกปนอยู่) */
-const OWN_CODES = new Set(['28000', '42501', '25006', '23514', '40001', '53400', '23503', '23505', 'P0002', '22007', '22023', '55000']);
+const OWN_CODES = new Set(['28000', '42501', '25006', '23514', '40001', '53400', '23503', '23505', 'P0002', '22007', '22023', '55000', '54000']);
 
 /** แปลง error ของ PostgREST เป็น StorageError · ข้อความไทยที่ฐานข้อมูลตั้งใจส่งมาใช้ได้เลย ที่เหลือไม่โชว์รายละเอียดภายใน */
 export function storageErrorFrom(error: DbError): StorageError {
@@ -159,6 +159,15 @@ export function rowToAsset(row: AssetRow): Asset {
   return asset;
 }
 
+/** เวลาจากฐานข้อมูล → ISO · ค่าที่แปลงไม่ได้ (เช่น infinity) = StorageError ไม่ใช่ RangeError ที่ทำให้ส่งออกไม่ได้เงียบๆ */
+function instantOf(value: string): string {
+  const t = Date.parse(value);
+  if (Number.isNaN(t) || t < Date.UTC(1900, 0, 1) || t > Date.UTC(2999, 11, 31)) {
+    throw new StorageError('ข้อมูลจากเซิร์ฟเวอร์ไม่ถูกต้อง: เวลาบันทึกของรายการลงทุนอยู่นอกช่วงที่รองรับ');
+  }
+  return new Date(t).toISOString();
+}
+
 export function rowToTrade(row: TradeRow): TradeRecord {
   if (!(TRADE_KINDS as readonly string[]).includes(row.kind)) throw new StorageError(`ข้อมูลจากเซิร์ฟเวอร์ไม่ถูกต้อง: ชนิดรายการลงทุน "${row.kind}"`);
   if (row.units !== null && (typeof row.units !== 'string' || !/^[0-9]{1,19}$/.test(row.units))) {
@@ -169,7 +178,7 @@ export function rowToTrade(row: TradeRow): TradeRecord {
     assetId: row.asset_id,
     kind: row.kind as TradeRecord['kind'],
     date: row.date,
-    createdAt: new Date(row.created_at).toISOString(),
+    createdAt: instantOf(row.created_at),
     fee: safeInt(row.fee, 'ค่าธรรมเนียม'),
     withholding: safeInt(row.withholding, 'ภาษีหัก ณ ที่จ่าย'),
     memo: row.memo,

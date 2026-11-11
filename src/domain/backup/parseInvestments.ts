@@ -18,8 +18,7 @@ import {
   type TradeRecord,
 } from '../invest/types';
 import { MAX_UNITS, valueInSatang } from '../invest/units';
-import { isValidIsoDate } from '../ledger/entry';
-import { lengthWithin, MAX_ID_LENGTH, MAX_MEMO_LENGTH, MAX_NAME_LENGTH } from '../ledger/limits';
+import { isSupportedEntryDate, lengthWithin, MAX_ID_LENGTH, MAX_MEMO_LENGTH, MAX_NAME_LENGTH } from '../ledger/limits';
 import type { Account, Entry } from '../ledger/types';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -111,8 +110,8 @@ export function parseInvestments(
     if (tradeIds.has(id)) return add(`รายการลงทุนซ้ำ: ${short(id)}`);
     if (!assetIds.has(assetId)) return add(`${tag}: ไม่พบสินทรัพย์ ${short(assetId)}`);
     if (!(TRADE_KINDS as readonly string[]).includes(kind)) return add(`${tag}: ชนิดรายการไม่ถูกต้อง`);
-    if (!isValidIsoDate(date)) return add(`${tag}: วันที่ไม่ถูกต้อง`);
-    if (typeof memo !== 'string' || memo.length > MAX_MEMO_LENGTH || UNSAFE_TEXT.test(memo.replace(/[\r\n\t]/g, ''))) {
+    if (!isSupportedEntryDate(date)) return add(`${tag}: วันที่ไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD ปี 1900-2999)`);
+    if (typeof memo !== 'string' || !lengthWithin(memo, 0, MAX_MEMO_LENGTH) || UNSAFE_TEXT.test(memo.replace(/[\r\n\t]/g, ''))) {
       return add(`${tag}: หมายเหตุไม่ถูกต้อง (ไม่เกิน ${MAX_MEMO_LENGTH} ตัวอักษร ไม่มีอักขระควบคุม)`);
     }
     if (createdAt !== undefined && !validInstant(createdAt)) {
@@ -163,7 +162,7 @@ export function parseInvestments(
     const { assetId, date, priceMicro } = item;
     if (typeof assetId !== 'string' || typeof date !== 'string') return add(`${label}: ต้องมี assetId และ date เป็นข้อความ`);
     if (!assetIds.has(assetId)) return add(`${label}: ไม่พบสินทรัพย์ ${short(assetId)}`);
-    if (!isValidIsoDate(date)) return add(`${label}: วันที่ไม่ถูกต้อง`);
+    if (!isSupportedEntryDate(date)) return add(`${label}: วันที่ไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD ปี 1900-2999)`);
     if (!isSafeInt(priceMicro, 1)) return add(`${label}: ราคาต้องเป็นจำนวนเต็ม micro-baht > 0`);
     const key = `${assetId}\u0000${date}`;
     if (priceKeys.has(key)) return add(`${label}: มีราคาของสินทรัพย์นี้ในวันเดียวกันซ้ำ`);

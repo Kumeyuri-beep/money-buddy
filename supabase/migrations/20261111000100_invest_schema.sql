@@ -82,7 +82,9 @@ create table public.trades (
   -- buy = ซื้อ · sell = ขาย · dividend = ปันผลเป็นเงินสด · reinvest = ปันผลลงทุนต่อ (หน่วยเพิ่ม ไม่มีเงินสด)
   kind text not null check (kind in ('buy', 'sell', 'dividend', 'reinvest')),
   date date not null check (date between date '1900-01-01' and date '2999-12-31'),
-  created_at timestamptz not null default now(),
+  -- เวลาบันทึกอยู่ในช่วงที่เว็บอ่านได้ (ไม่รับ 'infinity'/ปีเกิน: ทำให้ส่งออกไฟล์สำรองไม่ได้ · ผลตรวจ security-auditor)
+  created_at timestamptz not null default now()
+    check (created_at >= timestamptz '1900-01-01 00:00:00+00' and created_at < timestamptz '3000-01-01 00:00:00+00'),
   -- จำนวนหน่วย x 10^8 เป็น text ของจำนวนเต็มบวก ไม่ขึ้นต้นด้วย 0 ไม่เกิน 9223372036854775807 (R17)
   units text check (
     units is null or (
