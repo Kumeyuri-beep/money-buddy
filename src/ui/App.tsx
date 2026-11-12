@@ -394,6 +394,8 @@ export function App() {
           onOpenBills={() => setView('bills')}
           onOpenPortfolio={() => setView('portfolio')}
           onOpenRetirement={() => setView('retirement')}
+          onOpenAveraging={() => setView('averaging')}
+          onOpenTax={() => setView('tax')}
           today={today}
         />
       ) : view === 'account' ? (
