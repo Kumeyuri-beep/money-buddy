@@ -2,7 +2,7 @@ import { monthOf } from '../domain/bills/calendar';
 import { payAmountProblem } from '../domain/bills/payAmount';
 import { billProblem, markBillPaid, payableCycle } from '../domain/bills/schedule';
 import { sanitizeSettings, settingsProblem, type FinanceSettings } from '../domain/bills/settings';
-import { applySettingsPlan, planSettingsPatch, type SettingsPatch } from '../domain/bills/settingsPatch';
+import { applySettingsPlan, planConflictProblem, planSettingsPatch, planSettingsReplace, type SettingsPatch } from '../domain/bills/settingsPatch';
 import type { Bill } from '../domain/bills/types';
 import { isCashWallet } from '../domain/ledger/accountKind';
 import { createEntry } from '../domain/ledger/entry';
@@ -539,7 +539,10 @@ export async function patchSettings(db: MoneyDB, patch: SettingsPatch): Promise<
   const planned = planSettingsPatch(patch);
   if (!planned.ok) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${planned.problem}`);
   return db.transaction('rw', db.meta, async () => {
-    const next = applySettingsPlan(await loadSettings(db), planned.plan);
+    const current = await loadSettings(db);
+    const conflict = planConflictProblem(current, planned.plan);
+    if (conflict) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${conflict}`);
+    const next = applySettingsPlan(current, planned.plan);
     const problem = settingsProblem(next);
     if (problem) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${problem}`);
     await db.meta.put({ key: SETTINGS_KEY, value: next });
@@ -547,18 +550,21 @@ export async function patchSettings(db: MoneyDB, patch: SettingsPatch): Promise<
   });
 }
 
-/** บันทึกค่าตั้งค่าแทนทั้งชุด (ฟิลด์ที่ไม่ส่งมา = ไม่ตั้ง) ค่าผิดรูปถูกปฏิเสธก่อนเขียน */
+/**
+ * บันทึกค่าตั้งค่าแทนทั้งชุด (ฟิลด์ที่ไม่ส่งมา = ไม่ตั้ง) ยกเว้นคีย์ที่ผู้เรียกบางรายไม่รู้จัก (แผน DCA, รายชื่อเกษียณ, ป้ายภาษี) ที่ไม่ส่ง = คงของเดิม ส่งอาร์เรย์ว่าง = ลบ
+ * ค่าผิดรูปถูกปฏิเสธก่อนเขียน · อ่าน-รวม-เขียนในธุรกรรมเดียว (แผนเดียวกับฝั่งออนไลน์ที่ทำผ่าน RPC merge_settings)
+ */
 export async function saveSettings(db: MoneyDB, settings: FinanceSettings): Promise<FinanceSettings> {
-  const problem = settingsProblem(settings);
-  if (problem) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${problem}`);
-  const clean = sanitizeSettings(settings);
-  // ผู้เรียกที่ไม่รู้จักแผน DCA (หน้าบิลสร้างค่าตั้งค่าใหม่ทั้งก้อน) ต้องไม่ลบแผนเดิม: ไม่ส่งฟิลด์ = คงของเดิม · ส่ง [] = ลบ
-  // การเลือกสินทรัพย์เกษียณก็เช่นกัน (ส่ง [] = ลบ) · อ่านค่าเดิมครั้งเดียวเพื่อให้ช่วงอ่านแล้วเขียนสั้นที่สุด
-  if (settings.dcaPlans === undefined || settings.retirementAssetIds === undefined) {
+  const planned = planSettingsReplace(settings);
+  if (!planned.ok) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${planned.problem}`);
+  return db.transaction('rw', db.meta, async () => {
     const current = await loadSettings(db);
-    if (settings.dcaPlans === undefined && current.dcaPlans !== undefined) clean.dcaPlans = current.dcaPlans;
-    if (settings.retirementAssetIds === undefined && current.retirementAssetIds !== undefined) clean.retirementAssetIds = current.retirementAssetIds;
-  }
-  await db.meta.put({ key: SETTINGS_KEY, value: clean });
-  return clean;
+    const conflict = planConflictProblem(current, planned.plan);
+    if (conflict) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${conflict}`);
+    const next = applySettingsPlan(current, planned.plan);
+    const problem = settingsProblem(next);
+    if (problem) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${problem}`);
+    await db.meta.put({ key: SETTINGS_KEY, value: next });
+    return next;
+  });
 }

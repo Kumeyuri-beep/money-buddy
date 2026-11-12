@@ -532,3 +532,12 @@ select { font: inherit; }
 .tool-tile:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .tool-title { font-weight: 600; }
 @media (prefers-reduced-transparency: reduce) { .tool-tile, .tool-tile:hover { background: var(--surface-fallback); } }
+
+/* ดึงยอดซื้อจากพอร์ต (เครื่องคิดภาษี เฟส 3): กรอบพื้นทึบแยกจากช่องกรอก · select พื้นเข้ม สูง 44px+ · แถวสินทรัพย์ห่อบรรทัดได้บนมือถือ */
+.tax-link { display: flex; flex-direction: column; gap: 8px; margin: 0 0 14px; padding: 12px 14px; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 14px; background: #14161d; }
+.tax-link p { margin: 0; }
+.tax-link-list { max-height: 40vh; overflow-y: auto; }
+.tax-link-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
+.tax-link select { max-width: 100%; min-height: 44px; padding: 0 12px; color: var(--text); color-scheme: dark; background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 12px; font: inherit; }
+.tax-link select:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+@media (prefers-reduced-transparency: reduce) { .tax-link select { background: #1a1d27; } }

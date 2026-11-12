@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import {
   balanceSummary,
   buildTaxInput,
@@ -98,7 +98,12 @@ const pctText = (bps: number): string => {
   return frac === 0 ? `${whole}%` : `${whole}.${String(frac).padStart(2, '0')}%`;
 };
 
-export function TaxView() {
+/** ช่องให้หน้าอื่นเสียบส่วน "ดึงยอดซื้อจากพอร์ต" เข้ามา (ไม่ผูกกับฐานข้อมูลในหน้านี้เอง จึงทดสอบแบบไม่ต้องมี repository ได้) */
+export interface TaxViewProps {
+  portfolio?: (fill: (patch: { rmfPaid?: string; thaiEsgPaid?: string }) => void, current: { rmfPaid: string; thaiEsgPaid: string }) => ReactNode;
+}
+
+export function TaxView({ portfolio }: TaxViewProps = {}) {
   const [form, setForm] = useState<TaxForm>(emptyTaxForm());
   const [submitted, setSubmitted] = useState<TaxFormResult | null>(null);
   const resultRef = useRef<HTMLHeadingElement>(null);
@@ -224,6 +229,7 @@ export function TaxView() {
           </fieldset>
           <fieldset className="pf-fieldset">
             <legend>กองทุนเพื่อการเกษียณและ Thai ESG</legend>
+            {portfolio?.((patch) => set(patch), { rmfPaid: form.rmfPaid, thaiEsgPaid: form.thaiEsgPaid })}
             <div className="field-row">
               <Field field="rmfPaid" label="เงินที่ซื้อ RMF ในปี (กองทุนรวมเพื่อการเลี้ยงชีพ)" placeholder="ไม่บังคับ" value={form.rmfPaid} errors={errors} onChange={(v) => set({ rmfPaid: v })} />
               <Field field="pensionInsurancePaid" label="เบี้ยประกันชีวิตแบบบำนาญที่จ่ายในปี" placeholder="ไม่บังคับ" value={form.pensionInsurancePaid} errors={errors} onChange={(v) => set({ pensionInsurancePaid: v })} />
