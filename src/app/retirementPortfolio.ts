@@ -50,6 +50,17 @@ export function retirementAssetOptions(data: InvestmentData, today: string): Ret
   return out;
 }
 
+/**
+ * การเลือกเริ่มต้นจากที่เคยบันทึกไว้ (เฟส 2b): เฉพาะรหัสที่ยังมีในตัวเลือก · รหัสของสินทรัพย์ที่ถูกลบ/ไม่มีหน่วยแล้วถูกข้ามเงียบๆ (ไม่ error)
+ * ไม่เคยเลือก = ไม่เลือกอะไร (ค่าเริ่มต้นตามกฎ 18.8)
+ */
+export function initialRetirementSelection(savedIds: readonly string[] | undefined, options: readonly RetirementAssetOption[]): Set<string> {
+  const available = new Set(options.map((o) => o.assetId));
+  const out = new Set<string>();
+  for (const id of savedIds ?? []) if (available.has(id)) out.add(id);
+  return out;
+}
+
 export interface RetirementPortfolioSummary {
   selectedCount: number;
   /** มูลค่ารวมของสินทรัพย์ที่เลือกและมีราคา (สตางค์) */

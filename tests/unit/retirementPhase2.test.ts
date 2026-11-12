@@ -197,7 +197,7 @@ describe('ขอบเขตของโค้ดเฟส 2 (R16, R17, R18)', (
   });
   it('โดเมนเกษียณไม่ import ledger/storage/ui · ไม่เขียนข้อมูล (ไม่เรียก save*/record*/add*/delete* ของ repository)', () => {
     expect(get('progress.ts')).not.toMatch(/from '\.\.\/ledger|from '\.\.\/\.\.\/storage|from '\.\.\/\.\.\/ui|from '\.\.\/invest|from '\.\.\/bills/);
-    expect(get('RetirementView.tsx')).not.toMatch(/\brepo\.(save|record|add|delete|import)\w*/);
+    expect(get('RetirementView.tsx')).not.toMatch(/\brepo\.(save(?!Settings)|record|add|delete|import)\w*/);
   });
   it('หน้าจอ: ไม่เลือกสินทรัพย์ไหนเป็นค่าเริ่มต้น · บอกที่มาของเงินออม · ป้ายแผนที่ตั้งไว้ · ไม่มีคำต้องห้าม', () => {
     const view = Object.values(files).find((t) => t.includes('RetirementView'))!;

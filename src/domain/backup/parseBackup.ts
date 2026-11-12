@@ -317,14 +317,14 @@ export function parseBackup(text: string, today: string): ParseResult {
 
   const rawSettings = isObject(root.settings) ? root.settings : {};
   const settings: FinanceSettings = {};
-  for (const key of ['payDay', 'monthlySavingsGoal', 'monthlyBudget', 'nextPaydayOverride', 'dcaPlans'] as const) {
+  for (const key of ['payDay', 'monthlySavingsGoal', 'monthlyBudget', 'nextPaydayOverride', 'dcaPlans', 'retirementAssetIds'] as const) {
     if (rawSettings[key] !== undefined) (settings as Record<string, unknown>)[key] = rawSettings[key];
   }
   const settingsIssue = settingsProblem(settings);
   if (settingsIssue) p.add(`ค่าตั้งค่า: ${settingsIssue}`);
 
   let warnings: string[] = [];
-  const droppedKeys = Object.keys(rawSettings).filter((k) => !['payDay', 'monthlySavingsGoal', 'monthlyBudget', 'nextPaydayOverride'].includes(k));
+  const droppedKeys = Object.keys(rawSettings).filter((k) => !['payDay', 'monthlySavingsGoal', 'monthlyBudget', 'nextPaydayOverride', 'dcaPlans', 'retirementAssetIds'].includes(k));
   if (droppedKeys.length > 0) {
     warnings.push(`ค่าตั้งค่าที่แอปไม่รู้จักจะไม่ถูกย้าย: ${droppedKeys.slice(0, 10).map(short).join(', ')}`);
   }

@@ -834,9 +834,11 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       if (problem) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${problem}`);
       const clean = sanitizeSettings(settings);
       // ผู้เรียกที่ไม่รู้จักแผน DCA (เช่นหน้าบิล สร้างค่าตั้งค่าใหม่ทั้งก้อน) ต้องไม่ลบแผนเดิมโดยไม่ตั้งใจ: ไม่ส่งฟิลด์ = คงของเดิม · ส่งอาร์เรย์ว่าง = ลบทั้งหมด
-      if (settings.dcaPlans === undefined) {
+      // การเลือกสินทรัพย์เกษียณก็เช่นกัน (ส่ง [] = ลบ) · อ่านค่าเดิมครั้งเดียวเพื่อให้ช่วงอ่านแล้วเขียนสั้นที่สุด
+      if (settings.dcaPlans === undefined || settings.retirementAssetIds === undefined) {
         const current = await loadSettings();
-        if (current.dcaPlans !== undefined) clean.dcaPlans = current.dcaPlans;
+        if (settings.dcaPlans === undefined && current.dcaPlans !== undefined) clean.dcaPlans = current.dcaPlans;
+        if (settings.retirementAssetIds === undefined && current.retirementAssetIds !== undefined) clean.retirementAssetIds = current.retirementAssetIds;
       }
       const { error } = await client.from('settings').upsert({ user_id: userId, value: clean }, { onConflict: 'user_id' });
       check(error);

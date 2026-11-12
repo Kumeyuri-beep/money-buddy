@@ -4,7 +4,11 @@
  */
 
 import { dcaPlanProblem, sanitizeDcaPlans, MAX_DCA_PLANS, type DcaPlan } from '../invest/dcaPlan';
+import { retirementAssetIdsProblem, sanitizeRetirementAssetIds } from '../invest/retirementSelection';
 import { isValidIsoDate } from '../ledger/entry';
+
+/** ขนาดรวมของค่าตั้งค่า (ไบต์ของ JSON) ที่ยอมรับ · ตารางฐานข้อมูลจำกัด 16 KB (jsonb ใหญ่กว่าข้อความเล็กน้อย) จึงเผื่อไว้ */
+export const MAX_SETTINGS_BYTES = 12_000;
 
 export interface FinanceSettings {
   /** วันเงินเดือนเข้าในเดือน 1-31 */
@@ -17,6 +21,8 @@ export interface FinanceSettings {
   nextPaydayOverride?: string;
   /** แผนซื้อประจำ (DCA) แบบตัวเตือน (พอร์ตลงทุน P5) · ไม่ตั้ง = ยังไม่มีแผน */
   dcaPlans?: DcaPlan[];
+  /** รหัสสินทรัพย์ที่ผู้ใช้เลือกนับเป็นเงินเกษียณ (เกษียณ เฟส 2b · R18) เก็บเฉพาะข้อมูลเข้า · ไม่ตั้ง = ไม่ได้เลือก */
+  retirementAssetIds?: string[];
 }
 
 const isSatang = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
@@ -45,6 +51,11 @@ export function settingsProblem(s: FinanceSettings): string | null {
       ids.add(p.id);
     }
   }
+  if (s.retirementAssetIds !== undefined) {
+    const problem = retirementAssetIdsProblem(s.retirementAssetIds);
+    if (problem) return problem;
+  }
+  if (new TextEncoder().encode(JSON.stringify(s)).length > MAX_SETTINGS_BYTES) return 'ค่าตั้งค่ามีขนาดใหญ่เกินไป ลดแผนซื้อประจำหรือสินทรัพย์ที่เลือกนับเป็นเงินเกษียณ';
   return null;
 }
 
@@ -61,5 +72,7 @@ export function sanitizeSettings(raw: unknown): FinanceSettings {
     const plans = sanitizeDcaPlans(r.dcaPlans);
     if (plans.length > 0) out.dcaPlans = plans;
   }
+  const ids = sanitizeRetirementAssetIds(r.retirementAssetIds);
+  if (ids.length > 0) out.retirementAssetIds = ids;
   return out;
 }

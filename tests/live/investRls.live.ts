@@ -324,6 +324,23 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     expect((await b.loadSettings()).dcaPlans).toBeUndefined();
   });
 
+  it('การเลือกสินทรัพย์เกษียณ: เก็บใน settings · บันทึกค่าอื่นโดยไม่ส่งรายชื่อไม่ลบ · ส่ง [] = ลบ · ผิดรูปถูกปฏิเสธ · ของ A ไม่เห็น · อยู่ในไฟล์สำรองและนำเข้าได้', async () => {
+    await wipe(1);
+    await b.saveSettings({ payDay: 25, retirementAssetIds: ['asset-live', 'asset-gone'] });
+    expect((await b.loadSettings()).retirementAssetIds).toEqual(['asset-live', 'asset-gone']);
+    // เหมือนหน้าบิลที่สร้างค่าตั้งค่าใหม่ทั้งก้อนโดยไม่รู้จักการเลือก
+    await b.saveSettings({ payDay: 10 });
+    expect(await b.loadSettings()).toEqual({ payDay: 10, retirementAssetIds: ['asset-live', 'asset-gone'] });
+    await expect(b.saveSettings({ retirementAssetIds: ['x', 'x'] })).rejects.toThrow(StorageError);
+    expect((await b.loadSettings()).retirementAssetIds).toEqual(['asset-live', 'asset-gone']);
+    expect((await a.loadSettings()).retirementAssetIds).toBeUndefined();
+    // ไฟล์สำรองมีรายชื่อ (รหัสที่ไม่มีสินทรัพย์รองรับยังอยู่ในไฟล์ ข้ามตอนใช้งาน)
+    const snap = await b.exportSnapshot(new Date('2026-11-12T00:00:00.000Z'));
+    expect(snap.settings.retirementAssetIds).toEqual(['asset-live', 'asset-gone']);
+    await b.saveSettings({ payDay: 10, retirementAssetIds: [] });
+    expect((await b.loadSettings()).retirementAssetIds).toBeUndefined();
+  });
+
   it('addWallet: สร้างกระเป๋าเงินสดบาท (ยอด 0) · ไม่นับเป็นบัญชีลงทุน · ชื่อว่าง/รหัสซ้ำถูกปฏิเสธ · ของ A ไม่เห็น', async () => {
     await wipe(1);
     const created = await b.addWallet({ id: 'wallet-new', name: 'กระเป๋าใหม่' });
