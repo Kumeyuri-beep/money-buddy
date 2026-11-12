@@ -5,6 +5,7 @@
 
 import { dcaPlanProblem, sanitizeDcaPlans, MAX_DCA_PLANS, type DcaPlan } from '../invest/dcaPlan';
 import { retirementAssetIdsProblem, sanitizeRetirementAssetIds } from '../invest/retirementSelection';
+import { sanitizeTaxTagIds, taxTagsProblem } from '../invest/taxTags';
 import { isValidIsoDate } from '../ledger/entry';
 
 /** ขนาดรวมของค่าตั้งค่า (ไบต์ของ JSON) ที่ยอมรับ · ตารางฐานข้อมูลจำกัด 16 KB (jsonb ใหญ่กว่าข้อความเล็กน้อย) จึงเผื่อไว้ */
@@ -23,6 +24,9 @@ export interface FinanceSettings {
   dcaPlans?: DcaPlan[];
   /** รหัสสินทรัพย์ที่ผู้ใช้เลือกนับเป็นเงินเกษียณ (เกษียณ เฟส 2b · R18) เก็บเฉพาะข้อมูลเข้า · ไม่ตั้ง = ไม่ได้เลือก */
   retirementAssetIds?: string[];
+  /** รหัสสินทรัพย์ที่ผู้ใช้ติดป้าย RMF / Thai ESG (ภาษี เฟส 3 · ข้อมูลเข้า ไม่เก็บยอด) ติดได้ประเภทเดียว */
+  taxRmfAssetIds?: string[];
+  taxThaiEsgAssetIds?: string[];
 }
 
 const isSatang = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
@@ -55,6 +59,10 @@ export function settingsProblem(s: FinanceSettings): string | null {
     const problem = retirementAssetIdsProblem(s.retirementAssetIds);
     if (problem) return problem;
   }
+  if (s.taxRmfAssetIds !== undefined || s.taxThaiEsgAssetIds !== undefined) {
+    const problem = taxTagsProblem(s.taxRmfAssetIds ?? [], s.taxThaiEsgAssetIds ?? []);
+    if (problem) return problem;
+  }
   if (new TextEncoder().encode(JSON.stringify(s)).length > MAX_SETTINGS_BYTES) return 'ค่าตั้งค่ามีขนาดใหญ่เกินไป ลดแผนซื้อประจำหรือสินทรัพย์ที่เลือกนับเป็นเงินเกษียณ';
   return null;
 }
@@ -74,5 +82,10 @@ export function sanitizeSettings(raw: unknown): FinanceSettings {
   }
   const ids = sanitizeRetirementAssetIds(r.retirementAssetIds);
   if (ids.length > 0) out.retirementAssetIds = ids;
+  const rmf = sanitizeTaxTagIds(r.taxRmfAssetIds);
+  if (rmf.length > 0) out.taxRmfAssetIds = rmf;
+  // สินทรัพย์หนึ่งติดได้ประเภทเดียว: ถ้าข้อมูลภายนอกซ้อนกัน RMF ชนะ
+  const esg = sanitizeTaxTagIds(r.taxThaiEsgAssetIds).filter((id) => !rmf.includes(id));
+  if (esg.length > 0) out.taxThaiEsgAssetIds = esg;
   return out;
 }

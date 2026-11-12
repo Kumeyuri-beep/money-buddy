@@ -114,11 +114,12 @@ describe('ตัวปัดแสดงผลบาทเต็ม', () => {
 describe('ข้อความบนจอไม่มีคำชวนซื้อ/สื่อรับประกัน (R19)', () => {
   const files = {
     ...(import.meta.glob('/src/ui/TaxView.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>),
+    ...(import.meta.glob('/src/ui/TaxPortfolioLink.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>),
     ...(import.meta.glob('/src/app/taxForm.ts', { query: '?raw', import: 'default', eager: true }) as Record<string, string>),
   };
   const banned = ['ควรซื้อ', 'รีบ', 'คุ้ม', 'ประหยัดภาษี', 'การันตี', 'แน่นอน', 'ต้องจ่าย', 'ได้คืนแน่', 'รับรอง', 'ซื้อเลย', 'โอกาส'];
   it('พบไฟล์', () => {
-    expect(Object.keys(files).length).toBe(2);
+    expect(Object.keys(files).length).toBe(3);
   });
   for (const [path, text] of Object.entries(files)) {
     // ข้อความเตือนบังคับมีคำ "ไม่ใช่การรับประกันผล" (ปฏิเสธการรับประกัน) จึงตัดทิ้งก่อนตรวจ

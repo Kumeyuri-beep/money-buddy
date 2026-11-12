@@ -8,7 +8,7 @@ import { SINGLE_IMPORT_MAX_ENTRIES, SINGLE_IMPORT_MAX_LINES, type BackupData } f
 import { payAmountProblem } from '../domain/bills/payAmount';
 import { billProblem, markBillPaid, payableCycle } from '../domain/bills/schedule';
 import { sanitizeSettings, settingsProblem, type FinanceSettings } from '../domain/bills/settings';
-import { applySettingsPlan, planSettingsPatch, planSettingsReplace, type SettingsPatch, type SettingsPlanResult } from '../domain/bills/settingsPatch';
+import { applySettingsPlan, planConflictProblem, planSettingsPatch, planSettingsReplace, type SettingsPatch, type SettingsPlanResult } from '../domain/bills/settingsPatch';
 import type { Bill } from '../domain/bills/types';
 import { isCashWallet } from '../domain/ledger/accountKind';
 import { createEntry } from '../domain/ledger/entry';
@@ -472,7 +472,10 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
    */
   async function writeSettingsPlan(planned: SettingsPlanResult): Promise<FinanceSettings> {
     if (!planned.ok) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${planned.problem}`);
-    const sizeProblem = settingsProblem(applySettingsPlan(await loadSettings(), planned.plan));
+    const current = await loadSettings();
+    const conflict = planConflictProblem(current, planned.plan);
+    if (conflict) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${conflict}`);
+    const sizeProblem = settingsProblem(applySettingsPlan(current, planned.plan));
     if (sizeProblem) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${sizeProblem}`);
     const data = await rpc('merge_settings', { p_patch: planned.plan.set, p_remove: planned.plan.remove });
     return sanitizeSettings(data);

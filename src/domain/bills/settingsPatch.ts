@@ -4,14 +4,15 @@
  * ฟังก์ชันล้วน ไม่แตะฐานข้อมูล · ตรวจและทำความสะอาดค่าด้วย settingsProblem/sanitizeSettings เดิม (ไม่เชื่อค่าที่ส่งมา)
  */
 
+import { taxTagsProblem } from '../invest/taxTags';
 import { sanitizeSettings, settingsProblem, type FinanceSettings } from './settings';
 
 /** คีย์ทั้งหมดของ FinanceSettings (ลำดับคงที่) */
-export const SETTINGS_KEYS = ['payDay', 'monthlySavingsGoal', 'monthlyBudget', 'nextPaydayOverride', 'dcaPlans', 'retirementAssetIds'] as const;
+export const SETTINGS_KEYS = ['payDay', 'monthlySavingsGoal', 'monthlyBudget', 'nextPaydayOverride', 'dcaPlans', 'retirementAssetIds', 'taxRmfAssetIds', 'taxThaiEsgAssetIds'] as const;
 export type SettingsKey = (typeof SETTINGS_KEYS)[number];
 
 /** คีย์ที่ผู้เรียกบางรายไม่รู้จัก (หน้าบิลสร้างค่าตั้งค่าใหม่ทั้งก้อน): ไม่ส่ง = คงของเดิม ส่งอาร์เรย์ว่าง = ลบ */
-const CARRIED_KEYS: readonly SettingsKey[] = ['dcaPlans', 'retirementAssetIds'];
+const CARRIED_KEYS: readonly SettingsKey[] = ['dcaPlans', 'retirementAssetIds', 'taxRmfAssetIds', 'taxThaiEsgAssetIds'];
 
 /** ค่าที่จะเปลี่ยน: ค่า = ตั้ง/แทน · null หรืออาร์เรย์ว่าง = ลบคีย์ · undefined = ไม่แตะ */
 export type SettingsPatch = { [K in SettingsKey]?: FinanceSettings[K] | null };
@@ -77,4 +78,15 @@ export function applySettingsPlan(current: FinanceSettings, p: SettingsPlan): Fi
   for (const key of p.remove) delete next[key];
   Object.assign(next, p.set);
   return sanitizeSettings(next);
+}
+
+/**
+ * ความขัดแย้งระหว่างค่าที่จะเขียนกับค่าที่มีอยู่ (ตรวจก่อนเขียน): ป้ายภาษีของสินทรัพย์หนึ่งต้องเป็นประเภทเดียว
+ * (patch ส่งมาแค่คีย์เดียวอาจไปซ้อนกับอีกคีย์ที่เก็บไว้ ถ้าไม่ตรวจ sanitize จะตัดทิ้งเงียบๆ) · null = ไม่ขัดแย้ง
+ */
+export function planConflictProblem(current: FinanceSettings, p: SettingsPlan): string | null {
+  const merged: Record<string, unknown> = { ...current };
+  for (const key of p.remove) delete merged[key];
+  Object.assign(merged, p.set);
+  return taxTagsProblem(merged.taxRmfAssetIds ?? [], merged.taxThaiEsgAssetIds ?? []);
 }

@@ -294,6 +294,25 @@ export function describeRepositoryContract(name: string, factory: () => Promise<
       expect(await repo.patchSettings({})).toEqual({ payDay: 28, monthlyBudget: 2_000_000 });
     });
 
+    it('ป้ายภาษี (taxRmfAssetIds/taxThaiEsgAssetIds): ติดป้ายได้ประเภทเดียว · เปลี่ยนค่าอื่นแล้วป้ายไม่หาย · saveSettings ที่ไม่ส่งป้ายคงป้ายเดิม · null/ว่าง = ลบ', async () => {
+      await seed();
+      await repo.patchSettings({ taxRmfAssetIds: ['r1', 'r2'], taxThaiEsgAssetIds: ['e1'] });
+      expect(await repo.loadSettings()).toEqual({ taxRmfAssetIds: ['r1', 'r2'], taxThaiEsgAssetIds: ['e1'] });
+      // ซ้อนกันสองประเภทถูกปฏิเสธ และค่าเดิมไม่เปลี่ยน
+      await expect(repo.patchSettings({ taxThaiEsgAssetIds: ['r1'] })).rejects.toThrow(StorageError);
+      expect(await repo.loadSettings()).toEqual({ taxRmfAssetIds: ['r1', 'r2'], taxThaiEsgAssetIds: ['e1'] });
+      // เปลี่ยนค่าอื่น/แทนทั้งชุดโดยไม่ส่งป้าย: ป้ายคงเดิม
+      await repo.patchSettings({ payDay: 5 });
+      await repo.saveSettings({ payDay: 6 });
+      expect(await repo.loadSettings()).toEqual({ payDay: 6, taxRmfAssetIds: ['r1', 'r2'], taxThaiEsgAssetIds: ['e1'] });
+      // ย้ายสินทรัพย์จาก RMF ไป Thai ESG ต้องส่งทั้งสองคีย์ในคำขอเดียว
+      await repo.patchSettings({ taxRmfAssetIds: ['r2'], taxThaiEsgAssetIds: ['e1', 'r1'] });
+      expect(await repo.loadSettings()).toEqual({ payDay: 6, taxRmfAssetIds: ['r2'], taxThaiEsgAssetIds: ['e1', 'r1'] });
+      // ลบ: null หรืออาร์เรย์ว่าง
+      await repo.patchSettings({ taxRmfAssetIds: null, taxThaiEsgAssetIds: [] });
+      expect(await repo.loadSettings()).toEqual({ payDay: 6 });
+    });
+
     it('saveSettings: ไม่ส่ง dcaPlans/retirementAssetIds = คงเดิม แต่ส่งอาร์เรย์ว่าง = ลบ (พฤติกรรมเดิมไม่เปลี่ยนหลังย้ายไปทำฝั่งฐานข้อมูล)', async () => {
       await seed();
       await repo.patchSettings({ retirementAssetIds: ['a1'] });
