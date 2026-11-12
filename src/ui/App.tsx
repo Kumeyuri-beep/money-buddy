@@ -65,11 +65,27 @@ interface ScanProgress {
 
 interface ToastState {
   message: string;
+  /** ผิดพลาด: ใช้ role=alert และอยู่นานขึ้น */
+  tone?: 'error';
   /** มีค่าเมื่อกดเลิกทำได้ */
   undo?: () => Promise<void>;
 }
 
-const TOAST_MS = 10_000;
+/** แถบแจ้งผลหายเองช้าลง (WCAG 2.2.1) และหยุดนับเมื่อเมาส์/โฟกัสอยู่บนแถบ · ข้อความผิดพลาดอยู่นานกว่า */
+const TOAST_MS = 20_000;
+const TOAST_ERROR_MS = 30_000;
+
+/** ชื่อหน้า (ใช้เป็น document.title และให้โปรแกรมอ่านหน้าจอรู้ว่าหน้าเปลี่ยน) */
+const VIEW_TITLE: Record<ViewId, string> = {
+  today: 'ภาพรวม',
+  ledger: 'รายรับ-รายจ่าย',
+  bills: 'บิลและเป้า',
+  account: 'โปรไฟล์',
+  averaging: 'ถัวเฉลี่ยต้นทุน',
+  portfolio: 'พอร์ตการลงทุน',
+  retirement: 'วางแผนเกษียณ',
+  tax: 'คำนวณภาษี',
+};
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -82,6 +98,9 @@ export function App() {
   const today = useThaiToday();
   const [dialog, setDialog] = useState<DialogState>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [toastHeld, setToastHeld] = useState(false);
+  // เลขลำดับของ toast: เปลี่ยนทุกครั้งที่ toast เปลี่ยน ให้ Toast ติดตั้งใหม่ (กัน held ค้าง และกัน role เปลี่ยนบน node เดิมจนโปรแกรมอ่านจอไม่อ่าน)
+  const [toastSeq, setToastSeq] = useState(0);
   const [scanning, setScanning] = useState<ScanProgress | null>(null);
   const scanLock = useRef(false);
 
@@ -113,10 +132,34 @@ export function App() {
   );
 
   useEffect(() => {
-    if (!toast) return;
-    const timer = window.setTimeout(() => setToast(null), TOAST_MS);
-    return () => window.clearTimeout(timer);
+    setToastHeld(false);
+    setToastSeq((n) => n + 1);
   }, [toast]);
+
+  useEffect(() => {
+    if (!toast) return;
+    if (toastHeld) return; // เมาส์/โฟกัสอยู่บนแถบ: ไม่นับเวลา
+    const timer = window.setTimeout(() => setToast(null), toast.tone === 'error' ? TOAST_ERROR_MS : TOAST_MS);
+    return () => window.clearTimeout(timer);
+  }, [toast, toastHeld]);
+
+  // เปลี่ยนหน้า: ตั้งชื่อหน้า และย้ายโฟกัสไปหัวข้อหน้า (รอบแรกไม่ย้าย) เพื่อให้โปรแกรมอ่านหน้าจอรู้ว่าหน้าเปลี่ยน
+  // รอ 60 ms: เมนูมือถือคืนโฟกัสให้ปุ่มลอยด้วย setTimeout 0 ต้องให้ย้ายโฟกัสของหน้าทำทีหลัง
+  const firstView = useRef(true);
+  useEffect(() => {
+    document.title = `${VIEW_TITLE[view]} - Money Buddy`;
+    if (firstView.current) {
+      firstView.current = false;
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      const target = document.querySelector<HTMLElement>('main h2.page-title') ?? document.getElementById('main');
+      if (!target) return;
+      if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+      target.focus({ preventScroll: true });
+    }, 60);
+    return () => window.clearTimeout(timer);
+  }, [view]);
 
   /** ทำงานหนึ่งอย่าง แล้วโหลดข้อมูลใหม่และแจ้งผล ถ้าพลาดแจ้งข้อความผิดพลาดแทน */
   const run = async (action: () => Promise<ToastState>) => {
@@ -126,7 +169,7 @@ export function App() {
       setToast(next);
     } catch (e) {
       await refresh();
-      setToast({ message: errorText(e) });
+      setToast({ message: errorText(e), tone: 'error' });
     }
   };
 
@@ -148,7 +191,7 @@ export function App() {
       if (draft) setDialog({ mode: 'scan', draft });
       else setToast({ message: 'อ่านข้อมูลจากสลิปไม่ได้ ลองรูปที่ชัดขึ้น หรือกด "เพิ่มรายการ" เพื่อกรอกเอง' });
     } catch (e) {
-      setToast({ message: errorText(e) });
+      setToast({ message: errorText(e), tone: 'error' });
     } finally {
       scanLock.current = false;
       setScanning(null);
@@ -482,10 +525,13 @@ export function App() {
 
       {toast && (
         <Toast
+          key={toastSeq}
           message={toast.message}
           actionLabel={toast.undo ? 'เลิกทำ' : undefined}
           onAction={toast.undo ? () => void toast.undo?.() : undefined}
           onDismiss={() => setToast(null)}
+          tone={toast.tone}
+          onHold={setToastHeld}
         />
       )}
     </Shell>

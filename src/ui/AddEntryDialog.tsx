@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { restoreFocus } from './focus';
 import { thaiIsoDate, thaiDayLabel } from '../app/dates';
 import { describeEntry } from '../app/describe';
 import { buildEntry, counterOptions, entryToForm, walletOptions, type FormKind } from '../app/entryForm';
@@ -78,9 +79,12 @@ export function AddEntryDialog({ accounts, entries = [], scan, editing, onClose,
 
   useEffect(() => {
     const dialog = dialogRef.current;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     if (dialog && !dialog.open) dialog.showModal();
     // showModal ย้ายโฟกัสไปที่ช่องแรกเอง จึงต้องสั่งโฟกัสช่องจำนวนเงินหลังเปิด (ช่องแรกที่ต้องตรวจ แล้ว Tab ไปหมวด/วันที่)
     amountRef.current?.focus();
+    // คืนโฟกัสให้ปุ่มที่เปิด dialog เมื่อปิด (component ถูกถอดโดยไม่เรียก dialog.close())
+    return () => restoreFocus(opener);
   }, []);
 
   const clearError = () => setError(null);

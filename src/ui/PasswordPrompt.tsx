@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { restoreFocus } from './focus';
 import { PasswordField } from './PasswordField';
 
 type Request = { message: string; confirmLabel: string; resolve: (password: string | null) => void };
@@ -53,7 +54,7 @@ function PasswordDialog({ message, confirmLabel, onDone }: { message: string; co
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     if (dialog && !dialog.open) dialog.showModal();
     inputRef.current?.focus();
-    return () => opener?.focus();
+    return () => restoreFocus(opener);
   }, []);
 
   const submit = (event: FormEvent) => {

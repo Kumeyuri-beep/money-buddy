@@ -1,5 +1,6 @@
 import { friendlyError } from '../app/errorText';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { restoreFocus } from './focus';
 import type { BillRow } from '../app/billsView';
 import { thaiDayLabel, thaiMonthKeyLabel } from '../app/dates';
 import { walletOptions } from '../app/entryForm';
@@ -60,7 +61,7 @@ export function PayBillDialog({ row, accounts, today, onClose, onPaid }: Props) 
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     if (dialog && !dialog.open) dialog.showModal();
     // คืนโฟกัสให้ปุ่มที่เปิด dialog เมื่อปิด (dialog ถูกถอดออกจากหน้า เบราว์เซอร์ไม่คืนให้เอง)
-    return () => opener?.focus();
+    return () => restoreFocus(opener);
   }, []);
 
   const submit = async (event: FormEvent) => {

@@ -90,6 +90,16 @@ export function Shell({ children, showNav = true, current = 'today', onNavigate,
 
   return (
     <div className="page">
+      <a
+        className="skip-link"
+        href="#main"
+        onClick={(e) => {
+          e.preventDefault();
+          document.getElementById('main')?.focus();
+        }}
+      >
+        ข้ามไปเนื้อหาหลัก
+      </a>
       <div className="glow glow-violet" aria-hidden="true" />
       <div className="glow glow-teal" aria-hidden="true" />
       <div className="glow glow-gold" aria-hidden="true" />
@@ -135,7 +145,9 @@ export function Shell({ children, showNav = true, current = 'today', onNavigate,
         </div>
       </aside>
 
-      <main className="content">{children}</main>
+      <main id="main" className="content" tabIndex={-1}>
+        {children}
+      </main>
 
       {showNav && (
         <MobileMenu
