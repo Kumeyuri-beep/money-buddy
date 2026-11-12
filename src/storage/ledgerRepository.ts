@@ -1,5 +1,6 @@
 import type { BackupData } from '../domain/backup/parseBackup';
 import type { FinanceSettings } from '../domain/bills/settings';
+import type { SettingsPatch } from '../domain/bills/settingsPatch';
 import type { Bill } from '../domain/bills/types';
 import { emptyInvestments, type Asset, type AssetKind, type AssetPrice, type InvestmentData, type TradeRecord } from '../domain/invest/types';
 import type { Account, Entry, NewEntry } from '../domain/ledger/types';
@@ -47,6 +48,11 @@ export interface LedgerRepository {
 
   loadSettings(): Promise<FinanceSettings>;
   saveSettings(settings: FinanceSettings): Promise<FinanceSettings>;
+  /**
+   * เปลี่ยนเฉพาะคีย์ที่ส่ง (ค่า = ตั้ง · null หรืออาร์เรย์ว่าง = ลบ · undefined = ไม่แตะ) คีย์ที่ไม่ส่งคงเดิมเสมอ
+   * ออนไลน์: เรียก RPC merge_settings (รวมฝั่งฐานข้อมูลในคำสั่งเดียว) แก้ช่องแข่งเขียนตอนเปิดสองแท็บ · ในเครื่อง: ธุรกรรมเดียว
+   */
+  patchSettings(patch: SettingsPatch): Promise<FinanceSettings>;
 
   // ---- พอร์ตลงทุน (P3) · ออนไลน์เท่านั้น (ที่เก็บในเครื่องไม่รองรับ: อ่านได้ว่าง เขียนแล้วแจ้งข้อผิดพลาด) ----
   loadInvestments(): Promise<InvestmentData>;
@@ -92,6 +98,7 @@ export function createDexieRepository(db: MoneyDB): LedgerRepository {
     abortUnfinishedImport: () => Promise.resolve(),
     loadSettings: () => dexie.loadSettings(db),
     saveSettings: (settings) => dexie.saveSettings(db, settings),
+    patchSettings: (patch) => dexie.patchSettings(db, patch),
     loadInvestments: () => Promise.resolve(emptyInvestments()),
     addAsset: () => Promise.reject(localInvestError()),
     addWallet: () => Promise.reject(localInvestError()),

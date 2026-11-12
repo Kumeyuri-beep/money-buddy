@@ -2,6 +2,7 @@ import { monthOf } from '../domain/bills/calendar';
 import { payAmountProblem } from '../domain/bills/payAmount';
 import { billProblem, markBillPaid, payableCycle } from '../domain/bills/schedule';
 import { sanitizeSettings, settingsProblem, type FinanceSettings } from '../domain/bills/settings';
+import { applySettingsPlan, planSettingsPatch, type SettingsPatch } from '../domain/bills/settingsPatch';
 import type { Bill } from '../domain/bills/types';
 import { isCashWallet } from '../domain/ledger/accountKind';
 import { createEntry } from '../domain/ledger/entry';
@@ -528,6 +529,22 @@ export async function deleteBill(db: MoneyDB, id: string): Promise<Bill> {
 /** อ่านค่าตั้งค่า ไม่เชื่อข้อมูลที่เก็บไว้: คืนเฉพาะฟิลด์ที่รู้จักและถูกต้อง ยังไม่ตั้ง = {} */
 export async function loadSettings(db: MoneyDB): Promise<FinanceSettings> {
   return sanitizeSettings((await db.meta.get(SETTINGS_KEY))?.value);
+}
+
+/**
+ * เปลี่ยนเฉพาะคีย์ที่ส่ง (ค่า = ตั้ง · null/อาร์เรย์ว่าง = ลบ · undefined = ไม่แตะ) อ่าน-รวม-เขียนในธุรกรรมเดียว
+ * คีย์ที่ไม่ส่งคงเดิมเสมอ จึงไม่เขียนทับค่าที่แท็บอื่นเพิ่งบันทึก
+ */
+export async function patchSettings(db: MoneyDB, patch: SettingsPatch): Promise<FinanceSettings> {
+  const planned = planSettingsPatch(patch);
+  if (!planned.ok) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${planned.problem}`);
+  return db.transaction('rw', db.meta, async () => {
+    const next = applySettingsPlan(await loadSettings(db), planned.plan);
+    const problem = settingsProblem(next);
+    if (problem) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${problem}`);
+    await db.meta.put({ key: SETTINGS_KEY, value: next });
+    return next;
+  });
 }
 
 /** บันทึกค่าตั้งค่าแทนทั้งชุด (ฟิลด์ที่ไม่ส่งมา = ไม่ตั้ง) ค่าผิดรูปถูกปฏิเสธก่อนเขียน */

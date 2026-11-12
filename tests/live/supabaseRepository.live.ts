@@ -310,3 +310,52 @@ describe('แยกข้อมูลระหว่างผู้ใช้ (RL
     expect((await a.loadLedger()).entries.length).toBeGreaterThan(0);
   });
 });
+
+describe('merge_settings: ช่องแข่งเขียน settings (สองแท็บของผู้ใช้เดียวกัน)', () => {
+  it('บันทึกเหลื่อมกันพร้อมกันหลายรอบ: ทั้งสองคีย์อยู่ครบเสมอ ไม่เขียนทับกัน', async () => {
+    await wipe(0);
+    const user = live.users[0]!;
+    const makeTab = async (): Promise<LedgerRepository> => {
+      const client = createClient(live.url, live.anonKey, liveClientOptions);
+      const { data, error } = await client.auth.signInWithPassword({ email: user.email, password: user.password });
+      if (error || !data.user) throw new Error('ล็อกอินผู้ใช้ทดสอบไม่สำเร็จ');
+      return createSupabaseRepository(client, data.user.id);
+    };
+    const tab1 = await makeTab();
+    const tab2 = await makeTab();
+    await tab1.saveSettings({ monthlyBudget: 1_000_000 });
+    for (let round = 0; round < 8; round++) {
+      // แท็บ 1 เปลี่ยน payDay พร้อมกับแท็บ 2 เปลี่ยนรายชื่อสินทรัพย์เกษียณ
+      await Promise.all([tab1.patchSettings({ payDay: 1 + round }), tab2.patchSettings({ retirementAssetIds: [`asset-${round}`] })]);
+      const now = await tab1.loadSettings();
+      expect(now.payDay, `รอบ ${round}`).toBe(1 + round);
+      expect(now.retirementAssetIds, `รอบ ${round}`).toEqual([`asset-${round}`]);
+      expect(now.monthlyBudget, `รอบ ${round}`).toBe(1_000_000);
+    }
+    // ลบคีย์หนึ่งพร้อมแก้อีกคีย์ในแท็บอื่น
+    await Promise.all([tab1.patchSettings({ retirementAssetIds: null }), tab2.patchSettings({ monthlyBudget: 2_000_000 })]);
+    const end = await tab1.loadSettings();
+    expect(end.retirementAssetIds).toBeUndefined();
+    expect(end.monthlyBudget).toBe(2_000_000);
+    expect(end.payDay).toBe(8);
+  });
+
+  it('RPC ตรงๆ: patch ที่ไม่ใช่ object ถูกปฏิเสธ · ผู้ใช้ B เรียกแล้วไม่ปนค่า A · ค่าใหญ่เกิน 16 KB ถูกปฏิเสธ', async () => {
+    await wipe(0);
+    await wipe(1);
+    const a = await repoFor(0);
+    await a.patchSettings({ payDay: 9 });
+    const { client: ac } = await signedIn(0);
+    const { client: bc } = await signedIn(1);
+    for (const bad of [[1], 'x', null]) {
+      const r = await ac.rpc('merge_settings', { p_patch: bad });
+      expect(r.error, JSON.stringify(bad)).not.toBeNull();
+    }
+    const big = await ac.rpc('merge_settings', { p_patch: { big: 'x'.repeat(17_000) } });
+    expect(big.error).not.toBeNull();
+    const ok = await bc.rpc('merge_settings', { p_patch: { payDay: 20 } });
+    expect(ok.error).toBeNull();
+    expect(ok.data).toEqual({ payDay: 20 });
+    expect(await a.loadSettings()).toEqual({ payDay: 9 });
+  });
+});
