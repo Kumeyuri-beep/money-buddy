@@ -8,6 +8,7 @@ import {
   TAX_DISCLAIMER,
   TAX_DISPLAY_NOTE,
   TAX_LIMITATIONS,
+  TAX_PARTIAL_NOTE,
   TAX_UNSUPPORTED_NOTE,
   type TaxForm,
   type TaxFormError,
@@ -16,7 +17,7 @@ import {
 } from '../app/taxForm';
 import { TAX_CONFIG_2569 } from '../domain/tax/config';
 import { formatWholeBaht } from '../domain/tax/display';
-import type { SalaryTaxResult } from '../domain/tax/salaryTax';
+import { AUTO_DEDUCTION_KEYS, type SalaryTaxResult } from '../domain/tax/salaryTax';
 
 const cfg = TAX_CONFIG_2569;
 
@@ -27,11 +28,21 @@ const FIELD_ID: Record<TaxFormTextField, string> = {
   rmfPaid: 'tx-rmf',
   pensionInsurancePaid: 'tx-pension',
   thaiEsgPaid: 'tx-esg',
+  childrenCount: 'tx-children',
+  extraChildrenCount: 'tx-children-extra',
+  parentsCount: 'tx-parents',
+  lifeInsurancePaid: 'tx-life',
+  healthInsurancePaid: 'tx-health',
+  parentsHealthPaid: 'tx-parents-health',
+  mortgageInterestPaid: 'tx-mortgage',
+  donationPaid: 'tx-donation',
 };
 
 interface FieldProps {
   field: TaxFormTextField;
   label: string;
+  /** หน่วยท้ายป้าย: บาท (ค่าเริ่มต้น) หรือ คน */
+  unit?: 'บาท' | 'คน';
   hint?: string;
   placeholder?: string;
   value: string;
@@ -39,17 +50,19 @@ interface FieldProps {
   onChange: (v: string) => void;
 }
 
-function Field({ field, label, hint, placeholder, value, errors, onChange }: FieldProps) {
+function Field({ field, label, unit = 'บาท', hint, placeholder, value, errors, onChange }: FieldProps) {
   const id = FIELD_ID[field];
   const error = errors.find((e) => e.field === field);
   const describedBy = [hint ? `${id}-hint` : '', error ? `${id}-err` : ''].filter(Boolean).join(' ') || undefined;
   return (
     <div className="field">
-      <label htmlFor={id}>{label} (บาท)</label>
+      <label htmlFor={id}>
+        {label} ({unit})
+      </label>
       <input
         id={id}
         type="text"
-        inputMode="decimal"
+        inputMode={unit === 'คน' ? 'numeric' : 'decimal'}
         autoComplete="off"
         placeholder={placeholder}
         value={value}
@@ -138,21 +151,67 @@ export function TaxView() {
             <Field field="annualSalary" label="เงินได้จากเงินเดือนทั้งปี (รวมโบนัส)" placeholder="เช่น 600,000" value={form.annualSalary} errors={errors} onChange={(v) => set({ annualSalary: v })} />
             <Field field="withheldTax" label="ภาษีที่ถูกหักไปแล้วทั้งปี" hint="ดูจากสลิปเงินเดือนหรือใบ 50 ทวิ (ใบแสดงภาษีที่นายจ้างหักไว้ให้) ไม่บังคับ" placeholder="ไม่บังคับ" value={form.withheldTax} errors={errors} onChange={(v) => set({ withheldTax: v })} />
           </div>
+          <p className="muted small">
+            ค่าลดหย่อนทุกช่องไม่บังคับ · ลดหย่อนส่วนตัว {formatWholeBaht(cfg.personalAllowance.satang)} และค่าใช้จ่ายร้อยละ 50 (ไม่เกิน {formatWholeBaht(cfg.employmentExpense.capSatang ?? 0)}) ใส่ให้อัตโนมัติ
+          </p>
           <fieldset className="pf-fieldset">
-            <legend>ค่าลดหย่อนที่ใช้ (ไม่บังคับ)</legend>
-            <p className="muted small">ลดหย่อนส่วนตัว {formatWholeBaht(cfg.personalAllowance.satang)} และค่าใช้จ่ายร้อยละ 50 (ไม่เกิน {formatWholeBaht(cfg.employmentExpense.capSatang ?? 0)}) ใส่ให้อัตโนมัติ</p>
-            <div className="field-row">
-              <Field field="socialSecurityPaid" label="เงินสมทบประกันสังคมที่จ่ายทั้งปี" placeholder="ไม่บังคับ" value={form.socialSecurityPaid} errors={errors} onChange={(v) => set({ socialSecurityPaid: v })} />
-              <Field field="rmfPaid" label="เงินที่ซื้อ RMF ในปี" placeholder="ไม่บังคับ" value={form.rmfPaid} errors={errors} onChange={(v) => set({ rmfPaid: v })} />
+            <legend>ครอบครัว</legend>
+            <div className="field">
+              <label className="check-row" htmlFor="tx-spouse">
+                <input id="tx-spouse" type="checkbox" checked={form.spouseNoIncome} onChange={(e) => set({ spouseNoIncome: e.target.checked })} />
+                <span>คู่สมรสไม่มีเงินได้</span>
+              </label>
             </div>
             <div className="field-row">
+              <Field field="childrenCount" label="จำนวนบุตรชอบด้วยกฎหมาย" unit="คน" placeholder="0" value={form.childrenCount} errors={errors} onChange={(v) => set({ childrenCount: v })} />
+              <Field
+                field="extraChildrenCount"
+                label="บุตรคนที่ 2 ขึ้นไปที่เกิดปี 2561 หรือหลังจากนั้น"
+                unit="คน"
+                hint="นับเฉพาะคนที่ได้ 60,000 บาท (แทน 30,000) ต้องน้อยกว่าจำนวนบุตรทั้งหมด (บุตรคนแรกไม่นับ)"
+                placeholder="0"
+                value={form.extraChildrenCount}
+                errors={errors}
+                onChange={(v) => set({ extraChildrenCount: v })}
+              />
+            </div>
+            <div className="field-row">
+              <Field field="parentsCount" label="จำนวนบิดามารดาที่เลี้ยงดู" unit="คน" hint="อายุ 60 ปีขึ้นไป รายได้ไม่เกิน 30,000 บาทต่อปี รวมของคู่สมรสได้ไม่เกิน 4 คน" placeholder="0" value={form.parentsCount} errors={errors} onChange={(v) => set({ parentsCount: v })} />
+              <Field field="parentsHealthPaid" label="เบี้ยประกันสุขภาพบิดามารดาที่จ่ายในปี" placeholder="ไม่บังคับ" value={form.parentsHealthPaid} errors={errors} onChange={(v) => set({ parentsHealthPaid: v })} />
+            </div>
+          </fieldset>
+          <fieldset className="pf-fieldset">
+            <legend>ประกัน บ้าน และบริจาค</legend>
+            <div className="field-row">
+              <Field field="socialSecurityPaid" label="เงินสมทบประกันสังคมที่จ่ายทั้งปี" hint="กรอกยอดที่จ่ายจริงตามสลิปเงินเดือน" placeholder="ไม่บังคับ" value={form.socialSecurityPaid} errors={errors} onChange={(v) => set({ socialSecurityPaid: v })} />
+              <Field field="lifeInsurancePaid" label="เบี้ยประกันชีวิตที่จ่ายในปี" hint="กรมธรรม์อายุ 10 ปีขึ้นไป" placeholder="ไม่บังคับ" value={form.lifeInsurancePaid} errors={errors} onChange={(v) => set({ lifeInsurancePaid: v })} />
+            </div>
+            <div className="field-row">
+              <Field field="healthInsurancePaid" label="เบี้ยประกันสุขภาพที่จ่ายในปี" placeholder="ไม่บังคับ" value={form.healthInsurancePaid} errors={errors} onChange={(v) => set({ healthInsurancePaid: v })} />
+              <Field field="mortgageInterestPaid" label="ดอกเบี้ยเงินกู้ที่อยู่อาศัยที่จ่ายในปี" placeholder="ไม่บังคับ" value={form.mortgageInterestPaid} errors={errors} onChange={(v) => set({ mortgageInterestPaid: v })} />
+            </div>
+            <div className="field-row">
+              <Field field="donationPaid" label="เงินบริจาคทั่วไปที่จ่ายในปี" hint="ไม่รวมบริจาคแบบ e-Donation ที่ได้ 2 เท่า (ยังไม่รองรับ)" placeholder="ไม่บังคับ" value={form.donationPaid} errors={errors} onChange={(v) => set({ donationPaid: v })} />
+            </div>
+          </fieldset>
+          <fieldset className="pf-fieldset">
+            <legend>กองทุนเพื่อการเกษียณและ Thai ESG</legend>
+            <div className="field-row">
+              <Field field="rmfPaid" label="เงินที่ซื้อ RMF ในปี (กองทุนรวมเพื่อการเลี้ยงชีพ)" placeholder="ไม่บังคับ" value={form.rmfPaid} errors={errors} onChange={(v) => set({ rmfPaid: v })} />
               <Field field="pensionInsurancePaid" label="เบี้ยประกันชีวิตแบบบำนาญที่จ่ายในปี" placeholder="ไม่บังคับ" value={form.pensionInsurancePaid} errors={errors} onChange={(v) => set({ pensionInsurancePaid: v })} />
+            </div>
+            <div className="field-row">
               <Field field="thaiEsgPaid" label="เงินที่ซื้อ Thai ESG/ThaiESGX ในปี" placeholder="ไม่บังคับ" value={form.thaiEsgPaid} errors={errors} onChange={(v) => set({ thaiEsgPaid: v })} />
             </div>
           </fieldset>
           {errors.some((x) => x.field === 'general') && (
             <p id="tx-general-err" className="avg-err" role="alert" tabIndex={-1}>
               {errors.find((x) => x.field === 'general')?.message}
+            </p>
+          )}
+          {errors.length > 0 && !errors.some((x) => x.field === 'general') && (
+            <p id="tx-summary-err" className="avg-err" role="alert">
+              กรอกไม่ถูกต้อง {errors.length} ช่อง (ดูข้อความสีแดงใต้แต่ละช่อง) หน้าจอพาไปที่ช่องแรกให้แล้ว
             </p>
           )}
           <div className="form-actions">
@@ -259,7 +318,7 @@ export function TaxView() {
                           </span>
                         )}
                       </th>
-                      <td className="num">{d.key === 'personal' ? 'ใส่ให้อัตโนมัติ' : formatWholeBaht(d.requested)}</td>
+                      <td className="num">{AUTO_DEDUCTION_KEYS.includes(d.key) ? 'คำนวณจากที่ระบุ' : formatWholeBaht(d.requested)}</td>
                       <td className="num">
                         {formatWholeBaht(d.allowed)}
                         
@@ -271,7 +330,8 @@ export function TaxView() {
               </tbody>
             </table>
           </div>
-          <p className="muted small">"สิทธิที่ยังใช้ได้" คือเพดานที่ยังเหลือภายใต้เงื่อนไขที่แอปรู้ เป็นข้อเท็จจริงเพื่อดูประกอบ ไม่ใช่คำแนะนำ และแอปตรวจเงื่อนไขการถือครองไม่ได้ (ถ้าขายก่อนครบเงื่อนไข อาจต้องคืนสิทธิลดหย่อน)</p>
+          <p className="muted small">{TAX_PARTIAL_NOTE}</p>
+          <p className="muted small">"สิทธิที่ยังใช้ได้" คือเพดานที่ยังเหลือภายใต้เงื่อนไขที่แอปรู้ เป็นข้อเท็จจริงเพื่อดูประกอบ ไม่ใช่คำแนะนำ · ประกันชีวิตกับประกันสุขภาพ (และ RMF กับประกันบำนาญ) ใช้เพดานรวมร่วมกัน สิทธิที่เหลือของสองแถวนั้นจึงบวกกันไม่ได้ และแอปตรวจเงื่อนไขการถือครองไม่ได้ (ถ้าขายก่อนครบเงื่อนไข อาจต้องคืนสิทธิลดหย่อน)</p>
 
           <h3>ขั้นบันไดภาษี (ส่วนของเงินได้สุทธิในแต่ละขั้น)</h3>
           <div className="migrate-table-wrap" role="region" aria-label="ตารางขั้นบันไดภาษี เลื่อนซ้ายขวาได้" tabIndex={0}>
