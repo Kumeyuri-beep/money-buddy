@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { beforeAll, describe, expect, inject, it } from 'vitest';
 import { buildInitialLedger } from '../../src/app/setup';
 import { PRIVACY_POLICY_VERSION } from '../../src/domain/privacy/policy';
-import { StorageError } from '../../src/storage/repository';
+import { SettingsConflictError, StorageError } from '../../src/storage/repository';
 import { createSupabaseRepository } from '../../src/storage/supabaseRepository';
 import type { LedgerRepository } from '../../src/storage/ledgerRepository';
 import { describeRepositoryContract } from '../unit/repositoryContract';
@@ -339,6 +339,35 @@ describe('merge_settings: ช่องแข่งเขียน settings (ส�
     expect(end.monthlyBudget).toBe(2_000_000);
     expect(end.payDay).toBe(8);
   });
+
+  it('updateSettings (compare-and-set): สองแท็บเพิ่มรหัสเข้ารายชื่อเดียวกันพร้อมกันหลายรอบ: ทุกรหัสอยู่ครบ ไม่หาย · ฟอร์มที่ baseline เก่าถูกปฏิเสธ', async () => {
+    await wipe(0);
+    const user = live.users[0]!;
+    const makeTab = async (): Promise<LedgerRepository> => {
+      const client = createClient(live.url, live.anonKey, liveClientOptions);
+      const { data, error } = await client.auth.signInWithPassword({ email: user.email, password: user.password });
+      if (error || !data.user) throw new Error('ล็อกอินผู้ใช้ทดสอบไม่สำเร็จ');
+      return createSupabaseRepository(client, data.user.id);
+    };
+    const tab1 = await makeTab();
+    const tab2 = await makeTab();
+    const add = (id: string) => (cur: { retirementAssetIds?: string[] }) => ({ retirementAssetIds: [...(cur.retirementAssetIds ?? []), id] });
+    await tab1.saveSettings({ monthlyBudget: 1_000_000 }); // มีแถวอยู่แล้ว (กรณียังไม่มีแถว ดูเทสต์ถัดไป)
+    // สองแท็บเพิ่มคนละรหัสพร้อมกัน 6 รอบ (แบบ read-modify-write เดิมจะมีรหัสหาย)
+    for (let round = 0; round < 6; round++) {
+      await Promise.all([tab1.updateSettings(['retirementAssetIds'], add(`t1-${round}`)), tab2.updateSettings(['retirementAssetIds'], add(`t2-${round}`))]);
+    }
+    const ids = (await tab1.loadSettings()).retirementAssetIds ?? [];
+    expect(ids.length).toBe(12);
+    expect(new Set(ids).size).toBe(12);
+    // ฟอร์ม: baseline เก่า (payDay ไม่มี) แต่อีกแท็บตั้ง payDay ไปแล้ว → ชน ไม่เขียนทับ และไม่ทำให้คีย์อื่นหาย
+    const baseline = await tab1.loadSettings();
+    await tab2.patchSettings({ payDay: 12 });
+    await expect(tab1.updateSettings(['payDay'], () => ({ payDay: 3 }), { baseline })).rejects.toThrow(SettingsConflictError);
+    const end = await tab1.loadSettings();
+    expect(end.payDay).toBe(12);
+    expect(end.retirementAssetIds?.length).toBe(12);
+  }, 60_000);
 
   it('RPC ตรงๆ: patch ที่ไม่ใช่ object ถูกปฏิเสธ · ผู้ใช้ B เรียกแล้วไม่ปนค่า A · ค่าใหญ่เกิน 16 KB ถูกปฏิเสธ', async () => {
     await wipe(0);

@@ -62,21 +62,29 @@ export function TaxPortfolioLink({ onFill, current }: TaxPortfolioLinkProps) {
   }, [invest, tags]);
 
   const changeTag = (assetId: string, tag: TaxTag | null) => {
-    let next: TaxTags;
+    // แสดงผลทันทีจากที่เห็นอยู่ (ถ้าเกินเพดานบอกเลย) แล้วเขียนจริงจาก "ค่าล่าสุด" แบบ compare-and-set
     try {
-      next = withAssetTag(tags, assetId, tag);
+      setTags(withAssetTag(tags, assetId, tag));
     } catch (e) {
       setSaveError(friendlyError(e));
       return;
     }
-    setTags(next);
     setFilled('');
     saveChain.current = saveChain.current.then(async () => {
       try {
-        await repo.patchSettings(tagsToPatch(next));
+        const saved = await repo.updateSettings(['taxRmfAssetIds', 'taxThaiEsgAssetIds'], (current) =>
+          tagsToPatch(withAssetTag({ rmf: current.taxRmfAssetIds ?? [], thaiEsg: current.taxThaiEsgAssetIds ?? [] }, assetId, tag)),
+        );
+        setTags({ rmf: sanitizeTaxTagIds(saved.taxRmfAssetIds), thaiEsg: sanitizeTaxTagIds(saved.taxThaiEsgAssetIds) });
         setSaveError('');
       } catch (e) {
         setSaveError(friendlyError(e));
+        try {
+          const latest = await repo.loadSettings();
+          setTags({ rmf: sanitizeTaxTagIds(latest.taxRmfAssetIds), thaiEsg: sanitizeTaxTagIds(latest.taxThaiEsgAssetIds) });
+        } catch {
+          /* ใช้ค่าที่แสดงอยู่ต่อ */
+        }
       }
     });
   };

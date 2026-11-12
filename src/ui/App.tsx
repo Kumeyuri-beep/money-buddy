@@ -33,6 +33,7 @@ import { Setup } from './Setup';
 import { AveragingView } from './AveragingView';
 import { PortfolioView } from './PortfolioView';
 import { RetirementView } from './RetirementView';
+import { FORM_SETTINGS_KEYS, formSettingsPatch } from '../domain/bills/settingsPatch';
 import { TaxPortfolioLink } from './TaxPortfolioLink';
 import { TaxView } from './TaxView';
 import { Shell, type ViewId } from './Shell';
@@ -464,9 +465,13 @@ export function App() {
           onPay={(row) => setDialog({ mode: 'pay', row })}
           onCancelPay={cancelPaymentOfBill}
           onUnarchive={unarchiveBill}
-          onSaveSettings={async (settings) => {
-            await repo.saveSettings(settings);
-            await refresh();
+          onSaveSettings={async (settings, baseline) => {
+            try {
+              // เขียนเฉพาะคีย์ของฟอร์ม (ไม่แตะแผน DCA/รายชื่อเกษียณ/ป้ายภาษี) แบบ compare-and-set กับค่าที่ฟอร์มแสดงอยู่
+              await repo.updateSettings(FORM_SETTINGS_KEYS, () => formSettingsPatch(settings), { baseline });
+            } finally {
+              await refresh(); // ชนกับแท็บอื่นก็โหลดค่าล่าสุดมาแสดง
+            }
           }}
           onClearSnapshot={clearSnapshot}
         />

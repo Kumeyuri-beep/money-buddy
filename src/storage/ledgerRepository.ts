@@ -1,6 +1,6 @@
 import type { BackupData } from '../domain/backup/parseBackup';
 import type { FinanceSettings } from '../domain/bills/settings';
-import type { SettingsPatch } from '../domain/bills/settingsPatch';
+import type { SettingsKey, SettingsPatch } from '../domain/bills/settingsPatch';
 import type { Bill } from '../domain/bills/types';
 import { emptyInvestments, type Asset, type AssetKind, type AssetPrice, type InvestmentData, type TradeRecord } from '../domain/invest/types';
 import type { Account, Entry, NewEntry } from '../domain/ledger/types';
@@ -53,6 +53,13 @@ export interface LedgerRepository {
    * ออนไลน์: เรียก RPC merge_settings (รวมฝั่งฐานข้อมูลในคำสั่งเดียว) แก้ช่องแข่งเขียนตอนเปิดสองแท็บ · ในเครื่อง: ธุรกรรมเดียว
    */
   patchSettings(patch: SettingsPatch): Promise<FinanceSettings>;
+  /**
+   * แก้ค่าตั้งค่าเฉพาะคีย์ที่ประกาศ (keys) โดยคำนวณจาก "ค่าล่าสุด" เสมอ แล้วเขียนแบบ compare-and-set: ปิดช่องเขียนทับข้ามแท็บของค่าที่เป็นอาร์เรย์
+   * (แผน DCA ป้ายภาษี รายชื่อเกษียณ) · ออนไลน์: RPC merge_settings_if ถ้าอีกแท็บแก้ไปก่อนจะอ่านใหม่แล้วคำนวณใหม่ (สูงสุด 5 ครั้ง) · ในเครื่อง: ธุรกรรมเดียว
+   * baseline = ค่าที่หน้าจอแสดงอยู่ (ใช้กับฟอร์มที่ผู้ใช้เห็นค่าอยู่ก่อนแก้): ถ้าคีย์ที่ประกาศต่างจาก baseline แล้ว = SettingsConflictError ไม่เขียนทับและไม่ลองซ้ำ
+   * compute ต้องแตะเฉพาะคีย์ใน keys (นอกนั้นเป็นข้อผิดพลาดของโค้ด) · ลองซ้ำหมดแล้วยังชน = SettingsConflictError
+   */
+  updateSettings(keys: readonly SettingsKey[], compute: (current: FinanceSettings) => SettingsPatch, options?: { baseline?: FinanceSettings }): Promise<FinanceSettings>;
 
   // ---- พอร์ตลงทุน (P3) · ออนไลน์เท่านั้น (ที่เก็บในเครื่องไม่รองรับ: อ่านได้ว่าง เขียนแล้วแจ้งข้อผิดพลาด) ----
   loadInvestments(): Promise<InvestmentData>;
@@ -99,6 +106,7 @@ export function createDexieRepository(db: MoneyDB): LedgerRepository {
     loadSettings: () => dexie.loadSettings(db),
     saveSettings: (settings) => dexie.saveSettings(db, settings),
     patchSettings: (patch) => dexie.patchSettings(db, patch),
+    updateSettings: (keys, compute, options) => dexie.updateSettings(db, keys, compute, options),
     loadInvestments: () => Promise.resolve(emptyInvestments()),
     addAsset: () => Promise.reject(localInvestError()),
     addWallet: () => Promise.reject(localInvestError()),

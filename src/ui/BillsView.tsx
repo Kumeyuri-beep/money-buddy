@@ -1,9 +1,10 @@
 import { friendlyError } from '../app/errorText';
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, useEffect } from 'react';
 import { settingsFromForm, settingsToForm, type SettingsForm } from '../app/billForm';
 import { archivedBills, billRows, type BillRow } from '../app/billsView';
 import { thaiDayLabel } from '../app/dates';
 import type { FinanceSettings } from '../domain/bills/settings';
+import { SettingsConflictError } from '../storage/repository';
 import type { Bill } from '../domain/bills/types';
 import { formatBaht, satang } from '../domain/money/satang';
 
@@ -26,7 +27,8 @@ interface Props {
   onCancelPay: (bill: Bill) => void;
   /** นำบิลที่เก็บถาวรกลับมาแสดงในรายการใช้งาน */
   onUnarchive: (bill: Bill) => void;
-  onSaveSettings: (settings: FinanceSettings) => Promise<void>;
+  /** baseline = ค่าที่หน้าจอแสดงอยู่ตอนนี้ ถ้าแท็บอื่นแก้ค่าชุดนี้ไปก่อน ฝั่งเก็บข้อมูลจะไม่เขียนทับ (SettingsConflictError) */
+  onSaveSettings: (settings: FinanceSettings, baseline: FinanceSettings) => Promise<void>;
   onClearSnapshot: () => void;
 }
 
@@ -44,6 +46,13 @@ export function BillsView({ bills, settings, snapshot, today, onAdd, onEdit, onD
   const [form, setForm] = useState<SettingsForm>(() => settingsToForm(settings));
   const [error, setError] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState(false);
+  const [reloadForm, setReloadForm] = useState(false);
+
+  useEffect(() => {
+    if (!reloadForm) return;
+    setForm(settingsToForm(settings));
+    setReloadForm(false);
+  }, [reloadForm, settings]);
 
   const set = (patch: Partial<SettingsForm>) => {
     setForm((f) => ({ ...f, ...patch }));
@@ -54,10 +63,12 @@ export function BillsView({ bills, settings, snapshot, today, onAdd, onEdit, onD
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     try {
-      await onSaveSettings(settingsFromForm(form));
+      await onSaveSettings(settingsFromForm(form), settings);
       setSavedNote(true);
     } catch (e) {
       setError(friendlyError(e));
+      // แท็บอื่นแก้ไปก่อน: โหลดค่าล่าสุดลงฟอร์ม (หลัง App โหลดข้อมูลใหม่แล้ว) ให้ผู้ใช้เห็นก่อนลองบันทึกอีกครั้ง
+      if (e instanceof SettingsConflictError) setReloadForm(true);
     }
   };
 
