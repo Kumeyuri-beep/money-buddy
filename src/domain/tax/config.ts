@@ -52,6 +52,7 @@ const SRC_RATES_EXEMPT = 'https://www.rd.go.th/fileadmin/user_upload/SMEs/infogr
 const SRC_DEDUCTIONS = 'https://www.rd.go.th/fileadmin/download/tax_deductions_update280168.pdf';
 const SRC_PIT94_2569 = 'https://www.rd.go.th/fileadmin/tax_pdf/pit/2569/Ins94_160669.pdf';
 const SRC_EXPENSE = 'https://www.rd.go.th/556.html';
+const SRC_NEWS_SSO_2569 = 'https://www.thairath.co.th/money/personal_finance/finance_banking/2899617';
 const SRC_SEC_THAI_ESG = 'https://sec.or.th/TH/Template3/Articles/2567/171267-02.pdf';
 
 export const TAX_CONFIG_2569: TaxYearConfig = {
@@ -69,10 +70,10 @@ export const TAX_CONFIG_2569: TaxYearConfig = {
   employmentExpense: { rateBps: 5000, capSatang: baht(100_000), confidence: 'partial', source: SRC_EXPENSE, note: 'ร้อยละ 50 ไม่เกิน 100,000 บาท (เงินได้ประเภท 1 และ 2 รวมกัน)' },
   personalAllowance: { satang: baht(60_000), confidence: 'partial', source: SRC_DEDUCTIONS, note: 'จากเอกสารกรมสรรพากร ม.ค. 2568 ไม่ระบุปีภาษี' },
   socialSecurity: {
-    capSatang: baht(9_000),
+    capSatang: baht(10_500),
     confidence: 'unverified',
-    source: SRC_DEDUCTIONS,
-    note: 'เพดาน 9,000 บาทมาจากเอกสาร ม.ค. 2568 ยังไม่ยืนยันว่าปี 2569 เปลี่ยนตามเพดานค่าจ้างประกันสังคมใหม่ (17,500 บาท) หรือไม่ ถ้าเปลี่ยน ค่าลดหย่อนจริงอาจสูงกว่าที่คำนวณ (ปลอดภัยฝั่งภาษีสูงกว่าจริง)',
+    source: SRC_NEWS_SSO_2569,
+    note: 'เพดานค่าจ้างประกันสังคมปี 2569 = 17,500 บาท เงินสมทบ 5% สูงสุด 875 บาท/เดือน = 10,500 บาท/ปี (เจ้าของอนุมัติให้ใช้ 12 พ.ย. 2569 ตามข่าว ไม่ใช่แหล่งทางการ) ยังไม่มีต้นฉบับกฎหมายที่อ่านได้ และไม่ทราบว่ากรมสรรพากรเปลี่ยนเพดานลดหย่อนเดิม 9,000 บาท (เอกสาร ม.ค. 2568) ตามหรือไม่ · กรอกยอดที่จ่ายจริงตามสลิปเงินเดือน',
   },
   rmf: { rateBps: 3000, capSatang: null, confidence: 'partial', source: SRC_DEDUCTIONS, note: 'ร้อยละ 30 ของเงินได้ ต้องถือครองตามเงื่อนไข (แอปตรวจไม่ได้)' },
   pensionInsurance: { rateBps: 1500, capSatang: baht(200_000), confidence: 'partial', source: SRC_PIT94_2569, note: 'ร้อยละ 15 ของเงินได้ ไม่เกิน 200,000 บาท (ภ.ง.ด.94 ปี 2569 เป็นแบบของเงินได้ 40(5)-(8) ไม่ใช่เงินเดือน · ประกาศอธิบดีฯ ฉบับ 462 เรื่องยกเว้นเบี้ยประกันบำนาญ ยังไม่ได้อ่านต้นฉบับ)' },
