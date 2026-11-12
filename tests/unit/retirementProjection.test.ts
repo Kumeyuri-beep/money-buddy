@@ -42,10 +42,14 @@ class Frac {
   ceil(): bigint {
     return (this.n + this.d - 1n) / this.d;
   }
+  /** ปัดครึ่งขึ้น (ค่าบวกเท่านั้น) */
+  round(): bigint {
+    return (2n * this.n + this.d) / (2n * this.d);
+  }
 }
 
 /** เงินที่ต้องมีและเงินเก็บต่อเดือนแบบคณิตศาสตร์แท้ (ไม่ปัดระหว่างทาง) */
-function exact(i: RetirementInput): { required: bigint; monthly: bigint } {
+function exact(i: RetirementInput): { required: bigint; exactPv: Frac; monthly: bigint } {
   const years = BigInt(i.retireAge - i.currentAge);
   const retMonths = (i.lifeExpectancy - i.retireAge) * 12;
   const accMonths = (i.retireAge - i.currentAge) * 12;
@@ -69,7 +73,7 @@ function exact(i: RetirementInput): { required: bigint; monthly: bigint } {
   }
   const fv = new Frac(BigInt(i.currentSavings ?? 0)).mul(p);
   const gap = pv.sub(fv);
-  return { required: pv.ceil(), monthly: gap.n > 0n ? gap.div(a).ceil() : 0n };
+  return { required: pv.round(), exactPv: pv, monthly: gap.n > 0n ? gap.div(a).ceil() : 0n };
 }
 
 describe('computeRetirement: ตัวอย่างตรวจมือ R18 (ชุด A)', () => {
@@ -167,7 +171,7 @@ describe('เทียบกับเศษส่วนแท้ที่ไม�
     { currentAge: 30, retireAge: 55, lifeExpectancy: 80, monthlyExpense: 2_500_050, inflationBps: 250, returnBeforeBps: 625, returnAfterBps: 175, currentSavings: 123_456_789 },
     { currentAge: 50, retireAge: 60, lifeExpectancy: 75, monthlyExpense: 1_234_567, inflationBps: 0, returnBeforeBps: 700, returnAfterBps: 0, currentSavings: 50_000_000 },
     { currentAge: 59, retireAge: 60, lifeExpectancy: 61, monthlyExpense: 1_000_000, inflationBps: 300, returnBeforeBps: 400, returnAfterBps: 400 },
-    { currentAge: 35, retireAge: 60, lifeExpectancy: 80, monthlyExpense: 987_654, inflationBps: 1500, returnBeforeBps: 2000, returnAfterBps: 1500 },
+    { currentAge: 35, retireAge: 60, lifeExpectancy: 80, monthlyExpense: 987_654, inflationBps: 1000, returnBeforeBps: 1500, returnAfterBps: 1500 },
     { currentAge: 45, retireAge: 65, lifeExpectancy: 90, monthlyExpense: 4_321_000, inflationBps: 333, returnBeforeBps: 457, returnAfterBps: 211, currentSavings: 7_777_777 },
   ];
   it.each(cases.map((c, i) => [i, c] as const))('ชุดที่ %i', (_i, c) => {
@@ -229,22 +233,24 @@ describe('ความสัมพันธ์ทิศทาง · deterministi
 
 describe('ช่วงค่าและค่าผิด (R18 ข้อ 18.2): min / max / min-1 / max+1 ของทุกช่อง', () => {
   const ok = (over: Partial<RetirementInput>): boolean => retirementProblems({ ...base, ...over }).length === 0;
-  it('อายุปัจจุบัน 18-100 (และต้องน้อยกว่าอายุเกษียณ)', () => {
+  it('อายุปัจจุบัน 18-79 (และต้องน้อยกว่าอายุเกษียณ ซึ่งไม่เกิน 80)', () => {
     expect(ok({ currentAge: 18 })).toBe(true);
+    expect(ok({ currentAge: 79, retireAge: 80, lifeExpectancy: 85 })).toBe(true);
+    expect(ok({ currentAge: 80, retireAge: 81, lifeExpectancy: 85 })).toBe(false);
     expect(ok({ currentAge: 17 })).toBe(false);
     expect(ok({ currentAge: 59 })).toBe(true);
     expect(ok({ currentAge: 60 })).toBe(false); // = อายุเกษียณ
   });
-  it('อายุเกษียณ 30-100 และมากกว่าอายุปัจจุบัน', () => {
+  it('อายุเกษียณ 30-80 และมากกว่าอายุปัจจุบัน (เจ้าของกำหนด 12 พ.ย. 2569)', () => {
     expect(ok({ currentAge: 18, retireAge: 30, lifeExpectancy: 85 })).toBe(true);
     expect(ok({ currentAge: 18, retireAge: 29 })).toBe(false);
-    expect(ok({ retireAge: 100, lifeExpectancy: 120 })).toBe(true);
-    expect(ok({ retireAge: 101, lifeExpectancy: 120 })).toBe(false);
+    expect(ok({ retireAge: 80, lifeExpectancy: 110 })).toBe(true);
+    expect(ok({ retireAge: 81, lifeExpectancy: 110 })).toBe(false);
     expect(ok({ retireAge: 30 })).toBe(false); // = อายุปัจจุบัน
   });
-  it('อายุคาดการณ์ ≤ 120 และมากกว่าอายุเกษียณ', () => {
-    expect(ok({ lifeExpectancy: 120 })).toBe(true);
-    expect(ok({ lifeExpectancy: 121 })).toBe(false);
+  it('อายุคาดการณ์ ≤ 110 และมากกว่าอายุเกษียณ', () => {
+    expect(ok({ lifeExpectancy: 110 })).toBe(true);
+    expect(ok({ lifeExpectancy: 111 })).toBe(false);
     expect(ok({ lifeExpectancy: 61 })).toBe(true);
     expect(ok({ lifeExpectancy: 60 })).toBe(false);
   });
@@ -254,11 +260,16 @@ describe('ช่วงค่าและค่าผิด (R18 ข้อ 18.2):
     expect(ok({ monthlyExpense: 100_000_000 })).toBe(true);
     expect(ok({ monthlyExpense: 100_000_001 })).toBe(false);
   });
-  it('เงินเฟ้อ 0-1,500 · ผลตอบแทนก่อน 0-2,000 · หลัง 0-1,500 bps', () => {
-    expect(ok({ inflationBps: 0 }) && ok({ inflationBps: 1500 })).toBe(true);
-    expect(ok({ inflationBps: -1 }) || ok({ inflationBps: 1501 })).toBe(false);
-    expect(ok({ returnBeforeBps: 2000 }) && !ok({ returnBeforeBps: 2001 }) && !ok({ returnBeforeBps: -1 })).toBe(true);
-    expect(ok({ returnAfterBps: 1500 }) && !ok({ returnAfterBps: 1501 }) && !ok({ returnAfterBps: -1 })).toBe(true);
+  it('เงินเฟ้อ 0-1,000 bps · ผลตอบแทนก่อน/หลังเกษียณ -500 ถึง 1,500 bps (เจ้าของกำหนด 12 พ.ย. 2569)', () => {
+    expect(ok({ inflationBps: 0 }) && ok({ inflationBps: 1000 })).toBe(true);
+    expect(ok({ inflationBps: -1 }) || ok({ inflationBps: 1001 })).toBe(false);
+    for (const f of ['returnBeforeBps', 'returnAfterBps'] as const) {
+      expect(ok({ [f]: 1500 }), f).toBe(true);
+      expect(ok({ [f]: 1501 }), f).toBe(false);
+      expect(ok({ [f]: -500 }), f).toBe(true);
+      expect(ok({ [f]: -501 }), f).toBe(false);
+      expect(ok({ [f]: -1 }), f).toBe(true);
+    }
   });
   it('เงินออม 0-100,000,000,000 สตางค์ (ไม่กรอกได้)', () => {
     expect(ok({ currentSavings: 0 }) && ok({ currentSavings: 100_000_000_000 }) && ok({})).toBe(true);
@@ -278,19 +289,19 @@ describe('ช่วงค่าและค่าผิด (R18 ข้อ 18.2):
 });
 
 describe('ช่วงเวลายาวสุดและเลขใหญ่', () => {
-  it('n = 984 เดือน (18→100) กับ M = 240 เดือน ทำงานเสร็จเร็วและผลเป็นจำนวนเต็มปลอดภัย', () => {
+  it('n = 744 เดือน (18→80) กับ M = 360 เดือน ทำงานเสร็จเร็วและผลเป็นจำนวนเต็มปลอดภัย', () => {
     const t0 = Date.now();
-    const r = computeRetirement({ currentAge: 18, retireAge: 100, lifeExpectancy: 120, monthlyExpense: 1_000_000, inflationBps: 300, returnBeforeBps: 500, returnAfterBps: 300 });
+    const r = computeRetirement({ currentAge: 18, retireAge: 80, lifeExpectancy: 110, monthlyExpense: 1_000_000, inflationBps: 300, returnBeforeBps: 500, returnAfterBps: 300 });
     expect(Date.now() - t0).toBeLessThan(5_000);
     for (const v of Object.values(r)) if (typeof v === 'number') expect(Number.isSafeInteger(v)).toBe(true);
   });
-  it('M = 1,080 เดือน (เกษียณ 30 อยู่ถึง 120) ทำงานได้', () => {
-    const r = computeRetirement({ currentAge: 18, retireAge: 30, lifeExpectancy: 120, monthlyExpense: 1_000_000, inflationBps: 300, returnBeforeBps: 500, returnAfterBps: 300 });
-    expect(r.retirementYears).toBe(90);
+  it('M = 960 เดือน (เกษียณ 30 อยู่ถึง 110) ทำงานได้', () => {
+    const r = computeRetirement({ currentAge: 18, retireAge: 30, lifeExpectancy: 110, monthlyExpense: 1_000_000, inflationBps: 300, returnBeforeBps: 500, returnAfterBps: 300 });
+    expect(r.retirementYears).toBe(80);
     expect(r.requiredAtRetirement).toBeGreaterThan(0);
   });
   it('ค่าสุดขอบทุกตัว: ได้ผลที่อยู่ในช่วงปลอดภัย หรือ RangeError ชัดเจน (ไม่เพี้ยนเงียบ)', () => {
-    const big: RetirementInput = { currentAge: 18, retireAge: 100, lifeExpectancy: 120, monthlyExpense: 100_000_000, inflationBps: 1500, returnBeforeBps: 0, returnAfterBps: 0, currentSavings: 0 };
+    const big: RetirementInput = { currentAge: 18, retireAge: 30, lifeExpectancy: 110, monthlyExpense: 100_000_000, inflationBps: 1000, returnBeforeBps: 0, returnAfterBps: 0, currentSavings: 0 };
     try {
       const r = computeRetirement(big);
       for (const v of Object.values(r)) if (typeof v === 'number') expect(Number.isSafeInteger(v) && v >= 0).toBe(true);
@@ -312,9 +323,16 @@ describe('ตัวแปลงอัตรา parseRateToBps (R18 ข้อ 18.
     expect(parseRateToBps('00.5')).toBe(50);
   });
   it('ปฏิเสธ: ทศนิยมเกิน 2, ว่าง, ติดลบ, -0, 1e2, "3.", ".5", ตัวอักษร, NaN, %, ลูกน้ำ, ช่องว่างกลาง, +', () => {
-    for (const bad of ['3.555', '', '   ', '-1', '-0', '1e2', '3.', '.5', 'abc', 'NaN', '3%', '3,5', '3 .5', '+3', '1000']) {
+    for (const bad of ['3.555', '', '   ', '-0', '-0.00', '--1', '-', '-.5', '-1.', '- 1', '1e2', '3.', '.5', 'abc', 'NaN', '3%', '3,5', '3 .5', '+3', '1000', '-1000']) {
       expect(parseRateToBps(bad), JSON.stringify(bad)).toBeNull();
     }
+  });
+  it('รับค่าติดลบ (ผลตอบแทนติดลบ ตามที่เจ้าของอนุมัติ): "-2"→-200, "-0.5"→-50, "-4.55"→-455, "-5"→-500', () => {
+    expect(parseRateToBps('-2')).toBe(-200);
+    expect(parseRateToBps('-0.5')).toBe(-50);
+    expect(parseRateToBps('-4.55')).toBe(-455);
+    expect(parseRateToBps(' -5 ')).toBe(-500);
+    expect(parseRateToBps('-0.01')).toBe(-1);
   });
   it('0.1 + 0.2 แบบ float ไม่เกิดขึ้น: "0.3" = 30 · "4.35" = 435 ตรงตัว', () => {
     expect(parseRateToBps('0.3')).toBe(30);
@@ -352,9 +370,15 @@ describe('ฟอร์ม: แปลงข้อความเป็นจำ�
     expect(fields({ currentAge: '10' })).toContain('currentAge');
     expect(fields({ retireAge: '25' })).toContain('retireAge');
     expect(fields({ lifeExpectancy: '55' })).toContain('lifeExpectancy');
-    expect(fields({ inflation: '25' })).toContain('inflation');
+    expect(fields({ inflation: '10.01' })).toContain('inflation');
+    expect(fields({ inflation: '-1' })).toContain('inflation'); // เงินเฟ้อติดลบไม่รับ
+    expect(fields({ returnBefore: '-5.01' })).toContain('returnBefore');
+    expect(fields({ returnAfter: '15.01' })).toContain('returnAfter');
+    expect(fields({ retireAge: '81' })).toContain('retireAge');
+    expect(fields({ lifeExpectancy: '111' })).toContain('lifeExpectancy');
     expect(fields({ inflation: '3%' })).toContain('inflation');
     expect(fields({ returnBefore: '40' })).toContain('returnBefore');
+    expect(fields({ returnBefore: '-5', returnAfter: '-5', inflation: '10' })).toEqual([]);
     expect(fields({ monthlyExpense: '-100' })).toContain('monthlyExpense');
     expect(fields({ monthlyExpense: '0' })).toContain('monthlyExpense');
     expect(fields({ monthlyExpense: '2000000' })).toContain('monthlyExpense'); // เกิน 1 ล้านบาท/เดือน
@@ -370,16 +394,16 @@ describe('ฟอร์ม: แปลงข้อความเป็นจำ�
     expect(b.result.monthlySaving).toBeLessThan(a.result.monthlySaving);
   });
   it('ผลที่ใหญ่เกินแสดงไม่ได้ ไม่ทำให้ฟังก์ชันโยน: คืนข้อผิดพลาดรายช่อง', () => {
-    const r = buildRetirementInput(filled({ currentAge: '18', retireAge: '100', lifeExpectancy: '120', monthlyExpense: '1000000', inflation: '15', returnBefore: '0', returnAfter: '0' }));
+    const r = buildRetirementInput(filled({ currentAge: '18', retireAge: '30', lifeExpectancy: '110', monthlyExpense: '1000000', inflation: '10', returnBefore: '-5', returnAfter: '-5' }));
     expect(typeof r.ok).toBe('boolean');
   });
 });
 
 describe('ไม่แตะสมุดบัญชี และไม่มี float/สูตรเงินนอก domain (R1, R2, R8, R16, R18)', () => {
-  const src = import.meta.glob(['/src/domain/retirement/projection.ts', '/src/domain/money/rate.ts', '/src/app/retirementForm.ts', '/src/ui/RetirementView.tsx'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+  const src = import.meta.glob(['/src/domain/retirement/projection.ts', '/src/domain/money/rate.ts', '/src/domain/retirement/display.ts', '/src/app/retirementForm.ts', '/src/ui/RetirementView.tsx'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
   const stripped = Object.entries(src).map(([p, t]) => [p, t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')] as const);
   const get = (name: string) => stripped.find(([p]) => p.endsWith(name))![1];
-  it('มีไฟล์ครบ', () => expect(stripped).toHaveLength(4));
+  it('มีไฟล์ครบ', () => expect(stripped).toHaveLength(5));
   it('ไม่ใช้ parseFloat / toFixed / Math.* / เลขทศนิยมลอยตัว ในโค้ดคำนวณ ตัวแปลงอัตรา และฟอร์ม', () => {
     for (const [p, t] of stripped) expect(t, p).not.toMatch(/parseFloat|toFixed|Math\./);
     expect(get('projection.ts')).not.toMatch(/\b\d+\.\d+\b/);
@@ -419,5 +443,55 @@ describe('คำเตือนบังคับและคำต้องห�
   it('ผลตอบแทนไม่มีค่าเริ่มต้นในฟอร์ม', () => {
     expect(emptyRetirementForm().returnBefore).toBe('');
     expect(emptyRetirementForm().returnAfter).toBe('');
+  });
+});
+
+describe('R18 ตามมติเจ้าของ 12 พ.ย. 2569: ปัดขึ้นเฉพาะเงินเก็บต่อเดือน · เงินที่ต้องมีปัดครึ่งขึ้น', () => {
+  const flat: RetirementInput[] = [
+    { ...base, returnBeforeBps: 500, returnAfterBps: 300 },
+    { ...base, currentAge: 45, retireAge: 65, lifeExpectancy: 90, monthlyExpense: 1_234_567, returnBeforeBps: 700, returnAfterBps: 100, currentSavings: 9_000_000 },
+    { ...base, currentAge: 59, retireAge: 60, lifeExpectancy: 61, returnBeforeBps: 1200, returnAfterBps: 1200 },
+    { ...base, currentAge: 50, retireAge: 55, lifeExpectancy: 70, monthlyExpense: 777_777, returnBeforeBps: 250, returnAfterBps: 475 },
+  ];
+  it('เงินที่ต้องมี (ไม่มีเงินเฟ้อ เงินถอนเป็นจำนวนเต็ม) = ปัดครึ่งขึ้นของค่าแท้ ไม่ใช่ปัดขึ้น', () => {
+    for (const c of flat) expect(computeRetirement(c).requiredAtRetirement, JSON.stringify(c)).toBe(Number(exact(c).required));
+  });
+  it('มีอย่างน้อยหนึ่งชุดที่ปัดครึ่งขึ้นกับปัดขึ้นให้ค่าต่างกัน (เทสต์นี้แยกสองแบบออกจริง)', () => {
+    expect(flat.some((c) => exact(c).exactPv.ceil() !== exact(c).required)).toBe(true);
+  });
+  it('เงินเก็บต่อเดือนยังปัดขึ้น: คูณ 360 งวด (อัตรา 0%) ไม่น้อยกว่าส่วนที่ขาด และลดลง 1 สตางค์แล้วไม่พอ', () => {
+    const r = computeRetirement(base);
+    expect(r.monthlySaving * 360).toBeGreaterThanOrEqual(r.shortfall);
+    expect((r.monthlySaving - 1) * 360).toBeLessThan(r.shortfall);
+  });
+});
+
+describe('ผลตอบแทนติดลบ (-5% ถึง 0%) ตามที่เจ้าของอนุมัติ', () => {
+  it('ก่อนเกษียณ -5%: ต้องเก็บมากกว่า 0% และตรงกับค่าแท้ (ต่างไม่เกิน 2 สตางค์เมื่อไม่มีเงินเฟ้อ)', () => {
+    const neg: RetirementInput = { ...base, returnBeforeBps: -500 };
+    const r = computeRetirement(neg);
+    expect(r.monthlySaving).toBeGreaterThan(computeRetirement(base).monthlySaving);
+    expect(Math.abs(r.monthlySaving - Number(exact(neg).monthly))).toBeLessThanOrEqual(2);
+    expect(r.requiredAtRetirement).toBe(300_000_000); // ผลตอบแทนก่อนเกษียณไม่กระทบเงินที่ต้องมี
+  });
+  it('หลังเกษียณ -5%: ต้องมีเงินมากกว่า 0% และตรงกับค่าแท้ · มีคำเตือน real return', () => {
+    const neg: RetirementInput = { ...base, returnAfterBps: -500 };
+    const r = computeRetirement(neg);
+    expect(r.requiredAtRetirement).toBeGreaterThan(300_000_000);
+    expect(Math.abs(r.requiredAtRetirement - Number(exact(neg).required))).toBeLessThanOrEqual(2);
+    expect(r.realReturnNegativeAfter).toBe(true);
+  });
+  it('เงินออมเดิมหดลงเมื่อผลตอบแทนก่อนเกษียณติดลบ แต่ไม่ติดลบเป็นยอด', () => {
+    const r = computeRetirement({ ...base, returnBeforeBps: -500, currentSavings: 100_000_000 });
+    expect(r.currentSavingsAtRetirement).toBeLessThan(100_000_000);
+    expect(r.currentSavingsAtRetirement).toBeGreaterThan(0);
+  });
+  it('-5% ทั้งสองช่วงและค่าสุดขอบ (เงินเฟ้อ 10%) ได้ผลจำนวนเต็มปลอดภัย หรือ RangeError ชัดเจน', () => {
+    try {
+      const r = computeRetirement({ currentAge: 18, retireAge: 80, lifeExpectancy: 110, monthlyExpense: 1_000_000, inflationBps: 1000, returnBeforeBps: -500, returnAfterBps: -500 });
+      for (const v of Object.values(r)) if (typeof v === 'number') expect(Number.isSafeInteger(v) && v >= 0).toBe(true);
+    } catch (e) {
+      expect(e).toBeInstanceOf(RangeError);
+    }
   });
 });

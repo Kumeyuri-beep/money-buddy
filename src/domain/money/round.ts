@@ -37,8 +37,8 @@ export function roundHalfUpBig(numerator: bigint, denominator: bigint): bigint {
 }
 
 /**
- * ปัดขึ้น (ceiling) ของ numerator / denominator สำหรับจำนวนเต็มบวกเท่านั้น (ร่างกฎ R18 · ข้อยกเว้นของ R8 รออนุมัติเจ้าของ)
- * ใช้เฉพาะ "เงินที่ต้องมี" และ "เงินเก็บต่อเดือน" ของเครื่องคิดเลขเกษียณ (ตัวเลขวางแผนไม่ประเมินต่ำ) ห้ามใช้กับยอดบัญชีจริง
+ * ปัดขึ้น (ceiling) ของ numerator / denominator สำหรับจำนวนเต็มบวกเท่านั้น (กฎ R18 · ข้อยกเว้นของ R8 เจ้าของอนุมัติ 12 พ.ย. 2569)
+ * ใช้เฉพาะ "เงินเก็บต่อเดือน" ของเครื่องคิดเลขเกษียณ (และการแสดงผลของค่านั้น) เพื่อไม่ให้เก็บขาด ห้ามใช้กับยอดบัญชีจริงหรือค่าอื่น
  */
 export function ceilDivBig(numerator: bigint, denominator: bigint): bigint {
   if (denominator <= 0n) throw new RangeError('ceilDivBig: ตัวหารต้องเป็นบวก');
