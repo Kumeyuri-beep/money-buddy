@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { MobileMenu } from './MobileMenu';
 
-export type ViewId = 'today' | 'ledger' | 'bills' | 'account' | 'averaging' | 'portfolio' | 'retirement';
+export type ViewId = 'today' | 'ledger' | 'bills' | 'account' | 'averaging' | 'portfolio' | 'retirement' | 'tax';
 
 interface ShellProps {
   children: ReactNode;
@@ -38,12 +38,12 @@ const NAV_MAIN: NavItem[] = [
 
 const NAV_TOOLS: NavItem[] = [
   { id: 'retirement', label: 'วางแผนเกษียณ', icon: 'M12 7v5l3 2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z' },
-  { id: null, label: 'คำนวณภาษี', icon: 'M6 3h12v18H6zM9 7h6M9 12h.01M12 12h.01M15 12h.01M9 16h.01M12 16h.01M15 16h.01' },
+  { id: 'tax', label: 'คำนวณภาษี', icon: 'M6 3h12v18H6zM9 7h6M9 12h.01M12 12h.01M15 12h.01M9 16h.01M12 16h.01M15 16h.01' },
   { id: 'averaging', label: 'ถัวเฉลี่ยต้นทุน', icon: 'M3 7l6 6 4-4 8 8M21 11v6h-6' },
   { id: 'account', label: 'โปรไฟล์', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0' },
 ];
 
-/** เมนูมือถือ (ปุ่มลอย → bottom sheet 3 คอลัมน์ 7 รายการ · "วางแผนเกษียณ" เป็นรายการที่ 7 ตามเจ้าของ 12 พ.ย. 2569): เฉพาะหน้าที่มีจริง (ไม่แสดง "เร็วๆ นี้") ใช้ไอคอนชุดเดียวกับแถบข้าง */
+/** เมนูมือถือ (ปุ่มลอย → bottom sheet 3 คอลัมน์ 8 รายการ · "วางแผนเกษียณ" เป็นรายการที่ 7 ตามเจ้าของ 12 พ.ย. 2569 · "ภาษี" เป็นรายการที่ 8 เฟส 1 ภาษี): เฉพาะหน้าที่มีจริง (ไม่แสดง "เร็วๆ นี้") ใช้ไอคอนชุดเดียวกับแถบข้าง */
 const NAV_BOTTOM: { id: ViewId; short: string; icon: string }[] = [
   { id: 'today', short: 'ภาพรวม', icon: NAV_MAIN[0]!.icon },
   { id: 'ledger', short: 'รายการ', icon: NAV_MAIN[1]!.icon },
@@ -52,6 +52,7 @@ const NAV_BOTTOM: { id: ViewId; short: string; icon: string }[] = [
   { id: 'averaging', short: 'ถัวเฉลี่ย', icon: NAV_TOOLS[2]!.icon },
   { id: 'account', short: 'โปรไฟล์', icon: NAV_TOOLS[3]!.icon },
   { id: 'retirement', short: 'แผนเกษียณ', icon: NAV_TOOLS[0]!.icon },
+  { id: 'tax', short: 'ภาษี', icon: NAV_TOOLS[1]!.icon },
 ];
 
 function Icon({ path }: { path: string }) {

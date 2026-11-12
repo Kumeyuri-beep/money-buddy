@@ -33,6 +33,7 @@ import { Setup } from './Setup';
 import { AveragingView } from './AveragingView';
 import { PortfolioView } from './PortfolioView';
 import { RetirementView } from './RetirementView';
+import { TaxView } from './TaxView';
 import { Shell, type ViewId } from './Shell';
 import { ScanStatus } from './ScanStatus';
 import { Toast } from './Toast';
@@ -401,6 +402,8 @@ export function App() {
         <AveragingView />
       ) : view === 'retirement' ? (
         <RetirementView today={today} />
+      ) : view === 'tax' ? (
+        <TaxView />
       ) : view === 'portfolio' ? (
         <PortfolioView today={today} wallets={walletOptions(accounts).map((a) => ({ id: a.id, name: a.name }))} onLedgerChanged={() => void refresh()} />
       ) : view === 'bills' ? (
