@@ -43,7 +43,7 @@ const NAV_TOOLS: NavItem[] = [
   { id: 'account', label: 'โปรไฟล์', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0' },
 ];
 
-/** เมนูมือถือ (ปุ่มลอย → bottom sheet 3x2): เฉพาะหน้าที่มีจริง (ไม่แสดง "เร็วๆ นี้") ใช้ไอคอนชุดเดียวกับแถบข้าง */
+/** เมนูมือถือ (ปุ่มลอย → bottom sheet 3 คอลัมน์ 7 รายการ · "วางแผนเกษียณ" เป็นรายการที่ 7 ตามเจ้าของ 12 พ.ย. 2569): เฉพาะหน้าที่มีจริง (ไม่แสดง "เร็วๆ นี้") ใช้ไอคอนชุดเดียวกับแถบข้าง */
 const NAV_BOTTOM: { id: ViewId; short: string; icon: string }[] = [
   { id: 'today', short: 'ภาพรวม', icon: NAV_MAIN[0]!.icon },
   { id: 'ledger', short: 'รายการ', icon: NAV_MAIN[1]!.icon },
@@ -51,6 +51,7 @@ const NAV_BOTTOM: { id: ViewId; short: string; icon: string }[] = [
   { id: 'portfolio', short: 'พอร์ต', icon: NAV_MAIN[3]!.icon },
   { id: 'averaging', short: 'ถัวเฉลี่ย', icon: NAV_TOOLS[2]!.icon },
   { id: 'account', short: 'โปรไฟล์', icon: NAV_TOOLS[3]!.icon },
+  { id: 'retirement', short: 'แผนเกษียณ', icon: NAV_TOOLS[0]!.icon },
 ];
 
 function Icon({ path }: { path: string }) {

@@ -2,15 +2,15 @@
  * เครื่องคิดเลขเป้าเกษียณ (เฟส 1) · ฟังก์ชันล้วน ไม่แตะ DOM/ฐานข้อมูล/เครือข่าย · ไม่ import ledger
  *
  * **ตัวเลขทั้งหมดเป็นประมาณการ ไม่ใช่ยอดในสมุดบัญชี** ห้ามลงสมุด ห้ามปนกับ SAFE-TO-SPEND / cashBalance / รายรับรายจ่าย
- * ทำตามร่างกฎ R18 (docs/money-rules-R18-proposal.md · รออนุมัติเจ้าของ) · ลำดับการปัดเศษตายตัว เปลี่ยนต้องเทียบ golden:
+ * ทำตามกฎ R18 (docs/money-rules.md · เจ้าของอนุมัติ 12 พ.ย. 2569 · เหตุผลใน docs/money-rules-R18-proposal.md) · ลำดับการปัดเศษตายตัว เปลี่ยนต้องเทียบ golden:
  *   1) E_ret = roundHalfUp(E0 x (10000+i)^Y / 10000^Y)            ค่าใช้จ่ายต่อเดือน ณ วันเกษียณ (เศษส่วนตรงตัว ปัดครั้งเดียว)
  *   2) W_k   = roundHalfUp(E_ret x (10000+i)^k / 10000^k)         เงินถอนรายเดือนของปีเกษียณที่ k (เท่ากันทั้ง 12 เดือน)
  *   3) G(b)  = roundHalfUp(S x (120000+b) / 120000)                ตัวคูณโตรายเดือน (S = 10^18)
- *      D_0 = S, D_(m+1) = roundHalfUp(D_m x S / G(b2)) · PV = Σ W_floor(m/12) x D_m · N = ceil(PV / S)        เงินที่ต้องมี
+ *      D_0 = S, D_(m+1) = roundHalfUp(D_m x S / G(b2)) · PV = Σ W_floor(m/12) x D_m · N = roundHalfUp(PV / S)  เงินที่ต้องมี
  *   4) P_0 = S, P_(t+1) = roundHalfUp(P_t x G(b1) / S) · A = Σ_(t<n) P_t · FVsav = roundHalfUp(Sav x P_n / S)    ช่วงสะสม (ฝากปลายเดือน)
  *   5) PMT = gap <= 0 ? 0 : ceil(gap x S / A)                                                              เก็บต่อเดือน
  *   6) N_today = roundHalfUp(N x 10000^Y / (10000+i)^Y)                                                    (แสดงผลอย่างเดียว)
- * ปัดครึ่งขึ้นระหว่างทาง · ปัดขึ้นเฉพาะ N กับ PMT (ตัวเลขวางแผน ไม่ประเมินต่ำ) · N ที่ปัดขึ้นแล้วเป็นตัวตั้งของขั้น 4-5 (ไม่ปัดซ้อน)
+ * ปัดครึ่งขึ้นทุกขั้น ยกเว้น **PMT ปัดขึ้นที่เดียว** (เจ้าของอนุมัติเป็นข้อยกเว้นของ R8 เพื่อไม่ให้เก็บขาด) · N ที่ปัดแล้วเป็นตัวตั้งของขั้น 4-5 (ไม่ปัดซ้อน)
  * วนลูปรายเดือน ไม่ใช้สูตรปิด: ตัวหารมีแค่ G(b) >= S > 0 จึงไม่มีทางหารด้วยศูนย์ (อัตรา 0% ได้จำนวนเต็มตรงๆ)
  */
 
@@ -19,13 +19,15 @@ import { ceilDivBig, roundHalfUpBig } from '../money/round';
 const SCALE = 10n ** 18n;
 const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
 
+/** ช่วงค่าตามมติเจ้าของ 12 พ.ย. 2569 (money-auditor ปรับได้ถ้ามีเหตุผล) */
 export const MIN_CURRENT_AGE = 18;
-export const MAX_AGE = 100;
 export const MIN_RETIRE_AGE = 30;
-export const MAX_LIFE_EXPECTANCY = 120;
-export const MAX_INFLATION_BPS = 1500;
-export const MAX_RETURN_BEFORE_BPS = 2000;
-export const MAX_RETURN_AFTER_BPS = 1500;
+export const MAX_RETIRE_AGE = 80;
+export const MAX_CURRENT_AGE = MAX_RETIRE_AGE - 1; // ต้องน้อยกว่าอายุเกษียณ
+export const MAX_LIFE_EXPECTANCY = 110;
+export const MAX_INFLATION_BPS = 1000;
+export const MIN_RETURN_BPS = -500;
+export const MAX_RETURN_BPS = 1500;
 export const MAX_MONTHLY_EXPENSE = 100_000_000; // สตางค์ (1 ล้านบาท/เดือน)
 export const MAX_SAVINGS = 100_000_000_000; // สตางค์ (1,000 ล้านบาท)
 
@@ -50,7 +52,7 @@ export interface RetirementResult {
   retirementYears: number;
   /** ค่าใช้จ่ายต่อเดือน ณ วันเกษียณ (สตางค์ ราคาตอนนั้น) */
   monthlyExpenseAtRetirement: number;
-  /** เงินที่ต้องมี ณ วันเกษียณ (สตางค์ ปัดขึ้น) */
+  /** เงินที่ต้องมี ณ วันเกษียณ (สตางค์ ปัดครึ่งขึ้น) */
   requiredAtRetirement: number;
   /** เงินที่ต้องมีเทียบเป็นมูลค่าวันนี้ (สตางค์ ค่าอธิบาย) */
   requiredInTodayMoney: number;
@@ -77,15 +79,15 @@ const isInt = (v: unknown): v is number => typeof v === 'number' && Number.isSaf
 export function retirementProblems(i: RetirementInput): RetirementProblem[] {
   const out: RetirementProblem[] = [];
   const add = (field: ProblemField, message: string): void => void out.push({ field, message });
-  if (!isInt(i.currentAge) || i.currentAge < MIN_CURRENT_AGE || i.currentAge > MAX_AGE) add('currentAge', `อายุตอนนี้ต้องเป็นจำนวนเต็ม ${MIN_CURRENT_AGE}-${MAX_AGE} ปี`);
-  if (!isInt(i.retireAge) || i.retireAge < MIN_RETIRE_AGE || i.retireAge > MAX_AGE) add('retireAge', `อายุเกษียณต้องเป็นจำนวนเต็ม ${MIN_RETIRE_AGE}-${MAX_AGE} ปี`);
+  if (!isInt(i.currentAge) || i.currentAge < MIN_CURRENT_AGE || i.currentAge > MAX_CURRENT_AGE) add('currentAge', `อายุตอนนี้ต้องเป็นจำนวนเต็ม ${MIN_CURRENT_AGE}-${MAX_CURRENT_AGE} ปี`);
+  if (!isInt(i.retireAge) || i.retireAge < MIN_RETIRE_AGE || i.retireAge > MAX_RETIRE_AGE) add('retireAge', `อายุเกษียณต้องเป็นจำนวนเต็ม ${MIN_RETIRE_AGE}-${MAX_RETIRE_AGE} ปี`);
   else if (isInt(i.currentAge) && i.retireAge <= i.currentAge) add('retireAge', 'อายุเกษียณต้องมากกว่าอายุตอนนี้');
   if (!isInt(i.lifeExpectancy) || i.lifeExpectancy > MAX_LIFE_EXPECTANCY) add('lifeExpectancy', `อายุคาดการณ์ต้องเป็นจำนวนเต็มไม่เกิน ${MAX_LIFE_EXPECTANCY} ปี`);
   else if (isInt(i.retireAge) && i.lifeExpectancy <= i.retireAge) add('lifeExpectancy', 'อายุคาดการณ์ต้องมากกว่าอายุเกษียณ');
   if (!isInt(i.monthlyExpense) || i.monthlyExpense < 1 || i.monthlyExpense > MAX_MONTHLY_EXPENSE) add('monthlyExpense', 'ค่าใช้จ่ายต่อเดือนต้องมากกว่า 0 และไม่เกิน 1,000,000 บาท');
   if (!isInt(i.inflationBps) || i.inflationBps < 0 || i.inflationBps > MAX_INFLATION_BPS) add('inflationBps', `เงินเฟ้อต้องอยู่ระหว่าง 0-${MAX_INFLATION_BPS / 100}% ต่อปี`);
-  if (!isInt(i.returnBeforeBps) || i.returnBeforeBps < 0 || i.returnBeforeBps > MAX_RETURN_BEFORE_BPS) add('returnBeforeBps', `ผลตอบแทนก่อนเกษียณต้องอยู่ระหว่าง 0-${MAX_RETURN_BEFORE_BPS / 100}% ต่อปี`);
-  if (!isInt(i.returnAfterBps) || i.returnAfterBps < 0 || i.returnAfterBps > MAX_RETURN_AFTER_BPS) add('returnAfterBps', `ผลตอบแทนหลังเกษียณต้องอยู่ระหว่าง 0-${MAX_RETURN_AFTER_BPS / 100}% ต่อปี`);
+  if (!isInt(i.returnBeforeBps) || i.returnBeforeBps < MIN_RETURN_BPS || i.returnBeforeBps > MAX_RETURN_BPS) add('returnBeforeBps', `ผลตอบแทนก่อนเกษียณต้องอยู่ระหว่าง ${MIN_RETURN_BPS / 100} ถึง ${MAX_RETURN_BPS / 100}% ต่อปี`);
+  if (!isInt(i.returnAfterBps) || i.returnAfterBps < MIN_RETURN_BPS || i.returnAfterBps > MAX_RETURN_BPS) add('returnAfterBps', `ผลตอบแทนหลังเกษียณต้องอยู่ระหว่าง ${MIN_RETURN_BPS / 100} ถึง ${MAX_RETURN_BPS / 100}% ต่อปี`);
   if (i.currentSavings !== undefined && (!isInt(i.currentSavings) || i.currentSavings < 0 || i.currentSavings > MAX_SAVINGS)) {
     add('currentSavings', 'เงินออมปัจจุบันต้องไม่ติดลบและไม่เกิน 1,000 ล้านบาท');
   }
@@ -127,7 +129,7 @@ export function computeRetirement(input: RetirementInput): RetirementResult {
     pv += w[(m - (m % 12)) / 12]! * d;
     d = roundHalfUpBig(d * SCALE, g2);
   }
-  const required = ceilDivBig(pv, SCALE);
+  const required = roundHalfUpBig(pv, SCALE);
 
   // 4) ช่วงสะสม
   let p = SCALE;

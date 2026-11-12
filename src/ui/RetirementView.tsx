@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, type FormEvent } from 'react';
-import { buildRetirementInput, emptyRetirementForm, RETIREMENT_DISCLAIMER, RETIREMENT_LIMITATIONS, RETIREMENT_ON_TRACK_NOTE, RETIREMENT_REAL_RETURN_WARNING, type RetirementForm, type RetirementFormError, type RetirementFormField, type RetirementFormResult } from '../app/retirementForm';
+import { buildRetirementInput, emptyRetirementForm, RETIREMENT_DISCLAIMER, RETIREMENT_LIMITATIONS, RETIREMENT_ON_TRACK_NOTE, RETIREMENT_REAL_RETURN_WARNING, RETIREMENT_ROUNDING_NOTE, type RetirementForm, type RetirementFormError, type RetirementFormField, type RetirementFormResult } from '../app/retirementForm';
 import { formatBaht, satang } from '../domain/money/satang';
+import { formatHundredBaht, formatHundredBahtNonZero } from '../domain/retirement/display';
 
 const baht = (n: number): string => formatBaht(satang(n));
 /** bps → ข้อความ % ด้วยจำนวนเต็ม (355 → "3.55%") */
@@ -122,11 +123,11 @@ export function RetirementView() {
           </div>
           <div className="field-row">
             <Field id="rt-expense" field="monthlyExpense" label="ค่าใช้จ่ายต่อเดือนตอนเกษียณ" unit="บาท" placeholder="เช่น 30,000" hint="คิดเป็นราคาวันนี้ ระบบปรับตามเงินเฟ้อให้เอง" value={form.monthlyExpense} errors={errors} onChange={(v) => set({ monthlyExpense: v })} />
-            <Field id="rt-infl" field="inflation" label="เงินเฟ้อ" unit="% ต่อปี" placeholder="เช่น 3" hint="ของแพงขึ้นปีละกี่ % (ที่ผ่านมาราว 2-3)" value={form.inflation} errors={errors} onChange={(v) => set({ inflation: v })} />
+            <Field id="rt-infl" field="inflation" label="เงินเฟ้อ" unit="% ต่อปี" placeholder="เช่น 3" hint="ของแพงขึ้นปีละกี่ % ที่ผ่านมาราว 2-3 ใส่ได้ 0-10" value={form.inflation} errors={errors} onChange={(v) => set({ inflation: v })} />
           </div>
           <div className="field-row">
-            <Field id="rt-rb" field="returnBefore" label="ผลตอบแทนที่คาดก่อนเกษียณ" unit="% ต่อปี" placeholder="เช่น 5" hint="กำไรจากเงินที่เก็บ/ลงทุนต่อปี ไม่แน่ใจให้ตั้งต่ำไว้ก่อน" value={form.returnBefore} errors={errors} onChange={(v) => set({ returnBefore: v })} />
-            <Field id="rt-ra" field="returnAfter" label="ผลตอบแทนที่คาดหลังเกษียณ" unit="% ต่อปี" placeholder="เช่น 3" hint="กำไรจากเงินก้อนที่เหลือตอนใช้เงิน มักตั้งต่ำกว่าช่วงเก็บ" value={form.returnAfter} errors={errors} onChange={(v) => set({ returnAfter: v })} />
+            <Field id="rt-rb" field="returnBefore" label="ผลตอบแทนที่คาดก่อนเกษียณ" unit="% ต่อปี" placeholder="เช่น 5" hint="กำไรจากเงินที่เก็บ/ลงทุนต่อปี (-5 ถึง 15) ใส่ค่าติดลบได้ ไม่แน่ใจให้ตั้งต่ำไว้ก่อน" value={form.returnBefore} errors={errors} onChange={(v) => set({ returnBefore: v })} />
+            <Field id="rt-ra" field="returnAfter" label="ผลตอบแทนที่คาดหลังเกษียณ" unit="% ต่อปี" placeholder="เช่น 3" hint="กำไรจากเงินก้อนที่เหลือตอนใช้เงิน (-5 ถึง 15) มักตั้งต่ำกว่าช่วงเก็บ" value={form.returnAfter} errors={errors} onChange={(v) => set({ returnAfter: v })} />
           </div>
           <Field id="rt-savings" field="currentSavings" label="เงินที่เก็บไว้สำหรับเกษียณแล้ว (ถ้ามี)" unit="บาท" placeholder="ไม่บังคับ" hint="ใส่เพื่อดูว่าที่เก็บไว้พอแค่ไหน ปล่อยว่าง = เริ่มจาก 0" value={form.currentSavings} errors={errors} onChange={(v) => set({ currentSavings: v })} />
           {errors.some((x) => x.field === 'general') && (
@@ -155,6 +156,7 @@ export function RetirementView() {
               <strong>ตัวเลขประมาณการ ไม่ใช่ยอดจริง</strong>
             </p>
             <p>{RETIREMENT_DISCLAIMER}</p>
+            <p>{RETIREMENT_ROUNDING_NOTE}</p>
           </div>
           {result.result.realReturnNegativeAfter && (
             <div className="notice" role="note">
@@ -171,29 +173,29 @@ export function RetirementView() {
           <dl className="avg-result">
             <div>
               <dt>ต้องเก็บเดือนละ (ประมาณการ)</dt>
-              <dd className={result.result.monthlySaving === 0 ? 'avg-new small' : 'avg-new num'}>{result.result.monthlySaving === 0 ? RETIREMENT_ON_TRACK_NOTE : baht(result.result.monthlySaving)}</dd>
+              <dd className={result.result.monthlySaving === 0 ? 'avg-new small' : 'avg-new num'}>{result.result.monthlySaving === 0 ? RETIREMENT_ON_TRACK_NOTE : formatHundredBaht(result.result.monthlySaving, 'up')}</dd>
             </div>
             <div>
               <dt>เงินที่ควรมี ณ วันเกษียณ (ประมาณการ)</dt>
-              <dd className="num">{baht(result.result.requiredAtRetirement)}</dd>
+              <dd className="num">{formatHundredBaht(result.result.requiredAtRetirement, 'nearest')}</dd>
             </div>
             <div>
               <dt>เทียบเป็นเงินวันนี้ ถ้าของไม่แพงขึ้น (ประมาณการ)</dt>
-              <dd className="num">{baht(result.result.requiredInTodayMoney)}</dd>
+              <dd className="num">{formatHundredBaht(result.result.requiredInTodayMoney, 'nearest')}</dd>
             </div>
             <div>
               <dt>ค่าใช้จ่ายต่อเดือน ณ วันเกษียณ (ประมาณการ)</dt>
-              <dd className="num">{baht(result.result.monthlyExpenseAtRetirement)}</dd>
+              <dd className="num">{formatHundredBaht(result.result.monthlyExpenseAtRetirement, 'nearest')}</dd>
             </div>
             {result.input.currentSavings !== undefined && result.input.currentSavings > 0 && (
               <>
                 <div>
                   <dt>เงินที่เก็บไว้แล้วจะโตเป็น (ประมาณการ)</dt>
-                  <dd className="num">{baht(result.result.currentSavingsAtRetirement)}</dd>
+                  <dd className="num">{formatHundredBaht(result.result.currentSavingsAtRetirement, 'nearest')}</dd>
                 </div>
                 <div>
                   <dt>ส่วนที่ยังขาด (ประมาณการ)</dt>
-                  <dd className="num">{baht(result.result.shortfall)}</dd>
+                  <dd className="num">{formatHundredBahtNonZero(result.result.shortfall)}</dd>
                 </div>
               </>
             )}

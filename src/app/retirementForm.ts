@@ -32,12 +32,15 @@ export interface RetirementFormError {
 
 export type RetirementFormResult = { ok: true; input: RetirementInput; result: RetirementResult } | { ok: false; errors: RetirementFormError[] };
 
-/** ข้อความเตือนบังคับ (ร่างกฎ R18 ข้อ 18.1) ต้องแสดงติดกับผลลัพธ์ทุกครั้ง */
+/** ข้อความเตือนบังคับ (กฎ R18 ข้อ 18.1) ต้องแสดงติดกับผลลัพธ์ทุกครั้ง */
 export const RETIREMENT_DISCLAIMER =
   'ตัวเลขนี้เป็นประมาณการจากสมมติฐานที่คุณกรอก ไม่ใช่ยอดในบัญชีของคุณ ผลตอบแทน เงินเฟ้อ และอายุขัยจริงอาจต่างจากที่ตั้งไว้ ไม่ใช่คำแนะนำการลงทุนและไม่ใช่การรับประกันผลลัพธ์';
 
 /** ข้อจำกัดที่ต้องบอกผู้ใช้ (R18 ข้อ 18.1) */
 export const RETIREMENT_LIMITATIONS = 'การคำนวณนี้ไม่รวมภาษี ค่าธรรมเนียม บำนาญหรือประกันสังคม และความเสี่ยงที่จะอยู่ยืนกว่าที่ตั้งไว้';
+
+/** คำเตือนการปัดแสดงผล (R18 · เจ้าของอนุมัติ 12 พ.ย. 2569) ต้องแสดงติดกับผลลัพธ์ทุกครั้ง */
+export const RETIREMENT_ROUNDING_NOTE = 'ตัวเลขด้านล่างปัดเป็นหลักร้อยบาท เป็นการประมาณ (เงินที่ต้องเก็บต่อเดือนปัดขึ้นเพื่อไม่ให้เก็บขาด) จึงอาจต่างจากการคำนวณจริงเล็กน้อย';
 
 export const RETIREMENT_REAL_RETURN_WARNING = 'ผลตอบแทนหลังเกษียณต่ำกว่าเงินเฟ้อ เงินจะหมดเร็วกว่าที่รู้สึก';
 export const RETIREMENT_ON_TRACK_NOTE = 'เงินที่เก็บไว้แล้วถึงเป้าตามสมมติฐานแล้ว';
@@ -94,7 +97,7 @@ export function buildRetirementInput(form: RetirementForm): RetirementFormResult
     }
     const bps = parseRateToBps(text);
     if (bps === null) {
-      err(field, `${label}ไม่ถูกต้อง (ใส่ตัวเลข % ทศนิยมไม่เกิน 2 ตำแหน่ง ไม่ต้องใส่เครื่องหมาย % เช่น 3 หรือ 4.5)`);
+      err(field, `${label}ไม่ถูกต้อง (ใส่ตัวเลข % ทศนิยมไม่เกิน 2 ตำแหน่ง ไม่ต้องใส่เครื่องหมาย % เช่น 3 หรือ 4.5 · ผลตอบแทนใส่ค่าติดลบได้ เช่น -2)`);
       return Number.NaN;
     }
     return bps;
