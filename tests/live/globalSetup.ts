@@ -8,7 +8,7 @@ import { loadAdmin } from '../../scripts/lib/admin.mjs';
 import { generateTempPassword } from '../../scripts/lib/adminEnv.mjs';
 
 /**
- * เตรียมผู้ใช้ทดสอบ 2 คนสำหรับชุดทดสอบจริง (รันโดยเจ้าของเท่านั้น)
+ * เตรียมผู้ใช้ทดสอบ 2 คนสำหรับชุดทดสอบจริง (รันโดยเจ้าของ หรือผู้ช่วยในโหมดอัตโนมัติระดับ 2)
  * key ผู้ดูแลใช้เฉพาะที่นี่ (สร้าง/ลบผู้ใช้) · ส่งต่อให้เทสต์เฉพาะอีเมล+รหัสผ่านของผู้ใช้ทดสอบ ไม่ส่ง key
  * ผู้ใช้ทดสอบเปลี่ยนรหัสผ่านจริงผ่าน updateUser (ปลดธงบังคับเปลี่ยนรหัสแบบเดียวกับผู้ใช้จริง)
  * ถ้าโปรเซสถูกฆ่ากลางทาง ผู้ใช้ชื่อ livetest-xxxxxxxx ค้างอยู่ ลบใน Dashboard ได้ (ไม่มีข้อมูลจริง)
@@ -20,9 +20,11 @@ declare module 'vitest' {
 }
 
 export default async function setup({ provide }: GlobalSetupContext): Promise<() => Promise<void>> {
-  // ด่านกันรันโดยไม่ตั้งใจ (รวมผู้ช่วย AI): ชุดนี้โหลด key ผู้ดูแลและสร้าง/ลบผู้ใช้บนฐานข้อมูลจริง เจ้าของต้องตั้งตัวแปรนี้เองก่อนรัน
+  // ด่านกันรันโดยไม่ตั้งใจ: ชุดนี้โหลด key ผู้ดูแลและสร้าง/ลบผู้ใช้บนฐานข้อมูลจริง ต้องตั้งตัวแปรนี้ยืนยันก่อนรัน
+  // พิมพ์เองแล้ว exit(1) แทนการ throw: vitest บน Node v26 พิมพ์ error จาก globalSetup ไม่ได้ (code.charCodeAt) ข้อความจริงจะหายไป
   if (process.env.MONEY_BUDDY_LIVE_TESTS !== 'yes') {
-    throw new Error("หยุด: ชุดทดสอบจริงต้องให้เจ้าของยืนยันก่อน: ตั้ง $env:MONEY_BUDDY_LIVE_TESTS='yes' (PowerShell) แล้วรัน npm run admin:live-contract");
+    console.error("หยุด: ตั้ง MONEY_BUDDY_LIVE_TESTS=yes เพื่อยืนยันก่อนรันชุดทดสอบจริง (PowerShell: $env:MONEY_BUDDY_LIVE_TESTS='yes' · Bash: MONEY_BUDDY_LIVE_TESTS=yes) แล้วรัน npm run admin:live-contract");
+    process.exit(1);
   }
   const envFile = resolve(process.cwd(), '.env');
   if (!existsSync(envFile)) throw new Error('ไม่พบ .env ของโปรเจกต์ (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY)');

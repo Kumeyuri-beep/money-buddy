@@ -357,7 +357,7 @@ project/                       ← โค้ดล่าสุดทั้งห
 - ค่าสุดขอบบางชุด (ค่าใช้จ่าย 1 ล้านบาท/เดือน เงินเฟ้อ 10% ผลตอบแทนหลังเกษียณ -5% เกษียณ 30 อยู่ถึง 110) ใหญ่เกิน 2^53 สตางค์ → ขึ้นข้อความ "ใหญ่เกินกว่าจะคำนวณได้" (ไม่เพี้ยนเงียบ) ถ้าอยากลดเพดานค่าใช้จ่ายหรือเงินเฟ้อ ต้องเจ้าของตัดสิน (กฎ 18)
 - ทดสอบบนจอจริง: เมนูมือถือรายการที่ 7 และส่วนเลือกพอร์ตในหน้าเกษียณ (ผมตรวจจากโค้ด/ผู้ช่วย ไม่ได้เปิดเบราว์เซอร์)
 
-## 23. เกษียณ เฟส 2b: จำการเลือกสินทรัพย์ (12 พ.ย. 2569) — **PR รอ live-contract / รอเจ้าของ**
+## 23. เกษียณ เฟส 2b: จำการเลือกสินทรัพย์ (12 พ.ย. 2569) — **merge แล้ว (#78)** (live-contract ผ่านบน branch โดยเจ้าของ และผ่าน 45/45 บน main · ข้อ "รอเจ้าของ" ด้านล่างเป็นประวัติ ดูหัวข้อ 24)
 
 เจ้าของเลือกทางแรก (เก็บใน `settings` แบบ `dcaPlans`) · ตรวจแล้ว **ไม่ต้องมี migration** (ตาราง `settings` เป็น jsonb ก้อนเดียว ไม่มีตรวจชื่อฟิลด์ SQL นำเข้าคัดลอกก้อนเดิม) · แผน `docs/plans/2026-11-12-retirement-phase2b.md`
 - ฟิลด์ใหม่ `settings.retirementAssetIds` (เก็บเฉพาะรหัสที่เลือก ไม่เก็บยอด/ผลคำนวณ) เพดาน 30 รายการ · อยู่ในไฟล์สำรองและนำเข้าได้ · สินทรัพย์ที่เคยเลือกแล้วถูกลบ = ข้ามเงียบๆ · บันทึกค่าอื่นไม่ลบรายชื่อ (เหมือน DCA) · ส่ง `[]` = ลบ
@@ -367,3 +367,12 @@ project/                       ← โค้ดล่าสุดทั้งห
 **รอเจ้าของ**
 - **`npm run admin:live-contract` ยังไม่ผ่าน (รันไม่ขึ้น) จึงยังไม่ merge** ตามกติกา: รัน 2 ครั้งได้ "No test files found" + `TypeError: code.charCodeAt is not a function` (จาก vitest/vite เมื่อพิมพ์ข้อผิดพลาด สงสัยว่า globalSetup ล้มก่อนแล้วตัวพิมพ์ error พังบน Node v26) ผมอ่าน `admin.env`/`.env` ไม่ได้และห้ามแก้เทสต์/ policy เอง · ขอให้เจ้าของรัน `npm run admin:live-contract` บน branch `auto/retirement-phase2b` (มีเคสใหม่ "การเลือกสินทรัพย์เกษียณ" ใน `tests/live/investRls.live.ts`) ถ้าผ่านบอกผม ผมจะ merge และรันซ้ำบน main
 - ข้อเสนอจาก security-auditor ระดับกลาง (ยังไม่ทำ): ช่องแข่งเขียน settings แบบอ่านแล้วเขียนทั้งก้อน (ผู้ใช้เปิดสองแท็บแล้วกดบันทึกเหลื่อมกันอาจเขียนทับค่าตั้งค่าอื่น เสียแค่ค่าตั้งค่า ไม่ใช่ยอดเงิน เหมือนที่ DcaPlansCard เป็นอยู่ก่อนแล้ว) แก้ถาวรต้อง RPC `merge_settings` แบบเพิ่ม (migration ต้อง dry-run + live-contract + security-auditor) ถ้าอยากทำบอกผม
+
+## 24. แก้ข้อความหยุดของชุดทดสอบจริง + สิทธิ์รัน live-contract (12 พ.ย. 2569)
+
+- สาเหตุที่ผมรัน live-contract ไม่ขึ้นก่อนหน้า: ไม่ได้ตั้ง `MONEY_BUDDY_LIVE_TESTS=yes` → globalSetup throw → vitest บน Node v26 พิมพ์ error ไม่ได้ (`code.charCodeAt is not a function`) ข้อความจริงเลยหาย เหลือแค่ "No test files found"
+- แก้ `tests/live/globalSetup.ts` ให้ `console.error` ข้อความ "ตั้ง MONEY_BUDDY_LIVE_TESTS=yes เพื่อยืนยัน…" แล้ว `exit(1)` (เจ้าของอนุมัติ) · เพิ่มสิทธิ์ใน `CLAUDE.md`: ผู้ช่วยรัน `MONEY_BUDDY_LIVE_TESTS=yes npm run admin:live-contract` เองได้ทั้งบน branch และบน main
+- throw อื่นใน globalSetup (เช่น ไม่พบ `.env`) ยังพิมพ์ไม่ออกบน Node v26 เหมือนเดิม ถ้าอยากแก้ให้ครบบอกผม
+
+**Backlog**
+- `merge_settings` (RPC แบบเพิ่ม แก้ช่องแข่งเขียน settings ข้อกลางจาก security-auditor ใน #78): เจ้าของสั่งเก็บไว้ก่อน ยังไม่ทำ · ต้อง dry-run + live-contract + security-auditor
