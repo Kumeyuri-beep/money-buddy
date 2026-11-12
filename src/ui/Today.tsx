@@ -2,7 +2,7 @@ import type { Ledger } from '../storage/repository';
 import { CashFlowSankey } from './overview/CashFlowSankey';
 import type { FinanceInput } from '../app/billsOverview';
 import { AllocationPanel } from './overview/AllocationPanel';
-import { RetirementPanel } from './overview/EmptyPanels';
+import { ToolsPanel } from './overview/ToolsPanel';
 import { UpcomingBillsPanel } from './overview/UpcomingBillsPanel';
 import { RecentEntries } from './overview/RecentEntries';
 import { SummaryCards } from './overview/SummaryCards';
@@ -16,11 +16,13 @@ interface TodayProps {
   onOpenBills: () => void;
   onOpenPortfolio: () => void;
   onOpenRetirement: () => void;
+  onOpenAveraging: () => void;
+  onOpenTax: () => void;
   /** "วันนี้" ตามเวลาไทย (YYYY-MM-DD) จาก App ซึ่งอัปเดตเองเมื่อข้ามเที่ยงคืน */
   today: string;
 }
 
-export function Today({ ledger, onAdd, onOpenLedger, finance, onOpenBills, onOpenPortfolio, onOpenRetirement, today }: TodayProps) {
+export function Today({ ledger, onAdd, onOpenLedger, finance, onOpenBills, onOpenPortfolio, onOpenRetirement, onOpenAveraging, onOpenTax, today }: TodayProps) {
   const { accounts, entries } = ledger;
 
   return (
@@ -39,9 +41,7 @@ export function Today({ ledger, onAdd, onOpenLedger, finance, onOpenBills, onOpe
         <AllocationPanel today={today} onOpenPortfolio={onOpenPortfolio} />
       </div>
 
-      <div className="row row-half">
-        <RetirementPanel onOpen={onOpenRetirement} />
-      </div>
+      <ToolsPanel onOpenPortfolio={onOpenPortfolio} onOpenAveraging={onOpenAveraging} onOpenRetirement={onOpenRetirement} onOpenTax={onOpenTax} />
     </>
   );
 }

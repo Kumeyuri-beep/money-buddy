@@ -524,3 +524,11 @@ select { font: inherit; }
   .tax-stack td { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 3px 0; border: 0; text-align: right; white-space: nowrap; }
   .tax-stack td::before { content: attr(data-label); flex: 1 1 0; min-width: 0; color: var(--muted); font-size: 13px; font-weight: 400; text-align: left; white-space: normal; }
 }
+
+/* เครื่องมือวางแผน (หน้าภาพรวม): การ์ดลัด 4 ใบ เรียงอัตโนมัติ 1-4 คอลัมน์ ปุ่มสูงอย่างน้อย 44px */
+.tool-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.tool-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: 100%; min-height: 72px; padding: 12px 14px; text-align: left; color: var(--text); font: inherit; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 14px; cursor: pointer; }
+.tool-tile:hover { background: rgba(255, 255, 255, 0.1); }
+.tool-tile:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.tool-title { font-weight: 600; }
+@media (prefers-reduced-transparency: reduce) { .tool-tile, .tool-tile:hover { background: var(--surface-fallback); } }
