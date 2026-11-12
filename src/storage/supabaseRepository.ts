@@ -8,6 +8,7 @@ import { SINGLE_IMPORT_MAX_ENTRIES, SINGLE_IMPORT_MAX_LINES, type BackupData } f
 import { payAmountProblem } from '../domain/bills/payAmount';
 import { billProblem, markBillPaid, payableCycle } from '../domain/bills/schedule';
 import { sanitizeSettings, settingsProblem, type FinanceSettings } from '../domain/bills/settings';
+import { applySettingsPlan, planSettingsPatch, planSettingsReplace, type SettingsPatch, type SettingsPlanResult } from '../domain/bills/settingsPatch';
 import type { Bill } from '../domain/bills/types';
 import { isCashWallet } from '../domain/ledger/accountKind';
 import { createEntry } from '../domain/ledger/entry';
@@ -465,6 +466,18 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
     return sanitizeSettings((data as { value?: unknown } | null)?.value);
   }
 
+  /**
+   * เขียนค่าตั้งค่าด้วย RPC merge_settings (รวมฝั่งฐานข้อมูลในคำสั่งเดียว ไม่อ่านแล้วเขียนทั้งก้อนจากหน้าเว็บ)
+   * อ่านค่าปัจจุบันเพียงเพื่อ "ตรวจขนาดรวมล่วงหน้า" ให้ข้อความไทยชัด (ไม่ใช่เพื่อเขียนกลับ) ฐานข้อมูลยังบังคับเพดาน 16 KB จริงเสมอ
+   */
+  async function writeSettingsPlan(planned: SettingsPlanResult): Promise<FinanceSettings> {
+    if (!planned.ok) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${planned.problem}`);
+    const sizeProblem = settingsProblem(applySettingsPlan(await loadSettings(), planned.plan));
+    if (sizeProblem) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${sizeProblem}`);
+    const data = await rpc('merge_settings', { p_patch: planned.plan.set, p_remove: planned.plan.remove });
+    return sanitizeSettings(data);
+  }
+
   /** คืนบิลหลังยกเลิกการจ่าย (อ่านค่าจริงจากฐานข้อมูลหลัง trigger ทำงาน) */
   async function cancelPayment(entry: Entry): Promise<Bill | undefined> {
     const link = entry.bill;
@@ -830,19 +843,11 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
     },
 
     async saveSettings(settings) {
-      const problem = settingsProblem(settings);
-      if (problem) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${problem}`);
-      const clean = sanitizeSettings(settings);
-      // ผู้เรียกที่ไม่รู้จักแผน DCA (เช่นหน้าบิล สร้างค่าตั้งค่าใหม่ทั้งก้อน) ต้องไม่ลบแผนเดิมโดยไม่ตั้งใจ: ไม่ส่งฟิลด์ = คงของเดิม · ส่งอาร์เรย์ว่าง = ลบทั้งหมด
-      // การเลือกสินทรัพย์เกษียณก็เช่นกัน (ส่ง [] = ลบ) · อ่านค่าเดิมครั้งเดียวเพื่อให้ช่วงอ่านแล้วเขียนสั้นที่สุด
-      if (settings.dcaPlans === undefined || settings.retirementAssetIds === undefined) {
-        const current = await loadSettings();
-        if (settings.dcaPlans === undefined && current.dcaPlans !== undefined) clean.dcaPlans = current.dcaPlans;
-        if (settings.retirementAssetIds === undefined && current.retirementAssetIds !== undefined) clean.retirementAssetIds = current.retirementAssetIds;
-      }
-      const { error } = await client.from('settings').upsert({ user_id: userId, value: clean }, { onConflict: 'user_id' });
-      check(error);
-      return clean;
+      // แทนทั้งชุดแบบเดิม (ไม่ส่ง = ไม่ตั้ง ยกเว้น dcaPlans/retirementAssetIds ไม่ส่ง = คงเดิม) แต่ทำฝั่งฐานข้อมูลในคำสั่งเดียว
+      return writeSettingsPlan(planSettingsReplace(settings));
+    },
+    async patchSettings(patch: SettingsPatch) {
+      return writeSettingsPlan(planSettingsPatch(patch));
     },
   };
 }

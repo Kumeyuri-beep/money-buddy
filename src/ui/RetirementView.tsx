@@ -146,8 +146,8 @@ export function RetirementView({ today }: { today: string }) {
     const list = [...ids];
     saveChain.current = saveChain.current.then(async () => {
       try {
-        const current = await repo.loadSettings();
-        await repo.saveSettings({ ...current, retirementAssetIds: list });
+        // เปลี่ยนเฉพาะรายชื่อสินทรัพย์เกษียณ (ค่าตั้งค่าอื่นไม่ถูกแตะ) · รายชื่อว่าง = ลบคีย์
+        await repo.patchSettings({ retirementAssetIds: list.length > 0 ? list : null });
         setSaveError('');
       } catch (e) {
         setSaveError(friendlyError(e));

@@ -275,6 +275,34 @@ export function describeRepositoryContract(name: string, factory: () => Promise<
       expect(await repo.loadSettings()).toEqual({ payDay: 1 });
     });
 
+    it('patchSettings: เปลี่ยนเฉพาะคีย์ที่ส่ง คีย์อื่นคงเดิม · null/อาร์เรย์ว่าง = ลบ · ค่าผิดถูกปฏิเสธโดยไม่แตะค่าเดิม', async () => {
+      await seed();
+      await repo.saveSettings({ payDay: 25, monthlyBudget: 1_000_000, monthlySavingsGoal: 500_000 });
+      // เปลี่ยน payDay อย่างเดียว: คีย์อื่นต้องอยู่ครบ (ต่างจาก saveSettings ที่แทนทั้งชุด)
+      expect(await repo.patchSettings({ payDay: 28 })).toEqual({ payDay: 28, monthlyBudget: 1_000_000, monthlySavingsGoal: 500_000 });
+      expect(await repo.loadSettings()).toEqual({ payDay: 28, monthlyBudget: 1_000_000, monthlySavingsGoal: 500_000 });
+      // ตั้งรายชื่อสินทรัพย์เกษียณแล้วเปลี่ยนค่าอื่น: รายชื่อต้องไม่หาย
+      await repo.patchSettings({ retirementAssetIds: ['a1', 'a2'] });
+      expect((await repo.patchSettings({ monthlyBudget: 2_000_000 })).retirementAssetIds).toEqual(['a1', 'a2']);
+      // null = ลบ · อาร์เรย์ว่าง = ลบ · undefined = ไม่แตะ
+      expect(await repo.patchSettings({ monthlySavingsGoal: null, retirementAssetIds: [], payDay: undefined })).toEqual({ payDay: 28, monthlyBudget: 2_000_000 });
+      // ค่าผิดถูกปฏิเสธ และค่าเดิมไม่เปลี่ยน
+      await expect(repo.patchSettings({ payDay: 40 })).rejects.toThrow(StorageError);
+      await expect(repo.patchSettings({ monthlyBudget: -5 })).rejects.toThrow(StorageError);
+      expect(await repo.loadSettings()).toEqual({ payDay: 28, monthlyBudget: 2_000_000 });
+      // patch ว่าง = ไม่เปลี่ยนอะไร
+      expect(await repo.patchSettings({})).toEqual({ payDay: 28, monthlyBudget: 2_000_000 });
+    });
+
+    it('saveSettings: ไม่ส่ง dcaPlans/retirementAssetIds = คงเดิม แต่ส่งอาร์เรย์ว่าง = ลบ (พฤติกรรมเดิมไม่เปลี่ยนหลังย้ายไปทำฝั่งฐานข้อมูล)', async () => {
+      await seed();
+      await repo.patchSettings({ retirementAssetIds: ['a1'] });
+      await repo.saveSettings({ payDay: 3 });
+      expect(await repo.loadSettings()).toEqual({ payDay: 3, retirementAssetIds: ['a1'] });
+      await repo.saveSettings({ payDay: 4, retirementAssetIds: [] });
+      expect(await repo.loadSettings()).toEqual({ payDay: 4 });
+    });
+
     /** ไฟล์สำรองตัวอย่าง: ยอดยกมา + รายจ่าย + บิลที่จ่ายแล้วรอบ 2026-11 (มีรายการจ่ายผูกบิล) + ตั้งค่า */
     const backupData = (): BackupData => {
       const ledger = setup();

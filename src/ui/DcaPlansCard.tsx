@@ -81,7 +81,9 @@ export function DcaPlansCard({ assets, trades, today, onBuy }: Props) {
     try {
       // อ่านค่าล่าสุดก่อนรวม: ถ้าแท็บอื่นเพิ่งเปลี่ยนแผนหรือค่าตั้งค่า เราไม่ย้อนค่านั้นกลับ
       const fresh = await repo.loadSettings();
-      const saved = await repo.saveSettings({ ...fresh, dcaPlans: change(fresh.dcaPlans ?? []) });
+      // เปลี่ยนเฉพาะ dcaPlans (ค่าตั้งค่าอื่นไม่ถูกแตะ จึงไม่เขียนทับสิ่งที่แท็บอื่นเพิ่งบันทึก) · แผนว่าง = ลบคีย์
+      const nextPlans = change(fresh.dcaPlans ?? []);
+      const saved = await repo.patchSettings({ dcaPlans: nextPlans.length > 0 ? nextPlans : null });
       setSettings(saved);
       setMessage({ text: okText, kind: 'ok' });
       return true;

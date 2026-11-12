@@ -151,13 +151,13 @@ describe('ขอบเขตโค้ด (R16, R18)', () => {
     expect(Object.keys(files)).toHaveLength(2);
     for (const n of ['retirementSelection.ts', 'RetirementView.tsx']) expect(get(n), n).not.toMatch(/parseFloat|toFixed|Math\./);
   });
-  it('หน้าจอเขียนได้เฉพาะ saveSettings (เก็บแค่รหัสที่เลือก ไม่เก็บผลลัพธ์/ยอด) · อ่านค่าตั้งค่าล่าสุดก่อนบันทึกเพื่อไม่ทับค่าอื่น', () => {
+  it('หน้าจอเขียนได้เฉพาะ patchSettings (เก็บแค่รหัสที่เลือก ไม่เก็บผลลัพธ์/ยอด) · เปลี่ยนเฉพาะคีย์ retirementAssetIds เพื่อไม่ทับค่าอื่นที่แท็บอื่นเพิ่งบันทึก', () => {
     const v = get('RetirementView.tsx');
-    expect(v).not.toMatch(/\brepo\.(save(?!Settings)|record|add|delete|import)\w*/);
+    expect(v).not.toMatch(/\brepo\.(save|record|add|delete|import)\w*/); // ไม่มี saveSettings (แทนทั้งชุด) อีกแล้ว
     expect(v).toContain('retirementAssetIds');
-    expect(v).toContain('repo.loadSettings()');
-    expect(v).toContain('repo.saveSettings(');
-    expect(v).toContain('{ ...current, retirementAssetIds: list }'); // ส่งเฉพาะค่าตั้งค่าเดิม + รายชื่อรหัส ไม่มียอด/ผลคำนวณ
+    expect(v).toContain('repo.patchSettings(');
+    expect(v).toContain('retirementAssetIds: list.length > 0 ? list : null'); // ส่งเฉพาะรายชื่อรหัส ว่าง = ลบคีย์
+    expect(v).not.toContain('...current'); // ไม่อ่านทั้งก้อนแล้วเขียนทั้งก้อน
     expect(v).toContain('MAX_RETIREMENT_ASSETS'); // ปิดช่องติ๊กเมื่อครบเพดาน
   });
 });
