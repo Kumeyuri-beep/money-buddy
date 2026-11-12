@@ -100,6 +100,22 @@ describe('TAX_CONFIG_2569 (R13/R19)', () => {
     expect(cfg.retirementGroup.note).toContain('Thai ESG อยู่นอกกลุ่ม');
   });
 
+  it('เฟส 2: ค่าลดหย่อนครอบครัว/ประกัน/ดอกเบี้ย/บริจาค ตรงเอกสารกรมสรรพากร และเป็น partial', () => {
+    expect(cfg.spouse.satang).toBe(6_000_000);
+    expect(cfg.child).toMatchObject({ baseSatang: 3_000_000, extraSatang: 3_000_000, maxCount: 20 });
+    expect(cfg.parent).toMatchObject({ perSatang: 3_000_000, maxCount: 4 });
+    expect(cfg.lifeInsurance.capSatang).toBe(10_000_000);
+    expect(cfg.healthInsurance.capSatang).toBe(2_500_000);
+    expect(cfg.lifeHealthGroup.capSatang).toBe(10_000_000);
+    expect(cfg.parentsHealth.capSatang).toBe(1_500_000);
+    expect(cfg.mortgageInterest.capSatang).toBe(10_000_000);
+    expect(cfg.donation.rateBps).toBe(1000);
+    for (const it of [cfg.spouse, cfg.child, cfg.parent, cfg.lifeInsurance, cfg.healthInsurance, cfg.lifeHealthGroup, cfg.parentsHealth, cfg.mortgageInterest, cfg.donation]) {
+      expect(it.confidence).toBe('partial');
+      expect(it.source.length).toBeGreaterThan(5);
+    }
+  });
+
   it('ข้อความเตือนฐานข้อมูลมีอยู่ และข้อมูลเข้าสูงสุดคือ 100 ล้านบาท', () => {
     expect(cfg.basisNotice.length).toBeGreaterThan(20);
     expect(MAX_TAX_INPUT_SATANG).toBe(10_000_000_000);

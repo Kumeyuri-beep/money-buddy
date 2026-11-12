@@ -41,6 +41,18 @@ export interface TaxYearConfig {
   readonly thaiEsg: PercentCap;
   /** เพดานรวมกลุ่มเกษียณ (RMF + ประกันชีวิตแบบบำนาญ ในเฟสแรก) */
   readonly retirementGroup: Sourced & { readonly capSatang: number };
+  /** เฟส 2 (เอกสารกรมสรรพากร ม.ค. 2568 ฉบับที่อ่านต้นฉบับได้) */
+  readonly spouse: Sourced & { readonly satang: number };
+  readonly child: Sourced & { readonly baseSatang: number; readonly extraSatang: number; readonly maxCount: number };
+  readonly parent: Sourced & { readonly perSatang: number; readonly maxCount: number };
+  readonly lifeInsurance: Sourced & { readonly capSatang: number };
+  readonly healthInsurance: Sourced & { readonly capSatang: number };
+  /** เพดานรวมประกันชีวิต + ประกันสุขภาพของผู้มีเงินได้ */
+  readonly lifeHealthGroup: Sourced & { readonly capSatang: number };
+  readonly parentsHealth: Sourced & { readonly capSatang: number };
+  readonly mortgageInterest: Sourced & { readonly capSatang: number };
+  /** บริจาคทั่วไป: ร้อยละของเงินได้หลังหักค่าใช้จ่ายและค่าลดหย่อนอื่น (ไม่รวม e-Donation 2 เท่า ซึ่งยังไม่ยืนยัน) */
+  readonly donation: Sourced & { readonly rateBps: number };
   /** ข้อความเตือนประจำปีภาษีนี้ แสดงคู่ผลลัพธ์ */
   readonly basisNotice: string;
 }
@@ -85,6 +97,15 @@ export const TAX_CONFIG_2569: TaxYearConfig = {
     note: 'ร้อยละ 30 ไม่เกิน 300,000 บาท แยกเพดานจากกลุ่มเกษียณ 500,000 (ไม่รวมในกลุ่ม) · รวม Thai ESGX (เจ้าของยืนยันตาม ก.ล.ต. 12 พ.ย. 2569 ต้นฉบับอ่านจากเครื่องผู้ช่วยไม่ได้) ต้องถือครองตามเงื่อนไข',
   },
   retirementGroup: { capSatang: baht(500_000), confidence: 'partial', source: SRC_PIT94_2569, note: 'เพดานรวม RMF/กองทุนสำรองเลี้ยงชีพ/กบข./ครูเอกชน/ประกันบำนาญ (จาก ภ.ง.ด.94 ปี 2569 ยังไม่ได้ตรวจกับแบบของเงินเดือน) · Thai ESG อยู่นอกกลุ่มนี้ ห้ามรวมในเพดานนี้' },
+  spouse: { satang: baht(60_000), confidence: 'partial', source: SRC_DEDUCTIONS, note: 'คู่สมรสไม่มีเงินได้' },
+  child: { baseSatang: baht(30_000), extraSatang: baht(30_000), maxCount: 20, confidence: 'partial', source: SRC_DEDUCTIONS, note: 'บุตรชอบด้วยกฎหมายคนละ 30,000 · คนที่ 2 เป็นต้นไปที่เกิดตั้งแต่ปี 2561 คนละ 60,000 (ไม่รองรับบุตรบุญธรรม ซึ่งมีเงื่อนไขจำกัด 3 คน) · ขีดสูงสุด 20 คนเป็นขีดกันข้อมูลผิดของแอป ไม่ใช่เพดานตามกฎหมาย' },
+  parent: { perSatang: baht(30_000), maxCount: 4, confidence: 'partial', source: SRC_DEDUCTIONS, note: 'อายุ 60 ปีขึ้นไป รายได้ไม่เกิน 30,000 บาท/ปี อยู่ในความอุปการะ (รวมบิดามารดาคู่สมรส) แอปตรวจเงื่อนไขไม่ได้ · ขีด 4 คน = ฝ่ายละ 2 คน (ผู้มีเงินได้และคู่สมรส)' },
+  lifeInsurance: { capSatang: baht(100_000), confidence: 'partial', source: SRC_DEDUCTIONS, note: 'กรมธรรม์อายุ 10 ปีขึ้นไป' },
+  healthInsurance: { capSatang: baht(25_000), confidence: 'partial', source: SRC_DEDUCTIONS },
+  lifeHealthGroup: { capSatang: baht(100_000), confidence: 'partial', source: SRC_DEDUCTIONS, note: 'ประกันชีวิตรวมประกันสุขภาพ (ของตนเอง) ไม่เกิน 100,000' },
+  parentsHealth: { capSatang: baht(15_000), confidence: 'partial', source: SRC_DEDUCTIONS, note: 'เบี้ยประกันสุขภาพบิดามารดา' },
+  mortgageInterest: { capSatang: baht(100_000), confidence: 'partial', source: SRC_DEDUCTIONS, note: 'ดอกเบี้ยเงินกู้ซื้อ/สร้างที่อยู่อาศัยที่จำนองเป็นประกัน' },
+  donation: { rateBps: 1000, confidence: 'partial', source: SRC_DEDUCTIONS, note: 'บริจาคทั่วไปไม่เกินร้อยละ 10 ของเงินได้หลังหักค่าใช้จ่ายและค่าลดหย่อน · ไม่รองรับ e-Donation 2 เท่า (ยังไม่ยืนยัน)' },
   basisNotice: 'ตัวเลขกฎหมายอ้างอิงเอกสารกรมสรรพากร (ฉบับ ม.ค. 2568 และเอกสารปีภาษี 2569) ยังไม่พบประกาศแก้ไขสำหรับปี 2569 แต่ไม่ได้ตรวจครบทุกฉบับ',
 };
 

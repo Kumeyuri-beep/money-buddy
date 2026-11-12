@@ -1,5 +1,5 @@
 /**
- * ฟอร์มเครื่องคิดภาษีเงินเดือน (เฟส 1 · กฎ R19) → SalaryTaxInput · ฟังก์ชันล้วน ไม่แตะ React/ฐานข้อมูล/ledger
+ * ฟอร์มเครื่องคิดภาษีเงินเดือน (เฟส 1-2 · กฎ R19) → SalaryTaxInput · ฟังก์ชันล้วน ไม่แตะ React/ฐานข้อมูล/ledger
  * ข้อความจากผู้ใช้แปลงเป็นสตางค์ด้วยตัวแปลงกลาง `parseBahtToSatang` ที่ขอบ UI (R2) ข้อผิดพลาดคืนเป็นรายช่อง (ไม่โยน)
  */
 
@@ -9,17 +9,28 @@ import { TAX_CONFIG_2569, type Confidence } from '../domain/tax/config';
 import { computeSalaryTax, type BalanceKind, type DeductionKey, type SalaryTaxInput, type SalaryTaxResult } from '../domain/tax/salaryTax';
 
 export interface TaxForm {
-  /** ติ๊ก = มีเงินได้อื่นนอกจากเงินเดือน (เฟสแรกยังไม่รองรับ) */
+  /** ติ๊ก = มีเงินได้อื่นนอกจากเงินเดือน (ยังไม่รองรับ) */
   hasOtherIncome: boolean;
+  /** ติ๊ก = คู่สมรสไม่มีเงินได้ */
+  spouseNoIncome: boolean;
   annualSalary: string;
   withheldTax: string;
   socialSecurityPaid: string;
   rmfPaid: string;
   pensionInsurancePaid: string;
   thaiEsgPaid: string;
+  /** จำนวนคน (ข้อความ จำนวนเต็ม) */
+  childrenCount: string;
+  extraChildrenCount: string;
+  parentsCount: string;
+  lifeInsurancePaid: string;
+  healthInsurancePaid: string;
+  parentsHealthPaid: string;
+  mortgageInterestPaid: string;
+  donationPaid: string;
 }
 
-export type TaxFormTextField = Exclude<keyof TaxForm, 'hasOtherIncome'>;
+export type TaxFormTextField = Exclude<keyof TaxForm, 'hasOtherIncome' | 'spouseNoIncome'>;
 
 export interface TaxFormError {
   field: TaxFormTextField | 'general';
@@ -35,21 +46,32 @@ export type TaxFormResult =
 export const TAX_DISCLAIMER = 'ตัวเลขนี้เป็นการประมาณการเท่านั้น ไม่ใช่คำแนะนำทางภาษี ไม่ใช่การรับประกันผล และอาจต่างจากที่กรมสรรพากรคำนวณ โปรดตรวจกับ e-Filing หรือกรมสรรพากรก่อนยื่นแบบ';
 
 /** ข้อจำกัดที่ต้องบอกผู้ใช้ (R19) */
-export const TAX_LIMITATIONS = 'รองรับเฉพาะเงินได้จากเงินเดือน (มาตรา 40(1)) ไม่รวมเงินได้อื่น ไม่ตรวจเงื่อนไขการถือครอง RMF/Thai ESG ไม่รวมค่าลดหย่อนอื่น (เช่น บุตร คู่สมรส บิดามารดา ประกันชีวิต/สุขภาพ ดอกเบี้ยบ้าน บริจาค กองทุนสำรองเลี้ยงชีพ) ไม่รวม SSF';
+export const TAX_LIMITATIONS =
+  'รองรับเฉพาะเงินได้จากเงินเดือน (มาตรา 40(1)) ไม่รวมเงินได้อื่น · ไม่ตรวจเงื่อนไขของสิทธิ (เช่น การถือครอง RMF/Thai ESG อายุและรายได้ของบิดามารดา) ผู้ใช้ต้องเป็นผู้ตรวจเอง · ยังไม่รวมค่าลดหย่อนอื่น (กองทุนสำรองเลี้ยงชีพ ค่าฝากครรภ์/คลอดบุตร อุปการะคนพิการ บุตรบุญธรรม ประกันชีวิตคู่สมรสที่ไม่มีเงินได้ บริจาคพรรคการเมือง วิสาหกิจเพื่อสังคม กอช.) · ไม่รวม SSF และการบริจาคแบบ e-Donation 2 เท่า';
 
 export const TAX_UNSUPPORTED_NOTE = 'เครื่องคิดนี้ยังไม่รองรับกรณีที่มีเงินได้อื่นนอกจากเงินเดือน จึงไม่แสดงตัวเลข เพื่อไม่ให้ได้ตัวเลขที่คลาดเคลื่อน โปรดใช้ e-Filing ของกรมสรรพากรหรือปรึกษาผู้เชี่ยวชาญ';
 
 export const TAX_DISPLAY_NOTE = 'ตัวเลขแสดงเป็นบาทเต็ม (ปัดครึ่งขึ้น) เป็นการประมาณ แต่ละค่าปัดแยกกัน ผลลบกันเองอาจต่างจากที่แสดง 1 บาท';
 
-export const TAX_PARTIAL_BADGE = 'ตามเอกสารกรมสรรพากร ม.ค. 2568 ไม่ระบุปีภาษี';
+export const TAX_PARTIAL_BADGE = 'อ้างอิง ม.ค. 2568';
+/** คำอธิบายป้ายสั้นด้านบน แสดงครั้งเดียวใต้ตาราง */
+export const TAX_PARTIAL_NOTE = 'ป้าย "อ้างอิง ม.ค. 2568" = ตัวเลขจากเอกสารกรมสรรพากรฉบับ ม.ค. 2568 ซึ่งไม่ระบุปีภาษี ยังไม่พบประกาศแก้ไขสำหรับปี 2569 · ป้าย "ยังไม่ยืนยัน" = ยังไม่มีแหล่งทางการที่อ่านได้';
 export const TAX_UNVERIFIED_BADGE = 'ยังไม่ยืนยัน';
 
 export const DEDUCTION_LABELS: Record<DeductionKey, string> = {
   personal: 'ลดหย่อนส่วนตัว',
+  spouse: 'คู่สมรสไม่มีเงินได้',
+  children: 'บุตร',
+  parents: 'บิดามารดา',
   socialSecurity: 'เงินสมทบประกันสังคม',
+  lifeInsurance: 'เบี้ยประกันชีวิต',
+  healthInsurance: 'เบี้ยประกันสุขภาพ',
+  parentsHealth: 'เบี้ยประกันสุขภาพบิดามารดา',
+  mortgageInterest: 'ดอกเบี้ยเงินกู้ที่อยู่อาศัย',
   rmf: 'กองทุน RMF',
   pensionInsurance: 'เบี้ยประกันชีวิตแบบบำนาญ',
   thaiEsg: 'กองทุน Thai ESG (รวม Thai ESGX)',
+  donation: 'เงินบริจาคทั่วไป',
 };
 
 export function confidenceBadge(level: Confidence): string | null {
@@ -60,42 +82,84 @@ export function confidenceBadge(level: Confidence): string | null {
 
 export const emptyTaxForm = (): TaxForm => ({
   hasOtherIncome: false,
+  spouseNoIncome: false,
   annualSalary: '',
   withheldTax: '',
   socialSecurityPaid: '',
   rmfPaid: '',
   pensionInsurancePaid: '',
   thaiEsgPaid: '',
+  childrenCount: '',
+  extraChildrenCount: '',
+  parentsCount: '',
+  lifeInsurancePaid: '',
+  healthInsurancePaid: '',
+  parentsHealthPaid: '',
+  mortgageInterestPaid: '',
+  donationPaid: '',
 });
 
-const LABEL: Record<TaxFormTextField, string> = {
+const MONEY_LABEL = {
   annualSalary: 'เงินได้จากเงินเดือนทั้งปี',
   withheldTax: 'ภาษีที่ถูกหักไปแล้วทั้งปี',
   socialSecurityPaid: 'เงินสมทบประกันสังคมที่จ่ายทั้งปี',
   rmfPaid: 'เงินที่ซื้อ RMF ในปี',
   pensionInsurancePaid: 'เบี้ยประกันชีวิตแบบบำนาญที่จ่ายในปี',
   thaiEsgPaid: 'เงินที่ซื้อ Thai ESG/ThaiESGX ในปี',
-};
-const REQUIRED: Record<TaxFormTextField, boolean> = {
-  annualSalary: true,
-  withheldTax: false,
-  socialSecurityPaid: false,
-  rmfPaid: false,
-  pensionInsurancePaid: false,
-  thaiEsgPaid: false,
-};
+  lifeInsurancePaid: 'เบี้ยประกันชีวิตที่จ่ายในปี',
+  healthInsurancePaid: 'เบี้ยประกันสุขภาพที่จ่ายในปี',
+  parentsHealthPaid: 'เบี้ยประกันสุขภาพบิดามารดาที่จ่ายในปี',
+  mortgageInterestPaid: 'ดอกเบี้ยเงินกู้ที่อยู่อาศัยที่จ่ายในปี',
+  donationPaid: 'เงินบริจาคที่จ่ายในปี',
+} as const;
+type MoneyField = keyof typeof MONEY_LABEL;
+const MONEY_FIELDS = Object.keys(MONEY_LABEL) as MoneyField[];
+
+const COUNT_LABEL = {
+  childrenCount: 'จำนวนบุตร',
+  extraChildrenCount: 'จำนวนบุตรที่ได้ลดหย่อนเพิ่ม',
+  parentsCount: 'จำนวนบิดามารดา',
+} as const;
+type CountField = keyof typeof COUNT_LABEL;
+const COUNT_FIELDS = Object.keys(COUNT_LABEL) as CountField[];
+const COUNT_PATTERN = /^\d{1,2}$/;
+
+/** ลำดับช่องบนหน้าจอ (ใช้เรียงข้อผิดพลาดเพื่อโฟกัสช่องแรกที่เห็น) */
+export const TAX_FIELD_SCREEN_ORDER: readonly TaxFormTextField[] = [
+  'annualSalary',
+  'withheldTax',
+  'childrenCount',
+  'extraChildrenCount',
+  'parentsCount',
+  'parentsHealthPaid',
+  'socialSecurityPaid',
+  'lifeInsurancePaid',
+  'healthInsurancePaid',
+  'mortgageInterestPaid',
+  'donationPaid',
+  'rmfPaid',
+  'pensionInsurancePaid',
+  'thaiEsgPaid',
+];
+
+function sortErrors(errors: TaxFormError[]): TaxFormError[] {
+  const rank = (e: TaxFormError): number => (e.field === 'general' ? 999 : TAX_FIELD_SCREEN_ORDER.indexOf(e.field));
+  return [...errors].sort((a, b) => rank(a) - rank(b));
+}
 
 export function buildTaxInput(form: TaxForm): TaxFormResult {
   if (form.hasOtherIncome) return { ok: false, unsupported: true };
+  const cfg = TAX_CONFIG_2569;
   const errors: TaxFormError[] = [];
-  const values = {} as Record<TaxFormTextField, number>;
+  const money = {} as Record<MoneyField, number>;
+  const counts = {} as Record<CountField, number>;
 
-  for (const field of Object.keys(LABEL) as TaxFormTextField[]) {
+  for (const field of MONEY_FIELDS) {
     const text = form[field];
-    const label = LABEL[field];
+    const label = MONEY_LABEL[field];
     if (text.trim() === '') {
-      if (REQUIRED[field]) errors.push({ field, message: `กรอก${label}` });
-      values[field] = 0;
+      if (field === 'annualSalary') errors.push({ field, message: `กรอก${label}` });
+      money[field] = 0;
       continue;
     }
     if (/^\s*[+-]/.test(text.replace(/฿/g, ''))) {
@@ -103,16 +167,56 @@ export function buildTaxInput(form: TaxForm): TaxFormResult {
       continue;
     }
     try {
-      values[field] = parseBahtToSatang(text.replace(/฿/g, ''));
+      money[field] = parseBahtToSatang(text.replace(/฿/g, ''));
     } catch (e) {
       errors.push({ field, message: e instanceof RangeError ? `${label}ใหญ่เกินไป` : `${label}ไม่ถูกต้อง` });
     }
   }
-  if (errors.length > 0) return { ok: false, errors };
 
-  const input: SalaryTaxInput = { ...values };
+  for (const field of COUNT_FIELDS) {
+    const text = form[field].trim();
+    const label = COUNT_LABEL[field];
+    if (text === '') {
+      counts[field] = 0;
+      continue;
+    }
+    if (!COUNT_PATTERN.test(text)) {
+      errors.push({ field, message: `${label}ต้องเป็นจำนวนเต็ม 0 ขึ้นไป (ไม่ต้องใส่จุดหรือเครื่องหมาย)` });
+      continue;
+    }
+    counts[field] = Number(text);
+  }
+  // ตรวจความสัมพันธ์ของจำนวนที่นี่ (รายช่อง) ก่อนถึงโดเมน
+  if (!errors.some((e) => e.field === 'childrenCount') && counts.childrenCount > cfg.child.maxCount) {
+    errors.push({ field: 'childrenCount', message: `${COUNT_LABEL.childrenCount}ต้องไม่เกิน ${cfg.child.maxCount} คน` });
+  }
+  if (!errors.some((e) => e.field === 'parentsCount') && counts.parentsCount > cfg.parent.maxCount) {
+    errors.push({ field: 'parentsCount', message: `${COUNT_LABEL.parentsCount}ต้องไม่เกิน ${cfg.parent.maxCount} คน (รวมของคู่สมรส)` });
+  }
+  if (!errors.some((e) => e.field === 'extraChildrenCount' || e.field === 'childrenCount') && counts.extraChildrenCount > Math.max(counts.childrenCount - 1, 0)) {
+    errors.push({ field: 'extraChildrenCount', message: `${COUNT_LABEL.extraChildrenCount}ต้องน้อยกว่าจำนวนบุตรทั้งหมดอย่างน้อย 1 คน (บุตรคนแรกไม่ได้ลดหย่อนเพิ่ม)` });
+  }
+  if (errors.length > 0) return { ok: false, errors: sortErrors(errors) };
+
+  const input: SalaryTaxInput = {
+    annualSalary: money.annualSalary,
+    withheldTax: money.withheldTax,
+    socialSecurityPaid: money.socialSecurityPaid,
+    rmfPaid: money.rmfPaid,
+    pensionInsurancePaid: money.pensionInsurancePaid,
+    thaiEsgPaid: money.thaiEsgPaid,
+    spouseNoIncome: form.spouseNoIncome,
+    childrenCount: counts.childrenCount,
+    extraChildrenCount: counts.extraChildrenCount,
+    parentsCount: counts.parentsCount,
+    lifeInsurancePaid: money.lifeInsurancePaid,
+    healthInsurancePaid: money.healthInsurancePaid,
+    parentsHealthPaid: money.parentsHealthPaid,
+    mortgageInterestPaid: money.mortgageInterestPaid,
+    donationPaid: money.donationPaid,
+  };
   try {
-    return { ok: true, input, result: computeSalaryTax(input, TAX_CONFIG_2569) };
+    return { ok: true, input, result: computeSalaryTax(input, cfg) };
   } catch (e) {
     // RangeError ภาษาไทยจากโดเมน (เกิน 100 ล้านบาท ฯลฯ) แสดงตามที่โดเมนบอก
     return { ok: false, errors: [{ field: 'general', message: e instanceof Error ? e.message : 'คำนวณไม่ได้' }] };

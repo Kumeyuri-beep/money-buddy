@@ -13,8 +13,8 @@ describe('TaxView (เรนเดอร์เริ่มต้น)', () => {
     expect(html).toContain(TAX_DISCLAIMER);
     expect(html).toContain('ไม่ถูกบันทึกลงสมุดบัญชี');
   });
-  it('มีช่องเงินเดือน ภาษีที่ถูกหัก และค่าลดหย่อน 4 ช่อง พร้อม label เชื่อมกับ input', () => {
-    for (const id of ['tx-salary', 'tx-withheld', 'tx-ss', 'tx-rmf', 'tx-pension', 'tx-esg', 'tx-other']) {
+  it('มีช่องเงินเดือน ภาษีที่ถูกหัก และช่องค่าลดหย่อนทั้งหมด พร้อม label เชื่อมกับ input', () => {
+    for (const id of ['tx-salary', 'tx-withheld', 'tx-ss', 'tx-rmf', 'tx-pension', 'tx-esg', 'tx-other', 'tx-spouse', 'tx-children', 'tx-children-extra', 'tx-parents', 'tx-parents-health', 'tx-life', 'tx-health', 'tx-mortgage', 'tx-donation']) {
       expect(html).toContain(`id="${id}"`);
       expect(html).toContain(`for="${id}"`);
     }
