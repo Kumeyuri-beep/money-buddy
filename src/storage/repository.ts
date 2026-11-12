@@ -536,9 +536,11 @@ export async function saveSettings(db: MoneyDB, settings: FinanceSettings): Prom
   if (problem) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${problem}`);
   const clean = sanitizeSettings(settings);
   // ผู้เรียกที่ไม่รู้จักแผน DCA (หน้าบิลสร้างค่าตั้งค่าใหม่ทั้งก้อน) ต้องไม่ลบแผนเดิม: ไม่ส่งฟิลด์ = คงของเดิม · ส่ง [] = ลบ
-  if (settings.dcaPlans === undefined) {
+  // การเลือกสินทรัพย์เกษียณก็เช่นกัน (ส่ง [] = ลบ) · อ่านค่าเดิมครั้งเดียวเพื่อให้ช่วงอ่านแล้วเขียนสั้นที่สุด
+  if (settings.dcaPlans === undefined || settings.retirementAssetIds === undefined) {
     const current = await loadSettings(db);
-    if (current.dcaPlans !== undefined) clean.dcaPlans = current.dcaPlans;
+    if (settings.dcaPlans === undefined && current.dcaPlans !== undefined) clean.dcaPlans = current.dcaPlans;
+    if (settings.retirementAssetIds === undefined && current.retirementAssetIds !== undefined) clean.retirementAssetIds = current.retirementAssetIds;
   }
   await db.meta.put({ key: SETTINGS_KEY, value: clean });
   return clean;

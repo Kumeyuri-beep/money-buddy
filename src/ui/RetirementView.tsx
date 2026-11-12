@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { buildRetirementInput, emptyRetirementForm, RETIREMENT_DISCLAIMER, RETIREMENT_LIMITATIONS, RETIREMENT_ON_TRACK_NOTE, RETIREMENT_REAL_RETURN_WARNING, RETIREMENT_ROUNDING_NOTE, type RetirementForm, type RetirementFormError, type RetirementFormField, type RetirementFormResult } from '../app/retirementForm';
 import { friendlyError } from '../app/errorText';
-import { retirementAssetOptions, summarizeRetirementPortfolio, RETIREMENT_STALE_PRICE_DAYS, type RetirementPortfolioSummary } from '../app/retirementPortfolio';
+import { initialRetirementSelection, retirementAssetOptions, summarizeRetirementPortfolio, RETIREMENT_STALE_PRICE_DAYS, type RetirementPortfolioSummary } from '../app/retirementPortfolio';
 import type { DcaPlan } from '../domain/invest/dcaPlan';
+import { MAX_RETIREMENT_ASSETS } from '../domain/invest/retirementSelection';
 import type { InvestmentData } from '../domain/invest/types';
 import { formatBaht, satang } from '../domain/money/satang';
 import { dcaVersusSaving, progressBarPercent, progressBps } from '../domain/retirement/progress';
@@ -91,6 +92,10 @@ export function RetirementView({ today }: { today: string }) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set<string>());
   const [linked, setLinked] = useState<RetirementPortfolioSummary | null>(null);
   const [portfolioBlock, setPortfolioBlock] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [restoredCount, setRestoredCount] = useState(0);
+  // บันทึกการเลือกทีละคิว (กดติ๊กรัวๆ แล้วค่าสุดท้ายต้องเป็นค่าที่เขียนทีหลังสุด)
+  const saveChain = useRef<Promise<void>>(Promise.resolve());
   const resultRef = useRef<HTMLHeadingElement>(null);
   const set = (patch: Partial<RetirementForm>) => setForm((f) => ({ ...f, ...patch }));
 
@@ -101,6 +106,14 @@ export function RetirementView({ today }: { today: string }) {
         if (cancelled) return;
         setInvest(d);
         setDcaPlans(settings.dcaPlans ?? []);
+        // การเลือกที่เคยบันทึกไว้ (เฟส 2b): รหัสของสินทรัพย์ที่ถูกลบไปแล้วถูกข้ามเงียบๆ
+        try {
+          const restored = initialRetirementSelection(settings.retirementAssetIds, retirementAssetOptions(d, today));
+          setSelected(restored);
+          setRestoredCount(restored.size);
+        } catch {
+          setSelected(new Set<string>());
+        }
       })
       .catch((e: unknown) => {
         if (!cancelled) setInvestError(friendlyError(e));
@@ -108,7 +121,7 @@ export function RetirementView({ today }: { today: string }) {
     return () => {
       cancelled = true;
     };
-  }, [repo]);
+  }, [repo, today]);
 
   const options = useMemo(() => {
     if (invest === null) return [];
@@ -128,13 +141,28 @@ export function RetirementView({ today }: { today: string }) {
     }
   }, [invest, today, selected, dcaPlans]);
 
-  const toggleAsset = (id: string) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+  // จำเฉพาะรายชื่อที่เลือก (ข้อมูลเข้า ไม่ใช่ยอด) ใน settings · อ่านค่าตั้งค่าล่าสุดก่อนเขียนเพื่อไม่ทับค่าอื่น
+  const persistSelection = (ids: ReadonlySet<string>) => {
+    const list = [...ids];
+    saveChain.current = saveChain.current.then(async () => {
+      try {
+        const current = await repo.loadSettings();
+        await repo.saveSettings({ ...current, retirementAssetIds: list });
+        setSaveError('');
+      } catch (e) {
+        setSaveError(friendlyError(e));
+      }
     });
+  };
+
+  const toggleAsset = (id: string) => {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelected(next);
+    setPortfolioBlock('');
+    persistSelection(next);
+  };
 
   const errors = useMemo(() => (submitted && !submitted.ok ? submitted.errors : []), [submitted]);
   const result = submitted && submitted.ok ? submitted : null;
@@ -170,6 +198,8 @@ export function RetirementView({ today }: { today: string }) {
     setLinked(null);
     setPortfolioBlock('');
     setSelected(new Set<string>());
+    setRestoredCount(0);
+    persistSelection(new Set<string>());
   };
 
   return (
@@ -206,13 +236,13 @@ export function RetirementView({ today }: { today: string }) {
             <fieldset className="pf-fieldset">
               <legend>นับพอร์ตลงทุนเป็นเงินเกษียณ (ไม่บังคับ)</legend>
               <p className="muted small">
-                เลือกเองว่าสินทรัพย์ไหนนับเป็นเงินเกษียณ ใช้มูลค่าตามราคาที่คุณกรอกไว้ ไม่ใช่ราคาทุน และไม่บันทึกการเลือกนี้
+                เลือกเองว่าสินทรัพย์ไหนนับเป็นเงินเกษียณ ใช้มูลค่าตามราคาที่คุณกรอกไว้ ไม่ใช่ราคาทุน ระบบจะจำรายชื่อที่เลือกไว้ให้ในบัญชีนี้ (ไม่เก็บยอดเงินหรือผลคำนวณ) เลือกได้ไม่เกิน {MAX_RETIREMENT_ASSETS} รายการ
               </p>
               <ul className="plain-list">
                 {options.map((o) => (
                   <li key={o.assetId}>
                     <label>
-                      <input type="checkbox" checked={selected.has(o.assetId)} onChange={() => toggleAsset(o.assetId)} />
+                      <input type="checkbox" checked={selected.has(o.assetId)} disabled={!selected.has(o.assetId) && selected.size >= MAX_RETIREMENT_ASSETS} onChange={() => toggleAsset(o.assetId)} />
                       <span>
                         {o.name}
                         {o.archived ? ' (เก็บถาวร)' : ''}
@@ -226,6 +256,14 @@ export function RetirementView({ today }: { today: string }) {
                   </li>
                 ))}
               </ul>
+              {restoredCount > 0 && (
+                <p className="muted small">เลือกไว้จากครั้งก่อน {restoredCount} รายการ ติ๊กออกได้</p>
+              )}
+              {saveError !== '' && (
+                <p className="muted small" role="status">
+                  จำการเลือกไม่สำเร็จ ครั้งหน้าอาจต้องเลือกใหม่ ใช้งานต่อได้ตามปกติ ({saveError})
+                </p>
+              )}
               {portfolioBlock !== '' && (
                 <p className="avg-err" role="alert">
                   {portfolioBlock}
@@ -281,6 +319,7 @@ export function RetirementView({ today }: { today: string }) {
               ล้างค่า
             </button>
           </div>
+          <p className="muted small">ล้างค่าจะล้างรายชื่อสินทรัพย์ที่จำไว้ด้วย</p>
         </form>
       </section>
 
