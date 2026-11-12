@@ -72,7 +72,11 @@ const FIELD_OF: Record<ProblemField, RetirementFormField> = {
 
 const INT = /^\d{1,3}$/;
 
-export function buildRetirementInput(form: RetirementForm): RetirementFormResult {
+/**
+ * savingsFromPortfolio (สตางค์): มูลค่าพอร์ตที่ผู้ใช้เลือกนับเป็นเงินเกษียณ (เฟส 2 · R18 ข้อ 18.8) ใช้แทนช่อง "เงินที่เก็บไว้แล้ว" ทั้งก้อน
+ * (ไม่บวกซ้ำกับค่าที่กรอกเอง · ช่องกรอกเองถูกเมินเมื่อมีค่านี้)
+ */
+export function buildRetirementInput(form: RetirementForm, savingsFromPortfolio?: number): RetirementFormResult {
   const errors: RetirementFormError[] = [];
   const err = (field: RetirementFormField, message: string): void => void errors.push({ field, message });
   const blank = (s: string): boolean => s.trim() === '';
@@ -128,7 +132,7 @@ export function buildRetirementInput(form: RetirementForm): RetirementFormResult
   const inflationBps = rate('inflation', 'เงินเฟ้อ');
   const returnBeforeBps = rate('returnBefore', 'ผลตอบแทนก่อนเกษียณ');
   const returnAfterBps = rate('returnAfter', 'ผลตอบแทนหลังเกษียณ');
-  const currentSavings = money('currentSavings', 'เงินออมปัจจุบัน', false);
+  const currentSavings = savingsFromPortfolio !== undefined ? savingsFromPortfolio : money('currentSavings', 'เงินออมปัจจุบัน', false);
 
   if (errors.length > 0) return { ok: false, errors };
 

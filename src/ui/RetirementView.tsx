@@ -1,6 +1,12 @@
-import { useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { buildRetirementInput, emptyRetirementForm, RETIREMENT_DISCLAIMER, RETIREMENT_LIMITATIONS, RETIREMENT_ON_TRACK_NOTE, RETIREMENT_REAL_RETURN_WARNING, RETIREMENT_ROUNDING_NOTE, type RetirementForm, type RetirementFormError, type RetirementFormField, type RetirementFormResult } from '../app/retirementForm';
+import { friendlyError } from '../app/errorText';
+import { retirementAssetOptions, summarizeRetirementPortfolio, RETIREMENT_STALE_PRICE_DAYS, type RetirementPortfolioSummary } from '../app/retirementPortfolio';
+import type { DcaPlan } from '../domain/invest/dcaPlan';
+import type { InvestmentData } from '../domain/invest/types';
 import { formatBaht, satang } from '../domain/money/satang';
+import { dcaVersusSaving, progressBarPercent, progressBps } from '../domain/retirement/progress';
+import { useRepository } from './RepositoryContext';
 import { formatHundredBaht, formatHundredBahtNonZero } from '../domain/retirement/display';
 
 const baht = (n: number): string => formatBaht(satang(n));
@@ -20,10 +26,11 @@ interface FieldProps {
   unit?: string;
   value: string;
   errors: RetirementFormError[];
+  disabled?: boolean;
   onChange: (v: string) => void;
 }
 
-function Field({ id, field, label, hint, placeholder, unit, value, errors, onChange }: FieldProps) {
+function Field({ id, field, label, hint, placeholder, unit, value, errors, disabled, onChange }: FieldProps) {
   const error = errors.find((e) => e.field === field);
   const describedBy = [hint ? `${id}-hint` : '', error ? `${id}-err` : ''].filter(Boolean).join(' ') || undefined;
   return (
@@ -39,6 +46,7 @@ function Field({ id, field, label, hint, placeholder, unit, value, errors, onCha
         autoComplete="off"
         placeholder={placeholder}
         value={value}
+        disabled={disabled}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
         onChange={(e) => onChange(e.target.value)}
@@ -72,19 +80,81 @@ const FIELD_ID: Record<RetirementFormField, string> = {
  * เครื่องคิดเลขเป้าเกษียณ (เฟส 1) · ตัวเลขเป็น "ประมาณการ" ไม่ใช่ยอดในสมุดบัญชี ไม่บันทึกอะไร ไม่แตะฐานข้อมูล
  * คำนวณด้วย domain/retirement เท่านั้น (ห้ามมีสูตรเงินในคอมโพเนนต์)
  */
-export function RetirementView() {
+export function RetirementView({ today }: { today: string }) {
+  const repo = useRepository();
   const [form, setForm] = useState<RetirementForm>(emptyRetirementForm());
   const [submitted, setSubmitted] = useState<RetirementFormResult | null>(null);
+  // ผูกพอร์ต (เฟส 2): ข้อมูลอ่านอย่างเดียว · ผู้ใช้เลือกเองว่านับสินทรัพย์ไหน (ค่าเริ่มต้นไม่เลือก ไม่บันทึกที่ไหน)
+  const [invest, setInvest] = useState<InvestmentData | null>(null);
+  const [dcaPlans, setDcaPlans] = useState<DcaPlan[]>([]);
+  const [investError, setInvestError] = useState('');
+  const [selected, setSelected] = useState<Set<string>>(() => new Set<string>());
+  const [linked, setLinked] = useState<RetirementPortfolioSummary | null>(null);
+  const [portfolioBlock, setPortfolioBlock] = useState('');
   const resultRef = useRef<HTMLHeadingElement>(null);
   const set = (patch: Partial<RetirementForm>) => setForm((f) => ({ ...f, ...patch }));
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([repo.loadInvestments(), repo.loadSettings()])
+      .then(([d, settings]) => {
+        if (cancelled) return;
+        setInvest(d);
+        setDcaPlans(settings.dcaPlans ?? []);
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setInvestError(friendlyError(e));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [repo]);
+
+  const options = useMemo(() => {
+    if (invest === null) return [];
+    try {
+      return retirementAssetOptions(invest, today);
+    } catch {
+      return [];
+    }
+  }, [invest, today]);
+  // สรุปตามที่เลือก (ใน try/catch: ข้อมูลพอร์ตพังไม่ทำให้เครื่องคิดเลขล้ม)
+  const summary = useMemo((): { value: RetirementPortfolioSummary | null; failure: string } => {
+    if (invest === null || selected.size === 0) return { value: null, failure: '' };
+    try {
+      return { value: summarizeRetirementPortfolio(invest, today, selected, dcaPlans), failure: '' };
+    } catch (e) {
+      return { value: null, failure: friendlyError(e) };
+    }
+  }, [invest, today, selected, dcaPlans]);
+
+  const toggleAsset = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const errors = useMemo(() => (submitted && !submitted.ok ? submitted.errors : []), [submitted]);
   const result = submitted && submitted.ok ? submitted : null;
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    const r = buildRetirementInput(form);
-    setSubmitted(r);
+    // เลือกพอร์ตแล้วแต่คำนวณมูลค่าไม่ได้ หรือที่เลือกไม่มีราคาเลย = ไม่คำนวณ (กันเงินออมกลายเป็น 0 หรือตกไปใช้ช่องกรอกเองโดยผู้ใช้ไม่รู้)
+    const block = selected.size > 0 && summary.failure !== '' ? 'คำนวณมูลค่าพอร์ตที่เลือกไม่สำเร็จ ลองยกเลิกการเลือกหรือใช้ช่องกรอกเอง' : summary.value !== null && summary.value.unpricedCount === summary.value.selectedCount ? 'สินทรัพย์ที่เลือกยังไม่มีราคาเลย กรอกราคาที่หน้าพอร์ตก่อน หรือยกเลิกการเลือกแล้วกรอกเงินที่เก็บไว้เอง' : '';
+    setPortfolioBlock(block);
+    if (block !== '') {
+      setSubmitted(null);
+      setLinked(null);
+      return;
+    }
+    const useLinked = summary.value !== null && selected.size > 0;
+    const r = buildRetirementInput(form, useLinked ? summary.value!.valueSatang : undefined);
+    setSubmitted(
+      r.ok || !useLinked ? r : { ok: false, errors: r.errors.map((x) => (x.field === 'currentSavings' ? { ...x, message: 'มูลค่าพอร์ตที่เลือกเกินเพดาน 1,000 ล้านบาท ลดจำนวนสินทรัพย์ที่เลือก' } : x)) },
+    );
+    setLinked(useLinked && r.ok ? summary.value : null);
     if (r.ok) {
       window.requestAnimationFrame(() => resultRef.current?.focus());
     } else {
@@ -97,6 +167,9 @@ export function RetirementView() {
   const reset = () => {
     setForm(emptyRetirementForm());
     setSubmitted(null);
+    setLinked(null);
+    setPortfolioBlock('');
+    setSelected(new Set<string>());
   };
 
   return (
@@ -129,7 +202,72 @@ export function RetirementView() {
             <Field id="rt-rb" field="returnBefore" label="ผลตอบแทนที่คาดก่อนเกษียณ" unit="% ต่อปี" placeholder="เช่น 5" hint="กำไรจากเงินที่เก็บ/ลงทุนต่อปี (-5 ถึง 15) ใส่ค่าติดลบได้ ไม่แน่ใจให้ตั้งต่ำไว้ก่อน" value={form.returnBefore} errors={errors} onChange={(v) => set({ returnBefore: v })} />
             <Field id="rt-ra" field="returnAfter" label="ผลตอบแทนที่คาดหลังเกษียณ" unit="% ต่อปี" placeholder="เช่น 3" hint="กำไรจากเงินก้อนที่เหลือตอนใช้เงิน (-5 ถึง 15) มักตั้งต่ำกว่าช่วงเก็บ" value={form.returnAfter} errors={errors} onChange={(v) => set({ returnAfter: v })} />
           </div>
-          <Field id="rt-savings" field="currentSavings" label="เงินที่เก็บไว้สำหรับเกษียณแล้ว (ถ้ามี)" unit="บาท" placeholder="ไม่บังคับ" hint="ใส่เพื่อดูว่าที่เก็บไว้พอแค่ไหน ปล่อยว่าง = เริ่มจาก 0" value={form.currentSavings} errors={errors} onChange={(v) => set({ currentSavings: v })} />
+          {options.length > 0 && (
+            <fieldset className="pf-fieldset">
+              <legend>นับพอร์ตลงทุนเป็นเงินเกษียณ (ไม่บังคับ)</legend>
+              <p className="muted small">
+                เลือกเองว่าสินทรัพย์ไหนนับเป็นเงินเกษียณ ใช้มูลค่าตามราคาที่คุณกรอกไว้ ไม่ใช่ราคาทุน และไม่บันทึกการเลือกนี้
+              </p>
+              <ul className="plain-list">
+                {options.map((o) => (
+                  <li key={o.assetId}>
+                    <label>
+                      <input type="checkbox" checked={selected.has(o.assetId)} onChange={() => toggleAsset(o.assetId)} />
+                      <span>
+                        {o.name}
+                        {o.archived ? ' (เก็บถาวร)' : ''}
+                        <span className="muted small">
+                          {' '}
+                          {o.error !== undefined ? '· ข้อมูลรายการนี้ผิดปกติ จึงไม่นับ' : o.valueSatang === null ? '· ยังไม่มีราคา' : `· ${baht(o.valueSatang)} (ราคาวันที่ ${o.priceDate ?? ''})`}
+                          {o.priceStale ? ` · ราคาเก่ากว่า ${RETIREMENT_STALE_PRICE_DAYS} วัน ควรอัปเดตที่หน้าพอร์ต` : ''}
+                        </span>
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+              {portfolioBlock !== '' && (
+                <p className="avg-err" role="alert">
+                  {portfolioBlock}
+                </p>
+              )}
+              {summary.failure !== '' && (
+                <p className="avg-err" role="alert">
+                  คำนวณมูลค่าพอร์ตไม่สำเร็จ: {summary.failure}
+                </p>
+              )}
+              {summary.value && (
+                <>
+                  <p className="small">
+                    เงินที่เก็บไว้แล้ว: <strong className="num">{baht(summary.value.valueSatang)}</strong> (จากพอร์ต ณ วันที่ราคาเก่าสุด {summary.value.oldestPriceDate ?? '-'})
+                  </p>
+                  {summary.value.unpricedCount > 0 && (
+                    <p className="notice" role="status">
+                      <strong>ข้อควรระวัง:</strong> มูลค่ารวมไม่ครบ มี {summary.value.unpricedCount} รายการที่ยังไม่มีราคา จึงยังไม่ถูกรวม ผลอาจต่ำกว่าจริง กรอกราคาที่หน้าพอร์ตก่อน
+                    </p>
+                  )}
+                  {summary.value.staleCount > 0 && (
+                    <p className="notice" role="status">
+                      <strong>ข้อควรระวัง:</strong> {summary.value.staleCount} รายการที่เลือกมีราคาเก่ากว่า {RETIREMENT_STALE_PRICE_DAYS} วัน
+                    </p>
+                  )}
+                </>
+              )}
+            </fieldset>
+          )}
+          {investError !== '' && <p className="muted small">โหลดข้อมูลพอร์ตไม่สำเร็จ ใช้ช่องกรอกเองได้ตามปกติ</p>}
+          <Field
+            id="rt-savings"
+            field="currentSavings"
+            label="เงินที่เก็บไว้สำหรับเกษียณแล้ว (ถ้ามี)"
+            unit="บาท"
+            placeholder="ไม่บังคับ"
+            hint={summary.value ? 'ใช้มูลค่าจากพอร์ตที่เลือกแทนช่องนี้ (ไม่บวกซ้ำ) · ยกเลิกการเลือกพอร์ตถ้าจะกรอกเอง' : 'ใส่เพื่อดูว่าที่เก็บไว้พอแค่ไหน ปล่อยว่าง = เริ่มจาก 0'}
+            value={form.currentSavings}
+            errors={errors}
+            disabled={summary.value !== null}
+            onChange={(v) => set({ currentSavings: v })}
+          />
           {errors.some((x) => x.field === 'general') && (
             <p id="rt-general-err" className="avg-err" role="alert" tabIndex={-1}>
               {errors.find((x) => x.field === 'general')?.message} ลองลดค่าใช้จ่าย ผลตอบแทน หรือเงินที่เก็บไว้แล้ว
@@ -168,7 +306,7 @@ export function RetirementView() {
           <p className="muted small">
             สมมติฐานที่ใช้: อายุตอนนี้ {result.input.currentAge} ปี · เกษียณที่ {result.input.retireAge} ปี · อยู่ถึง {result.input.lifeExpectancy} ปี · ค่าใช้จ่าย {baht(result.input.monthlyExpense)} ต่อเดือน (ราคาวันนี้) ·
             เงินเฟ้อ {bpsText(result.input.inflationBps)} · ผลตอบแทนก่อนเกษียณ {bpsText(result.input.returnBeforeBps)} · หลังเกษียณ {bpsText(result.input.returnAfterBps)} ต่อปี
-            {result.input.currentSavings !== undefined && result.input.currentSavings > 0 ? ` · เงินที่เก็บไว้แล้ว ${baht(result.input.currentSavings)}` : ''}
+            {result.input.currentSavings !== undefined && result.input.currentSavings > 0 ? ` · เงินที่เก็บไว้แล้ว ${baht(result.input.currentSavings)} (${linked ? `จากพอร์ต ณ วันที่ราคาเก่าสุด ${linked.oldestPriceDate ?? '-'}` : 'กรอกเอง'})` : ''}
           </p>
           <dl className="avg-result">
             <div>
@@ -200,6 +338,7 @@ export function RetirementView() {
               </>
             )}
           </dl>
+          {linked && <PortfolioProgress linked={linked} required={result.result.requiredAtRetirement} saving={result.result.monthlySaving} />}
           <p className="muted small">
             อีก {result.result.yearsToRetire} ปีถึงเกษียณ แล้วใช้เงินต่ออีก {result.result.retirementYears} ปี
           </p>
@@ -215,5 +354,37 @@ export function RetirementView() {
         </section>
       )}
     </>
+  );
+}
+
+/** ความคืบหน้าและเทียบแผน DCA (เฟส 2): แสดงผลอย่างเดียว ไม่ป้อนกลับสูตร ไม่บันทึก */
+function PortfolioProgress({ linked, required, saving }: { linked: RetirementPortfolioSummary; required: number; saving: number }) {
+  const bps = progressBps(linked.valueSatang, required);
+  const dca = linked.dcaPlanCount > 0 ? dcaVersusSaving(linked.dcaMonthly, saving) : null;
+  const barPercent = bps === null ? 0 : progressBarPercent(bps);
+  return (
+    <div className="progress-box" role="note">
+      {bps !== null && (
+        <>
+          <p>
+            <strong>ความคืบหน้า (ประมาณการ):</strong> {bpsText(bps)} ของเงินที่ควรมี{bps >= 10_000 ? ' · ถึงเป้าแล้วตามสมมติฐาน' : ''}
+          </p>
+          <div role="progressbar" aria-label="ความคืบหน้าสู่เป้า (ประมาณการ)" aria-valuemin={0} aria-valuemax={100} aria-valuenow={barPercent} aria-valuetext={`${bpsText(bps)} ของเงินที่ควรมี`} className="meter">
+            <div className="meter-fill" style={{ width: `${barPercent}%` }} />
+          </div>
+          <p className="muted small">คิดจากมูลค่าพอร์ตที่เลือกตามราคาที่คุณกรอก เทียบกับเงินที่ควรมี ณ วันเกษียณ (ยังไม่รวมการเติบโตระหว่างทาง) แสดงผลอย่างเดียว ไม่ได้นำไปคำนวณเงินที่ต้องเก็บ</p>
+        </>
+      )}
+      {dca && (
+        <>
+          <p>
+            <strong>แผนลงทุนสม่ำเสมอ (DCA) ต่อเดือนของสินทรัพย์ที่เลือก (ประมาณการ):</strong> <span className="num">{formatHundredBaht(dca.dcaMonthly, 'nearest')}</span> จาก {linked.dcaPlanCount} แผน เทียบกับที่ต้องเก็บ{' '}
+            <span className="num">{formatHundredBaht(dca.savingNeeded, 'up')}</span>
+            {dca.covered ? ' · แผนที่ตั้งไว้ถึงยอดนี้' : ` · ยังขาดอีกราว ${formatHundredBaht(dca.shortBy, 'up')} ต่อเดือน`}
+          </p>
+          <p className="muted small">แผนที่ตั้งไว้ ไม่ใช่เงินที่ผูกพันว่าจะทำตามจริง · ไม่นับเป็นเงินออม จนกว่าคุณจะซื้อจริงที่หน้าพอร์ต</p>
+        </>
+      )}
+    </div>
   );
 }

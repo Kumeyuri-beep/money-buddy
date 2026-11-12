@@ -400,7 +400,7 @@ export function App() {
       ) : view === 'averaging' ? (
         <AveragingView />
       ) : view === 'retirement' ? (
-        <RetirementView />
+        <RetirementView today={today} />
       ) : view === 'portfolio' ? (
         <PortfolioView today={today} wallets={walletOptions(accounts).map((a) => ({ id: a.id, name: a.name }))} onLedgerChanged={() => void refresh()} />
       ) : view === 'bills' ? (
