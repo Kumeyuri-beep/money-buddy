@@ -1,5 +1,5 @@
 -- ทดสอบ merge_settings: รวมค่าตั้งค่าฝั่งฐานข้อมูล (แก้ช่องแข่งเขียน), ลบคีย์, สิทธิ์, ไม่รั่วข้ามผู้ใช้, เพดานขนาด
--- วิธีรัน: วางทั้งไฟล์ใน Supabase SQL Editor (หรือ execute_sql) **หลังใส่ migration 20261112000100_merge_settings** · จบด้วย rollback: TESTS_PASSED
+-- วิธีรัน: วางทั้งไฟล์ใน Supabase SQL Editor (หรือ execute_sql) **หลังใส่ migration 20261112000100_merge_settings และ 20261113000100_settings_size_check** · จบด้วย rollback: TESTS_PASSED
 -- ไม่ใช้ข้อมูลการเงินจริง (ตัวเลขทั้งหมดสมมติ)
 
 create function pg_temp.settle() returns void language plpgsql as $$ begin execute 'set constraints all immediate'; execute 'set constraints all deferred'; end $$;
@@ -87,6 +87,21 @@ begin
   select value into v from public.settings where user_id = ua;
   if v is distinct from '{"payDay": 10, "monthlyBudget": 5}'::jsonb then raise exception 'FAIL: T10 ค่าเดิมเปลี่ยนหลังถูกปฏิเสธ (%)', v; end if;
 
+  -- T10b ขอบเพดานแบบวัดข้อความจริง (octet_length(value::text) < 16384): {"k": "xxx"} ยาว n + 9 ตัวอักษร
+  --      n = 16374 → 16383 ผ่าน · n = 16375 → 16384 ถูกปฏิเสธ · เพดานต้องวัดตามขนาดข้อความ ไม่ใช่ขนาดหลังบีบอัด (ข้อความซ้ำๆ บีบได้ดีแต่ยังต้องถูกปฏิเสธ)
+  v := public.merge_settings(jsonb_build_object('k', repeat('x', 16374)), array['payDay', 'monthlyBudget']);
+  if octet_length(v::text) <> 16383 then raise exception 'FAIL: T10b ขนาดข้อความไม่ใช่ 16383 (%)', octet_length(v::text); end if;
+  r := pg_temp.fails($$ select public.merge_settings(jsonb_build_object('k', repeat('x', 16375))) $$);
+  if r is null or r not like '%settings_value_size_check%' then raise exception 'FAIL: T10b ค่าขนาดข้อความ 16384 ต้องถูกปฏิเสธด้วย settings_value_size_check (%)', r; end if;
+  select value into v from public.settings where user_id = ua;
+  if octet_length(v::text) <> 16383 then raise exception 'FAIL: T10b ค่าเดิมเปลี่ยนหลังถูกปฏิเสธ (%)', octet_length(v::text); end if;
+  -- ข้อความซ้ำๆ ขนาดใหญ่มาก (บีบอัดได้ดีมาก) ต้องถูกปฏิเสธ
+  r := pg_temp.fails($$ select public.merge_settings(jsonb_build_object('k', repeat('ab', 200000))) $$);
+  if r is null or r not like '%settings_value_size_check%' then raise exception 'FAIL: T10b ข้อความซ้ำๆ ที่ใหญ่มากต้องถูกปฏิเสธด้วย settings_value_size_check (%)', r; end if;
+  -- กลับเป็นค่าเดิมของ T1-T10 เพื่อให้ T11 เทียบค่าได้
+  v := public.merge_settings('{"payDay": 10, "monthlyBudget": 5}'::jsonb, array['k']);
+  if v is distinct from '{"payDay": 10, "monthlyBudget": 5}'::jsonb then raise exception 'FAIL: T10b กลับค่าเดิมไม่ได้ (%)', v; end if;
+
   -- T11 ผู้ใช้ b: ไม่เห็นและไม่แก้ค่าของ a
   perform pg_temp.logout();
   perform pg_temp.login(ub);
@@ -116,6 +131,14 @@ begin
   select count(*) into n from information_schema.routine_privileges
    where routine_schema = 'public' and routine_name = 'merge_settings' and grantee in ('PUBLIC', 'anon');
   if n <> 0 then raise exception 'FAIL: T14 anon/public ยังมีสิทธิ์ execute (%)', n; end if;
+
+  -- T15 constraint ใหม่มีอยู่ ตัวเก่าถูกถอดแล้ว และยังบังคับ "ต้องเป็น object" ตรงๆ (ไม่ผ่าน RPC)
+  select count(*) into n from pg_constraint where conrelid = 'public.settings'::regclass and conname = 'settings_value_size_check' and convalidated;
+  if n <> 1 then raise exception 'FAIL: T15 ไม่มี settings_value_size_check ที่ตรวจแล้ว (%)', n; end if;
+  select count(*) into n from pg_constraint where conrelid = 'public.settings'::regclass and conname = 'settings_value_check';
+  if n <> 0 then raise exception 'FAIL: T15 constraint เดิมยังไม่ถูกถอด (%)', n; end if;
+  r := pg_temp.fails($$ insert into public.settings (user_id, value) values (gen_random_uuid(), '[1]'::jsonb) $$);
+  if r is null or r not like '%settings_value_size_check%' then raise exception 'FAIL: T15 ค่าที่ไม่ใช่ object ต้องถูกปฏิเสธด้วย settings_value_size_check (%)', r; end if;
 
   raise exception 'TESTS_PASSED (rollback แล้ว ไม่มีข้อมูลทดสอบเหลือ)';
 end
