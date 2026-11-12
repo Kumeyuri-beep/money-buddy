@@ -28,6 +28,15 @@ export interface TaxForm {
   parentsHealthPaid: string;
   mortgageInterestPaid: string;
   donationPaid: string;
+  /** ว่าง = ใช้เท่ากับจำนวนบุตรที่ลดหย่อน */
+  livingChildrenCount: string;
+  adoptedChildrenCount: string;
+  disabledRelativesCount: string;
+  disabledOtherCount: string;
+  /** ค่าฝากครรภ์และคลอดบุตร แยกรายครรภ์ (สูงสุด 2 ครรภ์) */
+  prenatalPaid1: string;
+  prenatalPaid2: string;
+  spouseLifeInsurancePaid: string;
 }
 
 export type TaxFormTextField = Exclude<keyof TaxForm, 'hasOtherIncome' | 'spouseNoIncome'>;
@@ -47,7 +56,7 @@ export const TAX_DISCLAIMER = 'ตัวเลขนี้เป็นการ�
 
 /** ข้อจำกัดที่ต้องบอกผู้ใช้ (R19) */
 export const TAX_LIMITATIONS =
-  'รองรับเฉพาะเงินได้จากเงินเดือน (มาตรา 40(1)) ไม่รวมเงินได้อื่น · ไม่ตรวจเงื่อนไขของสิทธิ (เช่น การถือครอง RMF/Thai ESG อายุและรายได้ของบิดามารดา) ผู้ใช้ต้องเป็นผู้ตรวจเอง · ยังไม่รวมค่าลดหย่อนอื่น (กองทุนสำรองเลี้ยงชีพ ค่าฝากครรภ์/คลอดบุตร อุปการะคนพิการ บุตรบุญธรรม ประกันชีวิตคู่สมรสที่ไม่มีเงินได้ บริจาคพรรคการเมือง วิสาหกิจเพื่อสังคม กอช.) · ไม่รวม SSF และการบริจาคแบบ e-Donation 2 เท่า';
+  'รองรับเฉพาะเงินได้จากเงินเดือน (มาตรา 40(1)) ไม่รวมเงินได้อื่น · ไม่ตรวจเงื่อนไขของสิทธิ (เช่น การถือครอง RMF/Thai ESG อายุและรายได้ของบิดามารดา) ผู้ใช้ต้องเป็นผู้ตรวจเอง · ยังไม่รวมค่าลดหย่อนอื่น (กองทุนสำรองเลี้ยงชีพ บริจาคพรรคการเมือง วิสาหกิจเพื่อสังคม กอช.) · แอปไม่ตรวจว่าคนเดียวกันถูกนับซ้ำหรือไม่ (เช่น คู่สมรสที่พิการได้ทั้งลดหย่อนคู่สมรสและคนพิการ ซึ่งกฎหมายแยกเป็นคนละรายการ) · ไม่ตรวจเอกสารประกอบสิทธิ เช่น บัตรคนพิการ เอกสารจากแพทย์ ใบเสร็จฝากครรภ์ เอกสารแสดงการเป็นผู้อุปการะ · ไม่รวม SSF และการบริจาคแบบ e-Donation 2 เท่า';
 
 export const TAX_UNSUPPORTED_NOTE = 'เครื่องคิดนี้ยังไม่รองรับกรณีที่มีเงินได้อื่นนอกจากเงินเดือน จึงไม่แสดงตัวเลข เพื่อไม่ให้ได้ตัวเลขที่คลาดเคลื่อน โปรดใช้ e-Filing ของกรมสรรพากรหรือปรึกษาผู้เชี่ยวชาญ';
 
@@ -61,11 +70,15 @@ export const TAX_UNVERIFIED_BADGE = 'ยังไม่ยืนยัน';
 export const DEDUCTION_LABELS: Record<DeductionKey, string> = {
   personal: 'ลดหย่อนส่วนตัว',
   spouse: 'คู่สมรสไม่มีเงินได้',
-  children: 'บุตร',
+  children: 'บุตรชอบด้วยกฎหมาย',
+  adoptedChildren: 'บุตรบุญธรรม',
   parents: 'บิดามารดา',
+  disabled: 'คนพิการหรือทุพพลภาพที่เลี้ยงดู',
+  prenatal: 'ค่าฝากครรภ์และคลอดบุตร',
   socialSecurity: 'เงินสมทบประกันสังคม',
   lifeInsurance: 'เบี้ยประกันชีวิต',
   healthInsurance: 'เบี้ยประกันสุขภาพ',
+  spouseLifeInsurance: 'เบี้ยประกันชีวิตคู่สมรส (ไม่มีเงินได้)',
   parentsHealth: 'เบี้ยประกันสุขภาพบิดามารดา',
   mortgageInterest: 'ดอกเบี้ยเงินกู้ที่อยู่อาศัย',
   rmf: 'กองทุน RMF',
@@ -97,6 +110,13 @@ export const emptyTaxForm = (): TaxForm => ({
   parentsHealthPaid: '',
   mortgageInterestPaid: '',
   donationPaid: '',
+  livingChildrenCount: '',
+  adoptedChildrenCount: '',
+  disabledRelativesCount: '',
+  disabledOtherCount: '',
+  prenatalPaid1: '',
+  prenatalPaid2: '',
+  spouseLifeInsurancePaid: '',
 });
 
 const MONEY_LABEL = {
@@ -111,6 +131,9 @@ const MONEY_LABEL = {
   parentsHealthPaid: 'เบี้ยประกันสุขภาพบิดามารดาที่จ่ายในปี',
   mortgageInterestPaid: 'ดอกเบี้ยเงินกู้ที่อยู่อาศัยที่จ่ายในปี',
   donationPaid: 'เงินบริจาคที่จ่ายในปี',
+  prenatalPaid1: 'ค่าฝากครรภ์และคลอดบุตร ครรภ์ที่ 1',
+  prenatalPaid2: 'ค่าฝากครรภ์และคลอดบุตร ครรภ์ที่ 2',
+  spouseLifeInsurancePaid: 'เบี้ยประกันชีวิตคู่สมรสที่จ่ายในปี',
 } as const;
 type MoneyField = keyof typeof MONEY_LABEL;
 const MONEY_FIELDS = Object.keys(MONEY_LABEL) as MoneyField[];
@@ -119,6 +142,10 @@ const COUNT_LABEL = {
   childrenCount: 'จำนวนบุตร',
   extraChildrenCount: 'จำนวนบุตรที่ได้ลดหย่อนเพิ่ม',
   parentsCount: 'จำนวนบิดามารดา',
+  livingChildrenCount: 'จำนวนบุตรที่มีชีวิตทั้งหมด',
+  adoptedChildrenCount: 'จำนวนบุตรบุญธรรม',
+  disabledRelativesCount: 'จำนวนคนพิการ/ทุพพลภาพที่เป็นญาติ',
+  disabledOtherCount: 'จำนวนคนพิการ/ทุพพลภาพที่เป็นบุคคลอื่น',
 } as const;
 type CountField = keyof typeof COUNT_LABEL;
 const COUNT_FIELDS = Object.keys(COUNT_LABEL) as CountField[];
@@ -128,10 +155,17 @@ const COUNT_PATTERN = /^\d{1,2}$/;
 export const TAX_FIELD_SCREEN_ORDER: readonly TaxFormTextField[] = [
   'annualSalary',
   'withheldTax',
+  'spouseLifeInsurancePaid',
   'childrenCount',
   'extraChildrenCount',
+  'livingChildrenCount',
+  'adoptedChildrenCount',
+  'prenatalPaid1',
+  'prenatalPaid2',
   'parentsCount',
   'parentsHealthPaid',
+  'disabledRelativesCount',
+  'disabledOtherCount',
   'socialSecurityPaid',
   'lifeInsurancePaid',
   'healthInsurancePaid',
@@ -193,6 +227,18 @@ export function buildTaxInput(form: TaxForm): TaxFormResult {
   if (!errors.some((e) => e.field === 'parentsCount') && counts.parentsCount > cfg.parent.maxCount) {
     errors.push({ field: 'parentsCount', message: `${COUNT_LABEL.parentsCount}ต้องไม่เกิน ${cfg.parent.maxCount} คน (รวมของคู่สมรส)` });
   }
+  const maxOf: Partial<Record<CountField, number>> = { livingChildrenCount: cfg.child.maxCount, adoptedChildrenCount: cfg.adoptedChild.maxTotalChildren, disabledRelativesCount: cfg.disability.maxRelatives, disabledOtherCount: cfg.disability.maxOthers };
+  for (const field of Object.keys(maxOf) as CountField[]) {
+    if (!errors.some((e) => e.field === field) && counts[field] > maxOf[field]!) {
+      errors.push({ field, message: `${COUNT_LABEL[field]}ต้องไม่เกิน ${maxOf[field]} คน` });
+    }
+  }
+  if (form.livingChildrenCount.trim() !== '' && !errors.some((e) => e.field === 'livingChildrenCount' || e.field === 'childrenCount') && counts.livingChildrenCount < counts.childrenCount) {
+    errors.push({ field: 'livingChildrenCount', message: 'จำนวนบุตรที่มีชีวิตทั้งหมดต้องไม่น้อยกว่าจำนวนบุตรที่ลดหย่อน' });
+  }
+  if (!errors.some((e) => e.field === 'spouseLifeInsurancePaid') && money.spouseLifeInsurancePaid > 0 && !form.spouseNoIncome) {
+    errors.push({ field: 'spouseLifeInsurancePaid', message: 'เบี้ยประกันชีวิตคู่สมรสใช้ได้เมื่อคู่สมรสไม่มีเงินได้ ติ๊ก "คู่สมรสไม่มีเงินได้" ก่อน' });
+  }
   if (!errors.some((e) => e.field === 'extraChildrenCount' || e.field === 'childrenCount') && counts.extraChildrenCount > Math.max(counts.childrenCount - 1, 0)) {
     errors.push({ field: 'extraChildrenCount', message: `${COUNT_LABEL.extraChildrenCount}ต้องน้อยกว่าจำนวนบุตรทั้งหมดอย่างน้อย 1 คน (บุตรคนแรกไม่ได้ลดหย่อนเพิ่ม)` });
   }
@@ -214,6 +260,12 @@ export function buildTaxInput(form: TaxForm): TaxFormResult {
     parentsHealthPaid: money.parentsHealthPaid,
     mortgageInterestPaid: money.mortgageInterestPaid,
     donationPaid: money.donationPaid,
+    ...(form.livingChildrenCount.trim() !== '' ? { livingChildrenCount: counts.livingChildrenCount } : {}),
+    adoptedChildrenCount: counts.adoptedChildrenCount,
+    disabledRelativesCount: counts.disabledRelativesCount,
+    disabledOtherCount: counts.disabledOtherCount,
+    prenatalPaid: [money.prenatalPaid1, money.prenatalPaid2],
+    spouseLifeInsurancePaid: money.spouseLifeInsurancePaid,
   };
   try {
     return { ok: true, input, result: computeSalaryTax(input, cfg) };

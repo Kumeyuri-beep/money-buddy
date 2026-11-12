@@ -85,7 +85,7 @@ describe('ป้ายความมั่นใจและข้อควา�
     expect(TAX_LIMITATIONS).toContain('ไม่ตรวจเงื่อนไขของสิทธิ');
   });
   it('ป้ายชื่อค่าลดหย่อนครบทุกตัว', () => {
-    expect(Object.keys(DEDUCTION_LABELS)).toHaveLength(13);
+    expect(Object.keys(DEDUCTION_LABELS)).toHaveLength(17);
   });
 });
 

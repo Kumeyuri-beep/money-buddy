@@ -36,6 +36,13 @@ const FIELD_ID: Record<TaxFormTextField, string> = {
   parentsHealthPaid: 'tx-parents-health',
   mortgageInterestPaid: 'tx-mortgage',
   donationPaid: 'tx-donation',
+  livingChildrenCount: 'tx-living',
+  adoptedChildrenCount: 'tx-adopted',
+  disabledRelativesCount: 'tx-disabled-rel',
+  disabledOtherCount: 'tx-disabled-other',
+  prenatalPaid1: 'tx-prenatal-1',
+  prenatalPaid2: 'tx-prenatal-2',
+  spouseLifeInsurancePaid: 'tx-spouse-life',
 };
 
 interface FieldProps {
@@ -155,7 +162,7 @@ export function TaxView() {
             ค่าลดหย่อนทุกช่องไม่บังคับ · ลดหย่อนส่วนตัว {formatWholeBaht(cfg.personalAllowance.satang)} และค่าใช้จ่ายร้อยละ 50 (ไม่เกิน {formatWholeBaht(cfg.employmentExpense.capSatang ?? 0)}) ใส่ให้อัตโนมัติ
           </p>
           <fieldset className="pf-fieldset">
-            <legend>ครอบครัว</legend>
+            <legend>คู่สมรสและบุตร</legend>
             <div className="field">
               <label className="check-row" htmlFor="tx-spouse">
                 <input id="tx-spouse" type="checkbox" checked={form.spouseNoIncome} onChange={(e) => set({ spouseNoIncome: e.target.checked })} />
@@ -163,21 +170,42 @@ export function TaxView() {
               </label>
             </div>
             <div className="field-row">
-              <Field field="childrenCount" label="จำนวนบุตรชอบด้วยกฎหมาย" unit="คน" placeholder="0" value={form.childrenCount} errors={errors} onChange={(v) => set({ childrenCount: v })} />
+              <Field field="spouseLifeInsurancePaid" label="เบี้ยประกันชีวิตคู่สมรสที่จ่ายในปี" hint="ใช้ได้เมื่อติ๊ก คู่สมรสไม่มีเงินได้ ไม่เกิน 10,000 บาท" placeholder="ไม่บังคับ" value={form.spouseLifeInsurancePaid} errors={errors} onChange={(v2) => set({ spouseLifeInsurancePaid: v2 })} />
+            </div>
+            <div className="field-row">
+              <Field field="childrenCount" label="จำนวนบุตร (ลูกของคุณเอง)" unit="คน" placeholder="0" value={form.childrenCount} errors={errors} onChange={(v2) => set({ childrenCount: v2 })} />
               <Field
                 field="extraChildrenCount"
-                label="บุตรคนที่ 2 ขึ้นไปที่เกิดปี 2561 หรือหลังจากนั้น"
+                label="บุตรคนที่ 2 ขึ้นไป ที่เกิดปี 2561 เป็นต้นมา"
                 unit="คน"
-                hint="นับเฉพาะคนที่ได้ 60,000 บาท (แทน 30,000) ต้องน้อยกว่าจำนวนบุตรทั้งหมด (บุตรคนแรกไม่นับ)"
+                hint="ได้คนละ 60,000 บาท (นับเฉพาะคนที่ 2 เป็นต้นไป)"
                 placeholder="0"
                 value={form.extraChildrenCount}
                 errors={errors}
-                onChange={(v) => set({ extraChildrenCount: v })}
+                onChange={(v2) => set({ extraChildrenCount: v2 })}
               />
             </div>
             <div className="field-row">
-              <Field field="parentsCount" label="จำนวนบิดามารดาที่เลี้ยงดู" unit="คน" hint="อายุ 60 ปีขึ้นไป รายได้ไม่เกิน 30,000 บาทต่อปี รวมของคู่สมรสได้ไม่เกิน 4 คน" placeholder="0" value={form.parentsCount} errors={errors} onChange={(v) => set({ parentsCount: v })} />
-              <Field field="parentsHealthPaid" label="เบี้ยประกันสุขภาพบิดามารดาที่จ่ายในปี" placeholder="ไม่บังคับ" value={form.parentsHealthPaid} errors={errors} onChange={(v) => set({ parentsHealthPaid: v })} />
+              <Field field="livingChildrenCount" label="บุตรที่ยังมีชีวิตทั้งหมด (รวมคนที่ไม่ได้ลดหย่อน)" unit="คน" hint="ใช้นับเพดานบุตรบุญธรรม 3 คน ถ้าเว้นว่างจะใช้จำนวนบุตรด้านบน" placeholder="เว้นว่างได้" value={form.livingChildrenCount} errors={errors} onChange={(v2) => set({ livingChildrenCount: v2 })} />
+              <Field field="adoptedChildrenCount" label="จำนวนบุตรบุญธรรม" unit="คน" hint="รวมกับบุตรตามกฎหมายหักได้ไม่เกิน 3 คน" placeholder="0" value={form.adoptedChildrenCount} errors={errors} onChange={(v2) => set({ adoptedChildrenCount: v2 })} />
+            </div>
+            <div className="field-row">
+              <Field field="prenatalPaid1" label="ค่าฝากครรภ์และคลอดบุตร ครรภ์ที่ 1" hint="จ่ายจริงไม่เกิน 60,000 บาทต่อครรภ์" placeholder="ไม่บังคับ" value={form.prenatalPaid1} errors={errors} onChange={(v2) => set({ prenatalPaid1: v2 })} />
+              <Field field="prenatalPaid2" label="ค่าฝากครรภ์และคลอดบุตร ครรภ์ที่ 2" hint="ใช้เมื่อมีสองครรภ์ในปีเดียวกัน" placeholder="ไม่บังคับ" value={form.prenatalPaid2} errors={errors} onChange={(v2) => set({ prenatalPaid2: v2 })} />
+            </div>
+          </fieldset>
+          <fieldset className="pf-fieldset">
+            <legend>บิดามารดา</legend>
+            <div className="field-row">
+              <Field field="parentsCount" label="จำนวนบิดามารดาที่เลี้ยงดู" unit="คน" hint="อายุ 60 ปีขึ้นไป รายได้ไม่เกิน 30,000 บาทต่อปี รวมของคู่สมรสได้ไม่เกิน 4 คน" placeholder="0" value={form.parentsCount} errors={errors} onChange={(v2) => set({ parentsCount: v2 })} />
+              <Field field="parentsHealthPaid" label="เบี้ยประกันสุขภาพบิดามารดาที่จ่ายในปี" hint="ไม่เกิน 15,000 บาท" placeholder="ไม่บังคับ" value={form.parentsHealthPaid} errors={errors} onChange={(v2) => set({ parentsHealthPaid: v2 })} />
+            </div>
+          </fieldset>
+          <fieldset className="pf-fieldset">
+            <legend>คนพิการหรือทุพพลภาพที่คุณเลี้ยงดู</legend>
+            <div className="field-row">
+              <Field field="disabledRelativesCount" label="คนพิการในครอบครัว" unit="คน" hint="พ่อแม่ คู่สมรส ลูก หรือพ่อแม่ของคู่สมรส (มีบัตรคนพิการ รายได้ไม่เกิน 30,000 บาทต่อปี)" placeholder="0" value={form.disabledRelativesCount} errors={errors} onChange={(v2) => set({ disabledRelativesCount: v2 })} />
+              <Field field="disabledOtherCount" label="คนพิการที่ไม่ใช่คนในครอบครัวข้างต้น" unit="คน" hint="ได้ไม่เกิน 1 คน" placeholder="0" value={form.disabledOtherCount} errors={errors} onChange={(v2) => set({ disabledOtherCount: v2 })} />
             </div>
           </fieldset>
           <fieldset className="pf-fieldset">

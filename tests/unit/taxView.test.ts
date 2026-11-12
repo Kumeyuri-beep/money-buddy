@@ -14,7 +14,7 @@ describe('TaxView (เรนเดอร์เริ่มต้น)', () => {
     expect(html).toContain('ไม่ถูกบันทึกลงสมุดบัญชี');
   });
   it('มีช่องเงินเดือน ภาษีที่ถูกหัก และช่องค่าลดหย่อนทั้งหมด พร้อม label เชื่อมกับ input', () => {
-    for (const id of ['tx-salary', 'tx-withheld', 'tx-ss', 'tx-rmf', 'tx-pension', 'tx-esg', 'tx-other', 'tx-spouse', 'tx-children', 'tx-children-extra', 'tx-parents', 'tx-parents-health', 'tx-life', 'tx-health', 'tx-mortgage', 'tx-donation']) {
+    for (const id of ['tx-salary', 'tx-withheld', 'tx-ss', 'tx-rmf', 'tx-pension', 'tx-esg', 'tx-other', 'tx-spouse', 'tx-children', 'tx-children-extra', 'tx-parents', 'tx-parents-health', 'tx-life', 'tx-health', 'tx-mortgage', 'tx-donation', 'tx-adopted', 'tx-disabled-rel', 'tx-disabled-other', 'tx-prenatal-1', 'tx-prenatal-2', 'tx-spouse-life']) {
       expect(html).toContain(`id="${id}"`);
       expect(html).toContain(`for="${id}"`);
     }

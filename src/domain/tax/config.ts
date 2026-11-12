@@ -53,6 +53,14 @@ export interface TaxYearConfig {
   readonly mortgageInterest: Sourced & { readonly capSatang: number };
   /** บริจาคทั่วไป: ร้อยละของเงินได้หลังหักค่าใช้จ่ายและค่าลดหย่อนอื่น (ไม่รวม e-Donation 2 เท่า ซึ่งยังไม่ยืนยัน) */
   readonly donation: Sourced & { readonly rateBps: number };
+  /** ค่าฝากครรภ์และคลอดบุตร: จ่ายจริงไม่เกินเพดานต่อครรภ์ (แต่ละคราว) */
+  readonly prenatal: Sourced & { readonly capPerPregnancySatang: number; readonly maxPregnancies: number };
+  /** อุปการะคนพิการ/ทุพพลภาพ: คนละ perSatang · ญาติตามรายการ (บิดามารดา คู่สมรส บุตร ฯลฯ) ไม่จำกัดคนในแอป ขีด maxRelatives กันข้อมูลผิด · บุคคลอื่นไม่เกิน maxOthers */
+  readonly disability: Sourced & { readonly perSatang: number; readonly maxRelatives: number; readonly maxOthers: number };
+  /** บุตรบุญธรรม: คนละ perSatang · รวมกับบุตรชอบด้วยกฎหมายไม่เกิน maxTotalChildren คน (บุตรชอบด้วยกฎหมายตั้งแต่ครบจำนวนนี้ หักบุตรบุญธรรมไม่ได้) */
+  readonly adoptedChild: Sourced & { readonly perSatang: number; readonly maxTotalChildren: number };
+  /** เบี้ยประกันชีวิตของคู่สมรสที่ไม่มีเงินได้ (แยกจากกลุ่มประกันชีวิต+สุขภาพของผู้มีเงินได้) */
+  readonly spouseLifeInsurance: Sourced & { readonly capSatang: number };
   /** ข้อความเตือนประจำปีภาษีนี้ แสดงคู่ผลลัพธ์ */
   readonly basisNotice: string;
 }
@@ -106,6 +114,10 @@ export const TAX_CONFIG_2569: TaxYearConfig = {
   parentsHealth: { capSatang: baht(15_000), confidence: 'partial', source: SRC_DEDUCTIONS, note: 'เบี้ยประกันสุขภาพบิดามารดา' },
   mortgageInterest: { capSatang: baht(100_000), confidence: 'partial', source: SRC_DEDUCTIONS, note: 'ดอกเบี้ยเงินกู้ซื้อ/สร้างที่อยู่อาศัยที่จำนองเป็นประกัน' },
   donation: { rateBps: 1000, confidence: 'partial', source: SRC_DEDUCTIONS, note: 'บริจาคทั่วไปไม่เกินร้อยละ 10 ของเงินได้หลังหักค่าใช้จ่ายและค่าลดหย่อน · ไม่รองรับ e-Donation 2 เท่า (ยังไม่ยืนยัน)' },
+  prenatal: { capPerPregnancySatang: baht(60_000), maxPregnancies: 2, confidence: 'partial', source: SRC_DEDUCTIONS, note: 'ค่าฝากครรภ์และคลอดบุตรจ่ายจริงไม่เกิน 60,000 บาทต่อครรภ์ (แต่ละคราว) · รองรับสูงสุด 2 ครรภ์ต่อปี (ขีดของแอป)' },
+  disability: { perSatang: baht(60_000), maxRelatives: 20, maxOthers: 1, confidence: 'partial', source: SRC_DEDUCTIONS, note: 'คนพิการที่มีบัตรประจำตัวคนพิการหรือทุพพลภาพ รายได้ไม่เกิน 30,000 บาท/ปี และต้องมีเอกสารตามเงื่อนไข (แอปตรวจไม่ได้) · ญาติตามรายการ (บิดามารดา คู่สมรส บุตร บิดามารดาคู่สมรส) ได้ทุกคน บุคคลอื่นได้ไม่เกิน 1 คน (ที่มา: ภ.ง.ด.94 ปี 2569 หัวข้อ 5) · คนเดียวกันที่ได้ลดหย่อนปกติ (คู่สมรส บิดามารดา บุตร) ใช้ลดหย่อนคนพิการได้ด้วย เพราะเป็นคนละรายการ' },
+  adoptedChild: { perSatang: baht(30_000), maxTotalChildren: 3, confidence: 'partial', source: SRC_PIT94_2569, note: 'บุตรบุญธรรมคนละ 30,000 รวมกับบุตรชอบด้วยกฎหมายต้องไม่เกิน 3 คน และถ้าบุตรชอบด้วยกฎหมายมี 3 คนขึ้นไป หักบุตรบุญธรรมไม่ได้ · นับจำนวนบุตรชอบด้วยกฎหมายที่ยังมีชีวิตทั้งหมดรวมคนที่ไม่เข้าเกณฑ์ลดหย่อน · บุตรบุญธรรมไม่ได้ลดหย่อนเพิ่มสำหรับคนที่ 2 เป็นต้นไป (ที่มา: ภ.ง.ด.94 ปี 2569 หัวข้อ 3 ซึ่งเป็นแบบครึ่งปี ตัวเลขรายปีตามเอกสาร ม.ค. 2568)' },
+  spouseLifeInsurance: { capSatang: baht(10_000), confidence: 'partial', source: SRC_DEDUCTIONS, note: 'เบี้ยประกันชีวิตของคู่สมรสที่ไม่มีเงินได้ (ต้องเป็นสามีภริยากันตลอดปีภาษี)' },
   basisNotice: 'ตัวเลขกฎหมายอ้างอิงเอกสารกรมสรรพากร (ฉบับ ม.ค. 2568 และเอกสารปีภาษี 2569) ยังไม่พบประกาศแก้ไขสำหรับปี 2569 แต่ไม่ได้ตรวจครบทุกฉบับ',
 };
 

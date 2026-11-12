@@ -31,16 +31,32 @@ export interface SalaryTaxInput {
   parentsHealthPaid?: number;
   mortgageInterestPaid?: number;
   donationPaid?: number;
+  /** ค่าฝากครรภ์และคลอดบุตร แยกรายครรภ์ (สตางค์ต่อครรภ์) สูงสุด 2 ครรภ์ · แต่ละครรภ์หักได้ไม่เกิน 60,000 */
+  prenatalPaid?: number[];
+  /** คนพิการ/ทุพพลภาพที่อุปการะ: ญาติตามรายการ (คน) */
+  disabledRelativesCount?: number;
+  /** คนพิการ/ทุพพลภาพที่เป็นบุคคลอื่น (0 หรือ 1 คน) */
+  disabledOtherCount?: number;
+  /** บุตรชอบด้วยกฎหมายที่ยังมีชีวิตทั้งหมด รวมคนที่ไม่เข้าเกณฑ์ลดหย่อน (ใช้นับเพดานบุตรบุญธรรม 3 คน) ไม่ระบุ = เท่ากับ childrenCount ต้อง ≥ childrenCount */
+  livingChildrenCount?: number;
+  /** บุตรบุญธรรม (คน) ไม่เกิน 3 */
+  adoptedChildrenCount?: number;
+  /** เบี้ยประกันชีวิตของคู่สมรสที่ไม่มีเงินได้ (ต้องติ๊ก spouseNoIncome) */
+  spouseLifeInsurancePaid?: number;
 }
 
 export type DeductionKey =
   | 'personal'
   | 'spouse'
   | 'children'
+  | 'adoptedChildren'
   | 'parents'
+  | 'disabled'
+  | 'prenatal'
   | 'socialSecurity'
   | 'lifeInsurance'
   | 'healthInsurance'
+  | 'spouseLifeInsurance'
   | 'parentsHealth'
   | 'mortgageInterest'
   | 'rmf'
@@ -53,10 +69,14 @@ export const DEDUCTION_ORDER: readonly DeductionKey[] = [
   'personal',
   'spouse',
   'children',
+  'adoptedChildren',
   'parents',
+  'disabled',
+  'prenatal',
   'socialSecurity',
   'lifeInsurance',
   'healthInsurance',
+  'spouseLifeInsurance',
   'parentsHealth',
   'mortgageInterest',
   'rmf',
@@ -66,7 +86,7 @@ export const DEDUCTION_ORDER: readonly DeductionKey[] = [
 ];
 
 /** รายการที่แอปใส่ให้จากจำนวนที่ระบุ (ไม่ใช่จำนวนเงินที่ผู้ใช้กรอก) */
-export const AUTO_DEDUCTION_KEYS: readonly DeductionKey[] = ['personal', 'spouse', 'children', 'parents'];
+export const AUTO_DEDUCTION_KEYS: readonly DeductionKey[] = ['personal', 'spouse', 'children', 'adoptedChildren', 'parents', 'disabled'];
 
 export interface DeductionLine {
   key: DeductionKey;
@@ -120,9 +140,10 @@ const MONEY_LABEL = {
   parentsHealthPaid: 'เบี้ยประกันสุขภาพบิดามารดา',
   mortgageInterestPaid: 'ดอกเบี้ยบ้าน',
   donationPaid: 'เงินบริจาค',
+  spouseLifeInsurancePaid: 'เบี้ยประกันชีวิตคู่สมรส',
 } as const;
 const REQUIRED_MONEY = ['annualSalary', 'withheldTax', 'socialSecurityPaid', 'rmfPaid', 'pensionInsurancePaid', 'thaiEsgPaid'] as const;
-const OPTIONAL_MONEY = ['lifeInsurancePaid', 'healthInsurancePaid', 'parentsHealthPaid', 'mortgageInterestPaid', 'donationPaid'] as const;
+const OPTIONAL_MONEY = ['lifeInsurancePaid', 'healthInsurancePaid', 'parentsHealthPaid', 'mortgageInterestPaid', 'donationPaid', 'spouseLifeInsurancePaid'] as const;
 
 function assertMoney(v: unknown, label: string): asserts v is number {
   if (typeof v !== 'number' || !Number.isSafeInteger(v)) throw new RangeError(`${label}ต้องเป็นจำนวนสตางค์ที่เป็นจำนวนเต็ม`);
@@ -150,6 +171,21 @@ export function assertSalaryTaxInput(input: SalaryTaxInput, config: TaxYearConfi
   assertCount(extra, 'จำนวนบุตรที่ได้ลดหย่อนเพิ่ม', config.child.maxCount);
   if (extra > Math.max(children - 1, 0)) throw new RangeError('จำนวนบุตรที่ได้ลดหย่อนเพิ่มต้องน้อยกว่าจำนวนบุตรทั้งหมดอย่างน้อย 1 คน (บุตรคนแรกไม่ได้ลดหย่อนเพิ่ม)');
   assertCount(input.parentsCount ?? 0, 'จำนวนบิดามารดา', config.parent.maxCount);
+  if (input.livingChildrenCount !== undefined) {
+    assertCount(input.livingChildrenCount, 'จำนวนบุตรที่มีชีวิตทั้งหมด', config.child.maxCount);
+    if (input.livingChildrenCount < children) throw new RangeError('จำนวนบุตรที่มีชีวิตทั้งหมดต้องไม่น้อยกว่าจำนวนบุตรที่ลดหย่อน');
+  }
+  assertCount(input.disabledRelativesCount ?? 0, 'จำนวนคนพิการ/ทุพพลภาพที่เป็นญาติ', config.disability.maxRelatives);
+  assertCount(input.disabledOtherCount ?? 0, 'จำนวนคนพิการ/ทุพพลภาพที่เป็นบุคคลอื่น', config.disability.maxOthers);
+  assertCount(input.adoptedChildrenCount ?? 0, 'จำนวนบุตรบุญธรรม', config.adoptedChild.maxTotalChildren);
+  if (input.prenatalPaid !== undefined) {
+    if (!Array.isArray(input.prenatalPaid)) throw new RangeError('ค่าฝากครรภ์และคลอดบุตรต้องระบุเป็นรายการรายครรภ์');
+    if (input.prenatalPaid.length > config.prenatal.maxPregnancies) throw new RangeError(`ค่าฝากครรภ์และคลอดบุตรรองรับไม่เกิน ${config.prenatal.maxPregnancies} ครรภ์ต่อปี`);
+    input.prenatalPaid.forEach((v, i) => assertMoney(v, `ค่าฝากครรภ์และคลอดบุตรครรภ์ที่ ${i + 1}`));
+  }
+  if ((input.spouseLifeInsurancePaid ?? 0) > 0 && input.spouseNoIncome !== true) {
+    throw new RangeError('เบี้ยประกันชีวิตคู่สมรสใช้ลดหย่อนได้เมื่อคู่สมรสไม่มีเงินได้ ติ๊ก "คู่สมรสไม่มีเงินได้" ก่อน');
+  }
 }
 
 const minBig = (a: bigint, b: bigint): bigint => (a < b ? a : b);
@@ -176,6 +212,22 @@ export function computeSalaryTax(input: SalaryTaxInput, config: TaxYearConfig = 
   const spouse = input.spouseNoIncome === true ? BigInt(config.spouse.satang) : 0n;
   const children = BigInt(input.childrenCount ?? 0) * BigInt(config.child.baseSatang) + BigInt(input.extraChildrenCount ?? 0) * BigInt(config.child.extraSatang);
   const parents = BigInt(input.parentsCount ?? 0) * BigInt(config.parent.perSatang);
+  const disabledCount = BigInt((input.disabledRelativesCount ?? 0) + (input.disabledOtherCount ?? 0));
+  const disabled = disabledCount * BigInt(config.disability.perSatang);
+
+  // บุตรบุญธรรม: รวมกับบุตรชอบด้วยกฎหมายไม่เกิน 3 คน (ครบ 3 คนแล้วหักไม่ได้) บุตรชอบด้วยกฎหมายมาก่อนตามเอกสาร
+  const adoptedRequestedCount = BigInt(input.adoptedChildrenCount ?? 0);
+  // เอกสาร ภ.ง.ด.94 หัวข้อ 3: นับเฉพาะบุตรที่มีชีวิตอยู่ รวมทั้งบุตรที่ไม่อยู่ในเกณฑ์ได้รับการหักลดหย่อนด้วย
+  const livingLegit = BigInt(Math.max(input.livingChildrenCount ?? 0, input.childrenCount ?? 0));
+  const adoptedRoom = maxBig(BigInt(config.adoptedChild.maxTotalChildren) - livingLegit, 0n);
+  const adoptedAllowedCount = minBig(adoptedRequestedCount, adoptedRoom);
+  const adopted = adoptedAllowedCount * BigInt(config.adoptedChild.perSatang);
+
+  // ค่าฝากครรภ์และคลอดบุตร: เพดานแยกต่อครรภ์ (ไม่เอายอดเกินของครรภ์หนึ่งไปชดเชยอีกครรภ์)
+  const pregnancyCap = BigInt(config.prenatal.capPerPregnancySatang);
+  const prenatalList = (input.prenatalPaid ?? []).map((v) => BigInt(v));
+  const prenatalRequested = prenatalList.reduce((sum, v) => sum + v, 0n);
+  const prenatal = prenatalList.reduce((sum, v) => sum + minBig(v, pregnancyCap), 0n);
 
   // เพดานรายตัวก่อน แล้วเพดานกลุ่มตามลำดับคงที่ (R19)
   const ssCap = BigInt(config.socialSecurity.capSatang);
@@ -192,6 +244,8 @@ export function computeSalaryTax(input: SalaryTaxInput, config: TaxYearConfig = 
   const parentsHealth = minBig(paid(input.parentsHealthPaid), parentsHealthCap);
   const mortgageCap = BigInt(config.mortgageInterest.capSatang);
   const mortgage = minBig(paid(input.mortgageInterestPaid), mortgageCap);
+  const spouseLifeCap = BigInt(config.spouseLifeInsurance.capSatang);
+  const spouseLife = minBig(paid(input.spouseLifeInsurancePaid), spouseLifeCap);
 
   // ทุน/เกษียณ: กลุ่มเกษียณ (RMF ก่อน ประกันบำนาญตามลำดับคงที่) · Thai ESG นอกกลุ่ม
   const groupCap = BigInt(config.retirementGroup.capSatang);
@@ -204,7 +258,7 @@ export function computeSalaryTax(input: SalaryTaxInput, config: TaxYearConfig = 
   const groupLeft = groupCap - rmf - pension;
 
   // บริจาค: เพดานร้อยละของ "เงินได้หลังหักค่าใช้จ่ายและค่าลดหย่อนอื่นทั้งหมด" (ไม่รวมบริจาค) ฐานติดลบ = 0
-  const beforeDonation = personal + spouse + children + parents + ss + life + health + parentsHealth + mortgage + rmf + pension + esg;
+  const beforeDonation = personal + spouse + children + adopted + parents + disabled + prenatal + ss + life + health + spouseLife + parentsHealth + mortgage + rmf + pension + esg;
   const donationBase = maxBig(income - expense - beforeDonation, 0n);
   const donationCap = percentOf(donationBase, config.donation.rateBps);
   const donation = minBig(paid(input.donationPaid), donationCap);
@@ -227,9 +281,13 @@ export function computeSalaryTax(input: SalaryTaxInput, config: TaxYearConfig = 
     personal: auto('personal', personal, config.personalAllowance.confidence),
     spouse: auto('spouse', spouse, config.spouse.confidence),
     children: auto('children', children, config.child.confidence),
+    adoptedChildren: { key: 'adoptedChildren', requested: Number(adoptedRequestedCount * BigInt(config.adoptedChild.perSatang)), allowed: Number(adopted), clamped: adoptedAllowedCount < adoptedRequestedCount, remaining: null, confidence: config.adoptedChild.confidence },
     parents: auto('parents', parents, config.parent.confidence),
+    disabled: auto('disabled', disabled, config.disability.confidence),
+    prenatal: { key: 'prenatal', requested: Number(prenatalRequested), allowed: Number(prenatal), clamped: prenatalRequested > prenatal, remaining: null, confidence: config.prenatal.confidence },
     socialSecurity: capped('socialSecurity', paid(input.socialSecurityPaid), ss, room(ssCap, ss), config.socialSecurity.confidence),
     lifeInsurance: capped('lifeInsurance', paid(input.lifeInsurancePaid), life, room(lifeCap, life, lhLeft), config.lifeInsurance.confidence),
+    spouseLifeInsurance: capped('spouseLifeInsurance', paid(input.spouseLifeInsurancePaid), spouseLife, room(spouseLifeCap, spouseLife), config.spouseLifeInsurance.confidence),
     healthInsurance: capped('healthInsurance', paid(input.healthInsurancePaid), health, room(healthCap, health, lhLeft), config.healthInsurance.confidence),
     parentsHealth: capped('parentsHealth', paid(input.parentsHealthPaid), parentsHealth, room(parentsHealthCap, parentsHealth), config.parentsHealth.confidence),
     mortgageInterest: capped('mortgageInterest', paid(input.mortgageInterestPaid), mortgage, room(mortgageCap, mortgage), config.mortgageInterest.confidence),
