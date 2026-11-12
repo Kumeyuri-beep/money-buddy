@@ -1,5 +1,6 @@
 import { friendlyError } from '../app/errorText';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { restoreFocus } from './focus';
 import { billFromForm, billToForm, type BillForm } from '../app/billForm';
 import { newId } from '../app/ids';
 import { walletOptions } from '../app/entryForm';
@@ -37,7 +38,7 @@ export function BillDialog({ accounts, editing, today, onClose, onSaved }: Props
     if (dialog && !dialog.open) dialog.showModal();
     nameRef.current?.focus();
     // คืนโฟกัสให้ปุ่มที่เปิด dialog เมื่อปิด
-    return () => opener?.focus();
+    return () => restoreFocus(opener);
   }, []);
 
   const set = (patch: Partial<BillForm>) => {
