@@ -107,21 +107,21 @@ describe('ภาษีขั้นบันได: รอยต่อทุก�
 });
 
 describe('ค่าลดหย่อน: เพดานรายตัว', () => {
-  it('ประกันสังคม ขอ 10,000 ใช้ได้ 9,000 (ขอเกินเพดาน → clamped)', () => {
-    const r = run({ annualSalary: B(600_000), socialSecurityPaid: B(10_000) });
+  it('ประกันสังคม ขอ 11,000 ใช้ได้ 10,500 (ขอเกินเพดาน → clamped)', () => {
+    const r = run({ annualSalary: B(600_000), socialSecurityPaid: B(11_000) });
     const l = line(r, 'socialSecurity');
-    expect(l.requested).toBe(B(10_000));
-    expect(l.allowed).toBe(B(9_000));
+    expect(l.requested).toBe(B(11_000));
+    expect(l.allowed).toBe(B(10_500));
     expect(l.clamped).toBe(true);
     expect(l.remaining).toBe(0);
     expect(l.confidence).toBe('unverified');
   });
-  it('ประกันสังคม 9,000 พอดีและต่ำกว่าเพดาน → ไม่ clamped และมี "สิทธิที่ยังใช้ได้"', () => {
-    const at = line(run({ annualSalary: B(600_000), socialSecurityPaid: B(9_000) }), 'socialSecurity');
+  it('ประกันสังคม 10,500 พอดีและต่ำกว่าเพดาน → ไม่ clamped และมี "สิทธิที่ยังใช้ได้"', () => {
+    const at = line(run({ annualSalary: B(600_000), socialSecurityPaid: B(10_500) }), 'socialSecurity');
     expect(at.clamped).toBe(false);
     expect(at.remaining).toBe(0);
     const under = line(run({ annualSalary: B(600_000), socialSecurityPaid: B(4_000) }), 'socialSecurity');
-    expect(under.remaining).toBe(B(5_000));
+    expect(under.remaining).toBe(B(6_500));
   });
   it('Thai ESG เพดาน 30% ไม่เกิน 300,000: เงินได้ 5,000,000 ขอ 400,000 → 300,000', () => {
     const l = line(run({ annualSalary: B(5_000_000), thaiEsgPaid: B(400_000) }), 'thaiEsg');

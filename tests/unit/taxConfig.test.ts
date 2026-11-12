@@ -49,9 +49,9 @@ describe('TAX_CONFIG_2569 (R13/R19)', () => {
     }
   });
 
-  it('ค่าที่เป็นที่มาตามแผน: ลดหย่อนส่วนตัว 60,000 · ประกันสังคม 9,000 · กลุ่มเกษียณ 500,000 · Thai ESG 300,000', () => {
+  it('ค่าที่เป็นที่มาตามแผน: ลดหย่อนส่วนตัว 60,000 · ประกันสังคม 10,500 (ยังไม่ยืนยัน) · กลุ่มเกษียณ 500,000 · Thai ESG 300,000', () => {
     expect(cfg.personalAllowance.satang).toBe(6_000_000);
-    expect(cfg.socialSecurity.capSatang).toBe(900_000);
+    expect(cfg.socialSecurity.capSatang).toBe(1_050_000);
     expect(cfg.retirementGroup.capSatang).toBe(50_000_000);
     expect(cfg.thaiEsg.capSatang).toBe(30_000_000);
     expect(cfg.thaiEsg.rateBps).toBe(3000);
