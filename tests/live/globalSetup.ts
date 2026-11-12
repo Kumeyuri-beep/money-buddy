@@ -19,12 +19,10 @@ declare module 'vitest' {
   }
 }
 
-export default async function setup({ provide }: GlobalSetupContext): Promise<() => Promise<void>> {
+async function setupInner({ provide }: GlobalSetupContext): Promise<() => Promise<void>> {
   // ด่านกันรันโดยไม่ตั้งใจ: ชุดนี้โหลด key ผู้ดูแลและสร้าง/ลบผู้ใช้บนฐานข้อมูลจริง ต้องตั้งตัวแปรนี้ยืนยันก่อนรัน
-  // พิมพ์เองแล้ว exit(1) แทนการ throw: vitest บน Node v26 พิมพ์ error จาก globalSetup ไม่ได้ (code.charCodeAt) ข้อความจริงจะหายไป
   if (process.env.MONEY_BUDDY_LIVE_TESTS !== 'yes') {
-    console.error("หยุด: ตั้ง MONEY_BUDDY_LIVE_TESTS=yes เพื่อยืนยันก่อนรันชุดทดสอบจริง (PowerShell: $env:MONEY_BUDDY_LIVE_TESTS='yes' · Bash: MONEY_BUDDY_LIVE_TESTS=yes) แล้วรัน npm run admin:live-contract");
-    process.exit(1);
+    throw new Error("หยุด: ตั้ง MONEY_BUDDY_LIVE_TESTS=yes เพื่อยืนยันก่อนรันชุดทดสอบจริง (PowerShell: $env:MONEY_BUDDY_LIVE_TESTS='yes' · Bash: MONEY_BUDDY_LIVE_TESTS=yes) แล้วรัน npm run admin:live-contract");
   }
   const envFile = resolve(process.cwd(), '.env');
   if (!existsSync(envFile)) throw new Error('ไม่พบ .env ของโปรเจกต์ (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY)');
@@ -77,4 +75,30 @@ export default async function setup({ provide }: GlobalSetupContext): Promise<()
   }
   provide('liveUsers', { url, anonKey, users: created });
   return cleanup;
+}
+
+/**
+ * ทุกข้อผิดพลาดของ setup/teardown พิมพ์ผ่าน console.error แล้ว exit(1)
+ * เพราะ vitest บน Node v26 พิมพ์ error ที่ throw จาก globalSetup ไม่ได้ (code.charCodeAt) ข้อความจริงจะหาย
+ * พิมพ์เฉพาะ message (ไม่พิมพ์ stack/วัตถุ error) ข้อความทั้งหมดผ่าน safeMessage หรือเป็นข้อความตายตัวอยู่แล้ว
+ */
+function reportAndExit(e: unknown): never {
+  console.error(e instanceof Error ? e.message : 'ชุดทดสอบจริงล้มเหลวด้วยข้อผิดพลาดที่ไม่ทราบชนิด');
+  process.exit(1);
+}
+
+export default async function setup(ctx: GlobalSetupContext): Promise<() => Promise<void>> {
+  let teardown: () => Promise<void>;
+  try {
+    teardown = await setupInner(ctx);
+  } catch (e) {
+    reportAndExit(e);
+  }
+  return async () => {
+    try {
+      await teardown();
+    } catch (e) {
+      reportAndExit(e);
+    }
+  };
 }

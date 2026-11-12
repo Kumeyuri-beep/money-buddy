@@ -376,3 +376,6 @@ project/                       ← โค้ดล่าสุดทั้งห
 
 **Backlog**
 - `merge_settings` (RPC แบบเพิ่ม แก้ช่องแข่งเขียน settings ข้อกลางจาก security-auditor ใน #78): เจ้าของสั่งเก็บไว้ก่อน ยังไม่ทำ · ต้อง dry-run + live-contract + security-auditor
+
+## 25. ข้อความ error ของ globalSetup ครบทุกแบบ (12 พ.ย. 2569)
+- ห่อ setup/teardown ใน `tests/live/globalSetup.ts` ให้พิมพ์ message ผ่าน `console.error` + `exit(1)` ครบทุกกรณี (ต่อจากหัวข้อ 24) · ทดสอบ: ไม่ตั้งตัวแปรเห็นข้อความ, ตั้งตัวแปรผ่าน 45/45 · ไม่ได้จำลองกรณีไฟล์ตั้งค่าหาย (ห้ามแตะ)
