@@ -513,3 +513,14 @@ select { font: inherit; }
 .field-row-compact .field { flex: 1 1 110px; }
 #rt-result-title { scroll-margin-top: 16px; }
 @media (max-width: 720px) { .btn-grow { flex: 1 1 100%; } }
+
+/* ตารางภาษี (ค่าลดหย่อน 17 แถว และขั้นบันได): บนมือถือเรียงซ้อนเป็นการ์ดต่อแถว ไม่ต้องเลื่อนซ้ายขวา · หัวตารางซ่อนด้วย clip (ยังอยู่ใน accessibility tree) และใส่ role ตรงๆ ใน HTML เพราะ display:block ทำให้ความหมายตารางหายในบางเบราว์เซอร์ · ใช้ data-label เป็นป้ายหน้าตัวเลข · ตัวเลขห้ามตัดบรรทัด ป้ายยาวพับแทน
+   wrapper ยังคง tabIndex ไว้ เพราะช่วง 721-900px (มีแถบเมนูซ้าย) 4 คอลัมน์อาจเลื่อนได้ */
+@media (max-width: 720px) {
+  .tax-stack thead { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); border: 0; }
+  .tax-stack, .tax-stack tbody, .tax-stack tr, .tax-stack th, .tax-stack td { display: block; }
+  .tax-stack tr { padding: 10px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.14); }
+  .tax-stack tbody th { position: static; background: transparent; padding: 0 0 6px; border: 0; font-weight: 600; }
+  .tax-stack td { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 3px 0; border: 0; text-align: right; white-space: nowrap; }
+  .tax-stack td::before { content: attr(data-label); flex: 1 1 0; min-width: 0; color: var(--muted); font-size: 13px; font-weight: 400; text-align: left; white-space: normal; }
+}

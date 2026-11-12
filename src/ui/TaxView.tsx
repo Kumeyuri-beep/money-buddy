@@ -315,23 +315,23 @@ export function TaxView() {
             </div>
           ))}
           <h3>ค่าลดหย่อนแต่ละรายการ</h3>
-          <div className="migrate-table-wrap" role="region" aria-label="ตารางค่าลดหย่อนแต่ละรายการ เลื่อนซ้ายขวาได้" tabIndex={0}>
-            <table className="migrate-table">
+          <div className="migrate-table-wrap" role="region" aria-label="ตารางค่าลดหย่อนแต่ละรายการ" tabIndex={0}>
+            <table className="migrate-table tax-stack" role="table">
               <caption className="sr-only">ค่าลดหย่อนแต่ละรายการ ที่คุณกรอก ที่ใช้ได้ และสิทธิที่ยังใช้ได้</caption>
-              <thead>
-                <tr>
-                  <th scope="col">รายการ</th>
-                  <th scope="col" className="num">ที่คุณกรอก</th>
-                  <th scope="col" className="num">ใช้ได้ (ประมาณการ)</th>
-                  <th scope="col" className="num">สิทธิที่ยังใช้ได้ (ข้อมูลประกอบ)</th>
+              <thead role="rowgroup">
+                <tr role="row">
+                  <th role="columnheader" scope="col">รายการ</th>
+                  <th role="columnheader" scope="col" className="num">ที่คุณกรอก</th>
+                  <th role="columnheader" scope="col" className="num">ใช้ได้ (ประมาณการ)</th>
+                  <th role="columnheader" scope="col" className="num">สิทธิที่ยังใช้ได้ (ข้อมูลประกอบ)</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody role="rowgroup">
                 {result.deductions.map((d) => {
                   const badge = confidenceBadge(d.confidence);
                   return (
-                    <tr key={d.key}>
-                      <th scope="row">
+                    <tr key={d.key} role="row">
+                      <th role="rowheader" scope="row">
                         {DEDUCTION_LABELS[d.key]}
                         {badge && (
                           <span className={d.confidence === 'unverified' ? 'small' : 'muted small'}>
@@ -346,12 +346,15 @@ export function TaxView() {
                           </span>
                         )}
                       </th>
-                      <td className="num">{AUTO_DEDUCTION_KEYS.includes(d.key) ? 'คำนวณจากที่ระบุ' : formatWholeBaht(d.requested)}</td>
-                      <td className="num">
-                        {formatWholeBaht(d.allowed)}
-                        
+                      <td className="num" role="cell" data-label="ที่คุณกรอก">
+                        {AUTO_DEDUCTION_KEYS.includes(d.key) ? 'คำนวณจากที่ระบุ' : formatWholeBaht(d.requested)}
                       </td>
-                      <td className="num">{d.remaining === null ? '–' : formatWholeBaht(d.remaining)}</td>
+                      <td className="num" role="cell" data-label="ใช้ได้ (ประมาณการ)">
+                        {formatWholeBaht(d.allowed)}
+                      </td>
+                      <td className="num" role="cell" data-label="สิทธิที่ยังใช้ได้ (ข้อมูลประกอบ)">
+                        {d.remaining === null ? '–' : formatWholeBaht(d.remaining)}
+                      </td>
                     </tr>
                   );
                 })}
@@ -362,24 +365,26 @@ export function TaxView() {
           <p className="muted small">"สิทธิที่ยังใช้ได้" คือเพดานที่ยังเหลือภายใต้เงื่อนไขที่แอปรู้ เป็นข้อเท็จจริงเพื่อดูประกอบ ไม่ใช่คำแนะนำ · ประกันชีวิตกับประกันสุขภาพ (และ RMF กับประกันบำนาญ) ใช้เพดานรวมร่วมกัน สิทธิที่เหลือของสองแถวนั้นจึงบวกกันไม่ได้ และแอปตรวจเงื่อนไขการถือครองไม่ได้ (ถ้าขายก่อนครบเงื่อนไข อาจต้องคืนสิทธิลดหย่อน)</p>
 
           <h3>ขั้นบันไดภาษี (ส่วนของเงินได้สุทธิในแต่ละขั้น)</h3>
-          <div className="migrate-table-wrap" role="region" aria-label="ตารางขั้นบันไดภาษี เลื่อนซ้ายขวาได้" tabIndex={0}>
-            <table className="migrate-table">
+          <div className="migrate-table-wrap" role="region" aria-label="ตารางขั้นบันไดภาษี" tabIndex={0}>
+            <table className="migrate-table tax-stack" role="table">
               <caption className="sr-only">ขั้นบันไดภาษีและส่วนของเงินได้สุทธิในแต่ละขั้น</caption>
-              <thead>
-                <tr>
-                  <th scope="col">ช่วงเงินได้สุทธิ</th>
-                  <th scope="col">อัตรา</th>
-                  <th scope="col" className="num">ส่วนของคุณในขั้นนี้</th>
+              <thead role="rowgroup">
+                <tr role="row">
+                  <th role="columnheader" scope="col">ช่วงเงินได้สุทธิ</th>
+                  <th role="columnheader" scope="col">อัตรา</th>
+                  <th role="columnheader" scope="col" className="num">ส่วนของคุณในขั้นนี้</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody role="rowgroup">
                 {result.brackets.map((b) => (
-                  <tr key={b.fromSatang}>
-                    <th scope="row">
+                  <tr key={b.fromSatang} role="row">
+                    <th role="rowheader" scope="row">
                       {b.upToSatang === null ? `เกิน ${formatWholeBaht(b.fromSatang)}` : `${formatWholeBaht(b.fromSatang)} – ${formatWholeBaht(b.upToSatang)}`}
                     </th>
-                    <td>{b.rateBps === 0 ? 'ยกเว้น' : pctText(b.rateBps)}</td>
-                    <td className="num">{formatWholeBaht(b.amountInBracket)}</td>
+                    <td role="cell" data-label="อัตรา">{b.rateBps === 0 ? 'ยกเว้น' : pctText(b.rateBps)}</td>
+                    <td className="num" role="cell" data-label="ส่วนของคุณในขั้นนี้">
+                      {formatWholeBaht(b.amountInBracket)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
