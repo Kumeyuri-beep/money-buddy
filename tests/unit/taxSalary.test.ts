@@ -34,7 +34,7 @@ describe('computeSalaryTax: ขอบเขตพื้นฐาน (R19)', () =
 
   it('ลำดับแสดงผลคงที่', () => {
     expect(run({}).deductions.map((d) => d.key)).toEqual([...DEDUCTION_ORDER]);
-    expect(DEDUCTION_ORDER).toEqual(['personal', 'spouse', 'children', 'parents', 'socialSecurity', 'lifeInsurance', 'healthInsurance', 'parentsHealth', 'mortgageInterest', 'rmf', 'pensionInsurance', 'thaiEsg', 'donation']);
+    expect(DEDUCTION_ORDER).toEqual(['personal', 'spouse', 'children', 'adoptedChildren', 'parents', 'disabled', 'prenatal', 'socialSecurity', 'lifeInsurance', 'healthInsurance', 'spouseLifeInsurance', 'parentsHealth', 'mortgageInterest', 'rmf', 'pensionInsurance', 'thaiEsg', 'donation']);
   });
 });
 
