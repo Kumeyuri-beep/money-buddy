@@ -8,7 +8,18 @@ import { SINGLE_IMPORT_MAX_ENTRIES, SINGLE_IMPORT_MAX_LINES, type BackupData } f
 import { payAmountProblem } from '../domain/bills/payAmount';
 import { billProblem, markBillPaid, payableCycle } from '../domain/bills/schedule';
 import { sanitizeSettings, settingsProblem, type FinanceSettings } from '../domain/bills/settings';
-import { applySettingsPlan, planConflictProblem, planSettingsPatch, planSettingsReplace, type SettingsPatch, type SettingsPlanResult } from '../domain/bills/settingsPatch';
+import {
+  applySettingsPlan,
+  planConflictProblem,
+  planOutsideKeysProblem,
+  planSettingsPatch,
+  planSettingsReplace,
+  SETTINGS_UPDATE_MAX_ATTEMPTS,
+  settingsKeysChanged,
+  type SettingsKey,
+  type SettingsPatch,
+  type SettingsPlanResult,
+} from '../domain/bills/settingsPatch';
 import type { Bill } from '../domain/bills/types';
 import { isCashWallet } from '../domain/ledger/accountKind';
 import { createEntry } from '../domain/ledger/entry';
@@ -23,7 +34,7 @@ import {
   currentMonth,
   nextCreatedAt,
   pickBill,
-  StorageError,
+  SettingsConflictError, StorageError,
   type Ledger,
   type PayBillOptions,
   type PayBillResult,
@@ -47,7 +58,7 @@ interface DbError {
 
 const THAI = /[฀-๿]/;
 /** รหัส error ที่ฟังก์ชัน/trigger ของเราตั้งใจ raise พร้อมข้อความไทย (ข้อความอื่นของ Postgres เองไม่ส่งต่อ เพราะอาจมีค่าที่ผู้ใช้กรอกปนอยู่) */
-const OWN_CODES = new Set(['28000', '42501', '25006', '23514', '40001', '53400', '23503', '23505', 'P0002', '22007', '22023', '55000', '54000']);
+const OWN_CODES = new Set(['28000', '42501', '25006', '23514', '40001', 'PT409', '53400', '23503', '23505', 'P0002', '22007', '22023', '55000', '54000']);
 
 /** แปลง error ของ PostgREST เป็น StorageError · ข้อความไทยที่ฐานข้อมูลตั้งใจส่งมาใช้ได้เลย ที่เหลือไม่โชว์รายละเอียดภายใน */
 export function storageErrorFrom(error: DbError): StorageError {
@@ -851,6 +862,37 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
     },
     async patchSettings(patch: SettingsPatch) {
       return writeSettingsPlan(planSettingsPatch(patch));
+    },
+    async updateSettings(keys: readonly SettingsKey[], compute: (current: FinanceSettings) => SettingsPatch, options?: { baseline?: FinanceSettings }) {
+      // อ่านค่าดิบ → คำนวณจากค่าล่าสุด → เขียนด้วย RPC ที่ตรวจว่าค่าของคีย์ที่ประกาศยังเหมือนที่อ่านมา (compare-and-set ฝั่งฐานข้อมูล)
+      // ชนกับแท็บอื่น (PT409) = อ่านใหม่แล้วคำนวณใหม่ · baseline ต่างจากค่าล่าสุด = ไม่ลองซ้ำ (ผู้ใช้ต้องเห็นค่าล่าสุดก่อน)
+      for (let attempt = 0; attempt < SETTINGS_UPDATE_MAX_ATTEMPTS; attempt++) {
+        const { data, error } = await client.from('settings').select('value').maybeSingle();
+        check(error);
+        const rawValue = (data as { value?: unknown } | null)?.value;
+        const raw: Record<string, unknown> = typeof rawValue === 'object' && rawValue !== null && !Array.isArray(rawValue) ? (rawValue as Record<string, unknown>) : {};
+        const current = sanitizeSettings(raw);
+        if (options?.baseline && settingsKeysChanged(keys, current, sanitizeSettings(options.baseline))) throw new SettingsConflictError();
+        const planned = planSettingsPatch(compute(current));
+        if (!planned.ok) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${planned.problem}`);
+        const outside = planOutsideKeysProblem(planned.plan, keys);
+        if (outside) throw new StorageError(outside);
+        const conflict = planConflictProblem(current, planned.plan);
+        if (conflict) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${conflict}`);
+        const sizeProblem = settingsProblem(applySettingsPlan(current, planned.plan));
+        if (sizeProblem) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${sizeProblem}`);
+        const expect: Record<string, unknown> = {};
+        for (const k of keys) expect[k] = raw[k] ?? null;
+        const res = await client.rpc('merge_settings_if', { p_patch: planned.plan.set, p_remove: planned.plan.remove, p_expect: expect });
+        if (res.error?.code === 'PT409') {
+          // อีกแท็บเพิ่งแก้คีย์เหล่านี้: พักสั้นๆ (สุ่ม กันชนซ้ำพร้อมกัน) แล้วอ่านใหม่คำนวณใหม่
+          await new Promise((resolve) => setTimeout(resolve, 25 * (attempt + 1) + Math.random() * 25));
+          continue;
+        }
+        check(res.error);
+        return sanitizeSettings(res.data);
+      }
+      throw new SettingsConflictError();
     },
   };
 }

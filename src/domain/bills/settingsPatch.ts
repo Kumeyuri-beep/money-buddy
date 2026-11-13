@@ -90,3 +90,28 @@ export function planConflictProblem(current: FinanceSettings, p: SettingsPlan): 
   Object.assign(merged, p.set);
   return taxTagsProblem(merged.taxRmfAssetIds ?? [], merged.taxThaiEsgAssetIds ?? []);
 }
+
+/** จำนวนครั้งสูงสุดที่ updateSettings อ่านค่าล่าสุดแล้วลองเขียนใหม่เมื่อชนกับแท็บอื่น */
+export const SETTINGS_UPDATE_MAX_ATTEMPTS = 5;
+
+/** ค่าของคีย์ที่ระบุต่างกันหรือไม่ (เทียบแบบ JSON · ไม่มี = ไม่มีเหมือนกัน) ใช้ตรวจว่าค่าที่ฟอร์มแสดงอยู่ยังเหมือนค่าล่าสุดไหม */
+export function settingsKeysChanged(keys: readonly SettingsKey[], a: FinanceSettings, b: FinanceSettings): boolean {
+  return keys.some((k) => JSON.stringify(a[k] ?? null) !== JSON.stringify(b[k] ?? null));
+}
+
+/** แผนแตะคีย์นอกที่ประกาศไว้หรือไม่ (ความผิดพลาดของผู้เขียนโค้ด: การเขียนแบบ compare-and-set ป้องกันเฉพาะคีย์ที่ประกาศ) · null = ไม่เกินขอบเขต */
+export function planOutsideKeysProblem(p: SettingsPlan, keys: readonly SettingsKey[]): string | null {
+  const touched = [...(Object.keys(p.set) as SettingsKey[]), ...p.remove];
+  const outside = touched.filter((k) => !keys.includes(k));
+  return outside.length > 0 ? `updateSettings แตะคีย์นอกที่ประกาศไว้: ${outside.join(', ')}` : null;
+}
+
+/** คีย์ที่ฟอร์ม "ตั้งค่ารายเดือน" ของหน้าบิลเป็นเจ้าของ (ฟอร์มไม่รู้จักแผน DCA/รายชื่อเกษียณ/ป้ายภาษี จึงไม่แตะคีย์เหล่านั้น) */
+export const FORM_SETTINGS_KEYS = ['payDay', 'monthlySavingsGoal', 'monthlyBudget', 'nextPaydayOverride'] as const satisfies readonly SettingsKey[];
+
+/** ค่าที่ฟอร์มส่ง → patch ของคีย์ฟอร์ม: ไม่ได้ตั้ง (ว่าง) = ลบคีย์ (null) */
+export function formSettingsPatch(settings: FinanceSettings): SettingsPatch {
+  const patch: SettingsPatch = {};
+  for (const k of FORM_SETTINGS_KEYS) (patch as Record<string, unknown>)[k] = settings[k] ?? null;
+  return patch;
+}

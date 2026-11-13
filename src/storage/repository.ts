@@ -2,7 +2,7 @@ import { monthOf } from '../domain/bills/calendar';
 import { payAmountProblem } from '../domain/bills/payAmount';
 import { billProblem, markBillPaid, payableCycle } from '../domain/bills/schedule';
 import { sanitizeSettings, settingsProblem, type FinanceSettings } from '../domain/bills/settings';
-import { applySettingsPlan, planConflictProblem, planSettingsPatch, planSettingsReplace, type SettingsPatch } from '../domain/bills/settingsPatch';
+import { applySettingsPlan, planConflictProblem, planOutsideKeysProblem, planSettingsPatch, planSettingsReplace, settingsKeysChanged, type SettingsKey, type SettingsPatch } from '../domain/bills/settingsPatch';
 import type { Bill } from '../domain/bills/types';
 import { isCashWallet } from '../domain/ledger/accountKind';
 import { createEntry } from '../domain/ledger/entry';
@@ -55,6 +55,14 @@ export class StorageError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'StorageError';
+  }
+}
+
+/** ค่าตั้งค่าถูกแก้จากแท็บ/อุปกรณ์อื่นระหว่างที่หน้านี้กำลังบันทึก (ไม่เขียนทับ) */
+export class SettingsConflictError extends StorageError {
+  constructor() {
+    super('ค่าตั้งค่าถูกแก้จากแท็บหรืออุปกรณ์อื่นแล้ว โหลดค่าล่าสุดแล้ว ลองบันทึกอีกครั้ง');
+    this.name = 'SettingsConflictError';
   }
 }
 
@@ -529,6 +537,33 @@ export async function deleteBill(db: MoneyDB, id: string): Promise<Bill> {
 /** อ่านค่าตั้งค่า ไม่เชื่อข้อมูลที่เก็บไว้: คืนเฉพาะฟิลด์ที่รู้จักและถูกต้อง ยังไม่ตั้ง = {} */
 export async function loadSettings(db: MoneyDB): Promise<FinanceSettings> {
   return sanitizeSettings((await db.meta.get(SETTINGS_KEY))?.value);
+}
+
+/**
+ * แก้ค่าตั้งค่าเฉพาะคีย์ที่ประกาศ (keys) โดยคำนวณจากค่าล่าสุดเสมอ: อ่าน → compute(ค่าล่าสุด) → เขียน ในธุรกรรมเดียว
+ * baseline (ถ้ามี) = ค่าที่หน้าจอแสดงอยู่ตอนผู้ใช้เริ่มแก้ ถ้าคีย์ที่ประกาศในฐานเก็บต่างจาก baseline แล้ว (แท็บอื่นแก้ไปก่อน) = SettingsConflictError ไม่เขียนทับ
+ */
+export async function updateSettings(
+  db: MoneyDB,
+  keys: readonly SettingsKey[],
+  compute: (current: FinanceSettings) => SettingsPatch,
+  options?: { baseline?: FinanceSettings },
+): Promise<FinanceSettings> {
+  return db.transaction('rw', db.meta, async () => {
+    const current = await loadSettings(db);
+    if (options?.baseline && settingsKeysChanged(keys, current, sanitizeSettings(options.baseline))) throw new SettingsConflictError();
+    const planned = planSettingsPatch(compute(current));
+    if (!planned.ok) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${planned.problem}`);
+    const outside = planOutsideKeysProblem(planned.plan, keys);
+    if (outside) throw new StorageError(outside);
+    const conflict = planConflictProblem(current, planned.plan);
+    if (conflict) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${conflict}`);
+    const next = applySettingsPlan(current, planned.plan);
+    const problem = settingsProblem(next);
+    if (problem) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${problem}`);
+    await db.meta.put({ key: SETTINGS_KEY, value: next });
+    return next;
+  });
 }
 
 /**

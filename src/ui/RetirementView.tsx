@@ -142,12 +142,15 @@ export function RetirementView({ today }: { today: string }) {
   }, [invest, today, selected, dcaPlans]);
 
   // จำเฉพาะรายชื่อที่เลือก (ข้อมูลเข้า ไม่ใช่ยอด) ใน settings · อ่านค่าตั้งค่าล่าสุดก่อนเขียนเพื่อไม่ทับค่าอื่น
-  const persistSelection = (ids: ReadonlySet<string>) => {
-    const list = [...ids];
+  const persistSelection = (change: (current: string[]) => string[]) => {
     saveChain.current = saveChain.current.then(async () => {
       try {
+        // เปลี่ยนจากรายชื่อล่าสุดเสมอ (เติม/เอาออกทีละรหัส) แล้วเขียนแบบ compare-and-set: แท็บอื่นเลือกสินทรัพย์อื่นพร้อมกันก็ไม่ทับกัน
         // เปลี่ยนเฉพาะรายชื่อสินทรัพย์เกษียณ (ค่าตั้งค่าอื่นไม่ถูกแตะ) · รายชื่อว่าง = ลบคีย์
-        await repo.patchSettings({ retirementAssetIds: list.length > 0 ? list : null });
+        await repo.updateSettings(['retirementAssetIds'], (current) => {
+          const list = change(current.retirementAssetIds ?? []);
+          return { retirementAssetIds: list.length > 0 ? list : null };
+        });
         setSaveError('');
       } catch (e) {
         setSaveError(friendlyError(e));
@@ -161,7 +164,7 @@ export function RetirementView({ today }: { today: string }) {
     else next.add(id);
     setSelected(next);
     setPortfolioBlock('');
-    persistSelection(next);
+    persistSelection((current) => (next.has(id) ? (current.includes(id) ? current : current.concat(id)) : current.filter((x) => x !== id)));
   };
 
   const errors = useMemo(() => (submitted && !submitted.ok ? submitted.errors : []), [submitted]);
@@ -199,7 +202,7 @@ export function RetirementView({ today }: { today: string }) {
     setPortfolioBlock('');
     setSelected(new Set<string>());
     setRestoredCount(0);
-    persistSelection(new Set<string>());
+    persistSelection(() => []);
   };
 
   return (

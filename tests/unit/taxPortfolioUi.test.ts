@@ -15,8 +15,9 @@ describe('ดึงยอดซื้อจากพอร์ต: ขอบเ�
     expect(link.length).toBeGreaterThan(500);
     expect(view.length).toBeGreaterThan(500);
   });
-  it('เขียนได้เฉพาะ patchSettings (ป้ายเป็นรหัสสินทรัพย์) ไม่เขียนสมุดบัญชี/พอร์ต/แทนทั้งชุด', () => {
-    expect(link).toContain('repo.patchSettings(');
+  it('เขียนได้เฉพาะ updateSettings (ป้ายเป็นรหัสสินทรัพย์) ไม่เขียนสมุดบัญชี/พอร์ต/แทนทั้งชุด', () => {
+    expect(link).toContain("repo.updateSettings(['taxRmfAssetIds', 'taxThaiEsgAssetIds']");
+    expect(link).not.toContain('repo.patchSettings(');
     expect(link).not.toMatch(/\brepo\.(save|record|add|delete|import)\w*/);
     expect(link).toContain('repo.loadInvestments()');
   });

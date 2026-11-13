@@ -6,7 +6,7 @@ import { runIntegrityCheck } from '../../src/domain/ledger/integrity';
 import { balanceOf } from '../../src/domain/ledger/balance';
 import type { NewEntry } from '../../src/domain/ledger/types';
 import type { LedgerRepository } from '../../src/storage/ledgerRepository';
-import { StorageError } from '../../src/storage/repository';
+import { SettingsConflictError, StorageError } from '../../src/storage/repository';
 
 /**
  * ชุดเทสต์สัญญา: ทุก implementation ของ LedgerRepository (Dexie, Supabase) ต้องผ่านชุดนี้เหมือนกันทุกข้อ (แผน M2 ข้อ 4.4)
@@ -320,6 +320,44 @@ export function describeRepositoryContract(name: string, factory: () => Promise<
       expect(await repo.loadSettings()).toEqual({ payDay: 3, retirementAssetIds: ['a1'] });
       await repo.saveSettings({ payDay: 4, retirementAssetIds: [] });
       expect(await repo.loadSettings()).toEqual({ payDay: 4 });
+    });
+
+    it('updateSettings: คำนวณจากค่าล่าสุด แตะเฉพาะคีย์ที่ประกาศ · ว่าง = ลบ · แตะคีย์นอกขอบเขตหรือค่าผิดถูกปฏิเสธโดยไม่แตะค่าเดิม', async () => {
+      await seed();
+      await repo.saveSettings({ payDay: 5, monthlyBudget: 1_000_000 });
+      // เพิ่มเข้ารายชื่อจากค่าล่าสุด (ไม่ใช่จากสำเนาเก่า)
+      await repo.patchSettings({ retirementAssetIds: ['a1'] });
+      const added = await repo.updateSettings(['retirementAssetIds'], (cur) => ({ retirementAssetIds: [...(cur.retirementAssetIds ?? []), 'a2'] }));
+      expect(added).toEqual({ payDay: 5, monthlyBudget: 1_000_000, retirementAssetIds: ['a1', 'a2'] });
+      expect(await repo.loadSettings()).toEqual(added);
+      // ว่าง = ลบคีย์
+      expect(await repo.updateSettings(['retirementAssetIds'], () => ({ retirementAssetIds: null }))).toEqual({ payDay: 5, monthlyBudget: 1_000_000 });
+      // แตะคีย์นอกขอบเขตที่ประกาศ = ข้อผิดพลาด ค่าเดิมคงอยู่
+      await expect(repo.updateSettings(['retirementAssetIds'], () => ({ payDay: 9 }))).rejects.toThrow(StorageError);
+      // ค่าผิดถูกปฏิเสธ
+      await expect(repo.updateSettings(['payDay'], () => ({ payDay: 99 }))).rejects.toThrow(StorageError);
+      expect(await repo.loadSettings()).toEqual({ payDay: 5, monthlyBudget: 1_000_000 });
+      // ป้ายภาษีซ้อนสองประเภทถูกปฏิเสธ
+      await repo.patchSettings({ taxRmfAssetIds: ['r1'] });
+      await expect(repo.updateSettings(['taxThaiEsgAssetIds'], () => ({ taxThaiEsgAssetIds: ['r1'] }))).rejects.toThrow(StorageError);
+    });
+
+    it('updateSettings + baseline: ค่าของคีย์ที่ประกาศยังเหมือน baseline = เขียนได้ · ต่างแล้ว = SettingsConflictError ไม่เขียนทับ · คีย์อื่นเปลี่ยนไม่นับว่าชน', async () => {
+      await seed();
+      await repo.saveSettings({ payDay: 5, monthlyBudget: 1_000_000 });
+      const baseline = await repo.loadSettings();
+      // แท็บอื่นแก้ retirementAssetIds (ไม่อยู่ในฟอร์ม) → ไม่ชน
+      await repo.patchSettings({ retirementAssetIds: ['a1'] });
+      const ok = await repo.updateSettings(['payDay', 'monthlyBudget'], () => ({ payDay: 6, monthlyBudget: 1_000_000 }), { baseline });
+      expect(ok).toEqual({ payDay: 6, monthlyBudget: 1_000_000, retirementAssetIds: ['a1'] });
+      // แท็บอื่นแก้ payDay หลังจากนั้น แต่ฟอร์มยังถือ baseline เก่า → ชน ไม่เขียนทับ
+      await repo.patchSettings({ payDay: 20 });
+      await expect(repo.updateSettings(['payDay', 'monthlyBudget'], () => ({ payDay: 7, monthlyBudget: 1_000_000 }), { baseline })).rejects.toThrow(SettingsConflictError);
+      expect((await repo.loadSettings()).payDay).toBe(20);
+      // คีย์ที่ไม่มีใน baseline และไม่มีในฐาน = เหมือนกัน
+      await repo.patchSettings({ monthlySavingsGoal: null, monthlyBudget: null });
+      const b2 = await repo.loadSettings();
+      expect(await repo.updateSettings(['monthlySavingsGoal'], () => ({ monthlySavingsGoal: 300_000 }), { baseline: b2 })).toEqual({ payDay: 20, retirementAssetIds: ['a1'], monthlySavingsGoal: 300_000 });
     });
 
     /** ไฟล์สำรองตัวอย่าง: ยอดยกมา + รายจ่าย + บิลที่จ่ายแล้วรอบ 2026-11 (มีรายการจ่ายผูกบิล) + ตั้งค่า */

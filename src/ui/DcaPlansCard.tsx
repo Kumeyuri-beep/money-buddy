@@ -79,11 +79,12 @@ export function DcaPlansCard({ assets, trades, today, onBuy }: Props) {
     setBusy(true);
     setMessage(null);
     try {
-      // อ่านค่าล่าสุดก่อนรวม: ถ้าแท็บอื่นเพิ่งเปลี่ยนแผนหรือค่าตั้งค่า เราไม่ย้อนค่านั้นกลับ
-      const fresh = await repo.loadSettings();
-      // เปลี่ยนเฉพาะ dcaPlans (ค่าตั้งค่าอื่นไม่ถูกแตะ จึงไม่เขียนทับสิ่งที่แท็บอื่นเพิ่งบันทึก) · แผนว่าง = ลบคีย์
-      const nextPlans = change(fresh.dcaPlans ?? []);
-      const saved = await repo.patchSettings({ dcaPlans: nextPlans.length > 0 ? nextPlans : null });
+      // คำนวณจากค่าล่าสุดเสมอแล้วเขียนแบบ compare-and-set: ถ้าแท็บอื่นเพิ่งเพิ่ม/ลบแผน จะอ่านใหม่แล้วคำนวณใหม่ ไม่เขียนทับ
+      // เปลี่ยนเฉพาะ dcaPlans (ค่าตั้งค่าอื่นไม่ถูกแตะ) · แผนว่าง = ลบคีย์
+      const saved = await repo.updateSettings(['dcaPlans'], (current) => {
+        const nextPlans = change(current.dcaPlans ?? []);
+        return { dcaPlans: nextPlans.length > 0 ? nextPlans : null };
+      });
       setSettings(saved);
       setMessage({ text: okText, kind: 'ok' });
       return true;
