@@ -9,7 +9,6 @@ import { emptyInvestments, type AssetKind, type InvestmentData, type TradeKind, 
 import { formatUnits, parsePriceMicro } from '../domain/invest/units';
 import { isSupportedEntryDate } from '../domain/ledger/limits';
 import { formatMicro } from '../domain/money/micro';
-import { formatBaht, satang } from '../domain/money/satang';
 import { StorageError, nextCreatedAt } from '../storage/repository';
 import { friendlyError } from '../app/errorText';
 import { baht, signed } from '../app/bahtFormat';
