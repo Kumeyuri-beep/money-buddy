@@ -286,3 +286,66 @@ describe('บิลข้อมูลเสียต้องไม่ทำใ�
     expect(panel(huge)).toContain(friendlyError(new RangeError('x')));
   });
 });
+
+describe('addDays', () => {
+  it('บวก/ลบวัน ข้ามสิ้นเดือน ข้ามปี ปีอธิกสุรทิน', () => {
+    expect(addDays('2026-11-25', -1)).toBe('2026-11-24');
+    expect(addDays('2026-03-01', -1)).toBe('2026-02-28');
+    expect(addDays('2028-03-01', -1)).toBe('2028-02-29');
+    expect(addDays('2026-12-31', 1)).toBe('2027-01-01');
+    expect(addDays('2026-01-01', -1)).toBe('2025-12-31');
+    expect(addDays('2026-11-05', 0)).toBe('2026-11-05');
+  });
+
+  it('วันที่ไม่จริงหรือจำนวนวันไม่ใช่จำนวนเต็ม -> RangeError', () => {
+    expect(() => addDays('2026-02-30', 1)).toThrow(RangeError);
+    expect(() => addDays('2026-11-05', 0.5)).toThrow(RangeError);
+  });
+});
+
+describe('ปีนอกช่วง 1000-9999 ถูกปฏิเสธ (กันสตริงเสียจากปี 0000 หรือ 5 หลัก)', () => {
+  it('addMonths ที่ผลออกนอกช่วง -> RangeError', () => {
+    expect(() => addMonths('1000-01', -1)).toThrow(RangeError);
+    expect(() => addMonths('9999-12', 1)).toThrow(RangeError);
+    expect(addMonths('1000-01', 0)).toBe('1000-01');
+    expect(addMonths('9999-11', 1)).toBe('9999-12');
+  });
+
+  it('รอบเดือนปี 0000 หรือปีที่ขึ้นต้นด้วยศูนย์ -> RangeError', () => {
+    expect(() => addMonths('0000-01', -1)).toThrow(RangeError);
+    expect(() => dueDateIn('0099-01', 5)).toThrow(RangeError);
+  });
+
+  it('จำนวนเดือนใหญ่เกินช่วงปลอดภัย -> RangeError', () => {
+    expect(() => addMonths('2026-01', Number.MAX_SAFE_INTEGER)).toThrow(RangeError);
+    expect(() => addMonths('2026-01', Number.NaN)).toThrow(RangeError);
+  });
+
+  it('upcomingBills ที่ช่วงสิ้นสุดปี 9999 ไม่วนไม่รู้จบ (จบด้วยผลหรือ RangeError ที่ชัดเจน)', () => {
+    expect(() => upcomingBills([bill()], '9999-11-05', '9999-12-31')).not.toThrow();
+  });
+});
+
+describe('nextPayday: ก.พ. ปีอธิกสุรทิน/ปีศตวรรษ (เพิ่มตามผลตรวจ)', () => {
+  it('วันเงินเดือน 29/30 ใน ก.พ. ปี 2024 (29 วัน) และ 2100 (28 วัน)', () => {
+    expect(nextPayday(29, '2024-02-10')).toBe('2024-02-29');
+    expect(nextPayday(30, '2024-02-10')).toBe('2024-02-29');
+    expect(nextPayday(29, '2100-02-10')).toBe('2100-02-28');
+    expect(nextPayday(30, '2100-02-28')).toBe('2100-03-30');
+  });
+});
+
+describe('computeSafeToSpend: -0 และยอดกระเป๋าติดลบมาก', () => {
+  const base = { spendable: 300_000, outstanding: 50_000, reserve: 100_000, today: '2026-11-05', payDay: 25 };
+
+  it('spendable เป็น -0 ไม่ทำให้ available เป็น -0', () => {
+    const r = computeSafeToSpend({ ...base, spendable: -0, outstanding: 0, reserve: 0 });
+    expect(Object.is(r.available, -0)).toBe(false);
+    expect(r).toMatchObject({ kind: 'ok', perDay: 0, available: 0 });
+  });
+
+  it('กระเป๋าติดลบ + เงินสำรองก้อนใหญ่ -> shortfall รวมทั้งคู่', () => {
+    const r = computeSafeToSpend({ spendable: -250_000, outstanding: 0, reserve: 1_000_000, today: '2026-11-05', payDay: 25 });
+    expect(r).toMatchObject({ kind: 'shortfall', perDay: 0, shortfall: 1_250_000 });
+  });
+});
