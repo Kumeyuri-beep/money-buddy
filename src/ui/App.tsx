@@ -423,6 +423,7 @@ export function App() {
       onSignOut={() => void signOut()}
       current={view}
       onNavigate={setView}
+      onAdd={openAdd}
       status={integrity ? <IntegrityStatus report={integrity} /> : null}
       footer={
         <>
