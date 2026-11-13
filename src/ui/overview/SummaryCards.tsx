@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { LOW_DAYS_THRESHOLD, type FinanceInput } from '../../app/billsOverview';
 import { thaiDayLabel } from '../../app/dates';
 import { tryBuildOverview } from '../../app/overview';
@@ -307,6 +307,8 @@ function RunwayCard({ state }: { state: Overview['runway'] }) {
 }
 
 export function SummaryCards({ accounts, entries, today, finance, onOpenLedger, onOpenBills, onAdd }: SummaryCardsProps) {
+  // มือถือ: โชว์ 3 ใบสำคัญ (เงินทั้งหมดที่มี, คงเหลือเดือนนี้, ใช้ได้ต่อวัน) + ปุ่ม "ดูทั้งหมด" (เจ้าของตัดสิน 13 พ.ย. 2569) · จอใหญ่แสดงครบ 8 ใบเสมอ
+  const [showAll, setShowAll] = useState(false);
   // ยอดเกินช่วงปลอดภัย (RangeError) แสดงข้อความ · error ชนิดอื่นโยนต่อให้ ErrorBoundary (ไม่กลืนเป็นข้อความยอดใหญ่)
   const result = tryBuildOverview(accounts, entries, today, finance);
   if (!result.ok) {
@@ -321,15 +323,34 @@ export function SummaryCards({ accounts, entries, today, finance, onOpenLedger, 
   const walletName = accounts.find((a) => a.id === topWalletId)?.name ?? null;
 
   return (
-    <section className="summary-grid" aria-label="สรุปภาพรวมเดือนนี้">
+    <section className={showAll ? 'summary-grid summary-expanded' : 'summary-grid'} aria-label="สรุปภาพรวมเดือนนี้">
       <NetWorthCard state={o.netWorth} onAdd={onAdd} />
-      <IncomeCard state={o.income} walletName={walletName} onOpenLedger={onOpenLedger} />
-      <OutgoingCard state={o.outgoing} onOpenLedger={onOpenLedger} onOpenBills={onOpenBills} />
+      <div className="summary-secondary" id="summary-more-1">
+        <IncomeCard state={o.income} walletName={walletName} onOpenLedger={onOpenLedger} />
+      </div>
+      <div className="summary-secondary" id="summary-more-2">
+        <OutgoingCard state={o.outgoing} onOpenLedger={onOpenLedger} onOpenBills={onOpenBills} />
+      </div>
       <SurplusCard state={o.surplus} onOpenLedger={onOpenLedger} />
       <SafeToSpendCard state={o.safeToSpend} onOpenBills={onOpenBills} />
-      <SavingsRateCard state={o.savingsRate} />
-      <VsLastMonthCard state={o.vsLastMonth} />
-      <RunwayCard state={o.runway} />
+      <div className="summary-secondary" id="summary-more-3">
+        <SavingsRateCard state={o.savingsRate} />
+      </div>
+      <div className="summary-secondary" id="summary-more-4">
+        <VsLastMonthCard state={o.vsLastMonth} />
+      </div>
+      <div className="summary-secondary" id="summary-more-5">
+        <RunwayCard state={o.runway} />
+      </div>
+      <button
+        type="button"
+        className="btn btn-ghost summary-toggle"
+        aria-expanded={showAll}
+        aria-controls="summary-more-1 summary-more-2 summary-more-3 summary-more-4 summary-more-5"
+        onClick={() => setShowAll((v) => !v)}
+      >
+        {showAll ? 'ซ่อนการ์ดที่เหลือ' : 'ดูทั้งหมด (อีก 5 ใบ)'}
+      </button>
     </section>
   );
 }
