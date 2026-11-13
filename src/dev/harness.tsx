@@ -11,6 +11,7 @@ import { db } from '../storage/instance';
 import { createDexieRepository } from '../storage/ledgerRepository';
 import { App } from '../ui/App';
 import { AccountContext } from '../ui/AuthContext';
+import { PasswordPromptProvider } from '../ui/PasswordPrompt';
 import '@fontsource/ibm-plex-sans-thai/400.css';
 import '@fontsource/ibm-plex-sans-thai/500.css';
 import '@fontsource/ibm-plex-sans-thai/600.css';
@@ -58,7 +59,9 @@ function Harness() {
   if (!ready) return null;
   return (
     <AccountContext.Provider value={{ username: 'ผู้ทดสอบ', signOut: async () => undefined, refresh: async () => undefined }}>
-      <App />
+      <PasswordPromptProvider>
+        <App />
+      </PasswordPromptProvider>
     </AccountContext.Provider>
   );
 }

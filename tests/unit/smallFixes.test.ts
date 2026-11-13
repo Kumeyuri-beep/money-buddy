@@ -4,12 +4,15 @@ const ui = import.meta.glob('/src/ui/**/*.tsx', { query: '?raw', import: 'defaul
 const get = (n: string): string => ui[`/src/ui/${n}`] ?? '';
 
 describe('จุดเล็กจากผลสำรวจผู้ใช้ใหม่ (13 พ.ย. 2569)', () => {
-  it('ปุ่ม "สำรองข้อมูล" ที่แถบข้างบอกผลเมื่อพลาด (ไม่เงียบ) และเมื่อสำเร็จ', () => {
+  it('ปุ่มสำรอง/ล้างข้อมูลย้ายไปหน้าโปรไฟล์แล้ว (เจ้าของตัดสิน 13 พ.ย. 2569): แถบข้างไม่มีปุ่มอันตราย', () => {
     const app = get('App.tsx');
-    expect(app).toContain('onClick={() => void backupNow()}');
-    expect(app).toContain("friendlyError(e, 'สำรองข้อมูลไม่สำเร็จ ลองใหม่อีกครั้ง')");
-    expect(app).toContain("message: 'ดาวน์โหลดไฟล์สำรองข้อมูลแล้ว'");
-    expect(app).not.toContain('onClick={() => void downloadBackup()}');
+    expect(app).not.toContain('ล้างข้อมูลและเริ่มใหม่</button>');
+    expect(app).not.toMatch(/footer={/);
+    expect(app).toContain('<AccountView onReset={() => void reset()} />');
+    const account = get('AccountView.tsx');
+    expect(account).toContain('ดาวน์โหลดข้อมูลของฉัน');
+    expect(account).toContain('ล้างข้อมูลและเริ่มใหม่');
+    expect(account).toContain('onClick={onReset}');
   });
   it('คำอธิบายปุ่มสแกนสลิปไม่บอกผู้ใช้มือถือให้ "กด Ctrl+V" นำหน้า', () => {
     const header = get('Header.tsx');

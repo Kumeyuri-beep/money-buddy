@@ -25,7 +25,6 @@ import { canRestoreDeletedBill } from '../domain/bills/restore';
 import { BillDialog } from './BillDialog';
 import { BillsView, type SnapshotInfo } from './BillsView';
 import { PayBillDialog } from './PayBillDialog';
-import { downloadBackup } from './backup';
 import { ErrorBoundary } from './ErrorBoundary';
 import { Header } from './Header';
 import { IntegrityBanner, IntegrityStatus } from './Integrity';
@@ -167,16 +166,6 @@ export function App() {
     timer = window.setTimeout(focusTitle, 60);
     return () => window.clearTimeout(timer);
   }, [view]);
-
-  /** ปุ่ม "สำรองข้อมูล": ดาวน์โหลดไม่สำเร็จต้องบอกผู้ใช้ (เดิมเงียบ) */
-  const backupNow = async () => {
-    try {
-      await downloadBackup();
-      setToast({ message: 'ดาวน์โหลดไฟล์สำรองข้อมูลแล้ว' });
-    } catch (e) {
-      setToast({ message: friendlyError(e, 'สำรองข้อมูลไม่สำเร็จ ลองใหม่อีกครั้ง'), tone: 'error' });
-    }
-  };
 
   /** ทำงานหนึ่งอย่าง แล้วโหลดข้อมูลใหม่และแจ้งผล ถ้าพลาดแจ้งข้อความผิดพลาดแทน */
   const run = async (action: () => Promise<ToastState>) => {
@@ -425,16 +414,6 @@ export function App() {
       onNavigate={setView}
       onAdd={openAdd}
       status={integrity ? <IntegrityStatus report={integrity} /> : null}
-      footer={
-        <>
-          <button className="btn btn-ghost" onClick={() => void backupNow()}>
-            สำรองข้อมูล
-          </button>
-          <button className="btn btn-danger" onClick={() => void reset()}>
-            ล้างข้อมูลและเริ่มใหม่
-          </button>
-        </>
-      }
     >
       <Header
         ledger={state.ledger}
@@ -462,7 +441,7 @@ export function App() {
           today={today}
         />
       ) : view === 'account' ? (
-        <AccountView />
+        <AccountView onReset={() => void reset()} />
       ) : view === 'averaging' ? (
         <AveragingView />
       ) : view === 'retirement' ? (
