@@ -605,3 +605,8 @@ select { font: inherit; }
   .summary-grid { gap: 12px; }
   .summary-card { min-height: 0; padding: 16px 18px; }
 }
+
+/* "+ เพิ่มรายการ" เป็นรายการแรกของเมนู pop up มือถือ เต็มความกว้าง เน้นด้วยสีทอง */
+.sheet-primary { grid-column: 1 / -1; }
+.sheet-item-primary { flex-direction: row; min-height: 56px; gap: 10px; background: linear-gradient(145deg, #f7de8c, #c99a2e); color: #1a1505; border-color: transparent; font-weight: 600; }
+.sheet-item-primary:hover { background: linear-gradient(145deg, #fbe79f, #d3a537); }

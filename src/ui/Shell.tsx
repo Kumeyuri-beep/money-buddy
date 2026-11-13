@@ -17,6 +17,8 @@ interface ShellProps {
   accountName?: string;
   /** ปุ่ม "ออกจากระบบ" ใต้การ์ดโปรไฟล์ (เห็นชัดในแถบเมนูทุกหน้า) */
   onSignOut?: () => void;
+  /** เปิดช่องเพิ่มรายการ: แสดงเป็นรายการแรกในเมนู pop up บนมือถือ */
+  onAdd?: () => void;
 }
 
 interface NavItem {
@@ -60,7 +62,7 @@ function Icon({ path }: { path: string }) {
   );
 }
 
-export function Shell({ children, showNav = true, current = 'today', onNavigate, status, footer, accountName, onSignOut }: ShellProps) {
+export function Shell({ children, showNav = true, current = 'today', onNavigate, status, footer, accountName, onSignOut, onAdd }: ShellProps) {
   const renderItem = ({ id, label, icon }: NavItem) => {
     const active = id === current;
     return (
@@ -142,6 +144,7 @@ export function Shell({ children, showNav = true, current = 'today', onNavigate,
           items={NAV_BOTTOM.map(({ id, short, icon }) => ({ id, label: short, icon }))}
           current={current}
           onSelect={(id) => onNavigate?.(id)}
+          primaryAction={onAdd ? { label: 'เพิ่มรายการ', icon: 'M12 5v14M5 12h14', onSelect: onAdd } : undefined}
         />
       )}
     </div>

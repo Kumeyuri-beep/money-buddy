@@ -12,6 +12,8 @@ interface Props<Id extends string> {
   items: readonly MobileMenuItem<Id>[];
   current: Id;
   onSelect: (id: Id) => void;
+  /** รายการแรกของเมนู (เจ้าของตัดสิน 13 พ.ย. 2569: "+ เพิ่มรายการ" อยู่ในเมนู pop up ไม่ใช่ปุ่มลอยแยก) */
+  primaryAction?: { label: string; icon: string; onSelect: () => void };
 }
 
 const MENU_ICON = 'M4 7h16M4 12h16M4 17h16'; // ขีดสามเส้น: สัญลักษณ์เมนูที่คนรู้จักมากที่สุด
@@ -35,7 +37,7 @@ function Icon({ path }: { path: string }) {
  * ปิดได้ด้วยแตะนอกกรอบ ปุ่มปิด ปัดลง Esc และปิดเองเมื่อเลือกเมนู · โฟกัสวนอยู่ใน sheet ตอนเปิด แล้วคืนให้ปุ่มลอยตอนปิด
  * วาดผ่าน portal ที่ body (ไม่ติดอยู่ใน .page ที่มี overflow: hidden · กันปัญหา position: fixed บน Safari) · จอกว้างไม่แสดง (CSS)
  */
-export function MobileMenu<Id extends string>({ items, current, onSelect }: Props<Id>) {
+export function MobileMenu<Id extends string>({ items, current, onSelect, primaryAction }: Props<Id>) {
   const [open, setOpen] = useState(false);
   const [dragY, setDragY] = useState(0);
   const fabRef = useRef<HTMLButtonElement>(null);
@@ -143,6 +145,21 @@ export function MobileMenu<Id extends string>({ items, current, onSelect }: Prop
               </div>
               <nav aria-label="เมนูหลัก">
                 <ul className="sheet-grid">
+                  {primaryAction && (
+                    <li className="sheet-primary">
+                      <button
+                        type="button"
+                        className="sheet-item sheet-item-primary"
+                        onClick={() => {
+                          close(false);
+                          primaryAction.onSelect();
+                        }}
+                      >
+                        <Icon path={primaryAction.icon} />
+                        <span>{primaryAction.label}</span>
+                      </button>
+                    </li>
+                  )}
                   {items.map(({ id, label, icon }) => {
                     const active = id === current;
                     return (
