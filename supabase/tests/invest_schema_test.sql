@@ -13,7 +13,22 @@ begin
   execute 'set local role authenticated';
 end $$;
 create function pg_temp.logout() returns void language plpgsql as $$ begin execute 'reset role'; perform set_config('request.jwt.claims', '', true); end $$;
-grant execute on function pg_temp.settle(), pg_temp.fails(text), pg_temp.logout() to public;
+-- รันคำสั่งด้วยสิทธิ์ผู้ดูแล (reset role) แล้วกลับเป็น authenticated · ใช้ทดสอบ trigger accounts_guard เพราะหลัง migration 20261113000600 ผู้ใช้แก้ได้เฉพาะ name (ดู accounts_name_only_test)
+create function pg_temp.admin_fails(p_sql text) returns text language plpgsql as $$
+declare r text;
+begin
+  execute 'reset role';
+  begin
+    execute p_sql;
+    perform pg_temp.settle();
+    r := null;
+  exception when others then
+    r := sqlerrm;
+  end;
+  execute 'set local role authenticated';
+  return r;
+end $$;
+grant execute on function pg_temp.settle(), pg_temp.fails(text), pg_temp.logout(), pg_temp.admin_fails(text) to public;
 
 do $t$
 declare
@@ -53,13 +68,15 @@ begin
   perform pg_temp.settle();
 
   -- T3 เปลี่ยน kind ของบัญชีที่ยังไม่มีรายการได้ · ที่มีรายการแล้วไม่ได้
-  update public.accounts set kind = 'normal' where id = 'inv2';
-  update public.accounts set kind = 'investment' where id = 'inv2';
+  r := pg_temp.admin_fails($$ update public.accounts set kind = 'normal' where id = 'inv2' $$);
+  if r is not null then raise exception 'FAIL: T3 เปลี่ยน kind ของบัญชีที่ยังไม่มีรายการไม่ได้ (%)', r; end if;
+  r := pg_temp.admin_fails($$ update public.accounts set kind = 'investment' where id = 'inv2' $$);
+  if r is not null then raise exception 'FAIL: T3 ตั้ง kind กลับไม่ได้ (%)', r; end if;
   perform public.create_entry(buy1);
   perform pg_temp.settle();
-  r := pg_temp.fails($$ update public.accounts set kind = 'normal' where id = 'inv1' $$);
+  r := pg_temp.admin_fails($$ update public.accounts set kind = 'normal' where id = 'inv1' $$);
   if r is null or r not like '%ประเภทบัญชี%' then raise exception 'FAIL: T3 เปลี่ยน kind ของบัญชีที่มีรายการได้ (%)', r; end if;
-  r := pg_temp.fails($$ update public.accounts set kind = 'investment' where id = 'w1' $$);
+  r := pg_temp.admin_fails($$ update public.accounts set kind = 'investment' where id = 'w1' $$);
   if r is null then raise exception 'FAIL: T3 เปลี่ยนกระเป๋าเงินสดที่มีรายการเป็นบัญชีลงทุนได้'; end if;
 
   -- T4 สินทรัพย์: ต้องผูกบัญชีลงทุนสกุลบาท · หนึ่งบัญชีต่อหนึ่งสินทรัพย์ · THB เท่านั้น
@@ -77,9 +94,9 @@ begin
   insert into public.assets (id, name, kind, account_id) values ('a2', 'หุ้น ข', 'stock', 'inv2');
 
   -- T4b ห้ามพลิก kind/type/currency ของบัญชีที่มีสินทรัพย์ผูกอยู่ (แม้ยังไม่มีรายการในสมุด) · ห้ามย้ายสินทรัพย์ไปบัญชีปกติ
-  r := pg_temp.fails($$ update public.accounts set kind = 'normal' where id = 'inv2' $$);
+  r := pg_temp.admin_fails($$ update public.accounts set kind = 'normal' where id = 'inv2' $$);
   if r is null or r not like '%สินทรัพย์ผูกอยู่%' then raise exception 'FAIL: T4b พลิก kind ของบัญชีที่มีสินทรัพย์ได้ (%)', r; end if;
-  r := pg_temp.fails($$ update public.accounts set currency = 'USD' where id = 'inv2' $$);
+  r := pg_temp.admin_fails($$ update public.accounts set currency = 'USD' where id = 'inv2' $$);
   if r is null then raise exception 'FAIL: T4b เปลี่ยนสกุลบัญชีที่มีสินทรัพย์ได้'; end if;
   r := pg_temp.fails($$ update public.assets set account_id = 'w1' where id = 'a2' $$);
   if r is null or r not like '%บัญชีลงทุน%' then raise exception 'FAIL: T4b ย้ายสินทรัพย์ไปกระเป๋าได้ (%)', r; end if;
