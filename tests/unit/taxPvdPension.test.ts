@@ -21,9 +21,10 @@ describe('ตัวอย่างกรมสรรพากร (rd.go.th/43975
     expect(allowed(r, 'lifeInsurance')).toBe(B(60_000));
     expect(allowed(r, 'pensionToLife')).toBe(B(40_000));
     expect(allowed(r, 'lifeInsurance') + allowed(r, 'pensionToLife')).toBe(B(100_000));
-    // เพดานรายตัวของบำนาญ: 15% × 3,400,000 = 510,000 แต่ไม่เกิน 200,000 → ส่วนเกิน 100,000 เป็นส่วนที่ล้น (ตามเอกสาร "ใช้สิทธิได้ไม่เกิน 200,000")
-    expect(line(r, 'pensionToLife').requested).toBe(B(100_000));
-    expect(line(r, 'pensionToLife').clamped).toBe(true);
+    // เบี้ยบำนาญ 300,000: เติมช่องชีวิต 40,000 ก่อน ที่เหลือ 260,000 เข้ากลุ่มเกษียณ (เพดานรายตัว 15% × 3,400,000 = 510,000 แต่ไม่เกิน 200,000 และกลุ่มเหลือที่ 40,000)
+    expect(line(r, 'pensionInsurance').movedToLife).toBe(B(40_000));
+    expect(line(r, 'pensionInsurance').requested).toBe(B(260_000));
+    expect(line(r, 'pensionInsurance').clamped).toBe(true);
   });
 
   it('กลุ่มเกษียณ (กองทุนสำรองฯ + RMF + บำนาญ) รวมเต็ม 500,000 พอดี (ตรงเอกสาร)', () => {
@@ -85,7 +86,8 @@ describe('กองทุนสำรองเลี้ยงชีพ: หั�
   });
 
   it('ลำดับตัดเพดานกลุ่ม 500,000: กองทุนสำรองฯ ก่อน แล้ว RMF แล้วบำนาญ (ไม่ตัดตามสัดส่วน)', () => {
-    const r = run({ annualSalary: B(2_000_000), providentFundPaid: B(300_000), rmfPaid: B(300_000), pensionInsurancePaid: B(100_000) });
+    // ประกันชีวิตเต็ม 100,000 แล้ว (บำนาญจึงไม่เข้าช่องชีวิต) เพื่อดูการตัดของกลุ่มล้วนๆ
+    const r = run({ annualSalary: B(2_000_000), providentFundPaid: B(300_000), rmfPaid: B(300_000), pensionInsurancePaid: B(100_000), lifeInsurancePaid: B(100_000) });
     expect(allowed(r, 'providentFund')).toBe(B(300_000));
     expect(allowed(r, 'rmf')).toBe(B(200_000));
     expect(allowed(r, 'pensionInsurance')).toBe(0);
@@ -113,7 +115,7 @@ describe('กองทุนสำรองเลี้ยงชีพ: หั�
   });
 
   it('กลุ่มเต็ม 500,000 พอดีแล้วบำนาญเหลือ 1 สตางค์ → บำนาญได้ 0 และขอเกินเพดาน', () => {
-    const r = run({ annualSalary: B(5_000_000), providentFundPaid: B(500_000), pensionInsurancePaid: 1 });
+    const r = run({ annualSalary: B(5_000_000), providentFundPaid: B(500_000), pensionInsurancePaid: 1, lifeInsurancePaid: B(100_000) });
     expect(allowed(r, 'providentFund')).toBe(B(500_000));
     expect(allowed(r, 'pensionInsurance')).toBe(0);
     expect(line(r, 'pensionInsurance').clamped).toBe(true);
@@ -134,38 +136,109 @@ describe('กองทุนสำรองเลี้ยงชีพ: หั�
   });
 });
 
-describe('เบี้ยบำนาญส่วนเกินเพดานรายตัว เติมช่องประกันชีวิต (ลำดับ: ประกันชีวิต → บำนาญล้น → ประกันสุขภาพ → กลุ่มเกษียณ)', () => {
-  it('เงินได้ 600,000 ประกันชีวิต 30,000 บำนาญ 150,000: เพดานบำนาญ 90,000 ส่วนล้น 60,000 เติมช่องชีวิตได้ 60,000 · สุขภาพ 25,000 เหลือที่ 10,000', () => {
-    const r = run({ annualSalary: B(600_000), lifeInsurancePaid: B(30_000), pensionInsurancePaid: B(150_000), healthInsurancePaid: B(25_000) });
-    expect(allowed(r, 'pensionInsurance')).toBe(B(90_000));
-    expect(allowed(r, 'pensionToLife')).toBe(B(60_000));
-    expect(allowed(r, 'lifeInsurance') + allowed(r, 'pensionToLife')).toBe(B(90_000));
-    expect(allowed(r, 'healthInsurance')).toBe(B(10_000));
-    expect(line(r, 'healthInsurance').clamped).toBe(true);
-    expect(allowed(r, 'lifeInsurance') + allowed(r, 'pensionToLife') + allowed(r, 'healthInsurance')).toBe(B(100_000));
+describe('เบี้ยบำนาญเติมช่องประกันชีวิตก่อน ส่วนที่เหลือเข้ากลุ่มเกษียณ (ลำดับ: ประกันชีวิต → ประกันสุขภาพ → บำนาญเติมช่องชีวิต → กลุ่มเกษียณ · เจ้าของตัดสิน 13 พ.ย. 2569)', () => {
+  it('กรณีที่ผู้ตรวจยกมา (เงินได้ 2,000,000 · กองทุนสำรองฯ 300,000 · RMF 300,000 · บำนาญ 100,000): บำนาญเติมช่องชีวิตทั้งก้อน ค่าลดหย่อนรวมมากกว่าวิธีเดิม', () => {
+    const r = run({ annualSalary: B(2_000_000), providentFundPaid: B(300_000), rmfPaid: B(300_000), pensionInsurancePaid: B(100_000) });
+    expect(allowed(r, 'providentFund')).toBe(B(300_000));
+    expect(allowed(r, 'rmf')).toBe(B(200_000)); // กลุ่มเหลือ 200,000
+    expect(allowed(r, 'pensionInsurance')).toBe(0);
+    expect(allowed(r, 'pensionToLife')).toBe(B(100_000)); // ช่องประกันชีวิตว่างทั้ง 100,000 รับบำนาญทั้งก้อน
+    // วิธีเดิม (ส่วนล้นเกินเพดานรายตัวเท่านั้นเติมช่องชีวิต): ส่วนตัว 60,000 + กองทุนสำรองฯ 300,000 + RMF 200,000 = 560,000 · วิธีใหม่ +100,000 = 660,000
+    expect(r.totalAllowances).toBe(B(660_000));
+    expect(r.totalAllowances).toBeGreaterThan(B(560_000));
+    expect(r.netIncome).toBe(B(2_000_000) - B(100_000) - B(660_000)); // 1,240,000
+    // ภาษีคำนวณเอง: 7,500 + 20,000 + 37,500 + 50,000 (ถึง 1,000,000) + (1,240,000 − 1,000,000) × 25% = 60,000 → 175,000
+    expect(r.tax).toBe(B(7_500 + 20_000 + 37_500 + 50_000 + 60_000));
   });
 
-  it('ประกันชีวิตเต็ม 100,000 แล้ว: ไม่มีที่ให้เติม (ส่วนล้นทิ้ง) และบอกว่าขอเกิน', () => {
+  it('เงินได้ 600,000 ประกันชีวิต 30,000 สุขภาพ 25,000 บำนาญ 150,000: สุขภาพได้เต็ม · บำนาญเติมช่องชีวิตเท่าที่เหลือ 45,000 · ที่เหลือ 105,000 เข้ากลุ่ม (เพดานรายตัว 90,000)', () => {
+    const r = run({ annualSalary: B(600_000), lifeInsurancePaid: B(30_000), healthInsurancePaid: B(25_000), pensionInsurancePaid: B(150_000) });
+    expect(allowed(r, 'lifeInsurance')).toBe(B(30_000));
+    expect(allowed(r, 'healthInsurance')).toBe(B(25_000));
+    expect(allowed(r, 'pensionToLife')).toBe(B(45_000));
+    expect(allowed(r, 'lifeInsurance') + allowed(r, 'healthInsurance') + allowed(r, 'pensionToLife')).toBe(B(100_000));
+    expect(allowed(r, 'pensionInsurance')).toBe(B(90_000));
+    expect(line(r, 'pensionInsurance').requested).toBe(B(105_000));
+    expect(line(r, 'pensionInsurance').movedToLife).toBe(B(45_000));
+    expect(line(r, 'pensionInsurance').clamped).toBe(true);
+  });
+
+  it('สิทธิที่ยังใช้ได้ของประกันชีวิตไม่เกินจริงเมื่อบำนาญเติมช่องจนเต็ม (ชีวิต 30,000 + สุขภาพ 25,000 + บำนาญเติม 45,000 = 100,000 → เหลือ 0)', () => {
+    const r = run({ annualSalary: B(600_000), lifeInsurancePaid: B(30_000), healthInsurancePaid: B(25_000), pensionInsurancePaid: B(150_000) });
+    expect(line(r, 'lifeInsurance').remaining).toBe(0);
+    expect(line(r, 'healthInsurance').remaining).toBe(0);
+  });
+
+  it('ประกันสุขภาพไม่ถูกบำนาญแย่งช่อง: สุขภาพ 25,000 ได้เต็มแม้บำนาญใหญ่ (สุขภาพมาก่อนบำนาญ)', () => {
+    const r = run({ annualSalary: B(3_000_000), healthInsurancePaid: B(25_000), pensionInsurancePaid: B(500_000) });
+    expect(allowed(r, 'healthInsurance')).toBe(B(25_000));
+    expect(allowed(r, 'pensionToLife')).toBe(B(75_000)); // ช่องชีวิต+สุขภาพรวม 100,000
+  });
+
+  it('ประกันชีวิตเต็ม 100,000 แล้ว: ไม่มีที่ให้เติม บำนาญทั้งก้อนไปกลุ่ม (ไม่เกินเพดานรายตัว)', () => {
     const r = run({ annualSalary: B(3_400_000), lifeInsurancePaid: B(100_000), pensionInsurancePaid: B(300_000) });
     expect(allowed(r, 'pensionToLife')).toBe(0);
-    expect(line(r, 'pensionToLife').requested).toBe(B(100_000));
-    expect(line(r, 'pensionToLife').clamped).toBe(true);
+    expect(line(r, 'pensionInsurance').requested).toBe(B(300_000));
     expect(allowed(r, 'pensionInsurance')).toBe(B(200_000));
+    expect(line(r, 'pensionInsurance').clamped).toBe(true);
+    expect(line(r, 'pensionInsurance').movedToLife).toBe(0);
   });
 
-  it('บำนาญไม่เกินเพดานรายตัว: ไม่มีส่วนล้น', () => {
+  it('บำนาญน้อยกว่าที่ช่องชีวิตเหลือ: เข้าช่องชีวิตทั้งหมด แถวบำนาญ 0 และไม่ขึ้นว่าขอเกิน', () => {
     const r = run({ annualSalary: B(600_000), pensionInsurancePaid: B(50_000) });
-    expect(allowed(r, 'pensionToLife')).toBe(0);
-    expect(line(r, 'pensionToLife').requested).toBe(0);
+    expect(allowed(r, 'pensionToLife')).toBe(B(50_000));
+    expect(allowed(r, 'pensionInsurance')).toBe(0);
+    expect(line(r, 'pensionInsurance').requested).toBe(0);
+    expect(line(r, 'pensionInsurance').clamped).toBe(false);
     expect(line(r, 'pensionToLife').clamped).toBe(false);
   });
 
-  it('ขอบ: บำนาญเกินเพดาน 1 สตางค์ → ส่วนล้น 1 สตางค์ เติมได้ 1 สตางค์', () => {
-    const r = run({ annualSalary: B(600_000), pensionInsurancePaid: B(90_000) + 1 });
-    expect(line(r, 'pensionToLife').requested).toBe(1);
-    expect(allowed(r, 'pensionToLife')).toBe(1);
+  it('ขอบ 1 สตางค์: ช่องชีวิตเหลือ 1 สตางค์ บำนาญ 100,000 + 1 สตางค์ → 1 สตางค์เข้ากลุ่ม', () => {
+    const r = run({ annualSalary: B(5_000_000), pensionInsurancePaid: B(100_000) + 1 });
+    expect(allowed(r, 'pensionToLife')).toBe(B(100_000));
+    expect(allowed(r, 'pensionInsurance')).toBe(1);
+  });
+
+  it('เงินได้ 0: ช่องชีวิตยังรับบำนาญได้ตามสูตร แต่เงินได้สุทธิ 0 ภาษี 0 ไม่มี -0', () => {
+    const r = run({ annualSalary: 0, pensionInsurancePaid: B(500_000) });
+    expect(r.netIncome).toBe(0);
+    expect(r.tax).toBe(0);
+    expect(Object.is(r.balance, -0)).toBe(false);
+  });
+
+  it('ผลรวมค่าลดหย่อนไม่น้อยกว่าวิธีเดิม (ส่วนล้นเกินเพดานรายตัวเท่านั้นเติมช่องชีวิต) ในทุกกรณีสุ่ม', () => {
+    let seed = 777;
+    const next = (): number => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed / 2147483648;
+    };
+    const amt = (maxBaht: number): number => (next() < 0.25 ? 0 : Math.floor(next() * maxBaht * 100));
+    for (let i = 0; i < 1000; i++) {
+      const input = {
+        annualSalary: Math.floor(next() * B(5_000_000)),
+        providentFundPaid: amt(600_000),
+        rmfPaid: amt(600_000),
+        pensionInsurancePaid: amt(400_000),
+        lifeInsurancePaid: amt(150_000),
+        healthInsurancePaid: amt(40_000),
+      };
+      const r = run(input);
+      // วิธีเดิม: บำนาญเข้ากลุ่มตามเพดานรายตัวและส่วนที่กลุ่มเหลือเท่านั้น (กองทุนสำรองฯ และ RMF ไม่ขึ้นกับบำนาญ จึงใช้ค่าเดียวกัน) → วิธีใหม่ได้ไม่น้อยกว่า
+      const groupLeft = Math.max(B(500_000) - allowed(r, 'providentFund') - allowed(r, 'rmf'), 0);
+      const oldPension = Math.min(input.pensionInsurancePaid, allowedCapPension(input.annualSalary), groupLeft);
+      const newPensionTotal = allowed(r, 'pensionInsurance') + allowed(r, 'pensionToLife');
+      expect(newPensionTotal).toBeGreaterThanOrEqual(oldPension);
+      expect(newPensionTotal).toBeLessThanOrEqual(input.pensionInsurancePaid);
+    }
   });
 });
+
+/** เพดานบำนาญรายตัว (15% ของเงินได้ ไม่เกิน 200,000) ใช้เทียบในเทสต์เท่านั้น */
+function allowedCapPension(income: number): number {
+  // 15% ปัดครึ่งขึ้นแบบจำนวนเต็ม (ไม่ใช้ float)
+  const fifteen = Math.floor((income * 15 + 50) / 100);
+  return Math.min(fifteen, B(200_000));
+}
 
 describe('คุณสมบัติรวม (สุ่มแบบกำหนดผลได้): เพดานกลุ่ม ประกันชีวิต/สุขภาพ ส่วนที่ได้ ≤ ที่ขอ', () => {
   it('2,000 กรณีสุ่ม: กลุ่มเกษียณ ≤ 500,000 · ชีวิต+บำนาญล้น+สุขภาพ ≤ 100,000 · หักลดหย่อนกองทุนสำรองฯ ≤ 10,000 · ผลรวมรายการ = ค่าลดหย่อนรวม', () => {

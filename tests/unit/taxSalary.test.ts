@@ -34,7 +34,7 @@ describe('computeSalaryTax: ขอบเขตพื้นฐาน (R19)', () =
 
   it('ลำดับแสดงผลคงที่', () => {
     expect(run({}).deductions.map((d) => d.key)).toEqual([...DEDUCTION_ORDER]);
-    expect(DEDUCTION_ORDER).toEqual(['personal', 'spouse', 'children', 'adoptedChildren', 'parents', 'disabled', 'prenatal', 'socialSecurity', 'lifeInsurance', 'pensionToLife', 'healthInsurance', 'spouseLifeInsurance', 'parentsHealth', 'mortgageInterest', 'providentFund', 'rmf', 'pensionInsurance', 'thaiEsg', 'donation']);
+    expect(DEDUCTION_ORDER).toEqual(['personal', 'spouse', 'children', 'adoptedChildren', 'parents', 'disabled', 'prenatal', 'socialSecurity', 'lifeInsurance', 'healthInsurance', 'pensionToLife', 'spouseLifeInsurance', 'parentsHealth', 'mortgageInterest', 'providentFund', 'rmf', 'pensionInsurance', 'thaiEsg', 'donation']);
   });
 });
 
@@ -143,7 +143,7 @@ describe('ค่าลดหย่อน: เพดานรายตัว', ()
     expect(l.allowed).toBe(B(30_000) + 2);
   });
   it('ประกันชีวิตแบบบำนาญ 15% ไม่เกิน 200,000: เงินได้ 5,000,000 → 200,000', () => {
-    const l = line(run({ annualSalary: B(5_000_000), pensionInsurancePaid: B(300_000) }), 'pensionInsurance');
+    const l = line(run({ annualSalary: B(5_000_000), lifeInsurancePaid: B(100_000), pensionInsurancePaid: B(300_000) }), 'pensionInsurance');
     expect(l.allowed).toBe(B(200_000));
     expect(l.clamped).toBe(true);
   });
@@ -151,7 +151,7 @@ describe('ค่าลดหย่อน: เพดานรายตัว', ()
 
 describe('เศษครึ่งสตางค์ของเพดานบำนาญ 15% และ config ที่ไม่มีเพดานค่าใช้จ่าย', () => {
   it('บำนาญ 15%: เงินได้ 100,000.10 บาท × 15% = 15,000.015 → ปัดครึ่งขึ้น 15,000.02', () => {
-    const l = line(run({ annualSalary: B(100_000) + 10, pensionInsurancePaid: B(100_000) }), 'pensionInsurance');
+    const l = line(run({ annualSalary: B(100_000) + 10, lifeInsurancePaid: B(100_000), pensionInsurancePaid: B(100_000) }), 'pensionInsurance');
     expect(l.allowed).toBe(B(15_000) + 2);
   });
   it('RMF ถูกเพดาน 30% แล้ว ยังเหลือสิทธิตามกลุ่ม: เงินได้ 600,000 ขอ 180,000 → เหลือ min(0, กลุ่ม) = 0 และบำนาญเหลือสิทธิ 90,000', () => {
@@ -168,21 +168,21 @@ describe('เศษครึ่งสตางค์ของเพดานบ�
 describe('เพดานรวมกลุ่มเกษียณ 500,000 (RMF + ประกันบำนาญ · Thai ESG อยู่นอกกลุ่ม)', () => {
   const rich = B(5_000_000);
   it('RMF 600,000 → ใช้ได้ 500,000 (ชนเพดานกลุ่ม) ประกันบำนาญ 100,000 → 0', () => {
-    const r = run({ annualSalary: rich, rmfPaid: B(600_000), pensionInsurancePaid: B(100_000) });
+    const r = run({ annualSalary: rich, rmfPaid: B(600_000), lifeInsurancePaid: B(100_000), pensionInsurancePaid: B(100_000) });
     expect(line(r, 'rmf').allowed).toBe(B(500_000));
     expect(line(r, 'pensionInsurance').allowed).toBe(0);
     expect(line(r, 'pensionInsurance').clamped).toBe(true);
   });
   it('RMF 400,000 + ประกันบำนาญ 200,000 → RMF 400,000 และประกันบำนาญถูกตัดเหลือ 100,000', () => {
-    const r = run({ annualSalary: rich, rmfPaid: B(400_000), pensionInsurancePaid: B(200_000) });
+    const r = run({ annualSalary: rich, rmfPaid: B(400_000), lifeInsurancePaid: B(100_000), pensionInsurancePaid: B(200_000) });
     expect(line(r, 'rmf').allowed).toBe(B(400_000));
     expect(line(r, 'pensionInsurance').allowed).toBe(B(100_000));
   });
   it('พอดี 500,000 (RMF 300,000 + บำนาญ 200,000) ไม่ถูกตัด · เกิน 1 สตางค์ถูกตัด 1 สตางค์', () => {
-    const exact = run({ annualSalary: rich, rmfPaid: B(300_000), pensionInsurancePaid: B(200_000) });
+    const exact = run({ annualSalary: rich, rmfPaid: B(300_000), lifeInsurancePaid: B(100_000), pensionInsurancePaid: B(200_000) });
     expect(line(exact, 'rmf').allowed + line(exact, 'pensionInsurance').allowed).toBe(B(500_000));
     expect(line(exact, 'pensionInsurance').clamped).toBe(false);
-    const over = run({ annualSalary: rich, rmfPaid: B(300_000) + 1, pensionInsurancePaid: B(200_000) });
+    const over = run({ annualSalary: rich, rmfPaid: B(300_000) + 1, lifeInsurancePaid: B(100_000), pensionInsurancePaid: B(200_000) });
     expect(line(over, 'rmf').allowed).toBe(B(300_000) + 1);
     expect(line(over, 'pensionInsurance').allowed).toBe(B(200_000) - 1);
     expect(line(over, 'pensionInsurance').clamped).toBe(true);
