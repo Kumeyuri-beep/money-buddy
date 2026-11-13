@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { friendlyError } from '../app/errorText';
 import { thaiIsoDate } from '../app/dates';
 import { buildInitialLedger, DEFAULT_WALLETS, SetupError, type WalletInput } from '../app/setup';
 import { MAX_NAME_LENGTH } from '../domain/ledger/limits';
@@ -28,7 +29,7 @@ export function Setup({ onDone }: SetupProps) {
       await repo.saveInitialLedger(ledger);
       onDone();
     } catch (e) {
-      setError(e instanceof SetupError || e instanceof Error ? e.message : String(e));
+      setError(friendlyError(e, 'ตั้งต้นไม่สำเร็จ ลองใหม่อีกครั้ง'));
       setSaving(false);
     }
   };

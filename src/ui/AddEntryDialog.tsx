@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { friendlyError } from '../app/errorText';
 import { restoreFocus } from './focus';
 import { thaiIsoDate, thaiDayLabel } from '../app/dates';
 import { describeEntry } from '../app/describe';
@@ -112,7 +113,7 @@ export function AddEntryDialog({ accounts, entries = [], scan, editing, onClose,
         onSaved(entry);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(friendlyError(e));
       setSaving(false);
     }
   };

@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, type FormEvent } from 'react';
+import { friendlyError } from '../app/errorText';
 import { thaiIsoDate, thaiDayLabel } from '../app/dates';
 import { buildEntry, counterOptions, walletOptions, type FormKind } from '../app/entryForm';
 import { newId } from '../app/ids';
@@ -67,7 +68,7 @@ export function QuickAdd({ ledger, onSaved }: QuickAddProps) {
       reset();
       onSaved(entry);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(friendlyError(e));
     } finally {
       setSaving(false);
     }
