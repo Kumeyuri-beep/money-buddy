@@ -617,3 +617,16 @@ select { font: inherit; }
   .summary-grid:not(.summary-expanded) .summary-secondary { display: none; }
   .summary-toggle { display: inline-flex; justify-content: center; width: 100%; min-height: 44px; }
 }
+
+/* การ์ด "เริ่มต้น 3 ขั้น" (พื้นทึบ) */
+.start-guide h2 { margin: 0 0 4px; }
+.start-steps { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.start-step { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); }
+.start-step-done { opacity: 1; border-color: rgba(111, 217, 168, 0.4); }
+.start-mark { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; border: 1px solid var(--control-border); }
+.start-step-done .start-mark { background: rgba(111, 217, 168, 0.2); color: var(--income); border-color: var(--income); }
+.start-text p { margin: 2px 0 0; }
+@media (max-width: 720px) {
+  .start-step { grid-template-columns: auto minmax(0, 1fr); }
+  .start-step .btn { grid-column: 1 / -1; justify-content: center; }
+}
