@@ -79,6 +79,7 @@ Commit ต้องระบุกฎที่แตะ เช่น `[R1,R8,R16
 - ผู้ช่วยที่เกี่ยวข้อง (money-auditor / security-auditor / design-critic ตามหัวข้อโหมดทำงานเอง) ตรวจผ่านและแก้ตามผลแล้ว
 - PR ที่แตะฐานข้อมูลหรือ `tests/live/`: `admin:live-contract` บน branch ของ PR ผ่านแล้ว (ดูหัวข้อชุดทดสอบจริงด้านล่าง)
 - `headRefOid` ของ PR (ตรวจด้วย `gh pr view --json headRefOid`) ตรงกับ commit ล่าสุดที่ push ของ branch นั้น
+- **ตรวจทั้งสองข้อ "ทุกครั้ง" ก่อนสั่ง merge และต้องอยู่ในคำสั่งเดียวกับ `gh pr merge` (เจ้าของสั่ง 13 พ.ย. 2569 หลังเคย merge #142 ทั้งที่ CI ล้ม):** CI job `test` ต้อง **pass จริง และไม่มี fail** (ดูจาก `gh pr checks` ที่รันใหม่หลัง push ล่าสุด ไม่ใช่ผลเก่า) และ `headRefOid` ตรงกับ commit ที่ push ล่าสุด · ถ้ายังรันอยู่/pending หรือไม่แน่ใจ = ไม่ merge · merge แล้วถ้า `main` ล้ม ให้แก้เป็น PR ด้วยกติกาเดิมทันทีและแจ้งเจ้าของ · ตัวอย่างรูปแบบคำสั่ง: `out=$(gh pr checks N); echo "$out" | grep -qP "^tests+pass" && ! echo "$out" | grep -qP "sfails" && [ "$(gh pr view N --json headRefOid -q .headRefOid)" = "$(git rev-parse HEAD)" ] && gh pr merge N --squash --delete-branch`
 
 **migration**
 - ใส่เองได้เฉพาะแบบ "เพิ่ม": `create`, `add column`, `create or replace function` ต้อง dry-run แบบ rollback ผ่านก่อน แล้วรันเทสต์ SQL ทุกไฟล์หลังใส่ ให้ขึ้น TESTS_PASSED ทุกไฟล์
