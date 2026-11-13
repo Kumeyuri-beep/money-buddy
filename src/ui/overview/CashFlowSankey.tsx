@@ -204,7 +204,40 @@ export function CashFlowSankey({ accounts, entries, today }: CashFlowSankeyProps
         </g>
       </svg>
 
-      {/* ตารางนี้คือข้อมูลชุดเดียวกับแผนภาพ: จอใหญ่ซ่อนไว้ให้โปรแกรมอ่านจอ · มือถือ (≤720px) แผนภาพกว้าง 640px อ่านไม่ได้จึงซ่อนแผนภาพ แล้วโชว์ตารางนี้เป็นรายการที่อ่านได้ */}
+      {/* มือถือ (≤720px): แผนภาพ Sankey กว้าง 640px อ่านไม่ได้ จึงซ่อนแล้วโชว์กราฟแท่งแนวนอนแทน (เจ้าของตัดสิน 13 พ.ย. 2569) · จอใหญ่ยังเป็น Sankey · กราฟแท่งเป็นภาพ (aria-hidden) ข้อมูลเดียวกันอยู่ในตารางด้านล่างที่โปรแกรมอ่านจออ่านทุกขนาดจอ */}
+      <div className="sankey-bars" aria-hidden="true">
+        <h3 className="sankey-bars-title">แหล่งเงิน</h3>
+        <ul>
+          {flow.sources.map((n, i) => (
+            <li key={n.key}>
+              <div className="sankey-bar-head">
+                <span>{n.name}</span>
+                <span className="num">{formatBaht(satang(n.amount))}</span>
+              </div>
+              <div className="sankey-bar">
+                <span style={{ width: `${Math.max(2, Math.round(n.shareBps / 100))}%`, background: colorOf(n, i) }} />
+              </div>
+              <div className="muted small">{formatPercentBps(n.shareBps)}</div>
+            </li>
+          ))}
+        </ul>
+        <h3 className="sankey-bars-title">เงินไปไหน</h3>
+        <ul>
+          {flow.categories.map((n, i) => (
+            <li key={n.key}>
+              <div className="sankey-bar-head">
+                <span>{n.name}</span>
+                <span className="num">{formatBaht(satang(n.amount))}</span>
+              </div>
+              <div className="sankey-bar">
+                <span style={{ width: `${Math.max(2, Math.round(n.shareBps / 100))}%`, background: colorOf(n, i) }} />
+              </div>
+              <div className="muted small">{formatPercentBps(n.shareBps)}</div>
+            </li>
+          ))}
+        </ul>
+      </div>
+
       <table className="sankey-table sr-only" role="table">
         <caption>{summary}</caption>
         <thead role="rowgroup">
