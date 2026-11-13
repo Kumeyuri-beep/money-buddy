@@ -49,7 +49,7 @@ describe('buildTaxInput: ครอบครัวเพิ่มเติม (�
 
   it('ลำดับช่องบนจอครอบคลุมทุกช่องข้อความ และข้อจำกัดไม่ตรวจเอกสารประกอบสิทธิ', () => {
     expect(new Set(TAX_FIELD_SCREEN_ORDER).size).toBe(TAX_FIELD_SCREEN_ORDER.length);
-    expect(TAX_FIELD_SCREEN_ORDER).toHaveLength(21);
+    expect(TAX_FIELD_SCREEN_ORDER).toHaveLength(22);
     expect(TAX_LIMITATIONS).toContain('ไม่ตรวจเอกสารประกอบสิทธิ');
     expect(TAX_LIMITATIONS).not.toContain('ค่าฝากครรภ์');
   });

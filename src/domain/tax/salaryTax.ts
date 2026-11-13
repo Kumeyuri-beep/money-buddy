@@ -5,7 +5,7 @@
  */
 
 import { roundHalfUpBig } from '../money/round';
-import { MAX_TAX_INPUT_SATANG, TAX_CONFIG_2569, type Confidence, type TaxYearConfig } from './config';
+import { MAX_TAX_INPUT_SATANG, TAX_CONFIG_2569, type Basis, type Confidence, type TaxYearConfig } from './config';
 
 const BPS = 10_000n;
 
@@ -43,6 +43,8 @@ export interface SalaryTaxInput {
   adoptedChildrenCount?: number;
   /** เบี้ยประกันชีวิตของคู่สมรสที่ไม่มีเงินได้ (ต้องติ๊ก spouseNoIncome) */
   spouseLifeInsurancePaid?: number;
+  /** เงินสะสมกองทุนสำรองเลี้ยงชีพ (ส่วนของลูกจ้าง) ที่จ่ายทั้งปี */
+  providentFundPaid?: number;
 }
 
 export type DeductionKey =
@@ -55,12 +57,14 @@ export type DeductionKey =
   | 'prenatal'
   | 'socialSecurity'
   | 'lifeInsurance'
+  | 'pensionToLife'
   | 'healthInsurance'
   | 'spouseLifeInsurance'
   | 'parentsHealth'
   | 'mortgageInterest'
   | 'rmf'
   | 'pensionInsurance'
+  | 'providentFund'
   | 'thaiEsg'
   | 'donation';
 
@@ -75,10 +79,12 @@ export const DEDUCTION_ORDER: readonly DeductionKey[] = [
   'prenatal',
   'socialSecurity',
   'lifeInsurance',
+  'pensionToLife',
   'healthInsurance',
   'spouseLifeInsurance',
   'parentsHealth',
   'mortgageInterest',
+  'providentFund',
   'rmf',
   'pensionInsurance',
   'thaiEsg',
@@ -99,6 +105,10 @@ export interface DeductionLine {
   /** "สิทธิที่ยังใช้ได้" เพิ่มได้อีกเท่าไรภายใต้เพดาน (null = ไม่มีเพดานให้เพิ่ม เช่น รายการอัตโนมัติ) */
   remaining: number | null;
   confidence: Confidence;
+  /** เกณฑ์ที่ใช้ต่อเนื่อง (ดู Basis ใน config) */
+  basis?: Basis;
+  /** กองทุนสำรองเลี้ยงชีพ: ส่วนที่หักลดหย่อน (ไม่เกิน 10,000) และส่วนที่ได้รับยกเว้น */
+  providentSplit?: { deduction: number; exempt: number };
 }
 
 export interface BracketRow {
@@ -133,6 +143,7 @@ const MONEY_LABEL = {
   withheldTax: 'ภาษีที่ถูกหักแล้ว',
   socialSecurityPaid: 'เงินสมทบประกันสังคม',
   rmfPaid: 'เงินซื้อ RMF',
+  providentFundPaid: 'เงินสะสมกองทุนสำรองเลี้ยงชีพ',
   pensionInsurancePaid: 'เบี้ยประกันชีวิตแบบบำนาญ',
   thaiEsgPaid: 'เงินซื้อ Thai ESG',
   lifeInsurancePaid: 'เบี้ยประกันชีวิต',
@@ -143,7 +154,7 @@ const MONEY_LABEL = {
   spouseLifeInsurancePaid: 'เบี้ยประกันชีวิตคู่สมรส',
 } as const;
 const REQUIRED_MONEY = ['annualSalary', 'withheldTax', 'socialSecurityPaid', 'rmfPaid', 'pensionInsurancePaid', 'thaiEsgPaid'] as const;
-const OPTIONAL_MONEY = ['lifeInsurancePaid', 'healthInsurancePaid', 'parentsHealthPaid', 'mortgageInterestPaid', 'donationPaid', 'spouseLifeInsurancePaid'] as const;
+const OPTIONAL_MONEY = ['providentFundPaid', 'lifeInsurancePaid', 'healthInsurancePaid', 'parentsHealthPaid', 'mortgageInterestPaid', 'donationPaid', 'spouseLifeInsurancePaid'] as const;
 
 function assertMoney(v: unknown, label: string): asserts v is number {
   if (typeof v !== 'number' || !Number.isSafeInteger(v)) throw new RangeError(`${label}ต้องเป็นจำนวนสตางค์ที่เป็นจำนวนเต็ม`);
@@ -237,8 +248,15 @@ export function computeSalaryTax(input: SalaryTaxInput, config: TaxYearConfig = 
   const lifeCap = BigInt(config.lifeInsurance.capSatang);
   const healthCap = BigInt(config.healthInsurance.capSatang);
   const life = minBig(minBig(paid(input.lifeInsurancePaid), lifeCap), lhGroup);
-  const health = minBig(minBig(paid(input.healthInsurancePaid), healthCap), lhGroup - life);
-  const lhLeft = lhGroup - life - health;
+  // เบี้ยบำนาญส่วนที่เกินเพดานรายตัว (15% ไม่เกิน 200,000) ถ้าประกันชีวิตปกติยังไม่เต็ม ให้เติมเข้าช่องประกันชีวิตก่อน (ตัวอย่างกรมสรรพากร 43975)
+  // ลำดับคงที่: ประกันชีวิต → บำนาญล้นเข้าช่องประกันชีวิต → ประกันสุขภาพ → กลุ่มเกษียณ
+  const pensionCap = itemCap(income, config.pensionInsurance.rateBps, config.pensionInsurance.capSatang);
+  const pensionInCap = minBig(paid(input.pensionInsurancePaid), pensionCap);
+  const pensionOverflow = paid(input.pensionInsurancePaid) - pensionInCap;
+  const lifeSlotRoom = maxBig(minBig(lifeCap - life, lhGroup - life), 0n);
+  const pensionToLife = minBig(pensionOverflow, lifeSlotRoom);
+  const health = minBig(minBig(paid(input.healthInsurancePaid), healthCap), lhGroup - life - pensionToLife);
+  const lhLeft = lhGroup - life - pensionToLife - health;
 
   const parentsHealthCap = BigInt(config.parentsHealth.capSatang);
   const parentsHealth = minBig(paid(input.parentsHealthPaid), parentsHealthCap);
@@ -250,15 +268,23 @@ export function computeSalaryTax(input: SalaryTaxInput, config: TaxYearConfig = 
   // ทุน/เกษียณ: กลุ่มเกษียณ (RMF ก่อน ประกันบำนาญตามลำดับคงที่) · Thai ESG นอกกลุ่ม
   const groupCap = BigInt(config.retirementGroup.capSatang);
   const rmfCap = itemCap(income, config.rmf.rateBps, config.rmf.capSatang);
-  const pensionCap = itemCap(income, config.pensionInsurance.rateBps, config.pensionInsurance.capSatang);
   const esgCap = itemCap(income, config.thaiEsg.rateBps, config.thaiEsg.capSatang);
-  const rmf = minBig(minBig(paid(input.rmfPaid), rmfCap), groupCap);
-  const pension = minBig(minBig(paid(input.pensionInsurancePaid), pensionCap), groupCap - rmf);
+  // กองทุนสำรองเลี้ยงชีพ: หักลดหย่อนไม่เกิน 10,000 ส่วนเกินยกเว้นไม่เกิน 490,000 และไม่เกิน 15% ของค่าจ้าง · นับก่อนในกลุ่มเกษียณ
+  const pvdPaid = paid(input.providentFundPaid);
+  const pvdDeductionWanted = minBig(pvdPaid, BigInt(config.providentFund.deductionSatang));
+  const pvdExemptCap = itemCap(income, config.providentFund.wageRateBps, config.providentFund.exemptCapSatang);
+  const pvdExemptWanted = minBig(maxBig(pvdPaid - BigInt(config.providentFund.deductionSatang), 0n), pvdExemptCap);
+  const pvdTotal = minBig(pvdDeductionWanted + pvdExemptWanted, groupCap);
+  const pvdDeduction = minBig(pvdDeductionWanted, pvdTotal);
+  const pvdExempt = pvdTotal - pvdDeduction;
+  const pvdMaxTotal = BigInt(config.providentFund.deductionSatang) + pvdExemptCap;
+  const rmf = minBig(minBig(paid(input.rmfPaid), rmfCap), groupCap - pvdTotal);
+  const pension = minBig(pensionInCap, groupCap - pvdTotal - rmf);
   const esg = minBig(paid(input.thaiEsgPaid), esgCap);
-  const groupLeft = groupCap - rmf - pension;
+  const groupLeft = groupCap - pvdTotal - rmf - pension;
 
   // บริจาค: เพดานร้อยละของ "เงินได้หลังหักค่าใช้จ่ายและค่าลดหย่อนอื่นทั้งหมด" (ไม่รวมบริจาค) ฐานติดลบ = 0
-  const beforeDonation = personal + spouse + children + adopted + parents + disabled + prenatal + ss + life + health + spouseLife + parentsHealth + mortgage + rmf + pension + esg;
+  const beforeDonation = personal + spouse + children + adopted + parents + disabled + prenatal + ss + life + pensionToLife + health + spouseLife + parentsHealth + mortgage + pvdTotal + rmf + pension + esg;
   const donationBase = maxBig(income - expense - beforeDonation, 0n);
   const donationCap = percentOf(donationBase, config.donation.rateBps);
   const donation = minBig(paid(input.donationPaid), donationCap);
@@ -267,6 +293,7 @@ export function computeSalaryTax(input: SalaryTaxInput, config: TaxYearConfig = 
     const r = maxBig(cap - used, 0n);
     return groupRoom === undefined ? r : minBig(r, groupRoom);
   };
+  const basisOf = (c: { basis?: Basis }): { basis?: Basis } => (c.basis ? { basis: c.basis } : {});
   const auto = (key: DeductionKey, amount: bigint, confidence: Confidence): DeductionLine => ({ key, requested: Number(amount), allowed: Number(amount), clamped: false, remaining: null, confidence });
   const capped = (key: DeductionKey, requested: bigint, allowed: bigint, remaining: bigint, confidence: Confidence): DeductionLine => ({
     key,
@@ -286,19 +313,34 @@ export function computeSalaryTax(input: SalaryTaxInput, config: TaxYearConfig = 
     disabled: auto('disabled', disabled, config.disability.confidence),
     prenatal: { key: 'prenatal', requested: Number(prenatalRequested), allowed: Number(prenatal), clamped: prenatalRequested > prenatal, remaining: null, confidence: config.prenatal.confidence },
     socialSecurity: capped('socialSecurity', paid(input.socialSecurityPaid), ss, room(ssCap, ss), config.socialSecurity.confidence),
-    lifeInsurance: capped('lifeInsurance', paid(input.lifeInsurancePaid), life, room(lifeCap, life, lhLeft), config.lifeInsurance.confidence),
+    lifeInsurance: { ...capped('lifeInsurance', paid(input.lifeInsurancePaid), life, room(lifeCap, life + pensionToLife, lhLeft), config.lifeInsurance.confidence), ...basisOf(config.lifeInsurance) },
     spouseLifeInsurance: capped('spouseLifeInsurance', paid(input.spouseLifeInsurancePaid), spouseLife, room(spouseLifeCap, spouseLife), config.spouseLifeInsurance.confidence),
-    healthInsurance: capped('healthInsurance', paid(input.healthInsurancePaid), health, room(healthCap, health, lhLeft), config.healthInsurance.confidence),
-    parentsHealth: capped('parentsHealth', paid(input.parentsHealthPaid), parentsHealth, room(parentsHealthCap, parentsHealth), config.parentsHealth.confidence),
-    mortgageInterest: capped('mortgageInterest', paid(input.mortgageInterestPaid), mortgage, room(mortgageCap, mortgage), config.mortgageInterest.confidence),
-    rmf: capped('rmf', paid(input.rmfPaid), rmf, room(rmfCap, rmf, groupLeft), config.rmf.confidence),
-    pensionInsurance: capped('pensionInsurance', paid(input.pensionInsurancePaid), pension, room(pensionCap, pension, groupLeft), config.pensionInsurance.confidence),
+    healthInsurance: { ...capped('healthInsurance', paid(input.healthInsurancePaid), health, room(healthCap, health, lhLeft), config.healthInsurance.confidence), ...basisOf(config.healthInsurance) },
+    parentsHealth: { ...capped('parentsHealth', paid(input.parentsHealthPaid), parentsHealth, room(parentsHealthCap, parentsHealth), config.parentsHealth.confidence), ...basisOf(config.parentsHealth) },
+    mortgageInterest: { ...capped('mortgageInterest', paid(input.mortgageInterestPaid), mortgage, room(mortgageCap, mortgage), config.mortgageInterest.confidence), ...basisOf(config.mortgageInterest) },
+    providentFund: {
+      ...capped('providentFund', pvdPaid, pvdTotal, room(pvdMaxTotal, pvdTotal, groupLeft), config.providentFund.confidence),
+      ...basisOf(config.providentFund),
+      providentSplit: { deduction: Number(pvdDeduction), exempt: Number(pvdExempt) },
+    },
+    rmf: { ...capped('rmf', paid(input.rmfPaid), rmf, room(rmfCap, rmf, groupLeft), config.rmf.confidence), ...basisOf(config.rmf) },
+    pensionInsurance: { ...capped('pensionInsurance', paid(input.pensionInsurancePaid), pension, room(pensionCap, pension, groupLeft), config.pensionInsurance.confidence), ...basisOf(config.pensionInsurance) },
+    // ส่วนของเบี้ยบำนาญที่เกินเพดานรายตัว เติมเข้าช่องประกันชีวิต (ไม่ใช่ส่วนของกลุ่มเกษียณ) · requested = ส่วนที่เกินเพดาน
+    pensionToLife: {
+      key: 'pensionToLife',
+      requested: Number(pensionOverflow),
+      allowed: Number(pensionToLife),
+      clamped: pensionOverflow > pensionToLife,
+      remaining: null,
+      confidence: config.pensionInsurance.confidence,
+      ...basisOf(config.pensionInsurance),
+    },
     thaiEsg: capped('thaiEsg', paid(input.thaiEsgPaid), esg, room(esgCap, esg), config.thaiEsg.confidence),
     donation: capped('donation', paid(input.donationPaid), donation, room(donationCap, donation), config.donation.confidence),
   };
   const lines = DEDUCTION_ORDER.map((k) => byKey[k]);
 
-  const totalAllowances = beforeDonation + donation;
+  const totalAllowances = beforeDonation + donation; // รวมส่วนที่ได้รับยกเว้นของกองทุนสำรองเลี้ยงชีพ (หักจากเงินได้เช่นเดียวกัน)
   const net = maxBig(income - expense - totalAllowances, 0n);
 
   // ขั้นบันได: รวมตัวเศษ (ส่วนของเงิน × bps) ทุกขั้นก่อน แล้วปัดครั้งเดียว (R19)

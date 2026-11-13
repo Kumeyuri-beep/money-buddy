@@ -59,7 +59,7 @@ describe('buildTaxInput เฟส 2', () => {
 
   it('ข้อจำกัดบอกสิ่งที่ยังไม่รองรับ และไม่ตรวจเงื่อนไขสิทธิ', () => {
     expect(TAX_LIMITATIONS).toContain('ไม่ตรวจเงื่อนไขของสิทธิ');
-    expect(TAX_LIMITATIONS).toContain('กองทุนสำรองเลี้ยงชีพ');
+    expect(TAX_LIMITATIONS).toContain('กบข.'); // กองทุนสำรองเลี้ยงชีพรองรับแล้ว (13 พ.ย. 2569) ที่ยังไม่รองรับคือ กบข./กอช.
     expect(TAX_LIMITATIONS).toContain('e-Donation');
     expect(TAX_LIMITATIONS).toContain('SSF');
   });
