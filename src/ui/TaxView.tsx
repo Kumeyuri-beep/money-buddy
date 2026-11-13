@@ -6,6 +6,7 @@ import {
   DEDUCTION_LABELS,
   emptyTaxForm,
   TAX_DISCLAIMER,
+  TAX_CONTINUING_NOTE,
   TAX_DISPLAY_NOTE,
   TAX_LIMITATIONS,
   TAX_PARTIAL_NOTE,
@@ -26,6 +27,7 @@ const FIELD_ID: Record<TaxFormTextField, string> = {
   withheldTax: 'tx-withheld',
   socialSecurityPaid: 'tx-ss',
   rmfPaid: 'tx-rmf',
+  providentFundPaid: 'tx-pvd',
   pensionInsurancePaid: 'tx-pension',
   thaiEsgPaid: 'tx-esg',
   childrenCount: 'tx-children',
@@ -231,6 +233,9 @@ export function TaxView({ portfolio }: TaxViewProps = {}) {
             <legend>กองทุนเพื่อการเกษียณและ Thai ESG</legend>
             {portfolio?.((patch) => set(patch), { rmfPaid: form.rmfPaid, thaiEsgPaid: form.thaiEsgPaid })}
             <div className="field-row">
+              <Field field="providentFundPaid" label="เงินสะสมกองทุนสำรองเลี้ยงชีพที่จ่ายในปี" hint="ส่วนของลูกจ้างเท่านั้น (ไม่รวมส่วนนายจ้าง) · เพดานดูในตารางผลลัพธ์" placeholder="ไม่บังคับ" value={form.providentFundPaid} errors={errors} onChange={(v) => set({ providentFundPaid: v })} />
+            </div>
+            <div className="field-row">
               <Field field="rmfPaid" label="เงินที่ซื้อ RMF ในปี (กองทุนรวมเพื่อการเลี้ยงชีพ)" placeholder="ไม่บังคับ" value={form.rmfPaid} errors={errors} onChange={(v) => set({ rmfPaid: v })} />
               <Field field="pensionInsurancePaid" label="เบี้ยประกันชีวิตแบบบำนาญที่จ่ายในปี" placeholder="ไม่บังคับ" value={form.pensionInsurancePaid} errors={errors} onChange={(v) => set({ pensionInsurancePaid: v })} />
             </div>
@@ -334,15 +339,36 @@ export function TaxView({ portfolio }: TaxViewProps = {}) {
               </thead>
               <tbody role="rowgroup">
                 {result.deductions.map((d) => {
-                  const badge = confidenceBadge(d.confidence);
+                  const badge = confidenceBadge(d.confidence, d.basis);
                   return (
                     <tr key={d.key} role="row">
                       <th role="rowheader" scope="row">
                         {DEDUCTION_LABELS[d.key]}
                         {badge && (
                           <span className={d.confidence === 'unverified' ? 'small' : 'muted small'}>
-                            {' · '}
-                            {d.confidence === 'unverified' ? <strong>{badge}</strong> : badge}
+                            {d.confidence !== 'unverified' && d.basis === 'continuing' ? (
+                              <>
+                                <br />
+                                {badge}
+                              </>
+                            ) : (
+                              <>
+                                {' · '}
+                                {d.confidence === 'unverified' ? <strong>{badge}</strong> : badge}
+                              </>
+                            )}
+                          </span>
+                        )}
+                        {d.providentSplit && d.allowed > 0 && (
+                          <span className="muted small">
+                            <br />
+                            หักลดหย่อน {formatWholeBaht(d.providentSplit.deduction)} + ส่วนที่ไม่ต้องนำมาคิดภาษี {formatWholeBaht(d.providentSplit.exempt)}
+                          </span>
+                        )}
+                        {d.key === 'pensionToLife' && (
+                          <span className="muted small">
+                            <br />
+                            ส่วนของเบี้ยบำนาญที่เกินเพดาน (15% ของเงินได้ ไม่เกิน 200,000) นับเป็นเบี้ยประกันชีวิตเมื่อประกันชีวิตปกติยังไม่เต็ม 100,000
                           </span>
                         )}
                         {d.clamped && (
@@ -353,7 +379,7 @@ export function TaxView({ portfolio }: TaxViewProps = {}) {
                         )}
                       </th>
                       <td className="num" role="cell" data-label="ที่คุณกรอก">
-                        {AUTO_DEDUCTION_KEYS.includes(d.key) ? 'คำนวณจากที่ระบุ' : formatWholeBaht(d.requested)}
+                        {AUTO_DEDUCTION_KEYS.includes(d.key) ? 'คำนวณจากที่ระบุ' : d.key === 'pensionToLife' ? 'คำนวณให้อัตโนมัติ' : formatWholeBaht(d.requested)}
                       </td>
                       <td className="num" role="cell" data-label="ใช้ได้ (ประมาณการ)">
                         {formatWholeBaht(d.allowed)}
@@ -368,6 +394,11 @@ export function TaxView({ portfolio }: TaxViewProps = {}) {
             </table>
           </div>
           <p className="muted small">{TAX_PARTIAL_NOTE}</p>
+          <p className="muted small">รายการที่ติดป้าย "เกณฑ์ที่ใช้ต่อเนื่อง" อ้างอิงเอกสารกรมสรรพากรของปีภาษีก่อนหน้า (2553/2560/2565) ตรวจเท่าที่ค้นได้ ยังไม่ได้ตรวจประกาศครบทุกฉบับของปี 2569</p>
+          <details className="muted small">
+            <summary>ที่มาของป้าย "เกณฑ์ที่ใช้ต่อเนื่อง"</summary>
+            <p>{TAX_CONTINUING_NOTE}</p>
+          </details>
           <p className="muted small">"สิทธิที่ยังใช้ได้" คือเพดานที่ยังเหลือภายใต้เงื่อนไขที่แอปรู้ เป็นข้อเท็จจริงเพื่อดูประกอบ ไม่ใช่คำแนะนำ · ประกันชีวิตกับประกันสุขภาพ (และ RMF กับประกันบำนาญ) ใช้เพดานรวมร่วมกัน สิทธิที่เหลือของสองแถวนั้นจึงบวกกันไม่ได้ และแอปตรวจเงื่อนไขการถือครองไม่ได้ (ถ้าขายก่อนครบเงื่อนไข อาจต้องคืนสิทธิลดหย่อน)</p>
 
           <h3>ขั้นบันไดภาษี (ส่วนของเงินได้สุทธิในแต่ละขั้น)</h3>

@@ -9,10 +9,16 @@
  */
 export type Confidence = 'verified' | 'partial' | 'unverified';
 
+/** 'continuing' = เกณฑ์ที่ใช้ต่อเนื่อง: ตัวเลขมาจากหน้า/เอกสารกรมสรรพากรของปีภาษีก่อนหน้า (ระบุปีไว้ใน note) และยังไม่พบประกาศเปลี่ยนแปลงสำหรับปี 2569 (ไม่ได้ตรวจครบทุกฉบับ) */
+export type Basis = 'continuing';
+
 export interface Sourced {
   readonly confidence: Confidence;
-  /** ลิงก์/ชื่อเอกสารต้นทาง */
+  /** ลิงก์/ชื่อเอกสารต้นทางหลัก */
   readonly source: string;
+  /** ลิงก์เอกสารอื่นที่ยืนยันตัวเลขเดียวกัน */
+  readonly moreSources?: readonly string[];
+  readonly basis?: Basis;
   /** หมายเหตุสั้นๆ ที่แสดงบนจอได้ (ไทย) */
   readonly note?: string;
 }
@@ -39,8 +45,10 @@ export interface TaxYearConfig {
   readonly rmf: PercentCap;
   readonly pensionInsurance: PercentCap;
   readonly thaiEsg: PercentCap;
-  /** เพดานรวมกลุ่มเกษียณ (RMF + ประกันชีวิตแบบบำนาญ ในเฟสแรก) */
+  /** เพดานรวมกลุ่มเกษียณ (กองทุนสำรองเลี้ยงชีพ + RMF + ประกันชีวิตแบบบำนาญ) · Thai ESG อยู่นอกกลุ่ม */
   readonly retirementGroup: Sourced & { readonly capSatang: number };
+  /** กองทุนสำรองเลี้ยงชีพ (PVD): หักลดหย่อนไม่เกิน deductionSatang ส่วนที่เกินได้รับยกเว้นไม่เกิน exemptCapSatang และไม่เกิน wageRateBps ของค่าจ้าง · นับในเพดานกลุ่มเกษียณ */
+  readonly providentFund: Sourced & { readonly deductionSatang: number; readonly exemptCapSatang: number; readonly wageRateBps: number };
   /** เฟส 2 (เอกสารกรมสรรพากร ม.ค. 2568 ฉบับที่อ่านต้นฉบับได้) */
   readonly spouse: Sourced & { readonly satang: number };
   readonly child: Sourced & { readonly baseSatang: number; readonly extraSatang: number; readonly maxCount: number };
@@ -72,6 +80,9 @@ const SRC_RATES_EXEMPT = 'https://www.rd.go.th/fileadmin/user_upload/SMEs/infogr
 const SRC_DEDUCTIONS = 'https://www.rd.go.th/fileadmin/download/tax_deductions_update280168.pdf';
 const SRC_PIT94_2569 = 'https://www.rd.go.th/fileadmin/tax_pdf/pit/2569/Ins94_160669.pdf';
 const SRC_EXPENSE = 'https://www.rd.go.th/556.html';
+const SRC_PVD = 'https://rd.go.th/59674.html';
+const SRC_PENSION_EXAMPLE = 'https://www.rd.go.th/43975.html';
+const SRC_SME_INFO = 'https://www.rd.go.th/fileadmin/user_upload/SMEs/infographic/SME_Infolv1_2.pdf';
 const SRC_NEWS_SSO_2569 = 'https://www.thairath.co.th/money/personal_finance/finance_banking/2899617';
 const SRC_SEC_THAI_ESG = 'https://sec.or.th/TH/Template3/Articles/2567/171267-02.pdf';
 
@@ -95,8 +106,16 @@ export const TAX_CONFIG_2569: TaxYearConfig = {
     source: SRC_NEWS_SSO_2569,
     note: 'เพดานค่าจ้างประกันสังคมปี 2569 = 17,500 บาท เงินสมทบ 5% สูงสุด 875 บาท/เดือน = 10,500 บาท/ปี (เจ้าของอนุมัติให้ใช้ 12 พ.ย. 2569 ตามข่าว ไม่ใช่แหล่งทางการ) ยังไม่มีต้นฉบับกฎหมายที่อ่านได้ และไม่ทราบว่ากรมสรรพากรเปลี่ยนเพดานลดหย่อนเดิม 9,000 บาท (เอกสาร ม.ค. 2568) ตามหรือไม่ · กรอกยอดที่จ่ายจริงตามสลิปเงินเดือน',
   },
-  rmf: { rateBps: 3000, capSatang: null, confidence: 'partial', source: SRC_DEDUCTIONS, note: 'ร้อยละ 30 ของเงินได้ ต้องถือครองตามเงื่อนไข (แอปตรวจไม่ได้)' },
-  pensionInsurance: { rateBps: 1500, capSatang: baht(200_000), confidence: 'partial', source: SRC_PIT94_2569, note: 'ร้อยละ 15 ของเงินได้ ไม่เกิน 200,000 บาท (ภ.ง.ด.94 ปี 2569 เป็นแบบของเงินได้ 40(5)-(8) ไม่ใช่เงินเดือน · ประกาศอธิบดีฯ ฉบับ 462 เรื่องยกเว้นเบี้ยประกันบำนาญ ยังไม่ได้อ่านต้นฉบับ)' },
+  rmf: { rateBps: 3000, capSatang: null, confidence: 'partial', basis: 'continuing', source: SRC_SME_INFO, moreSources: [SRC_DEDUCTIONS], note: 'ร้อยละ 30 ของเงินได้ รวมกลุ่มเกษียณไม่เกิน 500,000 (อินโฟกราฟิกกรมสรรพากรปีภาษี 2565) ต้องถือครองตามเงื่อนไข (แอปตรวจไม่ได้)' },
+  pensionInsurance: {
+    rateBps: 1500,
+    capSatang: baht(200_000),
+    confidence: 'partial',
+    basis: 'continuing',
+    source: SRC_PENSION_EXAMPLE,
+    moreSources: [SRC_SME_INFO, SRC_PIT94_2569],
+    note: 'ร้อยละ 15 ของเงินได้ ไม่เกิน 200,000 บาท รวมกลุ่มเกษียณไม่เกิน 500,000 · ส่วนที่เกินเพดานรายตัวนี้ ถ้าเบี้ยประกันชีวิตปกติยังไม่เต็ม 100,000 ให้เติมเข้าช่องประกันชีวิตก่อนเข้ากลุ่มเกษียณ (ตัวอย่างหน้า 43975 ของกรมสรรพากร ซึ่งเป็นถาม-ตอบปี 2553) · ประกาศอธิบดีฯ ฉบับ 462 ยังไม่ได้อ่านต้นฉบับ · ภ.ง.ด.94 ปี 2569 เป็นแบบของเงินได้ 40(5)-(8) ไม่ใช่เงินเดือน',
+  },
   thaiEsg: {
     rateBps: 3000,
     capSatang: baht(300_000),
@@ -104,15 +123,32 @@ export const TAX_CONFIG_2569: TaxYearConfig = {
     source: SRC_SEC_THAI_ESG,
     note: 'ร้อยละ 30 ไม่เกิน 300,000 บาท แยกเพดานจากกลุ่มเกษียณ 500,000 (ไม่รวมในกลุ่ม) · รวม Thai ESGX (เจ้าของยืนยันตาม ก.ล.ต. 12 พ.ย. 2569 ต้นฉบับอ่านจากเครื่องผู้ช่วยไม่ได้) ต้องถือครองตามเงื่อนไข',
   },
-  retirementGroup: { capSatang: baht(500_000), confidence: 'partial', source: SRC_PIT94_2569, note: 'เพดานรวม RMF/กองทุนสำรองเลี้ยงชีพ/กบข./ครูเอกชน/ประกันบำนาญ (จาก ภ.ง.ด.94 ปี 2569 ยังไม่ได้ตรวจกับแบบของเงินเดือน) · Thai ESG อยู่นอกกลุ่มนี้ ห้ามรวมในเพดานนี้' },
+  retirementGroup: {
+    capSatang: baht(500_000),
+    confidence: 'partial',
+    basis: 'continuing',
+    source: SRC_SME_INFO,
+    moreSources: [SRC_PVD, SRC_PENSION_EXAMPLE, SRC_PIT94_2569],
+    note: 'เพดานรวมกองทุนสำรองเลี้ยงชีพ/กบข./กอช./RMF/ประกันบำนาญ ไม่เกิน 500,000 · ตัดตามลำดับคงที่: กองทุนสำรองเลี้ยงชีพ → RMF → ประกันบำนาญ · Thai ESG อยู่นอกกลุ่มนี้ ห้ามรวมในเพดานนี้ · แอปยังไม่รองรับ SSF/กบข./กอช. ซึ่งอยู่ในกลุ่มนี้ตามกฎหมาย',
+  },
+  providentFund: {
+    deductionSatang: baht(10_000),
+    exemptCapSatang: baht(490_000),
+    wageRateBps: 1500,
+    confidence: 'partial',
+    basis: 'continuing',
+    source: SRC_PVD,
+    moreSources: [SRC_SME_INFO],
+    note: 'หักลดหย่อนไม่เกิน 10,000 บาท ส่วนที่เกิน 10,000 ได้รับยกเว้นไม่เกิน 490,000 บาท และไม่เกินร้อยละ 15 ของค่าจ้าง รวมกลุ่มเกษียณไม่เกิน 500,000 (หน้า 59674 ระบุปีภาษี 2560) · ค่าจ้างในแอปใช้เงินได้จากเงินเดือนทั้งปี · เงื่อนไขของกองทุน (เช่น ระยะเวลาเป็นสมาชิก) แอปตรวจไม่ได้',
+  },
   spouse: { satang: baht(60_000), confidence: 'partial', source: SRC_DEDUCTIONS, note: 'คู่สมรสไม่มีเงินได้' },
   child: { baseSatang: baht(30_000), extraSatang: baht(30_000), maxCount: 20, confidence: 'partial', source: SRC_DEDUCTIONS, note: 'บุตรชอบด้วยกฎหมายคนละ 30,000 · คนที่ 2 เป็นต้นไปที่เกิดตั้งแต่ปี 2561 คนละ 60,000 (ไม่รองรับบุตรบุญธรรม ซึ่งมีเงื่อนไขจำกัด 3 คน) · ขีดสูงสุด 20 คนเป็นขีดกันข้อมูลผิดของแอป ไม่ใช่เพดานตามกฎหมาย' },
   parent: { perSatang: baht(30_000), maxCount: 4, confidence: 'partial', source: SRC_DEDUCTIONS, note: 'อายุ 60 ปีขึ้นไป รายได้ไม่เกิน 30,000 บาท/ปี อยู่ในความอุปการะ (รวมบิดามารดาคู่สมรส) แอปตรวจเงื่อนไขไม่ได้ · ขีด 4 คน = ฝ่ายละ 2 คน (ผู้มีเงินได้และคู่สมรส)' },
-  lifeInsurance: { capSatang: baht(100_000), confidence: 'partial', source: SRC_DEDUCTIONS, note: 'กรมธรรม์อายุ 10 ปีขึ้นไป' },
-  healthInsurance: { capSatang: baht(25_000), confidence: 'partial', source: SRC_DEDUCTIONS },
-  lifeHealthGroup: { capSatang: baht(100_000), confidence: 'partial', source: SRC_DEDUCTIONS, note: 'ประกันชีวิตรวมประกันสุขภาพ (ของตนเอง) ไม่เกิน 100,000' },
-  parentsHealth: { capSatang: baht(15_000), confidence: 'partial', source: SRC_DEDUCTIONS, note: 'เบี้ยประกันสุขภาพบิดามารดา' },
-  mortgageInterest: { capSatang: baht(100_000), confidence: 'partial', source: SRC_DEDUCTIONS, note: 'ดอกเบี้ยเงินกู้ซื้อ/สร้างที่อยู่อาศัยที่จำนองเป็นประกัน' },
+  lifeInsurance: { capSatang: baht(100_000), confidence: 'partial', basis: 'continuing', source: SRC_SME_INFO, moreSources: [SRC_DEDUCTIONS], note: 'กรมธรรม์อายุ 10 ปีขึ้นไป' },
+  healthInsurance: { capSatang: baht(25_000), confidence: 'partial', basis: 'continuing', source: SRC_SME_INFO, moreSources: [SRC_DEDUCTIONS] },
+  lifeHealthGroup: { capSatang: baht(100_000), confidence: 'partial', basis: 'continuing', source: SRC_SME_INFO, moreSources: [SRC_DEDUCTIONS], note: 'ประกันชีวิตรวมประกันสุขภาพ (ของตนเอง) ไม่เกิน 100,000' },
+  parentsHealth: { capSatang: baht(15_000), confidence: 'partial', basis: 'continuing', source: SRC_SME_INFO, moreSources: [SRC_DEDUCTIONS], note: 'เบี้ยประกันสุขภาพบิดามารดา' },
+  mortgageInterest: { capSatang: baht(100_000), confidence: 'partial', basis: 'continuing', source: SRC_SME_INFO, moreSources: [SRC_DEDUCTIONS], note: 'ดอกเบี้ยเงินกู้ซื้อ/สร้างที่อยู่อาศัยที่จำนองเป็นประกัน' },
   donation: { rateBps: 1000, confidence: 'partial', source: SRC_DEDUCTIONS, note: 'บริจาคทั่วไปไม่เกินร้อยละ 10 ของเงินได้หลังหักค่าใช้จ่ายและค่าลดหย่อน · ไม่รองรับ e-Donation 2 เท่า (ยังไม่ยืนยัน)' },
   prenatal: { capPerPregnancySatang: baht(60_000), maxPregnancies: 2, confidence: 'partial', source: SRC_DEDUCTIONS, note: 'ค่าฝากครรภ์และคลอดบุตรจ่ายจริงไม่เกิน 60,000 บาทต่อครรภ์ (แต่ละคราว) · รองรับสูงสุด 2 ครรภ์ต่อปี (ขีดของแอป)' },
   disability: { perSatang: baht(60_000), maxRelatives: 20, maxOthers: 1, confidence: 'partial', source: SRC_DEDUCTIONS, note: 'คนพิการที่มีบัตรประจำตัวคนพิการหรือทุพพลภาพ รายได้ไม่เกิน 30,000 บาท/ปี และต้องมีเอกสารตามเงื่อนไข (แอปตรวจไม่ได้) · ญาติตามรายการ (บิดามารดา คู่สมรส บุตร บิดามารดาคู่สมรส) ได้ทุกคน บุคคลอื่นได้ไม่เกิน 1 คน (ที่มา: ภ.ง.ด.94 ปี 2569 หัวข้อ 5) · คนเดียวกันที่ได้ลดหย่อนปกติ (คู่สมรส บิดามารดา บุตร) ใช้ลดหย่อนคนพิการได้ด้วย เพราะเป็นคนละรายการ' },

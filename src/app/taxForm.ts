@@ -17,6 +17,8 @@ export interface TaxForm {
   withheldTax: string;
   socialSecurityPaid: string;
   rmfPaid: string;
+  /** เงินสะสมกองทุนสำรองเลี้ยงชีพ (ส่วนลูกจ้าง) */
+  providentFundPaid: string;
   pensionInsurancePaid: string;
   thaiEsgPaid: string;
   /** จำนวนคน (ข้อความ จำนวนเต็ม) */
@@ -56,7 +58,7 @@ export const TAX_DISCLAIMER = 'ตัวเลขนี้เป็นการ�
 
 /** ข้อจำกัดที่ต้องบอกผู้ใช้ (R19) */
 export const TAX_LIMITATIONS =
-  'รองรับเฉพาะเงินได้จากเงินเดือน (มาตรา 40(1)) ไม่รวมเงินได้อื่น · ไม่ตรวจเงื่อนไขของสิทธิ (เช่น การถือครอง RMF/Thai ESG อายุและรายได้ของบิดามารดา) ผู้ใช้ต้องเป็นผู้ตรวจเอง · ยังไม่รวมค่าลดหย่อนอื่น (กองทุนสำรองเลี้ยงชีพ บริจาคพรรคการเมือง วิสาหกิจเพื่อสังคม กอช.) · แอปไม่ตรวจว่าคนเดียวกันถูกนับซ้ำหรือไม่ (เช่น คู่สมรสที่พิการได้ทั้งลดหย่อนคู่สมรสและคนพิการ ซึ่งกฎหมายแยกเป็นคนละรายการ) · ไม่ตรวจเอกสารประกอบสิทธิ เช่น บัตรคนพิการ เอกสารจากแพทย์ ใบเสร็จฝากครรภ์ เอกสารแสดงการเป็นผู้อุปการะ · ไม่รวม SSF และการบริจาคแบบ e-Donation 2 เท่า';
+  'รองรับเฉพาะเงินได้จากเงินเดือน (มาตรา 40(1)) ไม่รวมเงินได้อื่น · ไม่ตรวจเงื่อนไขของสิทธิ (เช่น การถือครอง RMF/Thai ESG อายุและรายได้ของบิดามารดา) ผู้ใช้ต้องเป็นผู้ตรวจเอง · ยังไม่รวมค่าลดหย่อนอื่น (กบข. กอช. บริจาคพรรคการเมือง วิสาหกิจเพื่อสังคม) · แอปไม่ตรวจว่าคนเดียวกันถูกนับซ้ำหรือไม่ (เช่น คู่สมรสที่พิการได้ทั้งลดหย่อนคู่สมรสและคนพิการ ซึ่งกฎหมายแยกเป็นคนละรายการ) · ไม่ตรวจเอกสารประกอบสิทธิ เช่น บัตรคนพิการ เอกสารจากแพทย์ ใบเสร็จฝากครรภ์ เอกสารแสดงการเป็นผู้อุปการะ · ไม่รวม SSF และการบริจาคแบบ e-Donation 2 เท่า';
 
 export const TAX_UNSUPPORTED_NOTE = 'เครื่องคิดนี้ยังไม่รองรับกรณีที่มีเงินได้อื่นนอกจากเงินเดือน จึงไม่แสดงตัวเลข เพื่อไม่ให้ได้ตัวเลขที่คลาดเคลื่อน โปรดใช้ e-Filing ของกรมสรรพากรหรือปรึกษาผู้เชี่ยวชาญ';
 
@@ -66,6 +68,11 @@ export const TAX_PARTIAL_BADGE = 'อ้างอิง ม.ค. 2568';
 /** คำอธิบายป้ายสั้นด้านบน แสดงครั้งเดียวใต้ตาราง */
 export const TAX_PARTIAL_NOTE = 'ป้าย "อ้างอิง ม.ค. 2568" = ตัวเลขจากเอกสารกรมสรรพากรฉบับ ม.ค. 2568 ซึ่งไม่ระบุปีภาษี ยังไม่พบประกาศแก้ไขสำหรับปี 2569 · ป้าย "ยังไม่ยืนยัน" = ยังไม่มีแหล่งทางการที่อ่านได้';
 export const TAX_UNVERIFIED_BADGE = 'ยังไม่ยืนยัน';
+/** ระดับความมั่นใจของรายการที่ใช้เกณฑ์ต่อเนื่องจากเอกสารปีก่อนๆ (เจ้าของกำหนดข้อความ 13 พ.ย. 2569) */
+export const TAX_CONTINUING_BADGE = 'เกณฑ์ที่ใช้ต่อเนื่อง ไม่พบประกาศเปลี่ยนแปลงสำหรับปี 2569';
+/** คำอธิบายป้ายต่อเนื่อง: บอกปีของเอกสารจริง ไม่ให้เข้าใจผิดว่าเป็นเอกสารปี 2569 */
+export const TAX_CONTINUING_NOTE =
+  'ป้าย "เกณฑ์ที่ใช้ต่อเนื่อง ไม่พบประกาศเปลี่ยนแปลงสำหรับปี 2569" = ตัวเลขมาจากหน้า/เอกสารของกรมสรรพากรที่ระบุปีภาษีก่อนหน้า (กองทุนสำรองเลี้ยงชีพ: หน้าปี 2560 · ตัวอย่างประกันบำนาญ: ถาม-ตอบปี 2553 · อินโฟกราฟิกลดหย่อน: ปี 2565) ยังไม่พบประกาศแก้ไขสำหรับปี 2569 แต่ไม่ได้ตรวจครบทุกฉบับ';
 
 export const DEDUCTION_LABELS: Record<DeductionKey, string> = {
   personal: 'ลดหย่อนส่วนตัว',
@@ -77,19 +84,21 @@ export const DEDUCTION_LABELS: Record<DeductionKey, string> = {
   prenatal: 'ค่าฝากครรภ์และคลอดบุตร',
   socialSecurity: 'เงินสมทบประกันสังคม',
   lifeInsurance: 'เบี้ยประกันชีวิต',
+  pensionToLife: 'เบี้ยบำนาญส่วนที่เกินเพดาน (นับเป็นเบี้ยประกันชีวิต)',
   healthInsurance: 'เบี้ยประกันสุขภาพ',
   spouseLifeInsurance: 'เบี้ยประกันชีวิตคู่สมรส (ไม่มีเงินได้)',
   parentsHealth: 'เบี้ยประกันสุขภาพบิดามารดา',
   mortgageInterest: 'ดอกเบี้ยเงินกู้ที่อยู่อาศัย',
+  providentFund: 'กองทุนสำรองเลี้ยงชีพ',
   rmf: 'กองทุน RMF',
   pensionInsurance: 'เบี้ยประกันชีวิตแบบบำนาญ',
   thaiEsg: 'กองทุน Thai ESG (รวม Thai ESGX)',
   donation: 'เงินบริจาคทั่วไป',
 };
 
-export function confidenceBadge(level: Confidence): string | null {
+export function confidenceBadge(level: Confidence, basis?: 'continuing'): string | null {
   if (level === 'unverified') return TAX_UNVERIFIED_BADGE;
-  if (level === 'partial') return TAX_PARTIAL_BADGE;
+  if (level === 'partial') return basis === 'continuing' ? TAX_CONTINUING_BADGE : TAX_PARTIAL_BADGE;
   return null;
 }
 
@@ -100,6 +109,7 @@ export const emptyTaxForm = (): TaxForm => ({
   withheldTax: '',
   socialSecurityPaid: '',
   rmfPaid: '',
+  providentFundPaid: '',
   pensionInsurancePaid: '',
   thaiEsgPaid: '',
   childrenCount: '',
@@ -124,6 +134,7 @@ const MONEY_LABEL = {
   withheldTax: 'ภาษีที่ถูกหักไปแล้วทั้งปี',
   socialSecurityPaid: 'เงินสมทบประกันสังคมที่จ่ายทั้งปี',
   rmfPaid: 'เงินที่ซื้อ RMF ในปี',
+  providentFundPaid: 'เงินสะสมกองทุนสำรองเลี้ยงชีพที่จ่ายในปี',
   pensionInsurancePaid: 'เบี้ยประกันชีวิตแบบบำนาญที่จ่ายในปี',
   thaiEsgPaid: 'เงินที่ซื้อ Thai ESG/ThaiESGX ในปี',
   lifeInsurancePaid: 'เบี้ยประกันชีวิตที่จ่ายในปี',
@@ -171,6 +182,7 @@ export const TAX_FIELD_SCREEN_ORDER: readonly TaxFormTextField[] = [
   'healthInsurancePaid',
   'mortgageInterestPaid',
   'donationPaid',
+  'providentFundPaid',
   'rmfPaid',
   'pensionInsurancePaid',
   'thaiEsgPaid',
@@ -249,6 +261,7 @@ export function buildTaxInput(form: TaxForm): TaxFormResult {
     withheldTax: money.withheldTax,
     socialSecurityPaid: money.socialSecurityPaid,
     rmfPaid: money.rmfPaid,
+    providentFundPaid: money.providentFundPaid,
     pensionInsurancePaid: money.pensionInsurancePaid,
     thaiEsgPaid: money.thaiEsgPaid,
     spouseNoIncome: form.spouseNoIncome,

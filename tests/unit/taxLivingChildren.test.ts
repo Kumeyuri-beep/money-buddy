@@ -67,6 +67,7 @@ describe('ลำดับช่องบนจอ (DOM) ตรงกับลำ
     healthInsurancePaid: 'tx-health',
     mortgageInterestPaid: 'tx-mortgage',
     donationPaid: 'tx-donation',
+    providentFundPaid: 'tx-pvd',
     rmfPaid: 'tx-rmf',
     pensionInsurancePaid: 'tx-pension',
     thaiEsgPaid: 'tx-esg',
