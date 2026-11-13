@@ -548,3 +548,5 @@ select { font: inherit; }
 .skip-link { position: absolute; left: -9999px; top: 0; z-index: 50; }
 .skip-link:focus { left: 16px; top: 16px; padding: 12px 16px; border-radius: 12px; background: var(--gold); color: #1a1505; font-weight: 600; }
 .content:focus:not(:focus-visible), .page-title:focus:not(:focus-visible) { outline: none; }
+
+.view-loading { min-height: 40vh; padding: 24px 4px; }

@@ -1,5 +1,6 @@
 import { Component, createRef, type ErrorInfo, type ReactNode } from 'react';
 import { downloadBackup } from './backup';
+import { ViewLoadError } from './lazyViews';
 import { getDerivedErrorState, shouldResetBoundary, type ErrorBoundaryState } from './errorBoundaryState';
 
 interface Props {
@@ -12,6 +13,8 @@ interface Props {
 
 interface State extends ErrorBoundaryState {
   backupMessage: string;
+  /** ล้มเพราะโหลดไฟล์ของหน้าไม่สำเร็จ (ไม่เกี่ยวกับข้อมูล) */
+  loadFailed: boolean;
 }
 
 /**
@@ -20,11 +23,11 @@ interface State extends ErrorBoundaryState {
  * บันทึกลงคอนโซลของเบราว์เซอร์เท่านั้น ไม่ส่งออกนอกเครื่อง
  */
 export class ErrorBoundary extends Component<Props, State> {
-  override state: State = { hasError: false, backupMessage: '' };
+  override state: State = { hasError: false, backupMessage: '', loadFailed: false };
   private readonly focusRef = createRef<HTMLElement>();
 
-  static getDerivedStateFromError(): ErrorBoundaryState {
-    return getDerivedErrorState();
+  static getDerivedStateFromError(error: unknown): ErrorBoundaryState & { loadFailed: boolean } {
+    return { ...getDerivedErrorState(), loadFailed: error instanceof ViewLoadError };
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
@@ -33,7 +36,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   override componentDidUpdate(prev: Props, prevState: State): void {
     if (shouldResetBoundary(this.state.hasError, prev.resetKey ?? '', this.props.resetKey ?? '')) {
-      this.setState({ hasError: false, backupMessage: '' });
+      this.setState({ hasError: false, backupMessage: '', loadFailed: false });
       return;
     }
     // เพิ่งล้ม: ย้ายโฟกัสคีย์บอร์ดมาที่กล่องข้อความ (ปุ่มเดิมถูกแทนที่แล้ว)
@@ -52,6 +55,23 @@ export class ErrorBoundary extends Component<Props, State> {
   override render(): ReactNode {
     if (!this.state.hasError) return this.props.children;
     const { root } = this.props;
+    if (this.state.loadFailed) {
+      // โหลดไฟล์ของหน้าไม่สำเร็จ: ข้อความตรงเหตุจริง ไม่ทำให้ตกใจเรื่องเงิน
+      return (
+        <section ref={this.focusRef} tabIndex={-1} className="solid card error-fallback" role="alert">
+          <h2>โหลดหน้านี้ไม่สำเร็จ</h2>
+          <p>ข้อมูลของคุณยังอยู่ครบ ไม่ได้หายหรือถูกแก้ไข อาจเป็นเพราะอินเทอร์เน็ตสะดุด หรือแอปเพิ่งอัปเดต</p>
+          <div className="actions">
+            <button className="btn btn-primary" onClick={() => this.setState({ hasError: false, loadFailed: false })}>
+              ลองอีกครั้ง
+            </button>
+            <button className="btn btn-ghost" onClick={() => window.location.reload()}>
+              โหลดหน้าใหม่
+            </button>
+          </div>
+        </section>
+      );
+    }
     return (
       <section ref={this.focusRef} tabIndex={-1} className="solid card error-fallback" role="alert">
         <h2>เปิดหน้านี้ไม่ได้ชั่วคราว</h2>

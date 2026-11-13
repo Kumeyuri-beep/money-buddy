@@ -1,3 +1,4 @@
+import { makeViewLoader, ViewLoadError } from '../../src/ui/lazyViews';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -25,7 +26,11 @@ describe('โครงหน้า: skip link, landmark, ชื่อหน้�
     for (const id of ['today', 'ledger', 'bills', 'account', 'averaging', 'portfolio', 'retirement', 'tax']) expect(app).toMatch(new RegExp(`${id}: '`));
     expect(app).toContain("document.querySelector<HTMLElement>('main h2.page-title')");
     expect(app).toContain('firstView.current');
-    expect(app).toMatch(/window\.setTimeout\(\(\) => \{[\s\S]*target\.focus\(\{ preventScroll: true \}\);[\s\S]*\}, 60\)/);
+    expect(app).toMatch(/timer = window\.setTimeout\(focusTitle, 60\)/);
+    // หน้าที่โหลดทีหลัง (lazy) ยังไม่มีหัวข้อ: ลองซ้ำทุก 100 ms ไม่เกิน 30 ครั้ง แล้วไปที่ #main
+    expect(app).toContain('attempt++ < 30');
+    expect(app).toContain('window.setTimeout(focusTitle, 100)');
+    expect(app).toMatch(/target\.focus\(\{ preventScroll: true \}\);/);
     expect(css).toContain('.content:focus:not(:focus-visible), .page-title:focus:not(:focus-visible) { outline: none; }');
     expect(app).toContain('target.focus({ preventScroll: true })');
     expect(src('Today.tsx')).toContain('<h2 className="page-title sr-only">ภาพรวม</h2>');
@@ -136,5 +141,67 @@ describe('restoreFocus: คืนโฟกัสให้ปุ่มเปิ�
     expect(focusSrc).toContain('opener !== document.body');
     expect(focusSrc).toContain('opener.isConnected');
     expect(focusSrc).toContain("document.getElementById('main')?.focus()");
+  });
+});
+
+describe('หน้าที่โหลดทีหลัง (lazy): ลดขนาดไฟล์แรก โดยยังเข้าถึงได้', () => {
+  const lazy = src('lazyViews.tsx');
+  const app = src('App.tsx');
+  it('หน้าภาษี/เกษียณ/พอร์ต/ถัวเฉลี่ย/บัญชี และลิงก์พอร์ตของหน้าภาษีโหลดแยก ไม่ได้ import ตรงใน App', () => {
+    for (const n of ['TaxView', 'TaxPortfolioLink', 'RetirementView', 'PortfolioView', 'AveragingView', 'AccountView']) {
+      expect(lazy).toContain(`export const ${n} = lazyView(`);
+      expect(app).not.toMatch(new RegExp(`import \\{ ${n} \\} from '\\./${n}'`));
+    }
+    expect(app).toContain("from './lazyViews'");
+  });
+  it('ระหว่างรอมีข้อความสถานะ (role=status) อยู่ใน ErrorBoundary: โหลดล้มแล้วผู้ใช้เห็นข้อความ ไม่ใช่จอขาว', () => {
+    expect(lazy).toContain('role="status"');
+    expect(app).toMatch(/<ErrorBoundary resetKey=\{view\}>\s*<Suspense fallback=\{<ViewLoading \/>\}>/);
+    expect(lazy).toContain('.catch(() => load())'); // ลองซ้ำหนึ่งรอบ
+    expect(lazy).not.toContain('lazy(('); // ไม่ใช้ React.lazy (จำผลล้มถาวร)
+    expect(lazy).toContain('pending = null'); // ล้มแล้วล้างค่า ปุ่มลองอีกครั้งโหลดใหม่จริง
+  });
+  it('โหลดไฟล์ล้ม: ErrorBoundary แสดงข้อความตรงเหตุ (ไม่พูดเรื่องยอดเงิน) มีปุ่มลองอีกครั้ง+โหลดหน้าใหม่ และไม่แย่งโฟกัส', () => {
+    const eb = src('ErrorBoundary.tsx');
+    expect(eb).toContain('error instanceof ViewLoadError');
+    expect(eb).toContain('โหลดหน้านี้ไม่สำเร็จ');
+    expect(eb).toContain('window.location.reload()');
+    expect(app).toContain("document.querySelector('main [role=\"alert\"]')");
+    expect(app).toContain("document.querySelector('dialog[open]')");
+    expect(css).toContain('.view-loading {');
+    expect(lazy).toContain('aria-live="polite"');
+  });
+});
+
+describe('makeViewLoader: โหลดล้มลองซ้ำ 1 รอบ · ล้มอีกล้างค่าที่จำไว้ให้ลองอีกครั้งโหลดใหม่จริง', () => {
+  it('สำเร็จ: เรียกโหลดครั้งเดียว จำผลไว้', async () => {
+    let calls = 0;
+    const get = makeViewLoader(async () => ++calls);
+    expect(await get()).toBe(1);
+    expect(await get()).toBe(1);
+    expect(calls).toBe(1);
+  });
+  it('ล้มครั้งแรกแต่ครั้งที่สองผ่าน = สำเร็จ (เน็ตสะดุด)', async () => {
+    let calls = 0;
+    const get = makeViewLoader(async () => {
+      if (++calls === 1) throw new Error('net');
+      return 'ok';
+    });
+    expect(await get()).toBe('ok');
+    expect(calls).toBe(2);
+  });
+  it('ล้มทั้งสองรอบ = ViewLoadError แล้วเรียกใหม่ต้องโหลดใหม่จริง (ไม่จำผลล้ม)', async () => {
+    let calls = 0;
+    let fail = true;
+    const get = makeViewLoader(async () => {
+      calls++;
+      if (fail) throw new Error('404');
+      return 'ok';
+    });
+    await expect(get()).rejects.toBeInstanceOf(ViewLoadError);
+    expect(calls).toBe(2);
+    fail = false;
+    expect(await get()).toBe('ok');
+    expect(calls).toBe(3);
   });
 });
