@@ -18,6 +18,7 @@ import {
   type Ledger,
   type PayBillResult,
 } from '../storage/repository';
+import { friendlyError } from '../app/errorText';
 import { useRepository } from './RepositoryContext';
 import { AddEntryDialog } from './AddEntryDialog';
 import { canRestoreDeletedBill } from '../domain/bills/restore';
@@ -83,7 +84,6 @@ const VIEW_TITLE: Record<ViewId, string> = {
   tax: 'คำนวณภาษี',
 };
 
-const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export function App() {
   const repo = useRepository();
@@ -113,7 +113,7 @@ export function App() {
         setState({ status: 'ready', ledger, bills, settings, snapshot });
       }
     } catch (e) {
-      setState({ status: 'error', message: `เปิดที่เก็บข้อมูลไม่ได้: ${String(e)}` });
+      setState({ status: 'error', message: `เปิดที่เก็บข้อมูลไม่ได้ (${friendlyError(e, 'ลองโหลดหน้านี้ใหม่')})` });
     }
   }, [repo]);
 
@@ -176,7 +176,7 @@ export function App() {
       setToast(next);
     } catch (e) {
       await refresh();
-      setToast({ message: errorText(e), tone: 'error' });
+      setToast({ message: friendlyError(e), tone: 'error' });
     }
   };
 
@@ -198,7 +198,7 @@ export function App() {
       if (draft) setDialog({ mode: 'scan', draft });
       else setToast({ message: 'อ่านข้อมูลจากสลิปไม่ได้ ลองรูปที่ชัดขึ้น หรือกด "เพิ่มรายการ" เพื่อกรอกเอง' });
     } catch (e) {
-      setToast({ message: errorText(e), tone: 'error' });
+      setToast({ message: friendlyError(e), tone: 'error' });
     } finally {
       scanLock.current = false;
       setScanning(null);
