@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { thaiIsoDate, thaiMonthKeyLabel } from '../app/dates';
 import { describeEntry } from '../app/describe';
 import { walletOptions } from '../app/entryForm';
@@ -30,16 +30,11 @@ import { Header } from './Header';
 import { IntegrityBanner, IntegrityStatus } from './Integrity';
 import { LedgerView } from './LedgerView';
 import { Setup } from './Setup';
-import { AveragingView } from './AveragingView';
-import { PortfolioView } from './PortfolioView';
-import { RetirementView } from './RetirementView';
 import { FORM_SETTINGS_KEYS, formSettingsPatch } from '../domain/bills/settingsPatch';
-import { TaxPortfolioLink } from './TaxPortfolioLink';
-import { TaxView } from './TaxView';
+import { AccountView, AveragingView, PortfolioView, RetirementView, TaxPortfolioLink, TaxView, ViewLoading } from './lazyViews';
 import { Shell, type ViewId } from './Shell';
 import { ScanStatus } from './ScanStatus';
 import { Toast } from './Toast';
-import { AccountView } from './AccountView';
 import { useAccount } from './AuthContext';
 import { Today } from './Today';
 import { useSlipIntake } from './useSlipIntake';
@@ -153,12 +148,23 @@ export function App() {
       firstView.current = false;
       return;
     }
-    const timer = window.setTimeout(() => {
-      const target = document.querySelector<HTMLElement>('main h2.page-title') ?? document.getElementById('main');
+    let attempt = 0;
+    let timer = 0;
+    const focusTitle = () => {
+      // ถ้ามี dialog เปิดอยู่ หรือหน้าล้ม (กล่อง role=alert ย้ายโฟกัสของตัวเองแล้ว) ไม่แย่งโฟกัส
+      if (document.querySelector('dialog[open]') || document.querySelector('main [role="alert"]')) return;
+      const title = document.querySelector<HTMLElement>('main h2.page-title');
+      // หน้าที่โหลดทีหลัง (lazy) ยังไม่มีหัวข้อ: รอแล้วลองใหม่ ครบเวลาแล้วค่อยไปที่เนื้อหาหลัก
+      if (!title && attempt++ < 30) {
+        timer = window.setTimeout(focusTitle, 100);
+        return;
+      }
+      const target = title ?? document.getElementById('main');
       if (!target) return;
       if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
       target.focus({ preventScroll: true });
-    }, 60);
+    };
+    timer = window.setTimeout(focusTitle, 60);
     return () => window.clearTimeout(timer);
   }, [view]);
 
@@ -430,6 +436,7 @@ export function App() {
       {integrity && <IntegrityBanner report={integrity} />}
 
       <ErrorBoundary resetKey={view}>
+      <Suspense fallback={<ViewLoading />}>
       {view === 'today' ? (
         <Today
           ledger={state.ledger}
@@ -484,6 +491,7 @@ export function App() {
           onCancelPayment={cancelPaymentOfEntry}
         />
       )}
+      </Suspense>
       </ErrorBoundary>
 
       {dialog?.mode === 'bill' && (
