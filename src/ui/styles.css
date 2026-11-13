@@ -550,3 +550,27 @@ select { font: inherit; }
 .content:focus:not(:focus-visible), .page-title:focus:not(:focus-visible) { outline: none; }
 
 .view-loading { min-height: 40vh; padding: 24px 4px; }
+
+/* มือถือ (≤720px): ปุ่มและตัวเลือกที่แตะบ่อยสูงอย่างน้อย 44px · ปุ่มในแถวรายการเว้นช่องกว้างขึ้นกันกดผิด · dialog ไม่ถูกแป้นพิมพ์บัง */
+@media (max-width: 720px) {
+  .btn-small, .toast-btn, .seg-item, .quick-field select { min-height: 44px; }
+  .auth-form .password-row .password-toggle, .password-row .password-toggle { width: 44px; height: 44px; }
+  .password-row input { padding-right: 60px; }
+  .field input[type='file']::file-selector-button { min-height: 36px; }
+  .tx-actions { gap: 10px; }
+  .toast-actions { gap: 10px; }
+}
+/* dvh = ความสูงที่เห็นจริงเมื่อแป้นพิมพ์/แถบเบราว์เซอร์ขึ้น (บรรทัด vh ด้านบนเป็นตัวสำรองของเบราว์เซอร์เก่า) */
+@supports (height: 100dvh) {
+  .entry-dialog { max-height: calc(100dvh - 32px); }
+}
+@media (max-width: 400px) {
+  .amount-input { font-size: 28px; }
+}
+/* มือถือ: แถบข้าง (โลโก้ โปรไฟล์ ปุ่มต่างๆ) กินที่บนสุด ย่อช่องไฟและตัดคำโปรยออก ให้เห็นเนื้อหาเร็วขึ้น (ปุ่มทุกปุ่มยังอยู่ครบ) */
+@media (max-width: 720px) {
+  .sidebar { padding: 12px; gap: 10px; }
+  .brand-tagline { display: none; }
+  .sidebar-footer { gap: 6px; }
+  .nav-signout { margin-bottom: 0; }
+}
