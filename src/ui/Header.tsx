@@ -45,7 +45,7 @@ export function Header({ ledger, onAdd, onQuickSaved, onScan, scanning }: Header
         />
         <button
           type="button"
-          className="btn btn-add"
+          className="btn btn-add btn-scan"
           aria-disabled={scanning}
           aria-describedby="scan-hint"
           onClick={() => {
@@ -61,7 +61,7 @@ export function Header({ ledger, onAdd, onQuickSaved, onScan, scanning }: Header
         <span id="scan-hint" className="sr-only">
           เลือกรูปสลิปจากเครื่อง (บนคอมพิวเตอร์ยังวางรูปด้วย Ctrl+V หรือลากรูปมาวางบนหน้านี้ได้)
         </span>
-        <button className="btn btn-primary btn-add" onClick={onAdd}>
+        <button className="btn btn-primary btn-add btn-add-header" onClick={onAdd}>
           <svg className="ico" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 5v14M5 12h14" />
           </svg>

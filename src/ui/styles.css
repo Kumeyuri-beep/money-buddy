@@ -640,3 +640,10 @@ select { font: inherit; }
   .wallet-name-row { grid-template-columns: 1fr; }
   .wallet-name-row .btn { width: 100%; justify-content: center; min-height: 44px; }
 }
+
+/* Header บนมือถือ (design-critic ตัดสิน 13 พ.ย. 2569): "+ เพิ่มรายการ" ซ้ำกับรายการแรกของเมนู pop up จึงซ่อน (display: none = ออกจากลำดับ Tab และโปรแกรมอ่านจอพร้อมกัน) · "สแกนสลิป" เป็นปุ่มเต็มแถวเพียงปุ่มเดียว · จอใหญ่ไม่เปลี่ยน */
+@media (max-width: 720px) {
+  .btn-add-header { display: none; }
+  .topbar-actions { flex: 1 1 100%; justify-content: stretch; }
+  .btn-scan { flex: 1 1 100%; justify-content: center; }
+}
