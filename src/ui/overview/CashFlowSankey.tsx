@@ -100,7 +100,12 @@ export function CashFlowSankey({ accounts, entries, today }: CashFlowSankeyProps
   if (flow === 'too-large') {
     return (
       <section className="glass-lite card sankey" aria-labelledby="sankey-title">
-        <h2 id="sankey-title">Cash Flow</h2>
+        <h2 id="sankey-title">
+          เงินเข้า-ออกเดือนนี้
+          <span className="summary-label-en" aria-hidden="true">
+            {' · '}CASH FLOW
+          </span>
+        </h2>
         <p className="summary-empty">ยอดสูงเกินกว่าจะแสดงกราฟได้</p>
         <p className="muted small">ยอดรวมของเดือนนี้ใหญ่เกินช่วงที่คำนวณได้อย่างแม่นยำ</p>
       </section>
@@ -110,7 +115,12 @@ export function CashFlowSankey({ accounts, entries, today }: CashFlowSankeyProps
   if (month === undefined || flow === null || !flow.hasData) {
     return (
       <section className="glass-lite card sankey" aria-labelledby="sankey-title">
-        <h2 id="sankey-title">Cash Flow</h2>
+        <h2 id="sankey-title">
+          เงินเข้า-ออกเดือนนี้
+          <span className="summary-label-en" aria-hidden="true">
+            {' · '}CASH FLOW
+          </span>
+        </h2>
         <p className="summary-empty">ยังไม่มีรายรับหรือรายจ่าย</p>
         <p className="muted small">เมื่อบันทึกรายรับรายจ่าย เส้นทางของเงินในเดือนนั้นจะแสดงที่นี่</p>
       </section>
@@ -138,14 +148,19 @@ export function CashFlowSankey({ accounts, entries, today }: CashFlowSankeyProps
 
   const overspend = flow.shortfall > 0;
   const summary =
-    `Cash Flow ${thaiMonthKeyLabel(month)}: รายรับ ${formatBaht(satang(flow.income))} ` +
+    `เงินเข้า-ออก ${thaiMonthKeyLabel(month)}: รายรับ ${formatBaht(satang(flow.income))} ` +
     `รายจ่าย ${formatBaht(satang(flow.expense))} ` +
     (overspend ? `ใช้เกินรายรับ ${formatBaht(satang(flow.shortfall))}` : `เหลือเก็บ ${formatBaht(satang(flow.leftover))}`);
 
   return (
     <section className="glass-lite card sankey" aria-labelledby="sankey-title">
       <div className="sankey-head">
-        <h2 id="sankey-title">Cash Flow</h2>
+        <h2 id="sankey-title">
+          เงินเข้า-ออกเดือนนี้
+          <span className="summary-label-en" aria-hidden="true">
+            {' · '}CASH FLOW
+          </span>
+        </h2>
         <div className="field sankey-month">
           <label htmlFor="sankey-month">เดือน</label>
           <select id="sankey-month" value={month} onChange={(e) => setPicked(e.target.value)}>
