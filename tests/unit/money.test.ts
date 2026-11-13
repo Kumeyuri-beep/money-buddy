@@ -4,7 +4,6 @@ import {
   formatBaht,
   parseBahtToSatang,
   satang,
-  sumSatang,
   toBaht,
   toBahtString,
 } from '../../src/domain/money/satang';
@@ -96,11 +95,6 @@ describe('แสดงผลและรวมสตางค์', () => {
     expect(() => satang(Number.NaN)).toThrow(RangeError);
     expect(() => satang(2 ** 53)).toThrow(RangeError);
     expect(Object.is(satang(-0), 0)).toBe(true);
-  });
-  it('sumSatang ไม่มีเศษทศนิยมหลุดมา (0.1+0.2 ในหน่วยบาทคือปัญหาเดิม)', () => {
-    const total = sumSatang([parseBahtToSatang('0.1'), parseBahtToSatang('0.2')]);
-    expect(total).toBe(30);
-    expect(sumSatang([])).toBe(0);
   });
 });
 

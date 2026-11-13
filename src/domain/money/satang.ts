@@ -64,10 +64,3 @@ export function formatBaht(value: Satang): string {
   const text = toBahtString(satang(Math.abs(value)));
   return `${value < 0 ? '−' : ''}฿${text}`;
 }
-
-/** รวมสตางค์ทั้งหมด (ตรวจช่วงปลอดภัยทุกครั้ง) */
-export function sumSatang(values: readonly Satang[]): Satang {
-  let total = 0;
-  for (const v of values) total += v;
-  return satang(total);
-}
