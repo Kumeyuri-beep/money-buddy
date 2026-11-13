@@ -5,6 +5,7 @@ import { AllocationPanel } from './overview/AllocationPanel';
 import { ToolsPanel } from './overview/ToolsPanel';
 import { UpcomingBillsPanel } from './overview/UpcomingBillsPanel';
 import { RecentEntries } from './overview/RecentEntries';
+import { StartGuide } from './overview/StartGuide';
 import { SummaryCards } from './overview/SummaryCards';
 import { Wallets } from './overview/Wallets';
 
@@ -28,6 +29,7 @@ export function Today({ ledger, onAdd, onOpenLedger, finance, onOpenBills, onOpe
   return (
     <>
       <h2 className="page-title sr-only">ภาพรวม</h2>
+      <StartGuide entries={entries} finance={finance} onAdd={onAdd} onOpenBills={onOpenBills} />
       <SummaryCards accounts={accounts} entries={entries} today={today} finance={finance} onOpenLedger={onOpenLedger} onOpenBills={onOpenBills} onAdd={onAdd} />
 
       <CashFlowSankey accounts={accounts} entries={entries} today={today} />
