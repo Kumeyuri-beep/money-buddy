@@ -18,3 +18,33 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  # เทสต์หน้าจอด้วย Playwright (ข้อมูลสมมติจาก harness ไม่ต่อฐานข้อมูลจริง ไม่ใช้ secrets) แยกเป็นอีก job เพื่อไม่ยืดเวลา job test
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: จำไฟล์เบราว์เซอร์ของ Playwright
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - run: npx playwright install --with-deps chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+      - run: npx playwright install-deps chromium
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+      - run: npm run e2e
+      - name: เก็บผลเมื่อล้ม (ข้อมูลสมมติเท่านั้น)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: test-results/
+          retention-days: 3
