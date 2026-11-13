@@ -74,6 +74,11 @@ export interface LedgerRepository {
    */
   renameWallet(id: string, name: string): Promise<Account>;
   /**
+   * เปลี่ยน "ชื่อที่แสดง" ของหมวดรายรับ/รายจ่าย (เจ้าของสั่ง 13 พ.ย. 2569 แบบเดียวกับกระเป๋า) · เขียนเฉพาะคอลัมน์ name ห้ามแตะรหัสบัญชี ยอด หรือรายการ
+   * ชื่อว่าง/ยาวเกิน/ซ้ำกับหมวดอื่นประเภทเดียวกัน/ไม่ใช่หมวดรายรับรายจ่าย (กระเป๋า ยอดยกมา บัญชีผลการลงทุน)/เก็บถาวร = StorageError ไม่เปลี่ยนอะไร
+   */
+  renameCategory(id: string, name: string): Promise<Account>;
+  /**
    * บันทึกรายการลงทุน + รายการในสมุดบัญชีคู่ในธุรกรรมเดียว (P4 · RPC record_trade)
    * ตรวจกติกาลำดับ/ขายเกิน (domain/invest/rules) ก่อนส่ง และฐานข้อมูลตรวจซ้ำ (trigger กันสองแท็บ)
    * walletId = กระเป๋าเงินสดที่จ่าย/รับเงิน (ปันผลลงทุนต่อไม่ใช้)
@@ -117,6 +122,7 @@ export function createDexieRepository(db: MoneyDB): LedgerRepository {
     addAsset: () => Promise.reject(localInvestError()),
     addWallet: () => Promise.reject(localInvestError()),
     renameWallet: (id, name) => dexie.renameWallet(db, id, name),
+    renameCategory: (id, name) => dexie.renameCategory(db, id, name),
     recordTrade: () => Promise.reject(localInvestError()),
     deleteTrade: () => Promise.reject(localInvestError()),
     savePrice: () => Promise.reject(localInvestError()),

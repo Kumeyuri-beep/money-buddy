@@ -414,6 +414,11 @@ describe('accounts: ผู้ใช้แก้ได้เฉพาะ name (mi
     await a.addWallet({ id: 'w-extra', name: 'กระเป๋าเพิ่ม' });
     await expect(a.renameWallet('w-extra', 'กระเป๋าเพิ่ม 2')).resolves.toMatchObject({ name: 'กระเป๋าเพิ่ม 2' });
     const cat = accounts.find((x) => x.type === 'expense')!;
+    // เปลี่ยนชื่อหมวด (renameCategory): เปลี่ยนแค่ name ได้จริงกับฐานข้อมูล · ชื่อซ้ำประเภทเดียวกัน/ไม่ใช่หมวดถูกปฏิเสธก่อนเขียน
+    const catBefore = (await a.loadLedger()).accounts.find((x) => x.id === cat.id)!;
+    await expect(a.renameCategory(cat.id, 'หมวดทดสอบเปลี่ยนชื่อ')).resolves.toMatchObject({ id: cat.id, type: catBefore.type, currency: catBefore.currency, name: 'หมวดทดสอบเปลี่ยนชื่อ' });
+    await expect(a.renameCategory(wallet.id, 'ห้ามเปลี่ยนกระเป๋าทางหมวด')).rejects.toThrow();
+    expect((await a.loadLedger()).accounts.find((x) => x.id === cat.id)).toEqual({ ...catBefore, name: 'หมวดทดสอบเปลี่ยนชื่อ' });
     await a.appendEntry({ id: 'acc-grant-e1', date: '2026-11-02', memo: 'ทดสอบ', lines: [{ accountId: cat.id, amount: 100 }, { accountId: wallet.id, amount: -100 }] });
     expect((await a.loadLedger()).entries.some((e) => e.id === 'acc-grant-e1')).toBe(true);
   });
