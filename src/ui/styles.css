@@ -631,6 +631,24 @@ select { font: inherit; }
   .start-step .btn { grid-column: 1 / -1; justify-content: center; }
 }
 
+/* แถวสินทรัพย์ในหน้าพอร์ต: ตัวเลขคนละบรรทัด (ป้ายซ้าย ค่าขวา) ชื่อยาวขึ้นบรรทัดใหม่ในที่ของตัวเอง ไม่ดันตัวเลขตก (มือถือ 360px) */
+.asset-title { overflow-wrap: anywhere; }
+.asset-name { font-weight: 600; }
+.asset-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 2px 28px; margin: 6px 0 0; }
+.asset-fig { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0 12px; min-width: 0; padding: 3px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+.asset-fig dt { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.asset-fig dd { margin: 0; max-width: 100%; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.asset-fig-note { grid-column: 1 / -1; justify-content: flex-start; }
+.asset-fig-note dd { white-space: normal; text-align: left; }
+/* จอแคบ: ค่าสั้น (ถือ/ต้นทุน/มูลค่า/กำไร) จัด 2 คอลัมน์ ป้ายบนค่าล่าง · ค่ายาว (ต้นทุนเฉลี่ย/ราคา/คำเตือน) เต็มแถว → จากราว 9 บรรทัดเหลือราว 5 */
+@media (max-width: 480px) {
+  .asset-figures { grid-template-columns: 1fr 1fr; }
+  .asset-fig { flex-direction: column; align-items: flex-start; }
+  .asset-fig dd { text-align: left; }
+  .asset-fig-wide { grid-column: 1 / -1; flex-direction: row; align-items: baseline; justify-content: space-between; }
+  .asset-fig-wide dd { text-align: right; }
+}
+
 /* เปลี่ยนชื่อกระเป๋าเงิน (หน้าโปรไฟล์) */
 .category-name-group h3 { margin: 16px 0 0; font-size: 1rem; font-weight: 600; padding-top: 12px; border-top: 1px solid var(--control-border); }
 .wallet-name-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }

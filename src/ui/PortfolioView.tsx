@@ -12,6 +12,7 @@ import { formatMicro } from '../domain/money/micro';
 import { formatBaht, satang } from '../domain/money/satang';
 import { StorageError, nextCreatedAt } from '../storage/repository';
 import { friendlyError } from '../app/errorText';
+import { AssetFigures } from './AssetFigures';
 import { DcaPlansCard } from './DcaPlansCard';
 import { ShareCardPanel } from './ShareCardPanel';
 import { useRepository } from './RepositoryContext';
@@ -679,38 +680,7 @@ function AssetRow(props: {
   return (
     <li className="tx bill-row">
       <div className="tx-main">
-        <div className="tx-title">
-          {row.asset.name} <span className="muted small">{ASSET_KIND_LABEL[row.asset.kind]}</span>
-        </div>
-        {row.error ? (
-          <p role="alert" className="form-error">
-            ข้อมูลรายการของสินทรัพย์นี้ไม่สอดคล้อง: {row.error}
-          </p>
-        ) : (
-          <div className="muted small">
-            ถือ <span className="num">{formatUnits(row.position.units)}</span> หน่วย · ต้นทุน <span className="num">{baht(row.position.cost)}</span>
-            {row.avgCostMicro !== null && ` (เฉลี่ย ${formatMicro(row.avgCostMicro)} บาท/หน่วย)`}
-            <br />
-            {row.latestPrice ? (
-              <>
-                ราคา {formatMicro(row.latestPrice.priceMicro)} บาท ณ {thaiDayLabel(row.latestPrice.date)}
-                {row.priceStale && <strong className="stale"> · ราคาเก่า {daysBetween(row.latestPrice.date, today)} วัน อัปเดตราคาก่อนดูมูลค่า</strong>}
-                {row.market && (
-                  <>
-                    {' '}
-                    · มูลค่า {baht(row.market.value)} · กำไร/ขาดทุน {signed(row.market.unrealized)}
-                  </>
-                )}
-              </>
-            ) : row.position.units > 0n ? (
-              'ยังไม่ได้กรอกราคา (ไม่แสดงมูลค่า)'
-            ) : (
-              'ไม่มีหน่วยที่ถืออยู่'
-            )}
-            {row.realizedGain !== 0 && ` · ขายแล้ว ${signed(row.realizedGain)}`}
-            {row.dividendsNet > 0 && ` · ปันผล ${baht(row.dividendsNet)}`}
-          </div>
-        )}
+        <AssetFigures row={row} today={today} />
         <details className="archived-details">
           <summary>ประวัติรายการ ({trades.length})</summary>
           {sorted.length === 0 ? (
@@ -733,7 +703,7 @@ function AssetRow(props: {
                     className={confirmDelete === tr.id ? 'btn btn-ghost btn-small confirm-delete' : 'btn btn-ghost btn-small'}
                     disabled={busy}
                     onClick={() => props.onDelete(tr)}
-                    aria-label={`${confirmDelete === tr.id ? 'ยืนยันลบ' : 'ลบ'}รายการ ${KIND_LABEL[tr.kind]} วันที่ ${tr.date}`}
+                    aria-label={`${confirmDelete === tr.id ? 'ยืนยันลบ' : 'ลบ'}รายการ ${KIND_LABEL[tr.kind]} ${thaiDayLabel(tr.date)}`}
                   >
                     {confirmDelete === tr.id ? 'ยืนยันลบ' : 'ลบ'}
                   </button>
