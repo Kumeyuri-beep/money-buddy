@@ -6,7 +6,7 @@
 import type { FinanceSettings } from '../domain/bills/settings';
 import type { Entry } from '../domain/ledger/types';
 import type { LedgerRepository } from '../storage/ledgerRepository';
-import { addDays } from './dates';
+import { addDays, thaiFullDate } from './dates';
 
 /** เตือนเมื่อดาวน์โหลดล่าสุดเกินกี่วัน (เกิน = มากกว่า 7) */
 export const BACKUP_STALE_DAYS = 7;
@@ -31,6 +31,18 @@ export function backupReminder(input: { entries: readonly Entry[]; settings: Fin
   const daysSince = daysBetween(settings.lastBackupAt, today);
   // วันที่ในอนาคต (นาฬิกาเครื่องเพี้ยน) ให้ถือว่าเพิ่งสำรอง ไม่เตือน
   return daysSince > BACKUP_STALE_DAYS ? { show: true, reason: 'stale', daysSince } : { show: false };
+}
+
+/**
+ * ข้อความบอกวันที่ดาวน์โหลดสำรองล่าสุด (หน้าโปรไฟล์ · เจ้าของสั่ง 13 พ.ย. 2569): ให้ผู้ใช้รู้ว่าสำรองไว้ล่าสุดเมื่อไหร่
+ * ไม่เคย = บอกตรงๆ · วันนี้ = "วันนี้" · เก่ากว่า = วันที่เต็ม + กี่วันที่แล้ว
+ */
+export function lastBackupLabel(lastBackupAt: string | undefined, today: string): string {
+  if (lastBackupAt === undefined) return 'ยังไม่เคยดาวน์โหลดข้อมูลสำรอง';
+  const days = daysBetween(lastBackupAt, today);
+  const date = thaiFullDate(lastBackupAt);
+  if (days <= 0) return `ดาวน์โหลดสำรองล่าสุด: ${days === 0 ? 'วันนี้ · ' : ''}${date}`;
+  return `ดาวน์โหลดสำรองล่าสุด: ${date} (${days} วันที่แล้ว)`;
 }
 
 /** วันสุดท้ายที่ซ่อนแถบ: วันนี้ + 3 วัน (ถึงวันนั้นแล้วกลับมาเตือน) */

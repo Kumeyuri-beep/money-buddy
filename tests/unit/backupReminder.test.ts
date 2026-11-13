@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
-import { backupReminder, markBackupDone, snoozeUntilFor, BACKUP_STALE_DAYS, BACKUP_SNOOZE_DAYS } from '../../src/app/backupReminder';
+import { backupReminder, lastBackupLabel, markBackupDone, snoozeUntilFor, BACKUP_STALE_DAYS, BACKUP_SNOOZE_DAYS } from '../../src/app/backupReminder';
 import { BackupReminder } from '../../src/ui/overview/BackupReminder';
 import { sanitizeSettings, settingsProblem } from '../../src/domain/bills/settings';
 import { SETTINGS_KEYS, planSettingsReplace, applySettingsPlan, planSettingsPatch } from '../../src/domain/bills/settingsPatch';
@@ -124,5 +124,29 @@ describe('การต่อสาย UI', () => {
       expect(t.indexOf('downloadBackup(repo)'), f).toBeGreaterThan(-1);
       expect(t.indexOf('markBackupDone('), f).toBeGreaterThan(t.indexOf('downloadBackup(repo)'));
     }
+  });
+});
+
+describe('lastBackupLabel (หน้าโปรไฟล์)', () => {
+  it('ไม่เคยดาวน์โหลด = บอกตรงๆ', () => {
+    expect(lastBackupLabel(undefined, '2026-11-20')).toBe('ยังไม่เคยดาวน์โหลดข้อมูลสำรอง');
+  });
+  it('วันนี้ = "วันนี้ · วันที่เต็ม (พ.ศ.)" · ก่อนหน้า = วันที่เต็ม + กี่วันที่แล้ว', () => {
+    expect(lastBackupLabel('2026-11-20', '2026-11-20')).toBe('ดาวน์โหลดสำรองล่าสุด: วันนี้ · 20 พฤศจิกายน 2569');
+    expect(lastBackupLabel('2026-11-13', '2026-11-20')).toBe('ดาวน์โหลดสำรองล่าสุด: 13 พฤศจิกายน 2569 (7 วันที่แล้ว)');
+    expect(lastBackupLabel('2026-11-19', '2026-11-20')).toContain('(1 วันที่แล้ว)');
+  });
+  it('ข้ามปี/เดือนนับวันถูก · วันที่ในอนาคต (นาฬิกาเครื่องเพี้ยน) แสดงวันที่เฉยๆ ไม่ติดลบ', () => {
+    expect(lastBackupLabel('2026-12-31', '2027-01-02')).toBe('ดาวน์โหลดสำรองล่าสุด: 31 ธันวาคม 2569 (2 วันที่แล้ว)');
+    expect(lastBackupLabel('2026-12-31', '2026-11-20')).toBe('ดาวน์โหลดสำรองล่าสุด: 31 ธันวาคม 2569');
+  });
+  it('หน้าโปรไฟล์แสดงข้อความนี้ใต้ปุ่มดาวน์โหลด · อัปเดตทันทีหลังดาวน์โหลดสำเร็จและจดวันที่ได้ · โหลดไม่ได้ = บอกว่าอ่านไม่ได้ (ไม่แสดงว่า "ไม่เคย")', () => {
+    const src = Object.entries(import.meta.glob('/src/ui/AccountView.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)[0]?.[1] ?? '';
+    expect(src).toContain('lastBackupLabel(lastBackup, thaiIsoDate())');
+    expect(src).toContain('setLastBackup(thaiIsoDate())');
+    expect(src).toContain('อ่านวันที่ดาวน์โหลดสำรองล่าสุดไม่ได้ ลองเปิดหน้านี้ใหม่');
+    expect(src).toContain('กำลังตรวจวันที่ดาวน์โหลดสำรองล่าสุด');
+    expect(src).toContain('แต่จดวันที่ดาวน์โหลดไม่สำเร็จ'); // จดวันที่ไม่ได้ต้องบอกผู้ใช้
+    expect(src.indexOf('ดาวน์โหลดข้อมูลของฉัน')).toBeLessThan(src.indexOf('id="last-backup"'));
   });
 });
