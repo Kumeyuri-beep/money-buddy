@@ -122,8 +122,8 @@ export function Shell({ children, showNav = true, current = 'today', onNavigate,
                 <Icon path="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0" />
               </span>
               <div>
-                <div className="profile-name">{accountName ?? 'บัญชีในเครื่องนี้'}</div>
-                <div className="muted profile-sub">ข้อมูลอยู่ในเครื่องคุณ</div>
+                <div className="profile-name">{accountName ?? 'บัญชีของคุณ'}</div>
+                <div className="muted profile-sub">ข้อมูลเก็บในบัญชีของคุณ</div>
               </div>
             </div>
             {onSignOut ? (
