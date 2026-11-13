@@ -22,14 +22,6 @@ export const INVEST_ACCOUNT_IDS = {
   withholding: 'inv-wht',
 } as const;
 
-/** บัญชีผลการลงทุนที่ระบบสร้างให้เอง (ตรงกับ public.record_trade) */
-export const INVEST_RESULT_ACCOUNTS: readonly { id: string; type: 'income' | 'expense'; name: string }[] = [
-  { id: INVEST_ACCOUNT_IDS.gain, type: 'income', name: 'กำไรจากการลงทุน' },
-  { id: INVEST_ACCOUNT_IDS.loss, type: 'expense', name: 'ขาดทุนจากการลงทุน' },
-  { id: INVEST_ACCOUNT_IDS.dividend, type: 'income', name: 'ปันผล' },
-  { id: INVEST_ACCOUNT_IDS.withholding, type: 'expense', name: 'ภาษีหัก ณ ที่จ่าย' },
-];
-
 export const TRADE_KIND_LABEL: Record<TradeKind, string> = {
   buy: 'ซื้อ',
   sell: 'ขาย',
