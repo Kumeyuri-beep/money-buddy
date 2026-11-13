@@ -5,6 +5,9 @@ dist
 *.log
 # log เต็มของชุดทดสอบจริง (tests/live/logReporter.ts) ห้ามเข้า git
 .live-logs/
+# ผลเทสต์หน้าจอ Playwright
+test-results/
+playwright-report/
 .DS_Store
 
 .obsidian/
