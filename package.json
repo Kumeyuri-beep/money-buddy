@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "admin:create-user": "node scripts/create-user.mjs",
     "admin:reset-password": "node scripts/reset-password.mjs",
+    "admin:delete-user": "node scripts/delete-user.mjs",
     "admin:spike": "node scripts/spike-auth.mjs",
     "admin:live-contract": "vitest run --config vitest.live.config.ts",
     "preview": "vite preview"
