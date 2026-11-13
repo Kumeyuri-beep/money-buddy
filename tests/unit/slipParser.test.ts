@@ -2,9 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { buildEntry } from '../../src/app/entryForm';
 import { learnFromHistory } from '../../src/app/quickText';
 import {
-  draftFromOcrText,
   draftFromOcrTexts,
-  parseSlipText,
+  parseSlipTextDetailed,
   parseSlipTexts,
   slipToDraft,
 } from '../../src/app/slipParser';
@@ -12,6 +11,12 @@ import { buildInitialLedger } from '../../src/app/setup';
 import { createEntry } from '../../src/domain/ledger/entry';
 
 // ข้อความทั้งหมดในไฟล์นี้เป็นข้อความสมมติ ห้ามนำข้อความจากสลิปจริงมาใส่
+
+// เดิมเรียกตัวห่อ parseSlipText / draftFromOcrText ที่ production ไม่ใช้ (ลบแล้ว 14 พ.ย. 2569) · ตอนนี้เรียกตัวจริงโดยตรง ผลเท่าเดิมทุกกรณี:
+// - parseSlipTextDetailed(raw).fields = อ่านสลิปรอบเดียว (ตัวที่ production ใช้ผ่าน parseSlipTexts) · ไม่ใช้ parseSlipTexts([t]) เพราะกฎรวมผลทิ้งยอดโหมดสำรองที่ไม่มีป้าย "จำนวน"
+// - draftFromOcrTexts([t], ctx) = ร่างฟอร์มจากข้อความรอบเดียว (production เรียก draftFromOcrTexts จาก App.tsx)
+const parseSlipText = (raw: string) => parseSlipTextDetailed(raw).fields;
+const draftFromOcrText = (text: string, ctx: Parameters<typeof draftFromOcrTexts>[1]) => draftFromOcrTexts([text], ctx);
 
 const SLIP = [
   'โอนเงินสำเร็จ',
