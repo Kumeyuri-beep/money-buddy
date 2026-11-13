@@ -20,3 +20,9 @@ describe('มือถือ ≤720px', () => {
     expect(css).toMatch(/@supports \(height: 100dvh\) \{\s*\.entry-dialog \{ max-height: calc\(100dvh - 32px\); \}/);
   });
 });
+
+describe('การ์ดสรุปบนมือถือ', () => {
+  it('สูงตามเนื้อหา (ไม่ fix 168px) ช่องไฟกระชับ', () => {
+    expect(css).toMatch(/@media \(max-width: 720px\) \{\s*\.summary-grid \{ gap: 12px; \}\s*\.summary-card \{ min-height: 0; padding: 16px 18px; \}/);
+  });
+});
