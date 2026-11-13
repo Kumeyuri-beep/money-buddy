@@ -3,7 +3,7 @@ import { cooldownState, deleteMyAccount, formatRemaining } from '../app/account'
 import { accountApi, loadPasswordChangedAt, supabase } from '../storage/supabase';
 import { useAccount } from './AuthContext';
 import { thaiIsoDate } from '../app/dates';
-import { markBackupDone } from '../app/backupReminder';
+import { lastBackupLabel, markBackupDone } from '../app/backupReminder';
 import { downloadBackup } from './backup';
 import { ChangePasswordForm } from './ChangePasswordForm';
 import { usePasswordPrompt } from './PasswordPrompt';
@@ -18,6 +18,18 @@ export function AccountView({ onReset, onWalletsChanged, onBackedUp }: { onReset
   const repo = useRepository();
   const requestPassword = usePasswordPrompt();
   const [exportNote, setExportNote] = useState('');
+  // วันที่ดาวน์โหลดสำรองล่าสุด: undefined = ยังไม่เคย · null = กำลังโหลด · ข้อความ "ไม่ทราบ" เมื่อโหลดค่าตั้งค่าไม่สำเร็จ
+  const [lastBackup, setLastBackup] = useState<string | undefined | null | 'unknown'>(null);
+  useEffect(() => {
+    let cancelled = false;
+    repo
+      .loadSettings()
+      .then((s) => !cancelled && setLastBackup(s.lastBackupAt))
+      .catch(() => !cancelled && setLastBackup('unknown'));
+    return () => {
+      cancelled = true;
+    };
+  }, [repo]);
   const [ack, setAck] = useState(false);
   const [busy, setBusy] = useState(false);
   const [deleteNote, setDeleteNote] = useState('');
@@ -39,9 +51,12 @@ export function AccountView({ onReset, onWalletsChanged, onBackedUp }: { onReset
     try {
       await downloadBackup(repo);
       // จดวันที่ดาวน์โหลดล่าสุด (ใช้เตือนสำรอง) · จดไม่สำเร็จไม่กระทบไฟล์ที่ได้แล้ว
-      await markBackupDone(repo, thaiIsoDate()).catch(() => undefined);
+      const marked = await markBackupDone(repo, thaiIsoDate()).then(() => true, () => false);
+      if (marked) setLastBackup(thaiIsoDate()); // แสดงวันที่ใหม่ทันที
       onBackedUp?.(); // โหลดค่าตั้งค่าใหม่ ให้แถบเตือนบนหน้าภาพรวมหายทันที
-      setExportNote('ดาวน์โหลดแล้ว เก็บไฟล์นี้ไว้ในที่ปลอดภัย (มีข้อมูลการเงินของคุณทั้งหมด)');
+      setExportNote(
+        'ดาวน์โหลดแล้ว เก็บไฟล์นี้ไว้ในที่ปลอดภัย (มีข้อมูลการเงินของคุณทั้งหมด)' + (marked ? '' : ' · แต่จดวันที่ดาวน์โหลดไม่สำเร็จ วันที่ด้านบนและแถบเตือนอาจยังไม่เปลี่ยน'),
+      );
     } catch {
       setExportNote('ดาวน์โหลดไม่สำเร็จ ลองอีกครั้ง');
     }
@@ -100,6 +115,13 @@ export function AccountView({ onReset, onWalletsChanged, onBackedUp }: { onReset
             ดาวน์โหลดข้อมูลของฉัน
           </button>
         </div>
+        <p className="muted small" id="last-backup">
+          {lastBackup === null
+            ? 'กำลังตรวจวันที่ดาวน์โหลดสำรองล่าสุด…'
+            : lastBackup === 'unknown'
+              ? 'อ่านวันที่ดาวน์โหลดสำรองล่าสุดไม่ได้ ลองเปิดหน้านี้ใหม่'
+              : lastBackupLabel(lastBackup, thaiIsoDate())}
+        </p>
         <div role="status" className="auth-ok">
           {exportNote}
         </div>

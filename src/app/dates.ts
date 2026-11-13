@@ -54,6 +54,11 @@ function fromIso(iso: string): Date {
   return new Date(y, m - 1, d ?? 1);
 }
 
+/** "13 พฤศจิกายน 2569" (วัน เดือนเต็ม ปี พ.ศ.) สำหรับแสดงวันที่เต็มในหน้าโปรไฟล์ */
+export function thaiFullDate(iso: string): string {
+  return new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }).format(fromIso(iso));
+}
+
 /** "อา. 1 พ.ย." สำหรับหัวข้อวันในหน้ารายการ */
 export function thaiDayLabel(iso: string): string {
   return new Intl.DateTimeFormat('th-TH', { weekday: 'short', day: 'numeric', month: 'short' }).format(fromIso(iso));
