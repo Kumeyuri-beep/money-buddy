@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { buildRetirementInput, emptyRetirementForm, RETIREMENT_DISCLAIMER, RETIREMENT_LIMITATIONS, RETIREMENT_ON_TRACK_NOTE, RETIREMENT_REAL_RETURN_WARNING, RETIREMENT_ROUNDING_NOTE, type RetirementForm, type RetirementFormError, type RetirementFormField, type RetirementFormResult } from '../app/retirementForm';
+import { baht } from '../app/bahtFormat';
 import { friendlyError } from '../app/errorText';
 import { initialRetirementSelection, retirementAssetOptions, summarizeRetirementPortfolio, RETIREMENT_STALE_PRICE_DAYS, type RetirementPortfolioSummary } from '../app/retirementPortfolio';
 import type { DcaPlan } from '../domain/invest/dcaPlan';
 import { MAX_RETIREMENT_ASSETS } from '../domain/invest/retirementSelection';
 import type { InvestmentData } from '../domain/invest/types';
-import { formatBaht, satang } from '../domain/money/satang';
 import { dcaVersusSaving, progressBarPercent, progressBps } from '../domain/retirement/progress';
 import { useRepository } from './RepositoryContext';
 import { formatHundredBaht, formatHundredBahtNonZero } from '../domain/retirement/display';
 
-const baht = (n: number): string => formatBaht(satang(n));
 /** bps → ข้อความ % ด้วยจำนวนเต็ม (355 → "3.55%") */
 const bpsText = (bps: number): string => {
   const whole = (bps - (bps % 100)) / 100;

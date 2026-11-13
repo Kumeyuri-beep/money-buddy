@@ -3,11 +3,10 @@ import { thaiDayLabel } from '../app/dates';
 import type { TradeKind, TradeRecord } from '../domain/invest/types';
 import { formatUnits } from '../domain/invest/units';
 import { formatMicro } from '../domain/money/micro';
-import { formatBaht, satang } from '../domain/money/satang';
+import { baht } from '../app/bahtFormat';
 import { TermHelp } from './TermHelp';
 
 export const KIND_LABEL = { buy: 'ซื้อ', sell: 'ขาย', dividend: 'ปันผลเป็นเงินสด', reinvest: 'ปันผลลงทุนต่อ' } as const satisfies Record<TradeKind, string>;
-const baht = (n: number): string => formatBaht(satang(n));
 
 /** รหัสองค์ประกอบปุ่มของรายการ (ใช้ย้ายโฟกัสหลังลบ) */
 export const tradeButtonId = (tradeId: string): string => `trade-btn-${tradeId}`;
