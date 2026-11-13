@@ -661,17 +661,22 @@ select { font: inherit; }
 
 /* ประวัติรายการลงทุน: รายการย่อยกดขยายได้ (พับ = วันที่ · ชนิด · ค่าหลัก บรรทัดเดียว) */
 .trade-item { border-top: 1px solid rgba(255, 255, 255, 0.08); list-style: none; }
-.trade-item summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; min-height: 44px; padding: 8px 0; cursor: pointer; }
-.trade-item summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.trade-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; width: 100%; min-height: 44px; padding: 8px 0; background: none; border: 0; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.trade-summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.trade-summary::after { content: '▾'; content: '▾' / ''; color: var(--muted); margin-left: 4px; }
+.trade-summary[aria-expanded='true']::after { content: '▴'; content: '▴' / ''; }
 .trade-when { font-weight: 600; }
 .trade-kind { color: var(--muted); }
 .trade-main { margin-left: auto; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .trade-fields { display: flex; flex-direction: column; margin: 0 0 8px; padding: 0 0 0 4px; }
 .trade-delete { margin: 4px 0 10px; min-height: 44px; }
-.trade-item summary { list-style: none; }
-.trade-item summary::-webkit-details-marker { display: none; }
-.trade-item summary::after { content: '▾'; color: var(--muted); margin-left: 4px; }
-.trade-item details[open] > summary::after { content: '▴'; }
+.trade-help { display: flex; flex-direction: column; margin: 0 0 4px; }
+/* ปุ่ม "ความหมาย" ข้างศัพท์ (แตะแล้วเห็นคำอธิบาย ใช้ได้บนมือถือ ไม่พึ่ง hover) */
+.term-help { display: block; }
+.term-help-btn { min-height: 44px; min-width: 44px; padding: 0 4px; background: none; border: 0; color: var(--gold); font-size: 0.875rem; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.term-help-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.term-help-text { display: block; padding: 0 0 8px; }
+.term-help-text[hidden] { display: none; }
 @media (max-width: 720px) {
   .trade-delete { width: 100%; justify-content: center; min-height: 44px; }
 }
