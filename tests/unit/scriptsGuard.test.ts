@@ -14,7 +14,7 @@ const named = (name: string) => Object.entries(scripts).find(([p]) => p.endsWith
 
 describe('scripts/ (สคริปต์ผู้ดูแล)', () => {
   it('มีสคริปต์ครบ (กัน glob ว่างแล้วเทสต์ผ่านเปล่าๆ)', () => {
-    for (const f of ['create-user.mjs', 'reset-password.mjs', 'spike-auth.mjs', 'check-dist.mjs', 'lib/admin.mjs', 'lib/adminEnv.mjs', 'lib/distScan.mjs']) {
+    for (const f of ['create-user.mjs', 'reset-password.mjs', 'delete-user.mjs', 'spike-auth.mjs', 'check-dist.mjs', 'lib/deleteUserGuard.mjs', 'lib/admin.mjs', 'lib/adminEnv.mjs', 'lib/distScan.mjs']) {
       expect(named(f).length, f).toBeGreaterThan(50);
     }
   });
@@ -120,14 +120,33 @@ describe('ไฟล์ตั้งค่าโปรเจกต์', () => {
       for (const pattern of [
         'npm run admin:create-user*',
         'npm run admin:reset-password*',
+        'npm run admin:delete-user*',
         'npm run admin:spike*',
         'node *scripts/create-user*',
         'node *scripts/reset-password*',
+        'node *scripts/delete-user*',
+        'node *delete-user.mjs*',
         'node *scripts/spike-auth*',
       ]) {
         expect(deny, `${tool}(${pattern})`).toContain(`${tool}(${pattern})`);
       }
     }
+    // delete-user: ปิดทางเรียกอ้อมที่ผู้ตรวจพบ (npx / npm exec / yarn / pnpm / npm --opt run) และรูปแบบ PowerShell
+    for (const tool of ['Bash', 'PowerShell']) {
+      for (const pattern of [
+        'npm run *admin:delete-user*',
+        'node *delete-user.mjs*',
+        'npx *delete-user*',
+        'npm exec *delete-user*',
+        'npm --* run *admin:delete-user*',
+        'yarn *admin:delete-user*',
+        'pnpm *admin:delete-user*',
+      ]) {
+        expect(deny, `${tool}(${pattern})`).toContain(`${tool}(${pattern})`);
+      }
+    }
+    expect(deny).toContain('PowerShell(& node *delete-user*)');
+    expect(deny).toContain('PowerShell(Start-Process *delete-user*)');
     // ชุดทดสอบจริงที่ใช้ key ผู้ดูแล: ห้ามสั่ง vitest ตรงๆ ด้วย (เจ้าของอนุญาต 9 พ.ย. 2569)
     for (const tool of ['Bash', 'PowerShell']) {
       expect(deny, tool + ' vitest.live').toContain(tool + '(*vitest.live*)');
@@ -141,7 +160,7 @@ describe('ไฟล์ตั้งค่าโปรเจกต์', () => {
       expect(allow, tool).toContain(tool + '(npm run admin:live-contract)');
     }
     for (const rule of allow) {
-      expect(rule, rule).not.toMatch(/admin:(create-user|reset-password|spike)/);
+      expect(rule, rule).not.toMatch(/admin:(create-user|reset-password|delete-user|spike)/);
       expect(rule, rule).not.toMatch(/^(Bash|PowerShell)\(npm run admin:\*/);
     }
     // merge เองได้เฉพาะ squash + ลบ branch · รูปแบบอื่นของ gh pr merge และ rebase ยัง deny
