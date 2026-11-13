@@ -48,3 +48,13 @@ describe('หน้าจอไม่ใช้ข้อความดิบข�
     }
   });
 });
+
+describe('แถบเตือนความถูกต้องของสมุดบัญชี (Integrity)', () => {
+  it('แสดงข้อความผ่านตัวแปลศัพท์ (ไม่แตะข้อความใน domain และเทสต์เดิม) ไม่มี Entry/Line/ผลต่างสตางค์ดิบ', () => {
+    const integ = (Object.values(import.meta.glob('/src/ui/Integrity.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)[0]) ?? '';
+    expect(integ).toContain('humanizeLedgerMessage(issue.message)');
+    for (const raw of ['Entry ซ้ำ: e1', 'มี Line น้อยกว่า 2', 'Line ยอด 0', 'ไม่สมดุลในสกุลเงิน THB: ผลต่าง 100']) {
+      expect(humanizeLedgerMessage(raw), raw).not.toMatch(/Entry|Line|ผลต่าง/);
+    }
+  });
+});

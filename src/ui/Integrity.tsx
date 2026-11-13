@@ -1,4 +1,5 @@
 import type { IntegrityReport } from '../domain/ledger/integrity';
+import { humanizeLedgerMessage } from '../app/errorText';
 
 /** สถานะท้ายแถบเมนู: จุดเขียว = ผ่าน, จุดแดง = พบปัญหา (ผลตรวจจริงจาก runIntegrityCheck) */
 export function IntegrityStatus({ report }: { report: IntegrityReport }) {
@@ -25,7 +26,7 @@ export function IntegrityBanner({ report }: { report: IntegrityReport }) {
         <summary>ดูรายละเอียด</summary>
         <ul>
           {report.issues.map((issue, i) => (
-            <li key={`${issue.code}-${issue.entryId ?? issue.accountId ?? i}-${i}`}>{issue.message}</li>
+            <li key={`${issue.code}-${issue.entryId ?? issue.accountId ?? i}-${i}`}>{humanizeLedgerMessage(issue.message)}</li>
           ))}
         </ul>
       </details>
