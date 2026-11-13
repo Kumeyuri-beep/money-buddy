@@ -659,6 +659,23 @@ select { font: inherit; }
   .asset-fig-wide dd { text-align: right; }
 }
 
+/* ประวัติรายการลงทุน: รายการย่อยกดขยายได้ (พับ = วันที่ · ชนิด · ค่าหลัก บรรทัดเดียว) */
+.trade-item { border-top: 1px solid rgba(255, 255, 255, 0.08); list-style: none; }
+.trade-item summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; min-height: 44px; padding: 8px 0; cursor: pointer; }
+.trade-item summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.trade-when { font-weight: 600; }
+.trade-kind { color: var(--muted); }
+.trade-main { margin-left: auto; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.trade-fields { display: flex; flex-direction: column; margin: 0 0 8px; padding: 0 0 0 4px; }
+.trade-delete { margin: 4px 0 10px; min-height: 44px; }
+.trade-item summary { list-style: none; }
+.trade-item summary::-webkit-details-marker { display: none; }
+.trade-item summary::after { content: '▾'; color: var(--muted); margin-left: 4px; }
+.trade-item details[open] > summary::after { content: '▴'; }
+@media (max-width: 720px) {
+  .trade-delete { width: 100%; justify-content: center; min-height: 44px; }
+}
+
 /* เปลี่ยนชื่อกระเป๋าเงิน (หน้าโปรไฟล์) */
 .category-name-group h3 { margin: 16px 0 0; font-size: 1rem; font-weight: 600; padding-top: 12px; border-top: 1px solid var(--control-border); }
 .wallet-name-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
