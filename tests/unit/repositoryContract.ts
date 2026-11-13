@@ -342,6 +342,18 @@ export function describeRepositoryContract(name: string, factory: () => Promise<
       await expect(repo.updateSettings(['taxThaiEsgAssetIds'], () => ({ taxThaiEsgAssetIds: ['r1'] }))).rejects.toThrow(StorageError);
     });
 
+    it('เตือนสำรองข้อมูล: lastBackupAt/backupSnoozeUntil เขียนผ่าน updateSettings ได้ · ไม่ทับคีย์อื่น · ฟอร์มตั้งค่า (saveSettings) ไม่ลบทิ้ง · วันที่ผิดถูกปฏิเสธ', async () => {
+      await seed();
+      await repo.saveSettings({ payDay: 5 });
+      await repo.updateSettings(['backupSnoozeUntil'], () => ({ backupSnoozeUntil: '2026-11-23' }));
+      expect(await repo.updateSettings(['lastBackupAt', 'backupSnoozeUntil'], () => ({ lastBackupAt: '2026-11-20', backupSnoozeUntil: null }))).toEqual({ payDay: 5, lastBackupAt: '2026-11-20' });
+      // ฟอร์มตั้งค่ารายเดือนหน้าบิลแทนทั้งชุด แต่ไม่รู้จักสองคีย์นี้ → ต้องไม่ถูกลบ
+      await repo.saveSettings({ payDay: 6 });
+      expect(await repo.loadSettings()).toEqual({ payDay: 6, lastBackupAt: '2026-11-20' });
+      await expect(repo.updateSettings(['lastBackupAt'], () => ({ lastBackupAt: '2026-02-30' }))).rejects.toThrow(StorageError);
+      expect(await repo.loadSettings()).toEqual({ payDay: 6, lastBackupAt: '2026-11-20' });
+    });
+
     it('updateSettings + baseline: ค่าของคีย์ที่ประกาศยังเหมือน baseline = เขียนได้ · ต่างแล้ว = SettingsConflictError ไม่เขียนทับ · คีย์อื่นเปลี่ยนไม่นับว่าชน', async () => {
       await seed();
       await repo.saveSettings({ payDay: 5, monthlyBudget: 1_000_000 });

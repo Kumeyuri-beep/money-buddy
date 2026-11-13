@@ -5,6 +5,7 @@ import { AllocationPanel } from './overview/AllocationPanel';
 import { ToolsPanel } from './overview/ToolsPanel';
 import { UpcomingBillsPanel } from './overview/UpcomingBillsPanel';
 import { RecentEntries } from './overview/RecentEntries';
+import { BackupReminder } from './overview/BackupReminder';
 import { StartGuide } from './overview/StartGuide';
 import { SummaryCards } from './overview/SummaryCards';
 import { Wallets } from './overview/Wallets';
@@ -21,15 +22,18 @@ interface TodayProps {
   onOpenTax: () => void;
   /** "วันนี้" ตามเวลาไทย (YYYY-MM-DD) จาก App ซึ่งอัปเดตเองเมื่อข้ามเที่ยงคืน */
   today: string;
+  /** แถบเตือนสำรองข้อมูล (ไม่ส่ง = ไม่แสดง) */
+  backup?: { onDownload: () => void; onSnooze: () => void; note?: string };
 }
 
-export function Today({ ledger, onAdd, onOpenLedger, finance, onOpenBills, onOpenPortfolio, onOpenRetirement, onOpenAveraging, onOpenTax, today }: TodayProps) {
+export function Today({ ledger, onAdd, onOpenLedger, finance, onOpenBills, onOpenPortfolio, onOpenRetirement, onOpenAveraging, onOpenTax, today, backup }: TodayProps) {
   const { accounts, entries } = ledger;
 
   return (
     <>
       <h2 className="page-title sr-only">ภาพรวม</h2>
       <StartGuide entries={entries} finance={finance} onAdd={onAdd} onOpenBills={onOpenBills} />
+      {backup && <BackupReminder entries={entries} settings={finance.settings} today={today} onDownload={backup.onDownload} onSnooze={backup.onSnooze} note={backup.note} />}
       <SummaryCards accounts={accounts} entries={entries} today={today} finance={finance} onOpenLedger={onOpenLedger} onOpenBills={onOpenBills} onAdd={onAdd} />
 
       <CashFlowSankey accounts={accounts} entries={entries} today={today} />
