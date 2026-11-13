@@ -12,6 +12,8 @@ import { formatMicro } from '../domain/money/micro';
 import { formatBaht, satang } from '../domain/money/satang';
 import { StorageError, nextCreatedAt } from '../storage/repository';
 import { friendlyError } from '../app/errorText';
+import { baht, signed } from '../app/bahtFormat';
+import { ASSET_KIND_LABEL } from '../domain/invest/labels';
 import { AssetFigures } from './AssetFigures';
 import { nextFocusAfterDelete } from '../app/tradeFocus';
 import { TermHelp } from './TermHelp';
@@ -28,9 +30,6 @@ interface Props {
   onLedgerChanged: () => void;
 }
 
-const ASSET_KIND_LABEL: Record<AssetKind, string> = { fund: 'กองทุน', stock: 'หุ้น', other: 'อื่นๆ' };
-const baht = (n: number): string => formatBaht(satang(n));
-const signed = (n: number): string => (n > 0 ? `+${baht(n)}` : baht(n));
 
 const TRADE_FIELD_ID: Record<TradeField, string> = {
   assetId: 'pf-kind',

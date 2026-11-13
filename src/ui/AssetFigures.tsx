@@ -1,14 +1,11 @@
 import { thaiDayLabel } from '../app/dates';
 import type { AssetRowView } from '../app/portfolio';
 import { daysBetween } from '../domain/bills/calendar';
-import type { AssetKind } from '../domain/invest/types';
+import { ASSET_KIND_LABEL } from '../domain/invest/labels';
 import { formatUnits } from '../domain/invest/units';
 import { formatMicro } from '../domain/money/micro';
-import { formatBaht, satang } from '../domain/money/satang';
+import { baht, signed } from '../app/bahtFormat';
 
-const ASSET_KIND_LABEL: Record<AssetKind, string> = { fund: 'กองทุน', stock: 'หุ้น', other: 'อื่นๆ' };
-const baht = (n: number): string => formatBaht(satang(n));
-const signed = (n: number): string => (n > 0 ? `+${baht(n)}` : baht(n));
 
 /**
  * ชื่อ + ตัวเลขของสินทรัพย์หนึ่งแถวในหน้าพอร์ต (เจ้าของสั่ง 13 พ.ย. 2569: มือถือ 360px อ่านง่ายขึ้น ชื่อยาวไม่ดันตัวเลขตก)
