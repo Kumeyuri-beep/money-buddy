@@ -35,6 +35,13 @@ export interface DcaProjection {
   steps: { units: bigint; paid: number }[];
 }
 
+/**
+ * จำลองซื้อ DCA หลายงวดต่อเนื่อง (ได้หน่วย/ต้นทุนรวม/เงินที่จ่ายต่องวด)
+ *
+ * [เก็บไว้ทั้งที่ยังไม่มีหน้าจอเรียก — ตัดสินเมื่อ 14 พ.ย. 2569 หลัง money-auditor ตรวจ]
+ * เหตุผล: เตรียมไว้สำหรับ "ตัวคำนวณ DCA ล่วงหน้า" ตามแผน docs/plans/2026-11-11-invest-portfolio-dca.md (P1) หน้าถัวเฉลี่ยตอนนี้คำนวณงวดเดียวด้วย dcaUnits + applyBuy ตรรกะเดียวกับหนึ่งงวดของฟังก์ชันนี้
+ * ไม่มีโค้ดอื่นจำลองหลายงวดซ้ำ (ค้นแล้วไม่พบ) · มีเทสต์ที่ tests/unit/investDca.test.ts · ถ้าเลิกแผนหน้าจำลองหลายงวดค่อยลบพร้อมเทสต์
+ */
 export function projectDca(start: Position, periods: readonly DcaPeriod[]): DcaProjection {
   let position = start;
   let totalPaid = 0;

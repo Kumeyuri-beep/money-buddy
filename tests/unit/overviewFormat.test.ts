@@ -7,7 +7,7 @@ import {
   meterPercent,
   sparklinePoints,
 } from '../../src/app/overviewFormat';
-import { SUMMARY_CARD_IDS } from '../../src/app/overview';
+import { buildOverview } from '../../src/app/overview';
 import { satang } from '../../src/domain/money/satang';
 
 describe('formatPercentBps (basis points -> ข้อความ ไม่ใช้ float)', () => {
@@ -96,9 +96,10 @@ describe('sparklinePoints', () => {
 });
 
 describe('โควตากระจกแท้ (CLAUDE.md: ไม่เกิน 8 ใบต่อหน้า)', () => {
-  it('การ์ดสรุปมี 8 ใบพอดี', () => {
-    expect(SUMMARY_CARD_IDS).toHaveLength(8);
-    expect(new Set(SUMMARY_CARD_IDS).size).toBe(8);
+  it('การ์ดสรุปมี 8 ใบพอดี (นับจากโครงสร้างที่ buildOverview คืนจริง ไม่ใช่รายการแยก)', () => {
+    const { month, ...cards } = buildOverview([], [], '2026-11-14');
+    expect(month).toBe('2026-11');
+    expect(Object.keys(cards).sort()).toEqual(['income', 'netWorth', 'outgoing', 'runway', 'safeToSpend', 'savingsRate', 'surplus', 'vsLastMonth']);
   });
   it('หน้าภาพรวม: class "glass" (กระจกแท้) อยู่ที่คอมโพเนนต์การ์ดสรุปที่เดียว ที่เหลือใช้ glass-lite หรือ solid', () => {
     const sources = import.meta.glob('/src/ui/**/*.tsx', { query: '?raw', import: 'default', eager: true }) as Record<

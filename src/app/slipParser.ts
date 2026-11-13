@@ -281,7 +281,8 @@ interface ParsedSlip {
   amountMode?: AmountMode;
 }
 
-function parseSlipTextDetailed(raw: string): ParsedSlip {
+/** อ่านข้อความสลิปรอบเดียว (ตัวที่ production ใช้ผ่าน parseSlipTexts) · export ให้เทสต์ตรวจตรงๆ */
+export function parseSlipTextDetailed(raw: string): ParsedSlip {
   const text = normalize(raw);
   const lines = text.split('\n');
   const fields: SlipFields = {};
@@ -296,9 +297,6 @@ function parseSlipTextDetailed(raw: string): ParsedSlip {
   return reading.amount ? { fields, amountMode: reading.mode } : { fields };
 }
 
-export function parseSlipText(raw: string): SlipFields {
-  return parseSlipTextDetailed(raw).fields;
-}
 
 const lowerTrim = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
 const CREDIT_CARD = /บัตรเครดิต|credit\s*card/i;
@@ -442,7 +440,3 @@ export function draftFromOcrTexts(texts: readonly string[], ctx: QuickContext): 
   return draft;
 }
 
-/** ข้อความ OCR รอบเดียว (ใช้ในเทสต์และกรณีมีผลรอบเดียว) */
-export function draftFromOcrText(text: string, ctx: QuickContext): SlipDraft | null {
-  return draftFromOcrTexts([text], ctx);
-}

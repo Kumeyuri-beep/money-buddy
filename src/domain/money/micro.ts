@@ -62,6 +62,10 @@ export function mulMicro(a: number, b: number): number {
  * แปลงเงินต่างสกุล (micro) เป็นสตางค์ด้วยอัตราแลกเปลี่ยนที่ระบุชัดเจน (กฎ R10)
  * fxRateMicro = บาทต่อ 1 หน่วยสกุลต่างประเทศ x 10^6
  * satang = amountMicro x fxRateMicro / 10^10   (10^6 x 10^6 / 100 สตางค์)
+ *
+ * [เก็บไว้ทั้งที่ยังไม่มีหน้าจอเรียก — ตัดสินเมื่อ 14 พ.ย. 2569 หลัง money-auditor ตรวจ]
+ * เหตุผล: เตรียมไว้ตามกฎเงินข้อ 3 (ลงทุนข้ามสกุลเงิน: เก็บราคา micro-units + fxRate ทุกรายการ ห้ามบวกลบข้ามสกุลตรงๆ) ปัจจุบันเว็บยังรองรับเฉพาะ THB
+ * ไม่มีโค้ดอื่นทำหน้าที่แปลงสกุลซ้ำ (ค้นแล้วไม่พบ) · มีเทสต์ขอบเขตที่ tests/unit/money.test.ts และ ledger.test.ts · ถ้าเลิกแผนลงทุนข้ามสกุลจริงค่อยลบพร้อมเทสต์
  */
 export function convertToSatang(amountMicro: number, fxRateMicro: number): Satang {
   return satang(mulDivRound(amountMicro, fxRateMicro, 10_000_000_000));

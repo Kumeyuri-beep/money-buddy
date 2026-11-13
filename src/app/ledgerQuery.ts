@@ -24,8 +24,6 @@ export interface LedgerRow {
   cancelable: boolean;
 }
 
-export const ALL_FILTER: LedgerFilter = { month: 'all', kind: 'all', accountId: 'all', text: '' };
-
 function names(accounts: readonly Account[]): Map<string, string> {
   return new Map(accounts.map((a) => [a.id, a.name] as const));
 }
