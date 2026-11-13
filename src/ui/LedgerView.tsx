@@ -66,7 +66,7 @@ export function LedgerView({ ledger, onAdd, onEdit, onDelete, onCancelPayment }:
           <input
             id="f-text"
             type="search"
-            placeholder="เช่น กาแฟ หรือ CashFlow"
+            placeholder="เช่น กาแฟ หรือชื่อกระเป๋า"
             value={filter.text}
             onChange={(e) => set({ text: e.target.value })}
           />
@@ -114,7 +114,7 @@ export function LedgerView({ ledger, onAdd, onEdit, onDelete, onCancelPayment }:
         </div>
       </section>
 
-      <section className="ledger-summary" aria-label="สรุปรายการที่แสดง">
+      <section className="solid card ledger-summary" aria-label="สรุปรายการที่แสดง">
         <span>
           <span className="muted">รายการ </span>
           <strong className="num">{rows.length}</strong>
@@ -126,11 +126,11 @@ export function LedgerView({ ledger, onAdd, onEdit, onDelete, onCancelPayment }:
           <>
             <span>
               <span className="muted">รายรับ </span>
-              <strong className="num income">{formatBaht(satang(totals.income))}</strong>
+              <strong className="num income">+{formatBaht(satang(totals.income))}</strong>
             </span>
             <span>
               <span className="muted">รายจ่าย </span>
-              <strong className="num expense">{formatBaht(satang(totals.expense))}</strong>
+              <strong className="num expense">−{formatBaht(satang(totals.expense))}</strong>
             </span>
           </>
         )}
