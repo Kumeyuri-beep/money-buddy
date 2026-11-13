@@ -8,10 +8,12 @@ interface Props {
   username: string;
   /** เรียกเมื่อเปลี่ยนรหัสสำเร็จ */
   onDone: () => void | Promise<void>;
+  /** ป้ายช่องรหัสผ่านเดิม (หน้าบังคับเปลี่ยนครั้งแรกใช้ "รหัสผ่านชั่วคราวที่ได้รับ" ให้ผู้ใช้ใหม่รู้ว่าคือรหัสที่ผู้ดูแลให้มา) */
+  currentLabel?: string;
 }
 
 /** ฟอร์มเปลี่ยนรหัสผ่าน: ใช้ทั้งหน้าบังคับเปลี่ยนครั้งแรกและหน้าโปรไฟล์ */
-export function ChangePasswordForm({ username, onDone }: Props) {
+export function ChangePasswordForm({ username, onDone, currentLabel = 'รหัสผ่านปัจจุบัน' }: Props) {
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -56,7 +58,7 @@ export function ChangePasswordForm({ username, onDone }: Props) {
       <input type="text" name="username" autoComplete="username" value={username} readOnly hidden />
       <PasswordField
         id="pw-current"
-        label="รหัสผ่านปัจจุบัน"
+        label={currentLabel}
         ref={currentRef}
         autoComplete="current-password"
         value={current}

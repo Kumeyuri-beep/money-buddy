@@ -594,3 +594,12 @@ select { font: inherit; }
   .sankey-table td:nth-child(3) { text-align: right; font-variant-numeric: tabular-nums; }
   .sankey-table td:nth-child(4) { grid-column: 1 / -1; font-size: 13px; color: var(--muted); }
 }
+
+/* หน้ารายรับ-รายจ่าย: สรุปยอดอยู่บนพื้นทึบ (ตัวเล็กสีแดง/เขียวต้องผ่านคอนทราสต์ ไม่วางบนแสงฉากหลัง) · ตัวกรองบนมือถือ: ค้นหาและเดือนเต็มแถว ประเภทกับกระเป๋า/หมวดคู่กัน */
+.ledger-summary.card { padding: 12px 16px; }
+@media (max-width: 720px) {
+  .filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .filters .field { flex: none; min-width: 0; }
+  /* ค้นหาและเดือน (ชื่อเดือนยาว ครึ่งแถวจะถูกตัด) เต็มแถว · ประเภทกับกระเป๋า/หมวดคู่กัน */
+  .filters .field:nth-child(-n+2) { grid-column: 1 / -1; }
+}

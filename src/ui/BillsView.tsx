@@ -2,7 +2,7 @@ import { friendlyError } from '../app/errorText';
 import { useState, type FormEvent, useEffect } from 'react';
 import { settingsFromForm, settingsToForm, type SettingsForm } from '../app/billForm';
 import { archivedBills, billRows, type BillRow } from '../app/billsView';
-import { thaiDayLabel } from '../app/dates';
+import { thaiDayLabel, thaiMonthKeyLabel } from '../app/dates';
 import type { FinanceSettings } from '../domain/bills/settings';
 import { SettingsConflictError } from '../storage/repository';
 import type { Bill } from '../domain/bills/types';
@@ -206,7 +206,7 @@ export function BillsView({ bills, settings, snapshot, today, onAdd, onEdit, onD
                   {row.bill.lastPaidMonth !== undefined && row.status !== 'invalid' && (
                     <button
                       className="btn btn-ghost btn-small"
-                      aria-label={`ยกเลิกการจ่าย ${row.bill.name} รอบ ${row.bill.lastPaidMonth}`}
+                      aria-label={`ยกเลิกการจ่าย ${row.bill.name} รอบ ${thaiMonthKeyLabel(row.bill.lastPaidMonth)}`}
                       onClick={() => onCancelPay(row.bill)}
                     >
                       ยกเลิกการจ่าย
@@ -239,7 +239,7 @@ export function BillsView({ bills, settings, snapshot, today, onAdd, onEdit, onD
                     <div>{bill.name}</div>
                     <div className="muted small">
                       ทุกวันที่ {bill.dueDay}
-                      {bill.lastPaidMonth !== undefined ? ` · จ่ายล่าสุดรอบ ${bill.lastPaidMonth}` : ''}
+                      {bill.lastPaidMonth !== undefined ? ` · จ่ายล่าสุดรอบ ${thaiMonthKeyLabel(bill.lastPaidMonth)}` : ''}
                     </div>
                   </div>
                   <div className="bill-figures">

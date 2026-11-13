@@ -126,7 +126,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
             <p>
               บัญชี <strong>{view.username}</strong> ยังใช้รหัสผ่านที่ผู้ดูแลระบบให้ไว้ กรุณาตั้งรหัสผ่านใหม่ของคุณเอง จึงจะเข้าถึงข้อมูลได้
             </p>
-            <ChangePasswordForm username={view.username} onDone={evaluate} />
+            <ChangePasswordForm username={view.username} onDone={evaluate} currentLabel="รหัสผ่านชั่วคราวที่ได้รับ" />
             <hr className="auth-sep" />
             <button className="btn btn-ghost" onClick={() => void signOut()}>
               ออกจากระบบ
