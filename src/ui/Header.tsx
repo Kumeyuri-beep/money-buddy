@@ -59,7 +59,7 @@ export function Header({ ledger, onAdd, onQuickSaved, onScan, scanning }: Header
           {scanning ? 'กำลังอ่านสลิป…' : 'สแกนสลิป'}
         </button>
         <span id="scan-hint" className="sr-only">
-          เลือกรูปสลิป หรือกด Ctrl+V เพื่อวางรูป หรือลากรูปมาวางบนหน้านี้
+          เลือกรูปสลิปจากเครื่อง (บนคอมพิวเตอร์ยังวางรูปด้วย Ctrl+V หรือลากรูปมาวางบนหน้านี้ได้)
         </span>
         <button className="btn btn-primary btn-add" onClick={onAdd}>
           <svg className="ico" viewBox="0 0 24 24" aria-hidden="true">
