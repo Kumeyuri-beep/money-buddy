@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { thaiDayLabel } from '../app/dates';
 import { daysBetween } from '../domain/bills/calendar';
 import { newId } from '../app/ids';
@@ -13,7 +13,9 @@ import { formatBaht, satang } from '../domain/money/satang';
 import { StorageError, nextCreatedAt } from '../storage/repository';
 import { friendlyError } from '../app/errorText';
 import { AssetFigures } from './AssetFigures';
-import { KIND_LABEL, TradeItem } from './TradeItem';
+import { nextFocusAfterDelete } from '../app/tradeFocus';
+import { TermHelp } from './TermHelp';
+import { KIND_LABEL, TradeItem, tradeButtonId } from './TradeItem';
 import { DcaPlansCard } from './DcaPlansCard';
 import { ShareCardPanel } from './ShareCardPanel';
 import { useRepository } from './RepositoryContext';
@@ -64,8 +66,10 @@ function FieldInput(props: {
   placeholder?: string;
   hint?: string;
   type?: string;
+  /** ส่วนช่วยอธิบายใต้ช่อง (เช่น ปุ่ม "ความหมาย" ของศัพท์) */
+  help?: ReactNode;
 }) {
-  const { id, label, value, onChange, errors, field, placeholder, hint, type } = props;
+  const { id, label, value, onChange, errors, field, placeholder, hint, type, help } = props;
   const error = field ? errors.find((e) => e.field === field) : undefined;
   const describedBy = [hint ? `${id}-hint` : '', error ? `${id}-err` : ''].filter(Boolean).join(' ') || undefined;
   return (
@@ -92,6 +96,7 @@ function FieldInput(props: {
           {error.message}
         </p>
       )}
+      {help}
     </div>
   );
 }
@@ -457,7 +462,7 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
                     </option>
                   ))}
                 </select>
-                {k === 'reinvest' && <p className="muted small">ปันผลที่ได้เป็นหน่วยเพิ่ม ไม่ได้รับเป็นเงิน</p>}
+                {(k === 'dividend' || k === 'reinvest') && <TermHelp term={KIND_LABEL[k]} />}
               </div>
               <FieldInput id="pf-date" label="วันที่" type="date" value={tradeForm.date} onChange={(v) => setTrade({ date: v })} errors={tradeErrors} field="date" />
             </div>
@@ -480,7 +485,7 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
               {k === 'dividend' && (
                 <>
                   <FieldInput id="pf-amount" label="ยอดปันผล (บาท)" value={tradeForm.amount} onChange={(v) => setTrade({ amount: v })} errors={tradeErrors} field="amount" placeholder="0.00" hint="ยอดก่อนหักภาษี" />
-                  <FieldInput id="pf-wht" label="ภาษีหัก ณ ที่จ่าย (บาท)" value={tradeForm.withholding} onChange={(v) => setTrade({ withholding: v })} errors={tradeErrors} field="withholding" placeholder="0.00" />
+                  <FieldInput id="pf-wht" label="ภาษีหัก ณ ที่จ่าย (บาท)" value={tradeForm.withholding} onChange={(v) => setTrade({ withholding: v })} errors={tradeErrors} field="withholding" placeholder="0.00" help={<TermHelp term="ภาษีหัก ณ ที่จ่าย" />} />
                 </>
               )}
               {k === 'reinvest' && (
@@ -677,18 +682,40 @@ function AssetRow(props: {
   const sorted = [...trades].sort(
     (a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0) || (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
   );
+  // โฟกัสหลังลบรายการ (เจ้าของสั่ง 14 พ.ย. 2569): ปุ่มลบหายไปพร้อมรายการ โฟกัสจะหลุดไป body → ย้ายไปรายการถัดไป (ไม่มี = รายการก่อนหน้า ไม่มี = หัว "ประวัติรายการ")
+  // จดไว้ตอนกด "ยืนยันลบ" แล้วย้ายเมื่อรายการนั้นหายจากรายการจริง (ลบไม่สำเร็จ = รายการยังอยู่ ไม่ย้ายและล้างทิ้ง)
+  const focusAfterDelete = useRef<{ deletedId: string; nextId: string | null } | null>(null);
+  const summaryId = `history-sum-${row.asset.id}`;
+  useEffect(() => {
+    const pending = focusAfterDelete.current;
+    if (!pending) return;
+    if (trades.some((x) => x.id === pending.deletedId)) {
+      // รายการยังอยู่: ถ้างานลบจบแล้ว (ไม่ busy และไม่ได้รอยืนยันรายการนี้) = ลบไม่สำเร็จ ล้างทิ้ง ไม่ให้ไปดึงโฟกัสทีหลัง
+      if (!busy && confirmDelete !== pending.deletedId) focusAfterDelete.current = null;
+      return;
+    }
+    focusAfterDelete.current = null;
+    const target = (pending.nextId !== null ? document.getElementById(tradeButtonId(pending.nextId)) : null) ?? document.getElementById(summaryId);
+    target?.focus();
+  }, [trades, summaryId, busy, confirmDelete]);
+  const handleDelete = (tr: TradeRecord) => {
+    if (confirmDelete === tr.id) {
+      focusAfterDelete.current = { deletedId: tr.id, nextId: nextFocusAfterDelete(sorted.map((x) => x.id), tr.id) };
+    }
+    props.onDelete(tr);
+  };
   return (
     <li className="tx bill-row">
       <div className="tx-main">
         <AssetFigures row={row} today={today} />
         <details className="archived-details">
-          <summary>ประวัติรายการ ({trades.length})</summary>
+          <summary id={summaryId}>ประวัติรายการ ({trades.length})</summary>
           {sorted.length === 0 ? (
             <p className="muted small">ยังไม่มีรายการ</p>
           ) : (
             <ul className="bill-list">
               {sorted.map((tr) => (
-                <TradeItem key={tr.id} tr={tr} confirmDelete={confirmDelete === tr.id} busy={busy} onDelete={() => props.onDelete(tr)} />
+                <TradeItem key={tr.id} tr={tr} confirmDelete={confirmDelete === tr.id} busy={busy} onDelete={() => handleDelete(tr)} />
               ))}
             </ul>
           )}
