@@ -441,7 +441,7 @@ export function App() {
           today={today}
         />
       ) : view === 'account' ? (
-        <AccountView onReset={() => void reset()} />
+        <AccountView onReset={() => void reset()} onWalletsChanged={() => void refresh()} />
       ) : view === 'averaging' ? (
         <AveragingView />
       ) : view === 'retirement' ? (

@@ -5,6 +5,7 @@ import { sanitizeSettings, settingsProblem, type FinanceSettings } from '../doma
 import { applySettingsPlan, planConflictProblem, planOutsideKeysProblem, planSettingsPatch, planSettingsReplace, settingsKeysChanged, type SettingsKey, type SettingsPatch } from '../domain/bills/settingsPatch';
 import type { Bill } from '../domain/bills/types';
 import { isCashWallet } from '../domain/ledger/accountKind';
+import { checkWalletRename } from '../domain/ledger/accountName';
 import { createEntry } from '../domain/ledger/entry';
 import { runIntegrityCheck } from '../domain/ledger/integrity';
 import type { Account, Entry, NewEntry } from '../domain/ledger/types';
@@ -601,5 +602,18 @@ export async function saveSettings(db: MoneyDB, settings: FinanceSettings): Prom
     if (problem) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${problem}`);
     await db.meta.put({ key: SETTINGS_KEY, value: next });
     return next;
+  });
+}
+
+/** เปลี่ยนชื่อกระเป๋าเงินในเครื่อง: เขียนเฉพาะ name ในธุรกรรมเดียว (ดู LedgerRepository.renameWallet) */
+export async function renameWallet(db: MoneyDB, id: string, rawName: string): Promise<Account> {
+  return db.transaction('rw', db.accounts, async () => {
+    const accounts = await db.accounts.toArray();
+    const check = checkWalletRename(accounts, id, rawName);
+    if (!check.ok) throw new StorageError(check.message ?? 'เปลี่ยนชื่อไม่ได้');
+    await db.accounts.update(id, { name: check.name });
+    const updated = await db.accounts.get(id);
+    if (!updated) throw new StorageError('ไม่พบกระเป๋านี้');
+    return updated;
   });
 }

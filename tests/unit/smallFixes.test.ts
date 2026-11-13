@@ -8,7 +8,7 @@ describe('จุดเล็กจากผลสำรวจผู้ใช้�
     const app = get('App.tsx');
     expect(app).not.toContain('ล้างข้อมูลและเริ่มใหม่</button>');
     expect(app).not.toMatch(/footer={/);
-    expect(app).toContain('<AccountView onReset={() => void reset()} />');
+    expect(app).toContain('<AccountView onReset={() => void reset()}');
     const account = get('AccountView.tsx');
     expect(account).toContain('ดาวน์โหลดข้อมูลของฉัน');
     expect(account).toContain('ล้างข้อมูลและเริ่มใหม่');

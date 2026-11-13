@@ -18,9 +18,9 @@ export interface WalletInput {
 }
 
 export const DEFAULT_WALLETS: readonly WalletInput[] = [
-  { name: 'CashFlow', opening: '' },
-  { name: 'Mainframe', opening: '' },
-  { name: 'Vault Zero', opening: '' },
+  { name: 'เงินสด', opening: '' },
+  { name: 'บัญชีธนาคาร', opening: '' },
+  { name: 'เงินออม', opening: '' },
 ];
 
 const OPENING_ACCOUNT_ID = 'opening';

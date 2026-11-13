@@ -6,10 +6,11 @@ import { downloadBackup } from './backup';
 import { ChangePasswordForm } from './ChangePasswordForm';
 import { usePasswordPrompt } from './PasswordPrompt';
 import { PolicyText } from './PolicyText';
+import { WalletNames } from './WalletNames';
 import { useRepository } from './RepositoryContext';
 
 /** หน้าโปรไฟล์: ชื่อผู้ใช้ เปลี่ยนรหัสผ่าน ออกจากระบบ (หัวหน้าหลักของแอปเป็น h1 แล้ว หน้านี้ใช้ h2) */
-export function AccountView({ onReset }: { onReset: () => void }) {
+export function AccountView({ onReset, onWalletsChanged }: { onReset: () => void; onWalletsChanged: () => void }) {
   const { username, signOut } = useAccount();
   const repo = useRepository();
   const requestPassword = usePasswordPrompt();
@@ -79,6 +80,7 @@ export function AccountView({ onReset }: { onReset: () => void }) {
           ออกจากระบบ
         </button>
       </section>
+      <WalletNames onChanged={onWalletsChanged} />
       <section className="solid card" aria-labelledby="change-pw-title">
         <h2 id="change-pw-title">เปลี่ยนรหัสผ่าน</h2>
         <ChangePasswordForm username={username} onDone={() => undefined} />

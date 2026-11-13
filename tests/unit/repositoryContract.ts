@@ -360,6 +360,45 @@ export function describeRepositoryContract(name: string, factory: () => Promise<
       expect(await repo.updateSettings(['monthlySavingsGoal'], () => ({ monthlySavingsGoal: 300_000 }), { baseline: b2 })).toEqual({ payDay: 20, retirementAssetIds: ['a1'], monthlySavingsGoal: 300_000 });
     });
 
+    it('renameWallet: เปลี่ยนเฉพาะชื่อที่แสดง (รหัส ชนิด สกุลเงิน ยอด รายการไม่เปลี่ยน) · ชื่อว่าง/ยาวเกิน/ซ้ำ/ไม่ใช่กระเป๋า/ไม่มีอยู่ = StorageError ไม่เปลี่ยนอะไร', async () => {
+      await seed();
+      await repo.appendEntry({ id: 'rn1', date: '2026-11-02', memo: 'ทดสอบ', lines: [{ accountId: categoryId, amount: 12_300 }, { accountId: walletId, amount: -12_300 }] });
+      const before = await repo.loadLedger();
+      const beforeWallet = before.accounts.find((a) => a.id === walletId)!;
+      const balanceBefore = balanceOf(walletId, before.entries);
+      const otherName = before.accounts.find((a) => a.id === walletId2)!.name;
+
+      // เปลี่ยนชื่อสำเร็จ: ตัดช่องว่างหัวท้าย · คืนบัญชีเดิมที่ชื่อใหม่
+      const renamed = await repo.renameWallet(walletId, '  เงินสดหลัก  ');
+      expect(renamed).toMatchObject({ id: walletId, type: beforeWallet.type, currency: beforeWallet.currency, name: 'เงินสดหลัก' });
+      const after = await repo.loadLedger();
+      expect(after.accounts.find((a) => a.id === walletId)?.name).toBe('เงินสดหลัก');
+      // ทุกอย่างอื่นคงเดิม: จำนวนบัญชี/รายการ ยอด ความถูกต้อง รหัสบัญชีทุกตัว
+      expect(after.accounts.map((a) => a.id).sort()).toEqual(before.accounts.map((a) => a.id).sort());
+      expect(after.entries).toHaveLength(before.entries.length);
+      expect(balanceOf(walletId, after.entries)).toBe(balanceBefore);
+      expect(runIntegrityCheck(after.accounts, after.entries).ok).toBe(true);
+      for (const a of after.accounts) if (a.id !== walletId) expect(a, a.id).toEqual(before.accounts.find((b) => b.id === a.id));
+      // ตั้งเป็นชื่อเดิมของตัวเองได้ (ไม่นับว่าซ้ำกับตัวเอง)
+      await expect(repo.renameWallet(walletId, 'เงินสดหลัก')).resolves.toMatchObject({ name: 'เงินสดหลัก' });
+
+      // ไม่ผ่านกติกา: ทุกกรณีโยน StorageError และชื่อ/ข้อมูลไม่เปลี่ยน
+      const bad: [string, string][] = [
+        [walletId, ''],
+        [walletId, '   '],
+        [walletId, 'x'.repeat(201)],
+        [walletId, otherName],
+        [walletId, '  ' + otherName.toUpperCase() + '  '],
+        [categoryId, 'เปลี่ยนชื่อหมวด'],
+        ['opening', 'ยอดยกมาใหม่'],
+        ['no-such-account', 'ไม่มี'],
+      ];
+      for (const [id, name] of bad) await expect(repo.renameWallet(id, name), `${id} / ${name}`).rejects.toThrow(StorageError);
+      const end = await repo.loadLedger();
+      expect(end.accounts).toEqual(after.accounts);
+      expect(end.entries).toEqual(after.entries);
+    });
+
     /** ไฟล์สำรองตัวอย่าง: ยอดยกมา + รายจ่าย + บิลที่จ่ายแล้วรอบ 2026-11 (มีรายการจ่ายผูกบิล) + ตั้งค่า */
     const backupData = (): BackupData => {
       const ledger = setup();
