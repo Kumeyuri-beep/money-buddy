@@ -632,6 +632,7 @@ select { font: inherit; }
 }
 
 /* เปลี่ยนชื่อกระเป๋าเงิน (หน้าโปรไฟล์) */
+.category-name-group h3 { margin: 16px 0 0; font-size: 1rem; font-weight: 600; padding-top: 12px; border-top: 1px solid var(--control-border); }
 .wallet-name-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
 .wallet-name-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px 12px; }
 .wallet-name-row p { grid-column: 1 / -1; margin: 0; min-height: 0; }

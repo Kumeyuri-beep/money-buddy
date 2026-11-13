@@ -6,6 +6,7 @@ import { downloadBackup } from './backup';
 import { ChangePasswordForm } from './ChangePasswordForm';
 import { usePasswordPrompt } from './PasswordPrompt';
 import { PolicyText } from './PolicyText';
+import { CategoryNames } from './CategoryNames';
 import { WalletNames } from './WalletNames';
 import { useRepository } from './RepositoryContext';
 
@@ -81,6 +82,7 @@ export function AccountView({ onReset, onWalletsChanged }: { onReset: () => void
         </button>
       </section>
       <WalletNames onChanged={onWalletsChanged} />
+      <CategoryNames onChanged={onWalletsChanged} />
       <section className="solid card" aria-labelledby="change-pw-title">
         <h2 id="change-pw-title">เปลี่ยนรหัสผ่าน</h2>
         <ChangePasswordForm username={username} onDone={() => undefined} />
