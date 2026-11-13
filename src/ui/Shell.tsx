@@ -20,8 +20,7 @@ interface ShellProps {
 }
 
 interface NavItem {
-  /** null = ยังไม่มีหน้า (แสดงเป็นรายการปิดใช้งาน "เร็วๆ นี้") */
-  id: ViewId | null;
+  id: ViewId;
   label: string;
   /** path ของไอคอนเส้น 24x24 */
   icon: string;
@@ -32,8 +31,6 @@ const NAV_MAIN: NavItem[] = [
   { id: 'ledger', label: 'รายรับ-รายจ่าย', icon: 'M7 7h13M16 3l4 4-4 4M17 17H4M8 13l-4 4 4 4' },
   { id: 'bills', label: 'บิลและเป้า', icon: 'M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6' },
   { id: 'portfolio', label: 'พอร์ตการลงทุน', icon: 'M3 8h18v12H3zM8 8V5h8v3' },
-  { id: null, label: 'แผนลงทุน', icon: 'M4 20V11M10 20V5M16 20v-7M2 20h20' },
-  { id: null, label: 'ปรับสมดุลพอร์ต', icon: 'M12 3v18M5 7h14M5 7l-3 6h6zM19 7l-3 6h6z' },
 ];
 
 const NAV_TOOLS: NavItem[] = [
@@ -43,7 +40,7 @@ const NAV_TOOLS: NavItem[] = [
   { id: 'account', label: 'โปรไฟล์', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0' },
 ];
 
-/** เมนูมือถือ (ปุ่มลอย → bottom sheet 3 คอลัมน์ 8 รายการ · "วางแผนเกษียณ" เป็นรายการที่ 7 ตามเจ้าของ 12 พ.ย. 2569 · "ภาษี" เป็นรายการที่ 8 เฟส 1 ภาษี): เฉพาะหน้าที่มีจริง (ไม่แสดง "เร็วๆ นี้") ใช้ไอคอนชุดเดียวกับแถบข้าง */
+/** เมนูมือถือ (ปุ่มลอย → bottom sheet 3 คอลัมน์ 8 รายการ · "วางแผนเกษียณ" เป็นรายการที่ 7 ตามเจ้าของ 12 พ.ย. 2569 · "ภาษี" เป็นรายการที่ 8 เฟส 1 ภาษี): เฉพาะหน้าที่มีจริง ใช้ไอคอนชุดเดียวกับแถบข้าง */
 const NAV_BOTTOM: { id: ViewId; short: string; icon: string }[] = [
   { id: 'today', short: 'ภาพรวม', icon: NAV_MAIN[0]!.icon },
   { id: 'ledger', short: 'รายการ', icon: NAV_MAIN[1]!.icon },
@@ -65,15 +62,6 @@ function Icon({ path }: { path: string }) {
 
 export function Shell({ children, showNav = true, current = 'today', onNavigate, status, footer, accountName, onSignOut }: ShellProps) {
   const renderItem = ({ id, label, icon }: NavItem) => {
-    if (id === null) {
-      return (
-        <span key={label} className="nav-item nav-item-soon" aria-disabled="true">
-          <Icon path={icon} />
-          {label}
-          <span className="soon">เร็วๆ นี้</span>
-        </span>
-      );
-    }
     const active = id === current;
     return (
       <button
