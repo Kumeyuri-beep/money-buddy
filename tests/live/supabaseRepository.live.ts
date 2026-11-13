@@ -7,7 +7,7 @@ import { createSupabaseRepository } from '../../src/storage/supabaseRepository';
 import type { LedgerRepository } from '../../src/storage/ledgerRepository';
 import { describeRepositoryContract } from '../unit/repositoryContract';
 import { loadAdmin } from '../../scripts/lib/admin.mjs';
-import { liveClientOptions, wipeUserTables } from './liveHelpers';
+import { authErrorText, liveClientOptions, wipeUserTables } from './liveHelpers';
 
 /**
  * M2-C2/M2-F: เทสต์สัญญาชุดเดียวกับ Dexie รันกับ Supabase จริง + เทสต์แยกข้อมูลระหว่างผู้ใช้ 2 คน (RLS)
@@ -22,7 +22,7 @@ async function signedIn(index: number): Promise<{ client: SupabaseClient; id: st
   if (cached) return cached;
   const client = createClient(live.url, live.anonKey, liveClientOptions);
   const { data, error } = await client.auth.signInWithPassword({ email: user.email, password: user.password });
-  if (error || !data.user) throw new Error('ล็อกอินผู้ใช้ทดสอบไม่สำเร็จ');
+  if (error || !data.user) throw new Error('ล็อกอินผู้ใช้ทดสอบไม่สำเร็จ: ' + authErrorText(error));
   const session = { client, id: data.user.id };
   sessions.set(user.email, session);
   return session;
@@ -318,7 +318,7 @@ describe('merge_settings: ช่องแข่งเขียน settings (ส�
     const makeTab = async (): Promise<LedgerRepository> => {
       const client = createClient(live.url, live.anonKey, liveClientOptions);
       const { data, error } = await client.auth.signInWithPassword({ email: user.email, password: user.password });
-      if (error || !data.user) throw new Error('ล็อกอินผู้ใช้ทดสอบไม่สำเร็จ');
+      if (error || !data.user) throw new Error('ล็อกอินผู้ใช้ทดสอบไม่สำเร็จ: ' + authErrorText(error));
       return createSupabaseRepository(client, data.user.id);
     };
     const tab1 = await makeTab();
@@ -346,7 +346,7 @@ describe('merge_settings: ช่องแข่งเขียน settings (ส�
     const makeTab = async (): Promise<LedgerRepository> => {
       const client = createClient(live.url, live.anonKey, liveClientOptions);
       const { data, error } = await client.auth.signInWithPassword({ email: user.email, password: user.password });
-      if (error || !data.user) throw new Error('ล็อกอินผู้ใช้ทดสอบไม่สำเร็จ');
+      if (error || !data.user) throw new Error('ล็อกอินผู้ใช้ทดสอบไม่สำเร็จ: ' + authErrorText(error));
       return createSupabaseRepository(client, data.user.id);
     };
     const tab1 = await makeTab();

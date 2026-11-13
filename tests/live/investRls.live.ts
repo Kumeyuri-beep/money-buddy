@@ -9,7 +9,7 @@ import { StorageError } from '../../src/storage/repository';
 import { createSupabaseRepository } from '../../src/storage/supabaseRepository';
 import type { LedgerRepository } from '../../src/storage/ledgerRepository';
 import { loadAdmin } from '../../scripts/lib/admin.mjs';
-import { liveClientOptions, wipeUserTables } from './liveHelpers';
+import { authErrorText, liveClientOptions, wipeUserTables } from './liveHelpers';
 
 /**
  * พอร์ตลงทุน P3: ยืนยันกับ Supabase จริงว่าตาราง assets / trades / asset_prices แยกข้อมูลต่อผู้ใช้ (RLS)
@@ -29,7 +29,7 @@ async function signedIn(index: number): Promise<{ client: SupabaseClient; id: st
   if (cached) return cached;
   const client = createClient(live.url, live.anonKey, liveClientOptions);
   const { data, error } = await client.auth.signInWithPassword({ email: user.email, password: user.password });
-  if (error || !data.user) throw new Error('ล็อกอินผู้ใช้ทดสอบไม่สำเร็จ');
+  if (error || !data.user) throw new Error('ล็อกอินผู้ใช้ทดสอบไม่สำเร็จ: ' + authErrorText(error));
   const session = { client, id: data.user.id };
   sessions.set(user.email, session);
   return session;
@@ -46,7 +46,7 @@ async function adminCount(table: string, filters: Record<string, string>): Promi
   let q = admin.from(table).select('*', { count: 'exact', head: true });
   for (const [k, v] of Object.entries(filters)) q = q.eq(k, v);
   const { count, error } = await q;
-  if (error) throw new Error('นับแถวด้วยสิทธิ์ผู้ดูแลไม่สำเร็จที่ตาราง ' + table);
+  if (error) throw new Error('นับแถวด้วยสิทธิ์ผู้ดูแลไม่สำเร็จที่ตาราง ' + table + ': ' + authErrorText(error));
   return count ?? 0;
 }
 
@@ -131,32 +131,29 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     const RLS = '42501';
     const FK = '23503';
     // อ่าน: A มีข้อมูลอยู่ก่อนแล้ว (จึงพิสูจน์ได้ว่า "ว่าง" มาจาก RLS ไม่ใช่ไม่มีข้อมูล)
-    for (const table of ['assets', 'trades', 'asset_prices']) {
-      const readAsAdmin = await admin.from(table).select('*', { count: 'exact', head: true }).eq('user_id', aId);
-      expect(readAsAdmin.count, table).toBeGreaterThan(0);
-      const read = await client.from(table).select('*');
-      expect(read.error, table).toBeNull();
-      expect(read.data, table).toEqual([]);
+    // (คำขอที่ไม่ขึ้นต่อกันส่งพร้อมกัน: ลดจำนวนรอบเครือข่ายต่อเนื่องของข้อนี้ ซึ่งเคยใช้ 57 จาก 60 วินาทีเมื่อเครือข่ายช้า · ผลที่ตรวจเหมือนเดิมทุกข้อ)
+    await Promise.all(
+      ['assets', 'trades', 'asset_prices'].map(async (table) => {
+        const readAsAdmin = await admin.from(table).select('*', { count: 'exact', head: true }).eq('user_id', aId);
+        expect(readAsAdmin.count, table).toBeGreaterThan(0);
+        const read = await client.from(table).select('*');
+        expect(read.error, table).toBeNull();
+        expect(read.data, table).toEqual([]);
+      }),
+    );
+    // แก้/ลบแถวของ A ด้วยรหัสจริง: ไม่มี error แต่ได้ 0 แถว (RLS กรองทิ้ง) · ทั้ง 6 คำสั่งแตะแถวของ A คนละแถว/ตาราง ไม่ขึ้นต่อกัน
+    const probes = await Promise.all([
+      client.from('trades').update({ memo: 'hack' }).eq('id', 'trade-buy').select('id'),
+      client.from('assets').update({ name: 'hack' }).eq('id', ASSET.id).select('id'),
+      client.from('asset_prices').update({ price_micro: 1 }).eq('asset_id', ASSET.id).select('asset_id'),
+      client.from('trades').delete().eq('id', 'trade-buy').select('id'),
+      client.from('assets').delete().eq('id', ASSET.id).select('id'),
+      client.from('asset_prices').delete().eq('asset_id', ASSET.id).select('asset_id'),
+    ]);
+    for (const [i, r] of probes.entries()) {
+      expect(r.error, 'probe ' + i).toBeNull();
+      expect(r.data, 'probe ' + i).toEqual([]);
     }
-    // แก้/ลบแถวของ A ด้วยรหัสจริง: ไม่มี error แต่ได้ 0 แถว (RLS กรองทิ้ง)
-    const upd = await client.from('trades').update({ memo: 'hack' }).eq('id', 'trade-buy').select('id');
-    expect(upd.error).toBeNull();
-    expect(upd.data).toEqual([]);
-    const updAsset = await client.from('assets').update({ name: 'hack' }).eq('id', ASSET.id).select('id');
-    expect(updAsset.error).toBeNull();
-    expect(updAsset.data).toEqual([]);
-    const updPrice = await client.from('asset_prices').update({ price_micro: 1 }).eq('asset_id', ASSET.id).select('asset_id');
-    expect(updPrice.error).toBeNull();
-    expect(updPrice.data).toEqual([]);
-    const delTrade = await client.from('trades').delete().eq('id', 'trade-buy').select('id');
-    expect(delTrade.error).toBeNull();
-    expect(delTrade.data).toEqual([]);
-    const delAsset = await client.from('assets').delete().eq('id', ASSET.id).select('id');
-    expect(delAsset.error).toBeNull();
-    expect(delAsset.data).toEqual([]);
-    const delPrice = await client.from('asset_prices').delete().eq('asset_id', ASSET.id).select('asset_id');
-    expect(delPrice.error).toBeNull();
-    expect(delPrice.data).toEqual([]);
 
     // สินทรัพย์ของ B เอง: ใช้เป็น control ด้านล่าง และเป็นเป้าของกรณีข้ามผู้ใช้
     const bOwn = await b.addAsset({ id: 'b-own', name: 'ของ B', kind: 'fund' });

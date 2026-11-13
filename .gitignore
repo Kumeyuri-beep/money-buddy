@@ -3,6 +3,8 @@ dist
 .env
 .env.*
 *.log
+# log เต็มของชุดทดสอบจริง (tests/live/logReporter.ts) ห้ามเข้า git
+.live-logs/
 .DS_Store
 
 .obsidian/
