@@ -9,6 +9,10 @@ export default defineConfig({
     include: ['tests/live/**/*.live.ts'],
     globalSetup: ['tests/live/globalSetup.ts'],
     environment: 'node',
+    // ห่อ fetch บันทึกคำขอที่ช้า/ล้มลง .live-logs/live-requests.log (ดู tests/live/traceFetch.ts)
+    setupFiles: ['tests/live/traceFetch.ts'],
+    // log เต็มลง .live-logs/ ทุกครั้ง (ชื่อข้อ ผล เวลาต่อข้อ ข้อความ error) · ดู tests/live/logReporter.ts
+    reporters: ['default', './tests/live/logReporter.ts'],
     testTimeout: 60_000,
     hookTimeout: 120_000,
     fileParallelism: false,
