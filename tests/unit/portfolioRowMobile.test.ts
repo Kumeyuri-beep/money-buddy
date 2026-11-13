@@ -87,7 +87,7 @@ describe('CSS แถวสินทรัพย์', () => {
   });
   it('ชื่อสินทรัพย์เป็นหัวข้อระดับ 3 (โปรแกรมอ่านจอข้ามตามหัวข้อได้) · ปุ่มลบอ่านวันที่แบบไทย', () => {
     expect(html(row())).toContain('role="heading" aria-level="3"');
-    expect(view).toContain('${thaiDayLabel(tr.date)}`}');
+    expect(view).toContain('<TradeItem'); // ปุ่มลบอ่านวันที่แบบไทยตรวจใน tradeItem.test.ts
   });
   it('คำเตือน/ข้อความยาวเต็มความกว้างและตัดบรรทัดได้', () => {
     expect(css).toMatch(/\.asset-fig-note\s*\{[^}]*grid-column:\s*1 \/ -1/);

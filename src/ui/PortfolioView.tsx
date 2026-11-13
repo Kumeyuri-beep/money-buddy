@@ -13,6 +13,7 @@ import { formatBaht, satang } from '../domain/money/satang';
 import { StorageError, nextCreatedAt } from '../storage/repository';
 import { friendlyError } from '../app/errorText';
 import { AssetFigures } from './AssetFigures';
+import { KIND_LABEL, TradeItem } from './TradeItem';
 import { DcaPlansCard } from './DcaPlansCard';
 import { ShareCardPanel } from './ShareCardPanel';
 import { useRepository } from './RepositoryContext';
@@ -25,7 +26,6 @@ interface Props {
   onLedgerChanged: () => void;
 }
 
-const KIND_LABEL: Record<TradeKind, string> = { buy: 'ซื้อ', sell: 'ขาย', dividend: 'ปันผลเป็นเงินสด', reinvest: 'ปันผลลงทุนต่อ' };
 const ASSET_KIND_LABEL: Record<AssetKind, string> = { fund: 'กองทุน', stock: 'หุ้น', other: 'อื่นๆ' };
 const baht = (n: number): string => formatBaht(satang(n));
 const signed = (n: number): string => (n > 0 ? `+${baht(n)}` : baht(n));
@@ -688,26 +688,7 @@ function AssetRow(props: {
           ) : (
             <ul className="bill-list">
               {sorted.map((tr) => (
-                <li className="tx" key={tr.id}>
-                  <div className="tx-main muted small">
-                    {thaiDayLabel(tr.date)} · {KIND_LABEL[tr.kind]}
-                    {tr.units !== undefined && ` · ${formatUnits(BigInt(tr.units))} หน่วย`}
-                    {tr.priceMicro !== undefined && ` @ ${formatMicro(tr.priceMicro)}`}
-                    {tr.amount !== undefined && ` · ${baht(tr.amount)}`}
-                    {tr.fee > 0 && ` · ค่าธรรมเนียม ${baht(tr.fee)}`}
-                    {tr.withholding > 0 && ` · ภาษีหัก ${baht(tr.withholding)}`}
-                    {tr.memo !== '' && ` · ${tr.memo}`}
-                  </div>
-                  <button
-                    type="button"
-                    className={confirmDelete === tr.id ? 'btn btn-ghost btn-small confirm-delete' : 'btn btn-ghost btn-small'}
-                    disabled={busy}
-                    onClick={() => props.onDelete(tr)}
-                    aria-label={`${confirmDelete === tr.id ? 'ยืนยันลบ' : 'ลบ'}รายการ ${KIND_LABEL[tr.kind]} ${thaiDayLabel(tr.date)}`}
-                  >
-                    {confirmDelete === tr.id ? 'ยืนยันลบ' : 'ลบ'}
-                  </button>
-                </li>
+                <TradeItem key={tr.id} tr={tr} confirmDelete={confirmDelete === tr.id} busy={busy} onDelete={() => props.onDelete(tr)} />
               ))}
             </ul>
           )}
