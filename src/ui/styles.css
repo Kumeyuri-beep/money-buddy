@@ -610,3 +610,11 @@ select { font: inherit; }
 .sheet-primary { grid-column: 1 / -1; }
 .sheet-item-primary { flex-direction: row; min-height: 56px; gap: 10px; background: linear-gradient(145deg, #f7de8c, #c99a2e); color: #1a1505; border-color: transparent; font-weight: 600; }
 .sheet-item-primary:hover { background: linear-gradient(145deg, #fbe79f, #d3a537); }
+
+/* มือถือ: การ์ดสรุปโชว์ 3 ใบ (เงินทั้งหมดที่มี, คงเหลือเดือนนี้, ใช้ได้ต่อวัน) + ปุ่ม "ดูทั้งหมด" · จอใหญ่: แสดงครบ 8 ใบ ไม่มีปุ่ม (ตัวห่อ display: contents ไม่กระทบกริด) */
+.summary-secondary { display: contents; }
+.summary-toggle { display: none; }
+@media (max-width: 720px) {
+  .summary-grid:not(.summary-expanded) .summary-secondary { display: none; }
+  .summary-toggle { display: inline-flex; justify-content: center; width: 100%; min-height: 44px; }
+}
