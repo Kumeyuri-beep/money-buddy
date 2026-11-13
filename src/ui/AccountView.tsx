@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { cooldownState, deleteMyAccount, formatRemaining } from '../app/account';
 import { accountApi, loadPasswordChangedAt, supabase } from '../storage/supabase';
 import { useAccount } from './AuthContext';
+import { thaiIsoDate } from '../app/dates';
+import { markBackupDone } from '../app/backupReminder';
 import { downloadBackup } from './backup';
 import { ChangePasswordForm } from './ChangePasswordForm';
 import { usePasswordPrompt } from './PasswordPrompt';
@@ -11,7 +13,7 @@ import { WalletNames } from './WalletNames';
 import { useRepository } from './RepositoryContext';
 
 /** หน้าโปรไฟล์: ชื่อผู้ใช้ เปลี่ยนรหัสผ่าน ออกจากระบบ (หัวหน้าหลักของแอปเป็น h1 แล้ว หน้านี้ใช้ h2) */
-export function AccountView({ onReset, onWalletsChanged }: { onReset: () => void; onWalletsChanged: () => void }) {
+export function AccountView({ onReset, onWalletsChanged, onBackedUp }: { onReset: () => void; onWalletsChanged: () => void; onBackedUp?: () => void }) {
   const { username, signOut } = useAccount();
   const repo = useRepository();
   const requestPassword = usePasswordPrompt();
@@ -36,6 +38,9 @@ export function AccountView({ onReset, onWalletsChanged }: { onReset: () => void
     setExportNote('');
     try {
       await downloadBackup(repo);
+      // จดวันที่ดาวน์โหลดล่าสุด (ใช้เตือนสำรอง) · จดไม่สำเร็จไม่กระทบไฟล์ที่ได้แล้ว
+      await markBackupDone(repo, thaiIsoDate()).catch(() => undefined);
+      onBackedUp?.(); // โหลดค่าตั้งค่าใหม่ ให้แถบเตือนบนหน้าภาพรวมหายทันที
       setExportNote('ดาวน์โหลดแล้ว เก็บไฟล์นี้ไว้ในที่ปลอดภัย (มีข้อมูลการเงินของคุณทั้งหมด)');
     } catch {
       setExportNote('ดาวน์โหลดไม่สำเร็จ ลองอีกครั้ง');

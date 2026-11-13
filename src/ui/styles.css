@@ -631,6 +631,16 @@ select { font: inherit; }
   .start-step .btn { grid-column: 1 / -1; justify-content: center; }
 }
 
+/* แถบเตือนสำรองข้อมูล (พื้นทึบ เล็ก) */
+.backup-reminder { padding: 14px 16px; border-color: color-mix(in srgb, var(--gold) 45%, transparent); }
+.backup-reminder h2 { margin: 0 0 4px; font-size: 1rem; }
+.backup-reminder p { margin: 0 0 10px; }
+.backup-reminder .actions { margin: 0; flex-wrap: wrap; }
+.backup-reminder [role="status"]:empty { display: none; }
+@media (max-width: 720px) {
+  .backup-reminder .actions .btn { flex: 1 1 100%; justify-content: center; min-height: 44px; }
+}
+
 /* แถวสินทรัพย์ในหน้าพอร์ต: ตัวเลขคนละบรรทัด (ป้ายซ้าย ค่าขวา) ชื่อยาวขึ้นบรรทัดใหม่ในที่ของตัวเอง ไม่ดันตัวเลขตก (มือถือ 360px) */
 .asset-title { overflow-wrap: anywhere; }
 .asset-name { font-weight: 600; }

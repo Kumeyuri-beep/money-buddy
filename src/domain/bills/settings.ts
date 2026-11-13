@@ -27,6 +27,10 @@ export interface FinanceSettings {
   /** รหัสสินทรัพย์ที่ผู้ใช้ติดป้าย RMF / Thai ESG (ภาษี เฟส 3 · ข้อมูลเข้า ไม่เก็บยอด) ติดได้ประเภทเดียว */
   taxRmfAssetIds?: string[];
   taxThaiEsgAssetIds?: string[];
+  /** วันที่ (ปฏิทินไทย YYYY-MM-DD) ที่ผู้ใช้ดาวน์โหลดข้อมูลสำรองล่าสุด · ใช้เตือนสำรองข้อมูล ไม่ตั้ง = ยังไม่เคย */
+  lastBackupAt?: string;
+  /** ปิดแถบเตือนสำรองข้อมูลชั่วคราวจนถึงวันนี้ (YYYY-MM-DD) · ถึงวันนั้นแล้วเตือนใหม่ */
+  backupSnoozeUntil?: string;
 }
 
 const isSatang = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
@@ -44,6 +48,8 @@ export function settingsProblem(s: FinanceSettings): string | null {
   if (s.nextPaydayOverride !== undefined && !isValidIsoDate(s.nextPaydayOverride)) {
     return `วันเงินเดือนถัดไปต้องเป็นวันที่ที่มีจริง YYYY-MM-DD (ได้รับ ${String(s.nextPaydayOverride)})`;
   }
+  if (s.lastBackupAt !== undefined && !isValidIsoDate(s.lastBackupAt)) return `วันที่ดาวน์โหลดสำรองล่าสุดต้องเป็นวันที่ที่มีจริง YYYY-MM-DD (ได้รับ ${String(s.lastBackupAt)})`;
+  if (s.backupSnoozeUntil !== undefined && !isValidIsoDate(s.backupSnoozeUntil)) return `วันปิดแถบเตือนสำรองต้องเป็นวันที่ที่มีจริง YYYY-MM-DD (ได้รับ ${String(s.backupSnoozeUntil)})`;
   if (s.dcaPlans !== undefined) {
     if (!Array.isArray(s.dcaPlans)) return 'แผนซื้อประจำต้องเป็นอาร์เรย์';
     if (s.dcaPlans.length > MAX_DCA_PLANS) return `แผนซื้อประจำมีได้ไม่เกิน ${MAX_DCA_PLANS} แผน`;
@@ -76,6 +82,8 @@ export function sanitizeSettings(raw: unknown): FinanceSettings {
   if (isSatang(r.monthlySavingsGoal)) out.monthlySavingsGoal = r.monthlySavingsGoal;
   if (isSatang(r.monthlyBudget)) out.monthlyBudget = r.monthlyBudget;
   if (typeof r.nextPaydayOverride === 'string' && isValidIsoDate(r.nextPaydayOverride)) out.nextPaydayOverride = r.nextPaydayOverride;
+  if (typeof r.lastBackupAt === 'string' && isValidIsoDate(r.lastBackupAt)) out.lastBackupAt = r.lastBackupAt;
+  if (typeof r.backupSnoozeUntil === 'string' && isValidIsoDate(r.backupSnoozeUntil)) out.backupSnoozeUntil = r.backupSnoozeUntil;
   if (Array.isArray(r.dcaPlans)) {
     const plans = sanitizeDcaPlans(r.dcaPlans);
     if (plans.length > 0) out.dcaPlans = plans;

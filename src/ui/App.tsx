@@ -1,5 +1,8 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { thaiIsoDate, thaiMonthKeyLabel } from '../app/dates';
+import { markBackupDone, snoozeBackupReminder } from '../app/backupReminder';
+import { downloadBackup } from './backup';
+import { restoreFocus } from './focus';
 import { describeEntry } from '../app/describe';
 import { walletOptions } from '../app/entryForm';
 import { learnFromHistory } from '../app/quickText';
@@ -98,6 +101,7 @@ export function App() {
   const [toastSeq, setToastSeq] = useState(0);
   const [scanning, setScanning] = useState<ScanProgress | null>(null);
   const scanLock = useRef(false);
+  const [backupNote, setBackupNote] = useState('');
 
   const refresh = useCallback(async () => {
     try {
@@ -406,6 +410,36 @@ export function App() {
 
   const openAdd = () => setDialog({ mode: 'add' });
 
+  // แถบเตือนสำรองข้อมูล: ดาวน์โหลดสำเร็จแล้วจึงจดวันที่ (ดาวน์โหลดไม่สำเร็จ = ไม่จด แถบยังอยู่)
+  const downloadFromReminder = async () => {
+    setBackupNote('');
+    try {
+      await downloadBackup(repo);
+    } catch {
+      setBackupNote('ดาวน์โหลดไม่สำเร็จ ลองอีกครั้ง');
+      return;
+    }
+    try {
+      await markBackupDone(repo, thaiIsoDate());
+    } catch {
+      setBackupNote('ได้ไฟล์แล้ว แต่จดวันที่ไม่สำเร็จ แถบนี้อาจยังขึ้นอยู่');
+      return;
+    }
+    await refresh();
+    restoreFocus(null); // แถบหายไปแล้ว: คืนโฟกัสคีย์บอร์ดให้เนื้อหาหลัก ไม่ให้หลุดไป body
+  };
+  const snoozeReminder = async () => {
+    setBackupNote('');
+    try {
+      await snoozeBackupReminder(repo, thaiIsoDate());
+    } catch (e) {
+      setBackupNote(friendlyError(e, 'ลองอีกครั้ง'));
+      return;
+    }
+    await refresh();
+    restoreFocus(null);
+  };
+
   return (
     <Shell
       accountName={username}
@@ -439,9 +473,10 @@ export function App() {
           onOpenAveraging={() => setView('averaging')}
           onOpenTax={() => setView('tax')}
           today={today}
+          backup={{ onDownload: () => void downloadFromReminder(), onSnooze: () => void snoozeReminder(), note: backupNote }}
         />
       ) : view === 'account' ? (
-        <AccountView onReset={() => void reset()} onWalletsChanged={() => void refresh()} />
+        <AccountView onReset={() => void reset()} onWalletsChanged={() => void refresh()} onBackedUp={() => void refresh()} />
       ) : view === 'averaging' ? (
         <AveragingView />
       ) : view === 'retirement' ? (
