@@ -360,6 +360,50 @@ export function describeRepositoryContract(name: string, factory: () => Promise<
       expect(await repo.updateSettings(['monthlySavingsGoal'], () => ({ monthlySavingsGoal: 300_000 }), { baseline: b2 })).toEqual({ payDay: 20, retirementAssetIds: ['a1'], monthlySavingsGoal: 300_000 });
     });
 
+    it('renameCategory: เปลี่ยนเฉพาะชื่อที่แสดงของหมวดรายรับ/รายจ่าย (รหัส ชนิด สกุลเงิน ยอด รายการไม่เปลี่ยน) · ว่าง/ยาวเกิน/ซ้ำประเภทเดียวกัน/ไม่ใช่หมวด/ไม่มีอยู่ = StorageError ไม่เปลี่ยนอะไร', async () => {
+      await seed();
+      await repo.appendEntry({ id: 'rc1', date: '2026-11-02', memo: 'ทดสอบ', lines: [{ accountId: categoryId, amount: 4_500 }, { accountId: walletId, amount: -4_500 }] });
+      const before = await repo.loadLedger();
+      const expenses = before.accounts.filter((a) => a.type === 'expense');
+      const incomes = before.accounts.filter((a) => a.type === 'income');
+      expect(expenses.length).toBeGreaterThanOrEqual(2);
+      expect(incomes.length).toBeGreaterThanOrEqual(1);
+      const target = before.accounts.find((a) => a.id === categoryId)!;
+      const sibling = expenses.find((a) => a.id !== categoryId)!;
+      const income = incomes[0]!;
+      const balanceBefore = balanceOf(categoryId, before.entries);
+
+      const renamed = await repo.renameCategory(categoryId, '  หมวดใหม่  ');
+      expect(renamed).toMatchObject({ id: categoryId, type: target.type, currency: target.currency, name: 'หมวดใหม่' });
+      const after = await repo.loadLedger();
+      expect(after.accounts.find((a) => a.id === categoryId)?.name).toBe('หมวดใหม่');
+      expect(after.accounts.map((a) => a.id).sort()).toEqual(before.accounts.map((a) => a.id).sort());
+      expect(after.entries).toEqual(before.entries);
+      expect(balanceOf(categoryId, after.entries)).toBe(balanceBefore);
+      expect(runIntegrityCheck(after.accounts, after.entries).ok).toBe(true);
+      for (const a of after.accounts) if (a.id !== categoryId) expect(a, a.id).toEqual(before.accounts.find((b) => b.id === a.id));
+      await expect(repo.renameCategory(categoryId, 'หมวดใหม่')).resolves.toMatchObject({ name: 'หมวดใหม่' });
+      // รายรับตั้งชื่อซ้ำกับหมวดรายจ่ายได้ (คนละประเภท)
+      await expect(repo.renameCategory(income.id, sibling.name)).resolves.toMatchObject({ id: income.id, name: sibling.name });
+
+      const bad: [string, string][] = [
+        [categoryId, ''],
+        [categoryId, '   '],
+        [categoryId, 'x'.repeat(201)],
+        [categoryId, sibling.name],
+        [categoryId, '  ' + sibling.name.toUpperCase() + '  '],
+        [categoryId, 'หมวด​ใหม่'],
+        [walletId, 'เปลี่ยนชื่อกระเป๋าด้วยทางหมวด'],
+        ['opening', 'ยอดยกมาใหม่'],
+        ['no-such-account', 'ไม่มี'],
+      ];
+      for (const [id, name] of bad) await expect(repo.renameCategory(id, name), `${id} / ${name}`).rejects.toThrow(StorageError);
+      const end = await repo.loadLedger();
+      expect(end.accounts.find((a) => a.id === categoryId)?.name).toBe('หมวดใหม่');
+      expect(end.accounts.find((a) => a.id === walletId)?.name).toBe(after.accounts.find((a) => a.id === walletId)?.name);
+      expect(end.entries).toEqual(after.entries);
+    });
+
     it('renameWallet: เปลี่ยนเฉพาะชื่อที่แสดง (รหัส ชนิด สกุลเงิน ยอด รายการไม่เปลี่ยน) · ชื่อว่าง/ยาวเกิน/ซ้ำ/ไม่ใช่กระเป๋า/ไม่มีอยู่ = StorageError ไม่เปลี่ยนอะไร', async () => {
       await seed();
       await repo.appendEntry({ id: 'rn1', date: '2026-11-02', memo: 'ทดสอบ', lines: [{ accountId: categoryId, amount: 12_300 }, { accountId: walletId, amount: -12_300 }] });

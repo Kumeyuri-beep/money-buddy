@@ -22,7 +22,7 @@ import {
 } from '../domain/bills/settingsPatch';
 import type { Bill } from '../domain/bills/types';
 import { isCashWallet } from '../domain/ledger/accountKind';
-import { checkWalletRename } from '../domain/ledger/accountName';
+import { checkCategoryRename, checkWalletRename } from '../domain/ledger/accountName';
 import { createEntry } from '../domain/ledger/entry';
 import { runIntegrityCheck } from '../domain/ledger/integrity';
 import type { Account, AccountType, Entry, EntrySource, NewEntry } from '../domain/ledger/types';
@@ -761,6 +761,18 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       check(error);
       const row = Array.isArray(data) ? (data[0] as AccountRow | undefined) : undefined;
       if (!row) throw new StorageError('ไม่พบกระเป๋านี้');
+      return rowToAccount(row);
+    },
+
+    async renameCategory(id, rawName) {
+      // ตรวจกติกาชื่อจากบัญชีทั้งหมดของผู้ใช้ แล้วเขียนเฉพาะคอลัมน์ name (สิทธิ์ฐานข้อมูลก็แก้ได้แค่ name) · เงื่อนไขชนิด/kind ซ้ำที่ฝั่งฐานข้อมูลกันชนกับแท็บอื่น
+      const accounts = await loadAccounts();
+      const verdict = checkCategoryRename(accounts, id, rawName);
+      if (!verdict.ok) throw new StorageError(verdict.message ?? 'เปลี่ยนชื่อไม่ได้');
+      const { data, error } = await client.from('accounts').update({ name: verdict.name }).eq('id', id).in('type', ['income', 'expense']).eq('kind', 'normal').select('*');
+      check(error);
+      const row = Array.isArray(data) ? (data[0] as AccountRow | undefined) : undefined;
+      if (!row) throw new StorageError('ไม่พบหมวดนี้');
       return rowToAccount(row);
     },
 
