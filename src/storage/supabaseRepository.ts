@@ -22,6 +22,7 @@ import {
 } from '../domain/bills/settingsPatch';
 import type { Bill } from '../domain/bills/types';
 import { isCashWallet } from '../domain/ledger/accountKind';
+import { checkWalletRename } from '../domain/ledger/accountName';
 import { createEntry } from '../domain/ledger/entry';
 import { runIntegrityCheck } from '../domain/ledger/integrity';
 import type { Account, AccountType, Entry, EntrySource, NewEntry } from '../domain/ledger/types';
@@ -749,6 +750,18 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       const { error } = await client.from('accounts').insert({ id, type: 'asset', name, currency: 'THB', kind: 'normal' });
       check(error);
       return { id, type: 'asset', name, currency: 'THB', kind: 'normal' };
+    },
+
+    async renameWallet(id, rawName) {
+      // ตรวจกติกาชื่อจากบัญชีทั้งหมดของผู้ใช้ (ซ้ำ/ไม่ใช่กระเป๋า) แล้วเขียนเฉพาะคอลัมน์ name (ไม่แตะ id ชนิด สกุลเงิน ยอด) · RLS คุมเจ้าของแถว
+      const accounts = await loadAccounts();
+      const verdict = checkWalletRename(accounts, id, rawName);
+      if (!verdict.ok) throw new StorageError(verdict.message ?? 'เปลี่ยนชื่อไม่ได้');
+      const { data, error } = await client.from('accounts').update({ name: verdict.name }).eq('id', id).eq('type', 'asset').eq('kind', 'normal').select('*');
+      check(error);
+      const row = Array.isArray(data) ? (data[0] as AccountRow | undefined) : undefined;
+      if (!row) throw new StorageError('ไม่พบกระเป๋านี้');
+      return rowToAccount(row);
     },
 
     async recordTrade({ trade, walletId }) {

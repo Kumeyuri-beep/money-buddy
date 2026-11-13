@@ -68,6 +68,12 @@ export interface LedgerRepository {
   /** สร้างกระเป๋าเงินสดบาท (บัญชี asset ไม่ใช่บัญชีลงทุน ยอดเริ่มต้น 0) · ใช้เมื่อยังไม่มีกระเป๋าให้ผูกรายการลงทุน */
   addWallet(input: { id: string; name: string }): Promise<Account>;
   /**
+   * เปลี่ยน "ชื่อที่แสดง" ของกระเป๋าเงิน (เจ้าของตัดสิน 13 พ.ย. 2569) · เขียนเฉพาะคอลัมน์ name เท่านั้น ห้ามแตะรหัสบัญชี ชนิด สกุลเงิน ยอด หรือรายการ
+   * ชื่อว่าง/ยาวเกิน/ซ้ำกับกระเป๋าอื่น/ไม่ใช่กระเป๋าเงิน (เช่น บัญชีลงทุน หมวด ยอดยกมา) = StorageError ไม่เปลี่ยนอะไร
+   * ทั้งสอง implementation ต้องผ่านชุดเทสต์สัญญาเดียวกัน
+   */
+  renameWallet(id: string, name: string): Promise<Account>;
+  /**
    * บันทึกรายการลงทุน + รายการในสมุดบัญชีคู่ในธุรกรรมเดียว (P4 · RPC record_trade)
    * ตรวจกติกาลำดับ/ขายเกิน (domain/invest/rules) ก่อนส่ง และฐานข้อมูลตรวจซ้ำ (trigger กันสองแท็บ)
    * walletId = กระเป๋าเงินสดที่จ่าย/รับเงิน (ปันผลลงทุนต่อไม่ใช้)
@@ -110,6 +116,7 @@ export function createDexieRepository(db: MoneyDB): LedgerRepository {
     loadInvestments: () => Promise.resolve(emptyInvestments()),
     addAsset: () => Promise.reject(localInvestError()),
     addWallet: () => Promise.reject(localInvestError()),
+    renameWallet: (id, name) => dexie.renameWallet(db, id, name),
     recordTrade: () => Promise.reject(localInvestError()),
     deleteTrade: () => Promise.reject(localInvestError()),
     savePrice: () => Promise.reject(localInvestError()),
