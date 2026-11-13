@@ -26,6 +26,8 @@ interface SummaryCardsProps {
   onOpenBills: () => void;
   /** ไปหน้ารายรับ-รายจ่าย (มีเฉพาะการ์ดที่มีหน้าปลายทางจริง) */
   onOpenLedger: () => void;
+  /** เปิดช่องบันทึกรายการ (ใช้ในการ์ดแรกตอนยังไม่มีรายการ ให้ผู้ใช้ใหม่รู้ว่าต้องทำอะไรก่อน) */
+  onAdd?: () => void;
 }
 
 /** กระจกแท้ (.glass) ถูกใช้ที่นี่ที่เดียว: การ์ดสรุป 8 ใบ ห้ามเพิ่มที่อื่น (เทสต์ตรวจ) */
@@ -33,7 +35,12 @@ function Card({ label, title, children }: { label: string; title: string; childr
   return (
     <article className="glass card summary-card" aria-label={title}>
       <div className="summary-label">
-        {title} · {label}
+        {title}
+        {/* ป้ายอังกฤษเป็นลายเซ็นของดีไซน์ Aurora Glass: ซ่อนบนมือถือ (ผู้ใช้ทั่วไปไม่รู้จักศัพท์) และไม่อ่านออกเสียง ชื่อไทยอยู่ที่ title เสมอ */}
+        <span className="summary-label-en" aria-hidden="true">
+          {' · '}
+          {label}
+        </span>
       </div>
       {children}
     </article>
@@ -78,11 +85,14 @@ function Sparkline({ values }: { values: readonly number[] }) {
   );
 }
 
-function NetWorthCard({ state }: { state: Overview['netWorth'] }) {
+function NetWorthCard({ state, onAdd }: { state: Overview['netWorth']; onAdd?: () => void }) {
   return (
     <Card label="NET WORTH" title="ความมั่งคั่งสุทธิ">
       {state.kind !== 'value' ? (
-        <Waiting headline="ยังไม่มีรายการ" reason="ต้องมีรายการอย่างน้อยหนึ่งรายการ" />
+        <>
+          <Waiting headline="ยังไม่มีรายการ" reason="ต้องมีรายการอย่างน้อยหนึ่งรายการ" />
+          {onAdd && <Link onClick={onAdd}>บันทึกรายการแรก →</Link>}
+        </>
       ) : (
         <>
           <div className="summary-value">{formatBaht(satang(state.value))}</div>
@@ -238,7 +248,7 @@ function SavingsRateCard({ state }: { state: Overview['savingsRate'] }) {
   return (
     <Card label="SAVINGS RATE" title="อัตราการออม">
       {state.kind !== 'value' ? (
-        <Waiting reason="ต้องมีรายรับในเดือนนี้" />
+        <Waiting headline="ยังไม่มีรายรับเดือนนี้" reason="ต้องมีรายรับในเดือนนี้ จึงจะคำนวณอัตราการออมได้" />
       ) : (
         <>
           <div className="summary-value">{formatPercentBps(state.bps)}</div>
@@ -296,7 +306,7 @@ function RunwayCard({ state }: { state: Overview['runway'] }) {
   );
 }
 
-export function SummaryCards({ accounts, entries, today, finance, onOpenLedger, onOpenBills }: SummaryCardsProps) {
+export function SummaryCards({ accounts, entries, today, finance, onOpenLedger, onOpenBills, onAdd }: SummaryCardsProps) {
   // ยอดเกินช่วงปลอดภัย (RangeError) แสดงข้อความ · error ชนิดอื่นโยนต่อให้ ErrorBoundary (ไม่กลืนเป็นข้อความยอดใหญ่)
   const result = tryBuildOverview(accounts, entries, today, finance);
   if (!result.ok) {
@@ -312,7 +322,7 @@ export function SummaryCards({ accounts, entries, today, finance, onOpenLedger, 
 
   return (
     <section className="summary-grid" aria-label="สรุปภาพรวมเดือนนี้">
-      <NetWorthCard state={o.netWorth} />
+      <NetWorthCard state={o.netWorth} onAdd={onAdd} />
       <IncomeCard state={o.income} walletName={walletName} onOpenLedger={onOpenLedger} />
       <OutgoingCard state={o.outgoing} onOpenLedger={onOpenLedger} onOpenBills={onOpenBills} />
       <SurplusCard state={o.surplus} onOpenLedger={onOpenLedger} />

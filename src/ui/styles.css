@@ -574,3 +574,7 @@ select { font: inherit; }
   .sidebar-footer { gap: 6px; }
   .nav-signout { margin-bottom: 0; }
 }
+/* ป้ายอังกฤษของการ์ด/หัวข้อ (ลายเซ็นดีไซน์ Aurora Glass) ซ่อนบนมือถือ: ผู้ใช้ทั่วไปไม่รู้จักศัพท์ ชื่อไทยแสดงเสมอ */
+@media (max-width: 720px) {
+  .summary-label-en { display: none; }
+}

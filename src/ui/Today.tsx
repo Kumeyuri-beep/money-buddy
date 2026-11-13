@@ -28,7 +28,7 @@ export function Today({ ledger, onAdd, onOpenLedger, finance, onOpenBills, onOpe
   return (
     <>
       <h2 className="page-title sr-only">ภาพรวม</h2>
-      <SummaryCards accounts={accounts} entries={entries} today={today} finance={finance} onOpenLedger={onOpenLedger} onOpenBills={onOpenBills} />
+      <SummaryCards accounts={accounts} entries={entries} today={today} finance={finance} onOpenLedger={onOpenLedger} onOpenBills={onOpenBills} onAdd={onAdd} />
 
       <CashFlowSankey accounts={accounts} entries={entries} today={today} />
 
