@@ -168,6 +168,16 @@ export function App() {
     return () => window.clearTimeout(timer);
   }, [view]);
 
+  /** ปุ่ม "สำรองข้อมูล": ดาวน์โหลดไม่สำเร็จต้องบอกผู้ใช้ (เดิมเงียบ) */
+  const backupNow = async () => {
+    try {
+      await downloadBackup();
+      setToast({ message: 'ดาวน์โหลดไฟล์สำรองข้อมูลแล้ว' });
+    } catch (e) {
+      setToast({ message: friendlyError(e, 'สำรองข้อมูลไม่สำเร็จ ลองใหม่อีกครั้ง'), tone: 'error' });
+    }
+  };
+
   /** ทำงานหนึ่งอย่าง แล้วโหลดข้อมูลใหม่และแจ้งผล ถ้าพลาดแจ้งข้อความผิดพลาดแทน */
   const run = async (action: () => Promise<ToastState>) => {
     try {
@@ -416,7 +426,7 @@ export function App() {
       status={integrity ? <IntegrityStatus report={integrity} /> : null}
       footer={
         <>
-          <button className="btn btn-ghost" onClick={() => void downloadBackup()}>
+          <button className="btn btn-ghost" onClick={() => void backupNow()}>
             สำรองข้อมูล
           </button>
           <button className="btn btn-danger" onClick={() => void reset()}>

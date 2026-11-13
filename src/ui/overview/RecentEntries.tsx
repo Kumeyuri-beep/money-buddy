@@ -75,7 +75,7 @@ export function RecentEntries({ accounts, entries, today, onAdd, onOpenLedger }:
             </div>
           ))}
           <button type="button" className="card-link" onClick={onOpenLedger}>
-            ดูสมุดบัญชี <span aria-hidden="true">→</span>
+            ดูรายรับ-รายจ่ายทั้งหมด <span aria-hidden="true">→</span>
           </button>
         </>
       )}
