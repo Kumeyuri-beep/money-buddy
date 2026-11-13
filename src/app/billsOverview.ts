@@ -1,4 +1,5 @@
 import { addDays, effectiveNextPayday } from '../domain/bills/calendar';
+import { friendlyError } from './errorText';
 import { computeSafeToSpend } from '../domain/bills/safeToSpend';
 import { outstandingTotal, splitValidBills, upcomingBills } from '../domain/bills/schedule';
 import type { FinanceSettings } from '../domain/bills/settings';
@@ -41,8 +42,9 @@ export type SafeToSpendState =
       overridden: boolean;
     };
 
+/** ข้อความผิดพลาดภาษาคนผ่าน friendlyError ตัวเดียวกับทั้งแอป (RangeError = ตัวเลขใหญ่/ไม่ถูกต้อง · อย่างอื่น = ข้อความทั่วไป) ไม่ปล่อยข้อความดิบของระบบถึงผู้ใช้ */
 function errorMessage(e: unknown): string {
-  return e instanceof RangeError ? e.message : 'คำนวณไม่สำเร็จ ตรวจข้อมูลบิลและค่าตั้งค่า';
+  return friendlyError(e, 'คำนวณไม่สำเร็จ ตรวจข้อมูลบิลและค่าตั้งค่า');
 }
 
 /**
@@ -140,8 +142,9 @@ export type UpcomingPanel =
 
 /** แผง "บิลที่จะถึง": ถึงก่อนเงินเดือนถัดไป (ตั้งไว้) หรือ 30 วันข้างหน้า (ยังไม่ตั้ง) เรียงเลยกำหนดก่อน */
 export function buildUpcomingPanel(finance: FinanceInput, today: string): UpcomingPanel {
-  if (finance.bills.filter((b) => b.archived !== true).length === 0) return { kind: 'no-bills' };
   try {
+    // อยู่ใน try: ข้อมูลบิลผิดชนิดจนอ่านไม่ได้ (เช่น ค่า null ในรายการ) ต้องได้ kind=error ภาษาคน ไม่ใช่ทำให้ทั้งหน้าพัง
+    if (finance.bills.filter((b) => b.archived !== true).length === 0) return { kind: 'no-bills' };
     const { valid, invalid } = splitValidBills(finance.bills);
     const { payDay, nextPaydayOverride } = finance.settings;
     const until =
