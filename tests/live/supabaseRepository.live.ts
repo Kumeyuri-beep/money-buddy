@@ -388,3 +388,33 @@ describe('merge_settings: ช่องแข่งเขียน settings (ส�
     expect(await a.loadSettings()).toEqual({ payDay: 9 });
   });
 });
+
+describe('accounts: ผู้ใช้แก้ได้เฉพาะ name (migration 20261113000600)', () => {
+  it('เปลี่ยน name ผ่าน REST ได้ · คอลัมน์อื่นถูกปฏิเสธ 42501 · RPC/สัญญาเดิมยังทำงาน · ค่าไม่เปลี่ยน', async () => {
+    await wipe(0);
+    const a = await repoFor(0);
+    await a.saveInitialLedger(buildInitialLedger([{ name: 'เงินสด', opening: '1000' }, { name: 'ออม', opening: '' }], '2026-11-01'));
+    const { client } = await signedIn(0);
+    const { accounts } = await a.loadLedger();
+    const wallet = accounts.find((x) => x.type === 'asset')!;
+
+    const ok = await client.from('accounts').update({ name: 'เงินสดหลัก' }).eq('id', wallet.id).select('id, name');
+    expect(ok.error).toBeNull();
+    expect(ok.data).toEqual([{ id: wallet.id, name: 'เงินสดหลัก' }]);
+
+    const forbidden: Record<string, unknown>[] = [{ id: 'x-new-id' }, { type: 'expense' }, { currency: 'USD' }, { kind: 'investment' }, { archived: true }, { sort_order: 99 }, { name: 'ชื่อใหม่', currency: 'USD' }];
+    for (const patch of forbidden) {
+      const r = await client.from('accounts').update(patch).eq('id', wallet.id).select('id');
+      expect(r.error?.code, JSON.stringify(patch)).toBe('42501');
+    }
+    const after = (await a.loadLedger()).accounts.find((x) => x.id === wallet.id)!;
+    expect(after).toEqual({ ...wallet, name: 'เงินสดหลัก' });
+
+    // สัญญาเดิมที่เกี่ยวกับ accounts ยังทำงาน: เพิ่มกระเป๋า (insert) · เปลี่ยนชื่อผ่าน repository · บันทึกรายการ (RPC) · ล้างข้อมูล
+    await a.addWallet({ id: 'w-extra', name: 'กระเป๋าเพิ่ม' });
+    await expect(a.renameWallet('w-extra', 'กระเป๋าเพิ่ม 2')).resolves.toMatchObject({ name: 'กระเป๋าเพิ่ม 2' });
+    const cat = accounts.find((x) => x.type === 'expense')!;
+    await a.appendEntry({ id: 'acc-grant-e1', date: '2026-11-02', memo: 'ทดสอบ', lines: [{ accountId: cat.id, amount: 100 }, { accountId: wallet.id, amount: -100 }] });
+    expect((await a.loadLedger()).entries.some((e) => e.id === 'acc-grant-e1')).toBe(true);
+  });
+});
