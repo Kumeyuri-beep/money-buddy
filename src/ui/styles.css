@@ -578,3 +578,19 @@ select { font: inherit; }
 @media (max-width: 720px) {
   .summary-label-en { display: none; }
 }
+
+/* Sankey บนมือถือ: แผนภาพกว้าง 640px ต้องเลื่อนแนวนอนและตัวหนังสือถูกตัด → ซ่อนแผนภาพ โชว์ตารางข้อมูลเดียวกันเป็นรายการ (ชื่อ · จำนวนเงิน · สัดส่วน) */
+@media (max-width: 720px) {
+  .sankey { overflow-x: visible; }
+  .sankey-svg { display: none; }
+  .sankey-table.sr-only { position: static; width: auto; height: auto; margin: 12px 0 0; overflow: visible; clip: auto; white-space: normal; display: block; }
+  .sankey-table caption { display: none; }
+  .sankey-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .sankey-table tbody { display: block; }
+  .sankey-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 10px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+  .sankey-table td { display: block; padding: 0; }
+  .sankey-table td:nth-child(1) { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+  .sankey-table td:nth-child(2) { font-weight: 600; overflow-wrap: anywhere; }
+  .sankey-table td:nth-child(3) { text-align: right; font-variant-numeric: tabular-nums; }
+  .sankey-table td:nth-child(4) { grid-column: 1 / -1; font-size: 13px; color: var(--muted); }
+}

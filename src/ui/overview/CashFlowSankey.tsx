@@ -204,31 +204,32 @@ export function CashFlowSankey({ accounts, entries, today }: CashFlowSankeyProps
         </g>
       </svg>
 
-      <table className="sr-only">
+      {/* ตารางนี้คือข้อมูลชุดเดียวกับแผนภาพ: จอใหญ่ซ่อนไว้ให้โปรแกรมอ่านจอ · มือถือ (≤720px) แผนภาพกว้าง 640px อ่านไม่ได้จึงซ่อนแผนภาพ แล้วโชว์ตารางนี้เป็นรายการที่อ่านได้ */}
+      <table className="sankey-table sr-only" role="table">
         <caption>{summary}</caption>
-        <thead>
-          <tr>
-            <th scope="col">ฝั่ง</th>
-            <th scope="col">รายการ</th>
-            <th scope="col">จำนวนเงิน</th>
-            <th scope="col">สัดส่วน</th>
+        <thead role="rowgroup">
+          <tr role="row">
+            <th role="columnheader" scope="col">ฝั่ง</th>
+            <th role="columnheader" scope="col">รายการ</th>
+            <th role="columnheader" scope="col">จำนวนเงิน</th>
+            <th role="columnheader" scope="col">สัดส่วน</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody role="rowgroup">
           {flow.sources.map((n) => (
-            <tr key={n.key}>
-              <td>แหล่งเงิน</td>
-              <td>{n.name}</td>
-              <td>{formatBaht(satang(n.amount))}</td>
-              <td>{formatPercentBps(n.shareBps)}</td>
+            <tr key={n.key} role="row">
+              <td role="cell">แหล่งเงิน</td>
+              <td role="cell">{n.name}</td>
+              <td role="cell">{formatBaht(satang(n.amount))}</td>
+              <td role="cell">{formatPercentBps(n.shareBps)}</td>
             </tr>
           ))}
           {flow.categories.map((n) => (
-            <tr key={n.key}>
-              <td>ปลายทาง</td>
-              <td>{n.name}</td>
-              <td>{formatBaht(satang(n.amount))}</td>
-              <td>{formatPercentBps(n.shareBps)}</td>
+            <tr key={n.key} role="row">
+              <td role="cell">ปลายทาง</td>
+              <td role="cell">{n.name}</td>
+              <td role="cell">{formatBaht(satang(n.amount))}</td>
+              <td role="cell">{formatPercentBps(n.shareBps)}</td>
             </tr>
           ))}
         </tbody>
