@@ -9,10 +9,6 @@ export async function getLocalOwner(db: MoneyDB): Promise<string | null> {
   return typeof row?.value === 'string' && row.value !== '' ? row.value : null;
 }
 
-export async function setLocalOwner(db: MoneyDB, userId: string): Promise<void> {
-  await db.meta.put({ key: OWNER_KEY, value: userId });
-}
-
 export async function hasLocalData(db: MoneyDB): Promise<boolean> {
   return !(await isEmpty(db));
 }
