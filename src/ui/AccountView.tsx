@@ -9,7 +9,7 @@ import { PolicyText } from './PolicyText';
 import { useRepository } from './RepositoryContext';
 
 /** หน้าโปรไฟล์: ชื่อผู้ใช้ เปลี่ยนรหัสผ่าน ออกจากระบบ (หัวหน้าหลักของแอปเป็น h1 แล้ว หน้านี้ใช้ h2) */
-export function AccountView() {
+export function AccountView({ onReset }: { onReset: () => void }) {
   const { username, signOut } = useAccount();
   const repo = useRepository();
   const requestPassword = usePasswordPrompt();
@@ -98,6 +98,17 @@ export function AccountView() {
           <summary>อ่านนโยบายความเป็นส่วนตัว</summary>
           <PolicyText />
         </details>
+      </section>
+      <section className="solid card account-danger" aria-labelledby="reset-title">
+        <h2 id="reset-title">⚠ ล้างข้อมูลและเริ่มใหม่</h2>
+        <p>
+          ล้างข้อมูลการเงินทั้งหมดของบัญชีนี้ (รายการ บิล ค่าตั้งค่า) แล้วเริ่มตั้งต้นใหม่ <strong>ย้อนกลับไม่ได้</strong> · บัญชีผู้ใช้ยังอยู่ · ระบบจะถามรหัสผ่านก่อนล้าง ควรกด "ดาวน์โหลดข้อมูลของฉัน" ด้านบนเก็บไว้ก่อน
+        </p>
+        <div className="actions">
+          <button className="btn btn-danger" type="button" onClick={onReset}>
+            ล้างข้อมูลและเริ่มใหม่
+          </button>
+        </div>
       </section>
       <section className="solid card account-danger" aria-labelledby="delete-title">
         <h2 id="delete-title">⚠ ลบบัญชีและข้อมูลทั้งหมด</h2>
