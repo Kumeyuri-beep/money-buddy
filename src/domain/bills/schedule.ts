@@ -153,19 +153,3 @@ export function outstandingTotal(upcoming: readonly UpcomingBill[]): number {
   }
   return total;
 }
-
-/**
- * บิลค้างจ่ายก่อนเงินเดือนถัดไป ประกอบ nextPayday + upcomingBills ให้ช่วงตรงกับจำนวนวันของสูตร R15 เสมอ
- * ช่วงบิลคือ [วันนี้, วันเงินเดือนถัดไป] รวมวันเงินเดือน: บิลที่ครบกำหนดตรงวันเงินเดือนถัดไปถูกหักจากรอบปัจจุบัน (ทางปลอดภัย · เจ้าของตัดสิน 11 พ.ย. 2569)
- * ส่วนจำนวนวันหารยังนับ [วันนี้, วันเงินเดือนถัดไป) เท่าเดิม
- */
-export function outstandingBeforePayday(
-  bills: readonly Bill[],
-  today: string,
-  payDay: number,
-  nextPaydayOverride?: string,
-): { nextPayday: string; items: UpcomingBill[]; total: number } {
-  const next = effectiveNextPayday(payDay, today, nextPaydayOverride);
-  const items = upcomingBills(bills, today, next);
-  return { nextPayday: next, items, total: outstandingTotal(items) };
-}

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { roundHalfUp } from '../../src/domain/money/round';
+import { safeAdd } from '../../src/domain/money/safe';
 import {
   formatBaht,
   parseBahtToSatang,
   satang,
-  sumSatang,
   toBaht,
   toBahtString,
 } from '../../src/domain/money/satang';
@@ -97,10 +97,10 @@ describe('แสดงผลและรวมสตางค์', () => {
     expect(() => satang(2 ** 53)).toThrow(RangeError);
     expect(Object.is(satang(-0), 0)).toBe(true);
   });
-  it('sumSatang ไม่มีเศษทศนิยมหลุดมา (0.1+0.2 ในหน่วยบาทคือปัญหาเดิม)', () => {
-    const total = sumSatang([parseBahtToSatang('0.1'), parseBahtToSatang('0.2')]);
-    expect(total).toBe(30);
-    expect(sumSatang([])).toBe(0);
+  it('รวมยอดด้วย safeAdd (ตัวที่ production ใช้) ไม่มีเศษทศนิยมหลุดมา: 0.1 + 0.2 บาท = 30 สตางค์เป๊ะ (R1) · แทนเทสต์ของ sumSatang ที่ลบแล้ว', () => {
+    expect(safeAdd(parseBahtToSatang('0.1'), parseBahtToSatang('0.2'))).toBe(30);
+    expect(['0.1', '0.2', '0.3', '0.7'].map((t) => parseBahtToSatang(t)).reduce((sum, v) => safeAdd(sum, v), 0)).toBe(130);
+    expect(() => safeAdd(Number.MAX_SAFE_INTEGER, 1)).toThrow(RangeError);
   });
 });
 

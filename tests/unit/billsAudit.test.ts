@@ -1,15 +1,22 @@
 import { describe, expect, it } from 'vitest';
+import { createElement } from 'react';
+import { renderToString } from 'react-dom/server';
+import { buildSafeToSpend, buildUpcomingPanel } from '../../src/app/billsOverview';
+import { friendlyError } from '../../src/app/errorText';
 import { addDays, addMonths, dueDateIn, nextPayday } from '../../src/domain/bills/calendar';
 import { computeSafeToSpend } from '../../src/domain/bills/safeToSpend';
 import {
   isBillPaid,
   markBillPaid,
-  outstandingBeforePayday,
   payableCycle,
   splitValidBills,
   upcomingBills,
 } from '../../src/domain/bills/schedule';
+import type { FinanceSettings } from '../../src/domain/bills/settings';
 import type { Bill } from '../../src/domain/bills/types';
+import type { Account, Entry } from '../../src/domain/ledger/types';
+import { SummaryCards } from '../../src/ui/overview/SummaryCards';
+import { UpcomingBillsPanel } from '../../src/ui/overview/UpcomingBillsPanel';
 
 // กรณีเพิ่มจากผลตรวจ money-auditor 4 พ.ย. 2569 (B1) ข้อมูลทั้งหมดสมมติ ยอดเป็นสตางค์
 const bill = (over: Partial<Bill> = {}): Bill => ({ id: 'b1', name: 'ค่าไฟ', amount: 150_000, dueDay: 10, ...over });
@@ -121,8 +128,23 @@ describe('splitValidBills: แยกบิลเสียออกมา แท�
   });
 });
 
-describe('outstandingBeforePayday: ประกอบ nextPayday + upcomingBills ให้ตรงกับจำนวนวันของสูตร R15', () => {
-  const run = (bills: Bill[], today: string, payDay: number) => outstandingBeforePayday(bills, today, payDay);
+// เดิมทดสอบ outstandingBeforePayday (ลบแล้ว 14 พ.ย. 2569: production ใช้ buildSafeToSpend/buildUpcomingPanel ที่กรองบิลเสียด้วย splitValidBills ก่อน)
+// เทสต์กรณีปกติทั้งชุดย้ายมาตรวจตัวที่ใช้จริง · ข้อมูลทั้งหมดสมมติ
+describe('ช่วงบิลก่อนเงินเดือน (R15) ตรวจผ่าน buildSafeToSpend + buildUpcomingPanel ที่ production ใช้จริง', () => {
+  const accounts: Account[] = [
+    { id: 'w1', type: 'asset', name: 'เงินสด', currency: 'THB' },
+    { id: 'open', type: 'equity', name: 'ยอดยกมา', currency: 'THB' },
+  ];
+  const opening = (amount: number): Entry[] => [
+    { id: 'e0', date: '2026-01-01', memo: '', source: 'system', lines: [{ accountId: 'w1', amount }, { accountId: 'open', amount: -amount }] },
+  ];
+  const run = (bills: Bill[], today: string, payDay: number, extra: { cash?: number; reserve?: number } = {}) => {
+    const settings: FinanceSettings = { payDay, ...(extra.reserve !== undefined ? { monthlySavingsGoal: extra.reserve } : {}) };
+    const safe = buildSafeToSpend(accounts, opening(extra.cash ?? 0), { bills, settings }, today);
+    const panel = buildUpcomingPanel({ bills, settings }, today);
+    if (safe.kind !== 'value') throw new Error('ต้องได้ค่า (kind=value) แต่ได้ ' + safe.kind);
+    return { safe, nextPayday: safe.nextPayday, total: safe.outstanding, items: panel.kind === 'list' ? panel.items : [], panel };
+  };
 
   it('คืนวันเงินเดือนถัดไป รายการ และยอดรวม', () => {
     const r = run(
@@ -133,27 +155,28 @@ describe('outstandingBeforePayday: ประกอบ nextPayday + upcomingBills
     expect(r.nextPayday).toBe('2026-11-25');
     expect(r.items.map((u) => u.dueDate)).toEqual(['2026-11-10', '2026-11-20']);
     expect(r.total).toBe(170_000);
+    expect(r.panel).toMatchObject({ kind: 'list', total: 170_000, until: '2026-11-25', hidden: 0, invalidBills: 0 });
   });
 
-  it('บิลที่ครบกำหนดตรงวันเงินเดือนถัดไปถูกหักด้วย (R15 ทางปลอดภัย) · วันหลังเงินเดือน 1 วันไม่ถูกหัก', () => {
+  it('บิลที่ครบกำหนดตรงวันเงินเดือนถัดไปถูกหักด้วย (R15 ทางปลอดภัย)', () => {
     expect(run([bill({ dueDay: 25 })], '2026-11-05', 25).total).toBe(150_000);
     expect(run([bill({ dueDay: 26 })], '2026-11-05', 25).total).toBe(0);
     expect(run([bill({ dueDay: 24 })], '2026-11-05', 25).total).toBe(150_000);
   });
 
-  it('วันนี้คือวันเงินเดือน: ช่วงคือเดือนหน้า บิลก่อนวันเงินเดือนเดือนหน้าถูกหัก (บิลเดือนนี้จ่ายแล้ว)', () => {
+  it('วันนี้คือวันเงินเดือน: ช่วงคือเดือนหน้า บิลก่อนวันเงินเดือนที่จ่ายแล้วไม่ถูกหัก', () => {
     const r = run([bill({ dueDay: 10, lastPaidMonth: '2026-11' })], '2026-11-25', 25);
     expect(r.nextPayday).toBe('2026-12-25');
     expect(r.items.map((u) => u.dueDate)).toEqual(['2026-12-10']);
   });
 
-  it('วันนี้คือวันเงินเดือนและบิลครบกำหนดวันนั้น (ยังไม่จ่าย): หักทั้งรอบนี้และรอบวันเงินเดือนถัดไป', () => {
+  it('วันนี้คือวันเงินเดือนและบิลครบกำหนดวันนั้น (ยังไม่จ่าย): หักทั้งรอบวันนี้และรอบเงินเดือนหน้า', () => {
     const r = run([bill({ dueDay: 25 })], '2026-11-25', 25);
     expect(r.items.map((u) => u.dueDate)).toEqual(['2026-11-25', '2026-12-25']);
     expect(r.total).toBe(300_000);
   });
 
-  it('บิลครบกำหนด 31 ในเดือนสั้น ตรงวันเงินเดือนที่บีบเป็นวันสุดท้าย (28 ก.พ.) ถูกหัก', () => {
+  it('บิลครบกำหนด 31 ในเดือนสั้น ตรงวันเงินเดือนที่บีบเป็นวันสุดท้ายของเดือน', () => {
     const r = run([bill({ dueDay: 31 })], '2026-02-10', 31);
     expect(r.nextPayday).toBe('2026-02-28');
     expect(r.items.map((u) => u.dueDate)).toEqual(['2026-02-28']);
@@ -166,7 +189,7 @@ describe('outstandingBeforePayday: ประกอบ nextPayday + upcomingBills
     expect(run([bill({ dueDay: 25, lastPaidMonth: '2026-11' })], '2026-11-05', 25).total).toBe(0);
   });
 
-  it('วันนี้คือวันเงินเดือนแต่บิลเดือนนี้ยังไม่จ่าย: นับเป็นบิลเลยกำหนดด้วย (ไม่หายไป)', () => {
+  it('วันนี้คือวันเงินเดือนแต่บิลเดือนนี้ยังไม่จ่าย: นับเป็นบิลค้าง (overdue) + รอบหน้า', () => {
     const r = run([bill({ dueDay: 10 })], '2026-11-25', 25);
     expect(r.items.map((u) => [u.dueDate, u.overdue])).toEqual([
       ['2026-11-10', true],
@@ -175,7 +198,7 @@ describe('outstandingBeforePayday: ประกอบ nextPayday + upcomingBills
     expect(r.total).toBe(300_000);
   });
 
-  it('วันที่ 31 ธ.ค. กับเงินเดือนวันที่ 30 (ข้ามปี) และ 30 เม.ย. กับวันที่ 31', () => {
+  it('ข้ามปีและเดือนสั้น: 31 ธ.ค. กับเงินเดือนวันที่ 30 และ 30 เม.ย. กับวันที่ 31', () => {
     expect(run([], '2026-12-31', 30).nextPayday).toBe('2027-01-30');
     expect(run([], '2026-04-30', 31).nextPayday).toBe('2026-05-31');
   });
@@ -186,16 +209,81 @@ describe('outstandingBeforePayday: ประกอบ nextPayday + upcomingBills
     expect(r.total).toBe(150_000);
   });
 
-  it('ต่อกับ computeSafeToSpend ได้ครบวงจร (บิลหักแล้ว วันที่เหลือตรงกัน)', () => {
-    const r = run([bill({ dueDay: 10, amount: 100_000 })], '2026-11-05', 25);
-    const s = computeSafeToSpend({ spendable: 400_000, outstanding: r.total, reserve: 100_000, today: '2026-11-05', payDay: 25 });
-    expect(s).toMatchObject({ kind: 'ok', available: 200_000, daysLeft: 20, perDay: 10_000, nextPayday: r.nextPayday });
+  it('ครบวงจรกับ computeSafeToSpend (บิลหักแล้ว วันที่เหลือตรงกัน): เงินในกระเป๋า 400,000 สำรอง 100,000 บิล 100,000 → ใช้ได้ 200,000 / 20 วัน = 10,000 ต่อวัน', () => {
+    const r = run([bill({ dueDay: 10, amount: 100_000 })], '2026-11-05', 25, { cash: 400_000, reserve: 100_000 });
+    expect(r.safe).toMatchObject({ kind: 'value', available: 200_000, daysLeft: 20, perDay: 10_000, nextPayday: r.nextPayday, outstanding: 100_000, reserve: 100_000, invalidBills: 0 });
+    // ผลเท่ากับสูตรหลักที่ production เรียกข้างใน
+    expect(computeSafeToSpend({ spendable: 400_000, outstanding: r.total, reserve: 100_000, today: '2026-11-05', payDay: 25 })).toMatchObject({ kind: 'ok', available: 200_000, daysLeft: 20, perDay: 10_000 });
   });
 
   it('บิลค้างเดือนก่อน (startMonth) ถูกรวมในยอดก่อนเงินเดือน', () => {
     const r = run([bill({ dueDay: 30, startMonth: '2026-10', amount: 80_000 })], '2026-11-01', 25);
     expect(r.total).toBe(80_000);
     expect(r.items[0]).toMatchObject({ overdue: true, cycleMonth: '2026-10' });
+  });
+
+  it('ไม่ตั้งวันเงินเดือน = needs-setup (ไม่คำนวณ) · บิลเก็บถาวรไม่ถูกนับ', () => {
+    expect(buildSafeToSpend(accounts, opening(1000), { bills: [bill()], settings: {} }, '2026-11-05')).toEqual({ kind: 'needs-setup' });
+    expect(run([bill({ archived: true, dueDay: 99 })], '2026-11-05', 25).total).toBe(0);
+  });
+});
+
+describe('บิลข้อมูลเสียต้องไม่ทำให้หน้าเว็บพัง: แสดงข้อความภาษาคนผ่าน friendlyError', () => {
+  const accounts: Account[] = [{ id: 'w1', type: 'asset', name: 'เงินสด', currency: 'THB' }];
+  const settings: FinanceSettings = { payDay: 25 };
+  const bad: Bill[] = [
+    bill({ id: 'zero', amount: 0 }),
+    bill({ id: 'neg', amount: -100 }),
+    bill({ id: 'day32', dueDay: 32 }),
+    bill({ id: 'badpaid', lastPaidMonth: '2026-13' }),
+    bill({ id: 'frac', amount: 10.5 }),
+  ];
+  const good = bill({ id: 'ok', amount: 90_000, dueDay: 10 });
+
+  it('บิลเสียถูกข้าม + นับจำนวนเตือน · ยอดค้างนับเฉพาะบิลที่ถูกต้อง (ไม่โยน error ทั้งก้อน)', () => {
+    const safe = buildSafeToSpend(accounts, [], { bills: [...bad, good], settings }, '2026-11-05');
+    expect(safe).toMatchObject({ kind: 'value', outstanding: 90_000, invalidBills: 5 });
+    const panel = buildUpcomingPanel({ bills: [...bad, good], settings }, '2026-11-05');
+    expect(panel).toMatchObject({ kind: 'list', total: 90_000, invalidBills: 5 });
+  });
+
+  it('มีแต่บิลเสียทั้งหมด: ไม่พัง ยอดค้าง 0 และบอกจำนวนบิลเสีย', () => {
+    expect(buildSafeToSpend(accounts, [], { bills: bad, settings }, '2026-11-05')).toMatchObject({ kind: 'value', outstanding: 0, invalidBills: 5 });
+    expect(buildUpcomingPanel({ bills: bad, settings }, '2026-11-05')).toEqual({ kind: 'clear', invalidBills: 5 });
+  });
+
+  it('ยอดรวมใหญ่เกินช่วงปลอดภัย (RangeError): คืน kind=error พร้อมข้อความไทยจาก friendlyError ไม่ใช่การโยนข้อผิดพลาด', () => {
+    const huge = [bill({ id: 'h1', amount: Number.MAX_SAFE_INTEGER }), bill({ id: 'h2', amount: Number.MAX_SAFE_INTEGER })];
+    const expected = friendlyError(new RangeError('x'));
+    const safe = buildSafeToSpend(accounts, [], { bills: huge, settings }, '2026-11-05');
+    expect(safe).toEqual({ kind: 'error', message: expected });
+    const panel = buildUpcomingPanel({ bills: huge, settings }, '2026-11-05');
+    expect(panel).toEqual({ kind: 'error', message: expected });
+    expect(expected).toMatch(/[ก-๙]/);
+  });
+
+  it('ข้อมูลผิดชนิดจนเกิดข้อผิดพลาดอื่น (ไม่ใช่ RangeError): คืน kind=error ข้อความไทยทั่วไป ไม่พังทั้งหน้า', () => {
+    const weird = [null as unknown as Bill];
+    const safe = buildSafeToSpend(accounts, [], { bills: weird, settings }, '2026-11-05');
+    const generic = 'คำนวณไม่สำเร็จ ตรวจข้อมูลบิลและค่าตั้งค่า';
+    expect(safe).toEqual({ kind: 'error', message: generic });
+    // เดิม buildUpcomingPanel อ่านบิลก่อนเข้า try จึงโยน TypeError ทำให้ทั้งหน้าพัง (พบตอนย้ายเทสต์ 14 พ.ย. 2569) · ตอนนี้ต้องเป็น error ภาษาคน
+    expect(buildUpcomingPanel({ bills: weird, settings }, '2026-11-05')).toEqual({ kind: 'error', message: generic });
+    expect(friendlyError(new TypeError('x'), generic)).toBe(generic);
+  });
+
+  it('หน้าจอ: การ์ดและแผงบิลแสดงคำเตือน "ข้อมูลผิด" และข้อความผิดพลาดภาษาไทย (ไม่โยน error ตอนเรนเดอร์)', () => {
+    const cards = (bills: Bill[]) =>
+      renderToString(
+        createElement(SummaryCards, { accounts, entries: [], today: '2026-11-05', finance: { bills, settings }, onOpenLedger: () => undefined, onOpenBills: () => undefined, onAdd: () => undefined }),
+      ).replace(/<!-- -->/g, '');
+    expect(cards([...bad, good])).toContain('มีบิล 5 ใบข้อมูลผิด');
+    const huge = [bill({ id: 'h1', amount: Number.MAX_SAFE_INTEGER }), bill({ id: 'h2', amount: Number.MAX_SAFE_INTEGER })];
+    expect(cards(huge)).toContain(friendlyError(new RangeError('x')));
+    const panel = (bills: Bill[]) =>
+      renderToString(createElement(UpcomingBillsPanel, { finance: { bills, settings }, today: '2026-11-05', onOpenBills: () => undefined })).replace(/<!-- -->/g, '');
+    expect(panel([...bad, good])).toContain('มีบิล 5 ใบข้อมูลผิด');
+    expect(panel(huge)).toContain(friendlyError(new RangeError('x')));
   });
 });
 
