@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, describe, expect, inject, it } from 'vitest';
 import { loadAdmin } from '../../scripts/lib/admin.mjs';
+import { authErrorText } from './liveHelpers';
 
 /**
  * ข้อกำหนดการตั้งค่า (docs/decisions/2026-11-09-batched-delete.md ข้อ 3): PostgREST ต้อง "ไม่ยอมรับ" header `Prefer: tx=rollback`
@@ -22,7 +23,7 @@ function assertTestUser(id: string): void {
 async function clearSettingsOfB(): Promise<void> {
   assertTestUser(B.id);
   const { error } = await admin.from('settings').delete().eq('user_id', B.id);
-  if (error) throw new Error('ล้างแถวตั้งค่าของผู้ใช้ทดสอบ b ไม่สำเร็จ');
+  if (error) throw new Error('ล้างแถวตั้งค่าของผู้ใช้ทดสอบ b ไม่สำเร็จ: ' + authErrorText(error));
 }
 
 describe('PostgREST ไม่ยอมรับ Prefer: tx=rollback (กันย้อนกลับแถวนับรหัสผิด)', () => {
@@ -31,7 +32,7 @@ describe('PostgREST ไม่ยอมรับ Prefer: tx=rollback (กัน�
   it('เขียนด้วย Prefer: tx=rollback ได้ 201 แถวยังอยู่ (commit) และเซิร์ฟเวอร์ไม่ตอบว่าใช้ tx=rollback', async () => {
     const client = createClient(live.url, live.anonKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
     const { data, error } = await client.auth.signInWithPassword({ email: B.email, password: B.password });
-    if (error || !data.user || !data.session) throw new Error('ล็อกอินผู้ใช้ทดสอบ b ไม่สำเร็จ');
+    if (error || !data.user || !data.session) throw new Error('ล็อกอินผู้ใช้ทดสอบ b ไม่สำเร็จ: ' + authErrorText(error));
     expect(data.user.id).toBe(B.id);
     await clearSettingsOfB();
 
