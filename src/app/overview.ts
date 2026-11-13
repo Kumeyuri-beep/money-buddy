@@ -16,18 +16,6 @@ import { buildOutgoingSplit, buildSafeToSpend, type FinanceInput, type OutgoingS
 /** เป้าเริ่มต้น (ยังไม่ให้ผู้ใช้แก้) 20% = 2000 bps, 6 เดือน = 60 */
 export const DEFAULT_TARGETS = { savingsRateBps: 2000, runwayTenths: 60 } as const;
 
-/** การ์ดสรุป 8 ใบ (กระจกแท้ครบโควตาพอดี) เรียงตามแถวบนไปล่าง */
-export const SUMMARY_CARD_IDS = [
-  'netWorth',
-  'income',
-  'outgoing',
-  'surplus',
-  'safeToSpend',
-  'savingsRate',
-  'vsLastMonth',
-  'runway',
-] as const;
-
 /** ค่าที่ต้องตั้งค่าก่อน ("ตั้งค่า… →") หรือรอข้อมูลสะสม ("รอข้อมูลเดือนหน้า") */
 export type CardState<T> = ({ kind: 'value' } & T) | { kind: 'needs-setup' } | { kind: 'waiting-data' };
 

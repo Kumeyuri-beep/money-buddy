@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { thaiDayLabel, thaiMonthKeyLabel } from '../../src/app/dates';
 import { buildEntry, entryToForm, type EntryForm } from '../../src/app/entryForm';
 import {
-  ALL_FILTER,
   entryDetail,
   groupByDate,
   monthsWithEntries,
@@ -41,6 +40,8 @@ const lunch = make('lunch', { memo: 'ข้าวมันไก่', date: '202
 // เรียงตามวันที่เหมือน loadLedger (ภายในวันเดียวกันตามลำดับที่เพิ่ม)
 const all: Entry[] = [...opening, rent, salary, toVault, coffee, lunch];
 
+/** ตัวกรอง "ไม่กรองอะไรเลย" (เดิมเป็น export ใน ledgerQuery ที่ production ไม่ใช้ · หน้ารายการสร้างตัวกรองของตัวเองจากเดือนปัจจุบัน) */
+const ALL_FILTER: LedgerFilter = { month: 'all', kind: 'all', accountId: 'all', text: '' };
 const q = (patch: Partial<LedgerFilter>) => queryLedger(accounts, all, { ...ALL_FILTER, ...patch });
 const ids = (patch: Partial<LedgerFilter>) => q(patch).map((r) => r.entry.id);
 
