@@ -575,20 +575,19 @@ select { font: inherit; }
   .summary-label-en { display: none; }
 }
 
-/* Sankey บนมือถือ: แผนภาพกว้าง 640px ต้องเลื่อนแนวนอนและตัวหนังสือถูกตัด → ซ่อนแผนภาพ โชว์ตารางข้อมูลเดียวกันเป็นรายการ (ชื่อ · จำนวนเงิน · สัดส่วน) */
+/* Sankey บนมือถือ: แผนภาพกว้าง 640px ต้องเลื่อนแนวนอนและตัวหนังสือถูกตัด → ซ่อนแผนภาพ โชว์กราฟแท่งแนวนอน (ตารางข้อมูลยังซ่อนไว้ให้โปรแกรมอ่านจอ) */
+.sankey-bars { display: none; }
 @media (max-width: 720px) {
   .sankey { overflow-x: visible; }
   .sankey-svg { display: none; }
-  .sankey-table.sr-only { position: static; width: auto; height: auto; margin: 12px 0 0; overflow: visible; clip: auto; white-space: normal; display: block; }
-  .sankey-table caption { display: none; }
-  .sankey-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-  .sankey-table tbody { display: block; }
-  .sankey-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 10px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
-  .sankey-table td { display: block; padding: 0; }
-  .sankey-table td:nth-child(1) { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
-  .sankey-table td:nth-child(2) { font-weight: 600; overflow-wrap: anywhere; }
-  .sankey-table td:nth-child(3) { text-align: right; font-variant-numeric: tabular-nums; }
-  .sankey-table td:nth-child(4) { grid-column: 1 / -1; font-size: 13px; color: var(--muted); }
+  .sankey-bars { display: block; }
+  .sankey-bars ul { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+  .sankey-bars-title { margin: 14px 0 8px; font-size: 14px; font-weight: 600; color: var(--muted); }
+  .sankey-bar-head { display: flex; justify-content: space-between; gap: 12px; font-weight: 600; }
+  .sankey-bar-head span:first-child { min-width: 0; overflow-wrap: anywhere; }
+  .sankey-bar-head .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .sankey-bar { height: 10px; margin: 6px 0 4px; border-radius: 999px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+  .sankey-bar span { display: block; height: 100%; border-radius: 999px; }
 }
 
 /* หน้ารายรับ-รายจ่าย: สรุปยอดอยู่บนพื้นทึบ (ตัวเล็กสีแดง/เขียวต้องผ่านคอนทราสต์ ไม่วางบนแสงฉากหลัง) · ตัวกรองบนมือถือ: ค้นหาและเดือนเต็มแถว ประเภทกับกระเป๋า/หมวดคู่กัน */
