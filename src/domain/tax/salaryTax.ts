@@ -79,8 +79,8 @@ export const DEDUCTION_ORDER: readonly DeductionKey[] = [
   'prenatal',
   'socialSecurity',
   'lifeInsurance',
-  'pensionToLife',
   'healthInsurance',
+  'pensionToLife',
   'spouseLifeInsurance',
   'parentsHealth',
   'mortgageInterest',
@@ -107,6 +107,8 @@ export interface DeductionLine {
   confidence: Confidence;
   /** เกณฑ์ที่ใช้ต่อเนื่อง (ดู Basis ใน config) */
   basis?: Basis;
+  /** ประกันบำนาญ: ส่วนของเบี้ยที่ย้ายไปช่องประกันชีวิตแล้ว (แถวนี้นับเฉพาะส่วนที่ไปกลุ่มเกษียณ) */
+  movedToLife?: number;
   /** กองทุนสำรองเลี้ยงชีพ: ส่วนที่หักลดหย่อน (ไม่เกิน 10,000) และส่วนที่ได้รับยกเว้น */
   providentSplit?: { deduction: number; exempt: number };
 }
@@ -248,15 +250,16 @@ export function computeSalaryTax(input: SalaryTaxInput, config: TaxYearConfig = 
   const lifeCap = BigInt(config.lifeInsurance.capSatang);
   const healthCap = BigInt(config.healthInsurance.capSatang);
   const life = minBig(minBig(paid(input.lifeInsurancePaid), lifeCap), lhGroup);
-  // เบี้ยบำนาญส่วนที่เกินเพดานรายตัว (15% ไม่เกิน 200,000) ถ้าประกันชีวิตปกติยังไม่เต็ม ให้เติมเข้าช่องประกันชีวิตก่อน (ตัวอย่างกรมสรรพากร 43975)
-  // ลำดับคงที่: ประกันชีวิต → บำนาญล้นเข้าช่องประกันชีวิต → ประกันสุขภาพ → กลุ่มเกษียณ
+  // เบี้ยบำนาญ: เติมช่องประกันชีวิตที่ยังเหลือก่อน (เจ้าของตัดสิน 13 พ.ย. 2569 เลือกแบบที่ผู้เสียภาษีได้สิทธิสูงสุด ตามตัวอย่างกรมสรรพากร 43975)
+  // ส่วนที่เหลือจึงนับเข้ากลุ่มเกษียณ (เพดานรายตัว 15% ไม่เกิน 200,000 และเพดานกลุ่ม 500,000)
+  // ลำดับคงที่: ประกันชีวิต → ประกันสุขภาพ → บำนาญเติมช่องชีวิต (เท่าที่ช่องชีวิต+สุขภาพรวม 100,000 ยังเหลือ) → กลุ่มเกษียณ
+  // ประกันสุขภาพมาก่อนบำนาญ: สุขภาพใช้ได้เฉพาะช่องนี้ ส่วนบำนาญที่เหลือยังไปกลุ่มเกษียณได้ ผลรวมจึงสูงสุดสำหรับผู้เสียภาษี
   const pensionCap = itemCap(income, config.pensionInsurance.rateBps, config.pensionInsurance.capSatang);
-  const pensionInCap = minBig(paid(input.pensionInsurancePaid), pensionCap);
-  const pensionOverflow = paid(input.pensionInsurancePaid) - pensionInCap;
-  const lifeSlotRoom = maxBig(minBig(lifeCap - life, lhGroup - life), 0n);
-  const pensionToLife = minBig(pensionOverflow, lifeSlotRoom);
-  const health = minBig(minBig(paid(input.healthInsurancePaid), healthCap), lhGroup - life - pensionToLife);
-  const lhLeft = lhGroup - life - pensionToLife - health;
+  const health = minBig(minBig(paid(input.healthInsurancePaid), healthCap), lhGroup - life);
+  const lifeSlotRoom = maxBig(minBig(lifeCap - life, lhGroup - life - health), 0n);
+  const pensionToLife = minBig(paid(input.pensionInsurancePaid), lifeSlotRoom);
+  const pensionForGroup = paid(input.pensionInsurancePaid) - pensionToLife;
+  const lhLeft = lhGroup - life - health - pensionToLife;
 
   const parentsHealthCap = BigInt(config.parentsHealth.capSatang);
   const parentsHealth = minBig(paid(input.parentsHealthPaid), parentsHealthCap);
@@ -279,7 +282,7 @@ export function computeSalaryTax(input: SalaryTaxInput, config: TaxYearConfig = 
   const pvdExempt = pvdTotal - pvdDeduction;
   const pvdMaxTotal = BigInt(config.providentFund.deductionSatang) + pvdExemptCap;
   const rmf = minBig(minBig(paid(input.rmfPaid), rmfCap), groupCap - pvdTotal);
-  const pension = minBig(pensionInCap, groupCap - pvdTotal - rmf);
+  const pension = minBig(minBig(pensionForGroup, pensionCap), groupCap - pvdTotal - rmf);
   const esg = minBig(paid(input.thaiEsgPaid), esgCap);
   const groupLeft = groupCap - pvdTotal - rmf - pension;
 
@@ -324,13 +327,18 @@ export function computeSalaryTax(input: SalaryTaxInput, config: TaxYearConfig = 
       providentSplit: { deduction: Number(pvdDeduction), exempt: Number(pvdExempt) },
     },
     rmf: { ...capped('rmf', paid(input.rmfPaid), rmf, room(rmfCap, rmf, groupLeft), config.rmf.confidence), ...basisOf(config.rmf) },
-    pensionInsurance: { ...capped('pensionInsurance', paid(input.pensionInsurancePaid), pension, room(pensionCap, pension, groupLeft), config.pensionInsurance.confidence), ...basisOf(config.pensionInsurance) },
-    // ส่วนของเบี้ยบำนาญที่เกินเพดานรายตัว เติมเข้าช่องประกันชีวิต (ไม่ใช่ส่วนของกลุ่มเกษียณ) · requested = ส่วนที่เกินเพดาน
+    // แถวบำนาญนับเฉพาะส่วนที่ไปกลุ่มเกษียณ (requested = เบี้ยที่กรอกหักส่วนที่เติมช่องประกันชีวิตแล้ว) · movedToLife = ส่วนที่ย้ายไปช่องประกันชีวิต
+    pensionInsurance: {
+      ...capped('pensionInsurance', pensionForGroup, pension, room(pensionCap, pension, groupLeft), config.pensionInsurance.confidence),
+      ...basisOf(config.pensionInsurance),
+      movedToLife: Number(pensionToLife),
+    },
+    // ส่วนของเบี้ยบำนาญที่เติมเข้าช่องประกันชีวิต (ไม่นับในเพดานรายตัวและกลุ่มเกษียณ) · ไม่มี "ขอเกิน" เพราะเติมได้เท่าที่ช่องเหลือ
     pensionToLife: {
       key: 'pensionToLife',
-      requested: Number(pensionOverflow),
+      requested: Number(pensionToLife),
       allowed: Number(pensionToLife),
-      clamped: pensionOverflow > pensionToLife,
+      clamped: false,
       remaining: null,
       confidence: config.pensionInsurance.confidence,
       ...basisOf(config.pensionInsurance),

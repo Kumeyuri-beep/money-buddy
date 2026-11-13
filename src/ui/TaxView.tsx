@@ -365,10 +365,16 @@ export function TaxView({ portfolio }: TaxViewProps = {}) {
                             หักลดหย่อน {formatWholeBaht(d.providentSplit.deduction)} + ส่วนที่ไม่ต้องนำมาคิดภาษี {formatWholeBaht(d.providentSplit.exempt)}
                           </span>
                         )}
+                        {d.movedToLife !== undefined && d.movedToLife > 0 && (
+                          <span className="muted small">
+                            <br />
+                            เบี้ยที่กรอกทั้งหมด {formatWholeBaht(d.requested + d.movedToLife)} · แบ่ง {formatWholeBaht(d.movedToLife)} ไปช่องประกันชีวิต (แถวถัดไป) แถวนี้นับเฉพาะส่วนที่เหลือ
+                          </span>
+                        )}
                         {d.key === 'pensionToLife' && (
                           <span className="muted small">
                             <br />
-                            ส่วนของเบี้ยบำนาญที่เกินเพดาน (15% ของเงินได้ ไม่เกิน 200,000) นับเป็นเบี้ยประกันชีวิตเมื่อประกันชีวิตปกติยังไม่เต็ม 100,000
+                            เบี้ยบำนาญเติมช่องประกันชีวิตก่อน เมื่อประกันชีวิตและสุขภาพรวมกันยังไม่เต็ม 100,000 ส่วนที่เหลือจึงนับเข้ากลุ่มเกษียณ
                           </span>
                         )}
                         {d.clamped && (
