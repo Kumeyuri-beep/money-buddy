@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Money Buddy</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- เพิ่มลงหน้าจอโฮม (iPhone/Android): manifest + ไอคอน + สีแถบ · ไม่มี service worker (ไม่แคชข้อมูลการเงิน) -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#07080d" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Money Buddy" />
   </head>
   <body>
     <div id="root"></div>

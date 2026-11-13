@@ -51,11 +51,11 @@ describe('ส่วนหัวความปลอดภัยใน vercel.js
       }
     }
     expect(csp.get('font-src')).toEqual(["'self'"]);
-    // รัดแล้ว (หลังเจ้าของลอง Preview): ไม่มีรูป data:/blob: ไม่มี worker จาก Blob ไม่มีฟอร์มที่ส่งแบบเบราว์เซอร์เอง ไม่มี manifest
+    // รัดแล้ว (หลังเจ้าของลอง Preview): ไม่มีรูป data:/blob: ไม่มี worker จาก Blob ไม่มีฟอร์มที่ส่งแบบเบราว์เซอร์เอง · manifest เปิดเฉพาะโดเมนเอง (เจ้าของสั่ง 13 พ.ย. 2569 เพิ่มลงหน้าจอโฮม: default-src 'none' จะบล็อก manifest ถ้าไม่ระบุ)
     expect(csp.get('img-src')).toEqual(["'self'"]);
     expect(csp.get('worker-src')).toEqual(["'self'"]);
     expect(csp.get('form-action')).toEqual(["'none'"]);
-    expect(csp.has('manifest-src')).toBe(false);
+    expect(csp.get('manifest-src')).toEqual(["'self'"]);
     expect(csp.get('style-src')).toEqual(["'self'"]);
   });
 
