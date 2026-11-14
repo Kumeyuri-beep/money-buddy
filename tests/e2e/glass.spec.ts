@@ -53,7 +53,8 @@ for (const theme of ['dark', 'light'] as const) {
     test('ตัวหนังสือบนการ์ดที่มีแสงอยู่ยังชัด (contrast AA ตอนเมาส์อยู่บนการ์ด)', async ({ page }) => {
       await openApp(page);
       const b = (await page.locator('article.glass.card').first().boundingBox())!;
-      await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+      // จุดเมาส์ใกล้ขอบบนการ์ด (กึ่งกลางการ์ดใบนี้อยู่ใต้ dock ที่ลอยกลางล่างของจอ ≥1024px)
+      await page.mouse.move(b.x + b.width / 2, b.y + 30);
       await expect(page.locator('article.glass.card').first()).toHaveAttribute('data-fx', 'on');
       const { failures, checked } = await pageContrastFailures(page);
       expect(checked).toBeGreaterThan(10);
