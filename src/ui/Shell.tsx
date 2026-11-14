@@ -90,10 +90,14 @@ export function Shell({ children, showNav = true, current = 'today', onNavigate,
       >
         ข้ามไปเนื้อหาหลัก
       </a>
-      <div className="glow glow-violet" aria-hidden="true" />
-      <div className="glow glow-teal" aria-hidden="true" />
-      <div className="glow glow-gold" aria-hidden="true" />
-      <div className="glow glow-pink" aria-hidden="true" />
+      {/* พื้นหลังออโรรา: ก้อนแสง CSS gradient ล้วน (ไม่มีรูป ไม่มี filter blur) ขยับช้ามากบนคอม · นิ่งบนมือถือ/ลดการเคลื่อนไหว */}
+      <div className="aurora" aria-hidden="true">
+        <span className="aurora-blob aurora-violet" />
+        <span className="aurora-blob aurora-indigo" />
+        <span className="aurora-blob aurora-gold" />
+        <span className="aurora-blob aurora-plum" />
+        <span className="aurora-ribbon" />
+      </div>
 
       <aside className="glass-lite sidebar">
         <div className="brand">

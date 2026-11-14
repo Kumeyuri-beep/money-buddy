@@ -16,6 +16,10 @@ export function fxPosition(rect: { left: number; top: number; width: number; hei
   return { x: Math.round(x), y: Math.round(y) };
 }
 
+/** เกณฑ์เครื่องช้า: เฟรมเฉลี่ยระหว่างเลื่อน > 34ms (ต่ำกว่า ~30fps) ติดกัน 24 เฟรม */
+export const SLOW_FRAME_MS = 34;
+export const SLOW_FRAME_WINDOW = 24;
+
 export function startLiquidGlass(doc: Document = document): () => void {
   const win = doc.defaultView;
   if (!win || typeof win.matchMedia !== 'function') return () => undefined;
@@ -98,7 +102,45 @@ export function startLiquidGlass(doc: Document = document): () => void {
     if (reduce.matches) clearCurrent();
   };
 
+  // ระหว่างเลื่อนหน้า: ตั้ง data-scrolling ที่ html ครั้งเดียวต่อช่วงเลื่อน (เลิกเลื่อน 160ms แล้วถอด) เพื่อให้พื้นหลังหยุดขยับชั่วคราว
+  let scrollTimer = 0;
+  // ตัวป้องกันเครื่องช้า: ถ้าระหว่างเลื่อนหน้าเฟรมเฉลี่ยช้ากว่า 34ms ติดกัน 24 เฟรม (ค่าคงที่ SLOW_FRAME_*) ให้ตั้ง data-lite ที่ html (CSS ปิด blur ของการ์ดหน้า glass-lite · พื้นยังโปร่งแสงและตัวหนังสือผ่านเกณฑ์เท่าเดิม) ตลอดการใช้งานครั้งนั้น
+  let monitoring = false;
+  let degraded = false;
+  const monitor = () => {
+    monitoring = true;
+    const deltas: number[] = [];
+    let last = win.performance.now();
+    const tick = (now: number) => {
+      if (!doc.documentElement.hasAttribute('data-scrolling') || degraded) {
+        monitoring = false;
+        return;
+      }
+      deltas.push(now - last);
+      last = now;
+      if (deltas.length >= SLOW_FRAME_WINDOW) {
+        const avg = deltas.reduce((a, b) => a + b, 0) / deltas.length;
+        deltas.length = 0;
+        if (avg > SLOW_FRAME_MS) {
+          degraded = true;
+          doc.documentElement.setAttribute('data-lite', '');
+          monitoring = false;
+          return;
+        }
+      }
+      win.requestAnimationFrame(tick);
+    };
+    win.requestAnimationFrame(tick);
+  };
+  const onScroll = () => {
+    if (!doc.documentElement.hasAttribute('data-scrolling')) doc.documentElement.setAttribute('data-scrolling', '');
+    if (!monitoring && !degraded && !reduce.matches) monitor();
+    win.clearTimeout(scrollTimer);
+    scrollTimer = win.setTimeout(() => doc.documentElement.removeAttribute('data-scrolling'), 160);
+  };
+
   doc.addEventListener('pointermove', onMove, { passive: true });
+  win.addEventListener('scroll', onScroll, { passive: true });
   doc.addEventListener('pointerdown', onDown, { passive: true });
   doc.addEventListener('pointerup', onUp, { passive: true });
   doc.addEventListener('pointercancel', onCancel, { passive: true });
@@ -108,6 +150,10 @@ export function startLiquidGlass(doc: Document = document): () => void {
 
   return () => {
     doc.removeEventListener('pointermove', onMove);
+    win.removeEventListener('scroll', onScroll);
+    win.clearTimeout(scrollTimer);
+    doc.documentElement.removeAttribute('data-scrolling');
+    doc.documentElement.removeAttribute('data-lite');
     doc.removeEventListener('pointerdown', onDown);
     doc.removeEventListener('pointerup', onUp);
     doc.removeEventListener('pointercancel', onCancel);

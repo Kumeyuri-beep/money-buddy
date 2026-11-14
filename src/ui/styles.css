@@ -28,10 +28,10 @@
  * ชื่อบอกบทบาท ไม่บอกสี เพื่อให้โหมดสว่างทับค่าได้ทีละตัว: --ov-NN = ฟิล์มสว่างโปร่ง NN% บนพื้นมืด · --shade-NN = ฟิล์มมืดโปร่ง NN% · --text-NN = ตัวหนังสือโปร่ง NN%
  */
 :root {
-  --glow-violet-color: #3b2bd6;
-  --glow-teal-color: #0fa3a3;
-  --glow-gold-color: #c9871a;
-  --glow-pink-color: #b0306e;
+  --glow-violet-color: #4a2fc9;
+  --glow-teal-color: #2b3bb8;
+  --glow-gold-color: #d19a22;
+  --glow-pink-color: #8e2a8c;
   --ov-12: rgba(255, 255, 255, 0.12);
   --glass-grad-a: rgba(255, 255, 255, 0.12);
   --glass-grad-b: rgba(255, 255, 255, 0.03);
@@ -40,10 +40,10 @@
   --hl-active: rgba(255, 255, 255, 0.32);
   --cs: dark;
   --gold-fill: #f2d06b;
-  --glow-violet-op: 0.33;
-  --glow-teal-op: 0.27;
-  --glow-gold-op: 0.21;
-  --glow-pink-op: 0.19;
+  --glow-violet-op: 0.58;
+  --glow-teal-op: 0.38;
+  --glow-gold-op: 0.42;
+  --glow-pink-op: 0.36;
   --lamp-shade-a: #f6dc8a;
   --lamp-shade-b: #b98a1e;
   --lamp-shine: rgba(255, 255, 255, 0.5);
@@ -58,7 +58,7 @@
   --card-unlit: rgba(0, 0, 0, 0.1);
   --fx-color: rgba(255, 255, 255, 0.13);
   --ov-3: rgba(255, 255, 255, 0.03);
-  --glass-under: rgba(7, 8, 13, 0.55);
+  --glass-under: rgba(7, 8, 13, 0.32);
   --ov-40: rgba(255, 255, 255, 0.4);
   --ov-4: rgba(255, 255, 255, 0.04);
   --shade-85: rgba(0, 0, 0, 0.85);
@@ -168,15 +168,15 @@
   --surface-fallback: #ffffff;
   --cs: light;
   --glow-violet-color: #8e7dff;
-  --glow-teal-color: #4cd4c8;
+  --glow-teal-color: #7f95ff;
   --glow-gold-color: #ffc85a;
-  --glow-pink-color: #ff8fc0;
-  --glass-grad-a: rgba(255, 255, 255, 0.85);
-  --glass-grad-b: rgba(255, 255, 255, 0.38);
+  --glow-pink-color: #f3a6d6;
+  --glass-grad-a: rgba(255, 255, 255, 0.62);
+  --glass-grad-b: rgba(255, 255, 255, 0.26);
   --glass-sheen: rgba(255, 255, 255, 0.18);
   --hl-top: rgba(255, 255, 255, 0.95);
   --hl-active: rgba(255, 255, 255, 0.8);
-  --glass-under: rgba(255, 255, 255, 0.28);
+  --glass-under: rgba(255, 255, 255, 0.4);
   --glass-lite-under: rgba(255, 255, 255, 0.92);
   --surface-solid: #ffffff;
   --surface-dialog: #ffffff;
@@ -266,10 +266,10 @@
   --card-note: #555c72;
   --card-brand: #8a5a00;
   --gold-fill: #b8860b;
-  --glow-violet-op: 0.33;
-  --glow-teal-op: 0.27;
-  --glow-gold-op: 0.3;
-  --glow-pink-op: 0.26;
+  --glow-violet-op: 0.5;
+  --glow-teal-op: 0.36;
+  --glow-gold-op: 0.46;
+  --glow-pink-op: 0.32;
   --lamp-shade-a: #e0ae36;
   --lamp-shade-b: #8a5a00;
   --lamp-shine: rgba(255, 255, 255, 0.75);
@@ -301,15 +301,15 @@
     --surface-fallback: #ffffff;
     --cs: light;
     --glow-violet-color: #8e7dff;
-    --glow-teal-color: #4cd4c8;
+    --glow-teal-color: #7f95ff;
     --glow-gold-color: #ffc85a;
-    --glow-pink-color: #ff8fc0;
-    --glass-grad-a: rgba(255, 255, 255, 0.85);
-    --glass-grad-b: rgba(255, 255, 255, 0.38);
+    --glow-pink-color: #f3a6d6;
+    --glass-grad-a: rgba(255, 255, 255, 0.62);
+    --glass-grad-b: rgba(255, 255, 255, 0.26);
     --glass-sheen: rgba(255, 255, 255, 0.18);
     --hl-top: rgba(255, 255, 255, 0.95);
     --hl-active: rgba(255, 255, 255, 0.8);
-    --glass-under: rgba(255, 255, 255, 0.28);
+    --glass-under: rgba(255, 255, 255, 0.4);
     --glass-lite-under: rgba(255, 255, 255, 0.92);
     --surface-solid: #ffffff;
     --surface-dialog: #ffffff;
@@ -399,10 +399,10 @@
     --card-note: #555c72;
     --card-brand: #8a5a00;
     --gold-fill: #b8860b;
-    --glow-violet-op: 0.33;
-    --glow-teal-op: 0.27;
-    --glow-gold-op: 0.3;
-    --glow-pink-op: 0.26;
+    --glow-violet-op: 0.5;
+    --glow-teal-op: 0.36;
+    --glow-gold-op: 0.46;
+    --glow-pink-op: 0.32;
     --lamp-shade-a: #e0ae36;
     --lamp-shade-b: #8a5a00;
     --lamp-shine: rgba(255, 255, 255, 0.75);
@@ -451,18 +451,43 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 }
 
 /* ก้อนแสงเบลอพื้นหลัง (ความเข้ม 60% ของไฟล์ดีไซน์ ดูหมายเหตุ AA ด้านบน) */
-.glow { position: absolute; border-radius: 50%; filter: blur(90px); pointer-events: none; }
-.glow-violet { width: 620px; height: 620px; background: var(--glow-violet-color); opacity: var(--glow-violet-op); left: -120px; top: -160px; }
-.glow-teal { width: 560px; height: 560px; background: var(--glow-teal-color); opacity: var(--glow-teal-op); right: -140px; top: 120px; }
-.glow-gold { width: 520px; height: 520px; background: var(--glow-gold-color); opacity: var(--glow-gold-op); left: 38%; top: 640px; }
-.glow-pink { width: 420px; height: 420px; background: var(--glow-pink-color); opacity: var(--glow-pink-op); left: 6%; top: 900px; }
+/*
+ * พื้นหลังออโรรา (14 พ.ย. 2569 · docs/decisions/2026-11-14-aurora-liquid-glass.md): ก้อนแสงโทนม่วงเข้ม/ทองด้วย radial-gradient ล้วน (ไม่มีรูปจากที่อื่น ไม่มี filter: blur)
+ * ติดกับหน้าจอ (fixed) อยู่หลังเนื้อหาทั้งหมด (z-index -1) · แต่ละก้อนขยับด้วย transform ช้ามากคนละจังหวะให้เกิดมิติ · สี/ความเข้มมาจากโทเคน --glow-* (ชุดของตัวเองทั้งมืด/สว่าง)
+ */
+.aurora { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.aurora-blob, .aurora-ribbon { position: absolute; display: block; border-radius: 50%; }
+.aurora-blob { background: radial-gradient(circle at 50% 50%, var(--c) 0%, transparent 68%); opacity: var(--o); }
+.aurora-violet { --c: var(--glow-violet-color); --o: var(--glow-violet-op); width: 78vmax; height: 78vmax; left: -22vmax; top: -30vmax; }
+.aurora-indigo { --c: var(--glow-teal-color); --o: var(--glow-teal-op); width: 66vmax; height: 66vmax; right: -24vmax; top: -6vmax; }
+.aurora-gold { --c: var(--glow-gold-color); --o: var(--glow-gold-op); width: 62vmax; height: 62vmax; left: 30%; bottom: -34vmax; }
+.aurora-plum { --c: var(--glow-pink-color); --o: var(--glow-pink-op); width: 54vmax; height: 54vmax; left: -18vmax; bottom: -22vmax; }
+/* ริบบิ้นแสงบางๆ พาดเฉียง ให้พื้นหลังมีชั้นลึก (ไม่ใช่แค่ก้อนกลม) */
+/* ระหว่างเลื่อนหน้า พื้นหลังหยุดชั่วคราว (src/ui/liquidGlass.ts ตั้ง data-scrolling) ไม่ให้ต้องคำนวณ blur ใหม่เพราะพื้นหลังขยับซ้ำซ้อนกับการเลื่อน */
+html[data-scrolling] .aurora > * { animation-play-state: paused; }
+.aurora-ribbon { left: -10%; top: 38%; width: 120%; height: 26vmax; border-radius: 40%; transform: rotate(-14deg); background: linear-gradient(90deg, transparent 4%, var(--glow-gold-color) 38%, var(--glow-violet-color) 66%, transparent 96%); opacity: calc(var(--glow-gold-op) * 0.35); }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .aurora-violet { animation: aurora-a 120s steps(120) infinite alternate; }
+  .aurora-indigo { animation: aurora-b 150s steps(150) infinite alternate; }
+  .aurora-gold { animation: aurora-c 135s steps(135) infinite alternate; }
+  .aurora-plum { animation: aurora-d 170s steps(170) infinite alternate; }
+  .aurora-ribbon { animation: aurora-ribbon 200s steps(200) infinite alternate; }
+}
+@keyframes aurora-a { from { transform: translate(0, 0) scale(1); } to { transform: translate(9vw, 7vh) scale(1.14); } }
+@keyframes aurora-b { from { transform: translate(0, 0) scale(1.08); } to { transform: translate(-8vw, 9vh) scale(0.94); } }
+@keyframes aurora-c { from { transform: translate(0, 0) scale(0.96); } to { transform: translate(-10vw, -6vh) scale(1.12); } }
+@keyframes aurora-d { from { transform: translate(0, 0) scale(1); } to { transform: translate(12vw, -8vh) scale(1.1); } }
+@keyframes aurora-ribbon { from { transform: rotate(-14deg) translate(-3vw, 0); } to { transform: rotate(-10deg) translate(4vw, -5vh); } }
 
 /*
  * พื้นผิว 3 แบบ (ดู CLAUDE.md หัวข้อดีไซน์)
- *   .glass       กระจกแท้ มี backdrop-filter ใช้กับการ์ดสรุปเท่านั้น ไม่เกิน 8 ใบต่อหน้า
- *   .glass-lite  ไล่เฉด+ขอบไฮไลต์เหมือนกระจก แต่ไม่มี backdrop-filter (เมนู หัวหน้า Sankey กระเป๋า ฯลฯ)
+ *   .glass       กระจกแท้ (การ์ดสรุป) · backdrop-filter blur
+ *   .glass-lite  กระจกของการ์ดหน้า/เมนู/หัวหน้า (Sankey กระเป๋า ฯลฯ) · backdrop-filter blur เหมือนกัน (เจ้าของสั่ง 14 พ.ย. 2569 · ห้ามซ้อนกัน)
  *   .solid       พื้นทึบ ใช้กับรายการและตาราง
+ * มือถือ blur เบากว่า · reduced-transparency = ทึบทั้งหมด · ดู docs/decisions/2026-11-14-aurora-liquid-glass.md
  */
+html { --glass-blur: 18px; --glass-sat: 140%; }
+@media (max-width: 720px) { html { --glass-blur: 14px; --glass-sat: 120%; } }
 .glass, .glass-lite {
   position: relative;
   background:
@@ -475,10 +500,14 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
     inset 0 -1px 0 var(--ov-4),
     0 28px 60px -30px var(--shade-85);
 }
-.glass {
-  backdrop-filter: blur(32px) saturate(180%);
-  -webkit-backdrop-filter: blur(32px) saturate(180%);
+.glass, .glass-lite {
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
 }
+/* เครื่องช้า (liquidGlass.ts ตรวจพบเฟรมช้าตอนเลื่อน): การ์ดหน้าเลิก blur ยังโปร่งแสงเท่าเดิม (ตัวหนังสือผ่านเกณฑ์เท่าเดิม เพราะ contrast คำนวณจากพื้นที่ไม่ blur ที่แย่สุดอยู่แล้ว) */
+html[data-lite] .glass-lite { backdrop-filter: none; -webkit-backdrop-filter: none; }
+/* มือถือ: แถบหัวหน้า (ติดบนขณะเลื่อน) ไม่ blur เพื่อไม่ให้คำนวณใหม่ทุกเฟรมที่เลื่อน */
+@media (max-width: 720px) { .topbar.glass-lite { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--surface-fallback); } }
 .glass::before, .glass-lite::before {
   content: '';
   position: absolute;
@@ -496,8 +525,8 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
 /* เบราว์เซอร์ไม่รองรับ backdrop-filter: กระจกแท้เป็นพื้นทึบ (ตามแผน A1) */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .glass { background: var(--surface-fallback); }
-  .glass::before { display: none; }
+  .glass, .glass-lite { background: var(--surface-fallback); }
+  .glass::before, .glass-lite::before { display: none; }
 }
 
 /* ผู้ใช้ตั้งค่าลดความโปร่งใส: ทั้งสามแบบเป็นพื้นทึบ */
@@ -505,7 +534,7 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
   .glass, .glass-lite { background: var(--surface-fallback); backdrop-filter: none; -webkit-backdrop-filter: none; }
   .glass::before, .glass-lite::before { display: none; }
   .solid { background: var(--surface-solid); }
-  .glow { display: none; }
+  .aurora { display: none; }
   .entry-dialog::backdrop { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--scrim-reduced); }
 }
 

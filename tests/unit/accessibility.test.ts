@@ -15,7 +15,7 @@ describe('โครงหน้า: skip link, landmark, ชื่อหน้�
   const app = src('App.tsx');
   it('มี skip link เป็นลูกแรกของ .page ชี้ไป #main และ main เป็น landmark ที่โฟกัสด้วยสคริปต์ได้', () => {
     expect(shell.indexOf('className="skip-link"')).toBeGreaterThan(shell.indexOf('<div className="page">'));
-    expect(shell.indexOf('className="skip-link"')).toBeLessThan(shell.indexOf('glow glow-violet'));
+    expect(shell.indexOf('className="skip-link"')).toBeLessThan(shell.indexOf('className="aurora"'));
     expect(shell).toContain('href="#main"');
     expect(shell).toContain('<main id="main" className="content" tabIndex={-1}>');
     expect(css).toContain('.skip-link:focus');

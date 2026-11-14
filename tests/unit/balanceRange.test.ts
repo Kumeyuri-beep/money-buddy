@@ -76,9 +76,9 @@ describe('prefers-reduced-transparency ครอบคลุมพื้นผ�
     expect(block).toMatch(/\.solid\s*\{[^}]*background:\s*var\(--surface-solid\)/);
     expect(css).toMatch(/--surface-solid:\s*#[0-9a-f]{6};/i);
   });
-  it('backdrop-filter blur มีเฉพาะ .glass กับฉากหลังกล่องเพิ่มรายการ (glass-lite/solid ไม่มี)', () => {
+  it('backdrop-filter blur มีเฉพาะ .glass/.glass-lite (กฎร่วมเดียว) กับฉากหลังกล่องเพิ่มรายการ (solid ไม่มี · เจ้าของสั่งให้ glass-lite blur ด้วยเมื่อ 14 พ.ย. 2569)', () => {
     const outside = css.replace(block, '').replace(/\/\*[\s\S]*?\*\//g, '');
     const selectors = [...outside.matchAll(/([^{}]+)\{[^}]*backdrop-filter:\s*blur/g)].map((m) => (m[1] ?? '').trim());
-    expect(selectors.sort()).toEqual(['.entry-dialog::backdrop', '.glass']);
+    expect(selectors.sort()).toEqual(['.entry-dialog::backdrop', '.glass, .glass-lite']);
   });
 });

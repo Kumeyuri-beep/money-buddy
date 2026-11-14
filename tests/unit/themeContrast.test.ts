@@ -46,9 +46,16 @@ const ratio = (a: RGBA, b: RGBA): number => {
 function surfaces(t: Map<string, string>): Record<string, RGBA> {
   const get = (k: string): RGBA => parse(t.get(k)!);
   const bg = get('--bg');
-  // พื้นใต้กระจกที่แย่สุด: ก้อนแสงที่เข้มสุดทับพื้น (ความเข้มสูงสุดของก้อนแสงคือ 0.33)
-  const glows = ['--glow-violet-color', '--glow-teal-color', '--glow-gold-color', '--glow-pink-color'].map((k) => over({ ...get(k), a: 0.33 }, bg));
-  const worstBg = [...glows].sort((x, y) => lum(x) - lum(y))[0]!;
+  // พื้นใต้กระจกที่แย่สุด (พื้นหลังออโรรา · 14 พ.ย. 2569): ก้อนแสงทุกก้อนซ้อนกันที่ความเข้มสูงสุด (ความเข้มจาก --glow-*-op) เลือกทั้งแบบสว่างสุดและมืดสุด
+  // เพราะตัวหนังสือสว่าง (โหมดมืด) แพ้พื้นสว่าง · ตัวหนังสือเข้ม (โหมดสว่าง) แพ้พื้นมืด · พื้นหลังขยับได้ จึงต้องรับประกันกรณีเลวร้ายที่สุดเสมอ ไม่ใช่แค่ภาพนิ่ง
+  const keys = ['violet', 'teal', 'gold', 'pink'];
+  const blobs = keys.map((k) => ({ ...get(`--glow-${k}-color`), a: Number(t.get(`--glow-${k}-op`)) }));
+  const stack = (list: RGBA[]): RGBA => list.reduce((base, top) => over(top, base), bg);
+  const singles = blobs.map((b) => stack([b]));
+  const allOver = stack(blobs);
+  const candidates = [...singles, allOver];
+  const worstBg = [...candidates].sort((x, y) => lum(x) - lum(y))[0]!; // มืดสุด
+  const brightBg = [...candidates].sort((x, y) => lum(y) - lum(x))[0]!; // สว่างสุด
   const glassA = (base: RGBA): RGBA => over(get('--glass-grad-a'), over(get('--glass-under'), base));
   const glassB = (base: RGBA): RGBA => over(get('--glass-grad-b'), over(get('--glass-under'), base));
   return {
@@ -61,6 +68,8 @@ function surfaces(t: Map<string, string>): Record<string, RGBA> {
     glassWorst: glassA(worstBg),
     glassB: glassB(bg),
     glassBWorst: glassB(worstBg),
+    glassBright: glassA(brightBg),
+    glassBBright: glassB(brightBg),
     alert: get('--alert-bg'),
     notice: get('--surface-notice-solid'),
     field: over(get('--shade-25'), over(get('--glass-lite-under'), bg)),
@@ -86,6 +95,8 @@ describe('contrast WCAG AA ทั้งสองโหมด (คำนวณจ
         ['กระจกบนก้อนแสงเข้ม', s.glassWorst!],
         ['กระจก (มุมจาง)', s.glassB!],
         ['กระจก (มุมจางบนก้อนแสงเข้ม)', s.glassBWorst!],
+        ['กระจกบนก้อนแสงสว่างสุด', s.glassBright!],
+        ['กระจก (มุมจาง) บนก้อนแสงสว่างสุด', s.glassBBright!],
         ['dialog', s.dialog!],
       ];
 

@@ -23,8 +23,8 @@ describe('design tokens ใน styles.css', () => {
   });
   it('ทุก var(--x) ที่ใช้มีประกาศไว้ใน :root', () => {
     const used = new Set([...css.matchAll(/var\((--[a-z0-9-]+)/g)].map((m) => m[1]!));
-    // --fx-x/--fx-y: ค่าที่ src/ui/liquidGlass.ts เขียนตอนรันต่อการ์ด (มีค่าสำรองใน var(...) ทุกที่ที่ใช้)
-    const missing = [...used].filter((n) => !defined.has(n) && n !== '--fx-x' && n !== '--fx-y');
+    // --fx-x/--fx-y: ค่าที่ src/ui/liquidGlass.ts เขียนตอนรันต่อการ์ด (มีค่าสำรองใน var(...) ทุกที่ที่ใช้) · --c/--o: ตัวแปรเฉพาะก้อนแสงออโรราแต่ละก้อน · --glass-blur/--glass-sat: ตัวเลขความเบลอ ตั้งที่ html (ไม่ใช่สี ไม่ต่างกันตามโหมด)
+    const missing = [...used].filter((n) => !defined.has(n) && n !== '--fx-x' && n !== '--fx-y' && n !== '--c' && n !== '--o' && n !== '--glass-blur' && n !== '--glass-sat');
     expect(missing).toEqual([]);
   });
   it('มี token ชุดหลักครบ (พื้น ตัวหนังสือ ฟิล์มโปร่ง เงามืด ก้อนแสง สีกราฟ)', () => {
