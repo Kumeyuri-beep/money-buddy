@@ -11,6 +11,9 @@ import '@fontsource/ibm-plex-sans-thai/500.css';
 import '@fontsource/ibm-plex-sans-thai/600.css';
 import '@fontsource/ibm-plex-sans-thai/700.css';
 import '../ui/styles.css';
+import { startLiquidGlass } from '../ui/liquidGlass';
+
+startLiquidGlass();
 
 const fakeApi: AuthApi = {
   signInWithPassword: async ({ password }) => (password === 'correct-password-123' ? { error: null } : { error: { status: 400, code: 'invalid_credentials', message: 'Invalid login credentials' } }),

@@ -17,6 +17,9 @@ import '@fontsource/ibm-plex-sans-thai/500.css';
 import '@fontsource/ibm-plex-sans-thai/600.css';
 import '@fontsource/ibm-plex-sans-thai/700.css';
 import '../ui/styles.css';
+import { startLiquidGlass } from '../ui/liquidGlass';
+
+startLiquidGlass();
 
 const params = new URLSearchParams(location.search);
 

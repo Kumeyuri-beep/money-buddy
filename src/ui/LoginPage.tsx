@@ -46,6 +46,9 @@ export function LoginPage({ onSignedIn, api = authApi }: { onSignedIn: () => voi
       <div className="login-glow" aria-hidden="true" />
       <div className="login-dim" aria-hidden="true" />
       <section className="solid card auth-card" aria-labelledby="login-title">
+        <span className="fx-shine-clip" aria-hidden="true">
+          <span className="fx-shine" />
+        </span>
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">
             MB

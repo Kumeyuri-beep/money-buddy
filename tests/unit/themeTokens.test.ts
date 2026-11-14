@@ -23,7 +23,8 @@ describe('design tokens ใน styles.css', () => {
   });
   it('ทุก var(--x) ที่ใช้มีประกาศไว้ใน :root', () => {
     const used = new Set([...css.matchAll(/var\((--[a-z0-9-]+)/g)].map((m) => m[1]!));
-    const missing = [...used].filter((n) => !defined.has(n));
+    // --fx-x/--fx-y: ค่าที่ src/ui/liquidGlass.ts เขียนตอนรันต่อการ์ด (มีค่าสำรองใน var(...) ทุกที่ที่ใช้)
+    const missing = [...used].filter((n) => !defined.has(n) && n !== '--fx-x' && n !== '--fx-y');
     expect(missing).toEqual([]);
   });
   it('มี token ชุดหลักครบ (พื้น ตัวหนังสือ ฟิล์มโปร่ง เงามืด ก้อนแสง สีกราฟ)', () => {
