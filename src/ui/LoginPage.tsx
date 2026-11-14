@@ -1,10 +1,12 @@
 import { useRef, useState, type FormEvent } from 'react';
-import { signIn } from '../app/auth';
+import { signIn, type AuthApi } from '../app/auth';
 import { authApi } from '../storage/supabase';
+import { LoginLamp } from './LoginLamp';
 import { PasswordField } from './PasswordField';
 
 /** หน้าเข้าสู่ระบบ: ไม่มีปุ่มสมัคร/ลืมรหัสทางอีเมล (เจ้าของสร้างบัญชีและรีเซ็ตรหัสให้) */
-export function LoginPage({ onSignedIn }: { onSignedIn: () => void | Promise<void> }) {
+export function LoginPage({ onSignedIn, api = authApi }: { onSignedIn: () => void | Promise<void>; /** ตัวเรียกล็อกอิน (ค่าเริ่มต้น = ของจริง · ชุดทดสอบหน้าจอส่งตัวจำลอง) */ api?: AuthApi | null }) {
+  const [lit, setLit] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -23,10 +25,10 @@ export function LoginPage({ onSignedIn }: { onSignedIn: () => void | Promise<voi
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (busy || !authApi) return;
+    if (busy || !api) return;
     setBusy(true);
     setError(null);
-    const result = await signIn(authApi, username, password);
+    const result = await signIn(api, username, password);
     if (!result.ok) {
       setBusy(false);
       setPassword('');
@@ -40,7 +42,9 @@ export function LoginPage({ onSignedIn }: { onSignedIn: () => void | Promise<voi
   };
 
   return (
-    <main className="auth-page">
+    <main className="auth-page login-scene" data-lit={lit ? 'on' : 'off'}>
+      <div className="login-glow" aria-hidden="true" />
+      <div className="login-dim" aria-hidden="true" />
       <section className="solid card auth-card" aria-labelledby="login-title">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">
@@ -92,6 +96,8 @@ export function LoginPage({ onSignedIn }: { onSignedIn: () => void | Promise<voi
           ระบบนี้ยังไม่เปิดให้สมัครเอง หากต้องการบัญชีหรือลืมรหัสผ่าน โปรดแจ้งผู้ดูแลระบบที่ให้บัญชีคุณ
         </p>
       </section>
+      {/* โคมอยู่หลังฟอร์มในลำดับโฟกัส (ผู้ใช้คีย์บอร์ดเริ่มที่ช่องชื่อผู้ใช้) แต่แสดงเหนือการ์ดด้วย CSS order */}
+      <LoginLamp lit={lit} onToggle={() => setLit((v) => !v)} />
     </main>
   );
 }
