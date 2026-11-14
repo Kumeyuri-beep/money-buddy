@@ -254,3 +254,25 @@ test.describe('ตัวตรวจจับได้จริง (เทสต
     expect(joined).not.toContain('ตัวหนังสือชัดเจน');
   });
 });
+
+/** หน้าล็อกอิน (โคมไฟ): ตัวหนังสือชัดทั้งไฟเปิดและไฟปิด ทั้งสองโหมด */
+for (const theme of ['dark', 'light'] as const) {
+  for (const w of WIDTHS) {
+    test.describe(`contrast ล็อกอิน ${theme} ${w.width}px`, () => {
+      test.use({ viewport: { width: w.width, height: w.height }, colorScheme: theme, locale: 'th-TH' });
+
+      for (const lit of ['เปิดไฟ', 'ปิดไฟ'] as const) {
+        test(`${lit}: ตัวหนังสือในฟอร์มชัด`, async ({ page }) => {
+          await page.route((url) => !/^(localhost|127\.0\.0\.1)$/.test(url.hostname), (route) => route.abort());
+          await page.goto('/login-harness.html');
+          await expect(page.getByRole('heading', { name: 'เข้าสู่ระบบ' })).toBeVisible();
+          if (lit === 'ปิดไฟ') await page.getByRole('button', { name: /ไฟบนหน้านี้/ }).click();
+          await page.waitForTimeout(900); // รอการเปลี่ยนแสงเสร็จ
+          const { failures, checked } = await pageContrastFailures(page);
+          expect(checked).toBeGreaterThan(5);
+          expect(failures.slice(0, 12)).toEqual([]);
+        });
+      }
+    });
+  }
+}
