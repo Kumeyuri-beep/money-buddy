@@ -1,5 +1,6 @@
 import { formatBps } from '../domain/invest/allocation';
 import type { AllocationModel } from '../app/allocationView';
+import { cardColor, chartColor } from './chartColors';
 
 /**
  * วาดการ์ดแชร์สัดส่วนพอร์ตลง canvas ในเครื่อง (ไม่มีเครือข่าย ไม่โหลดรูป/ฟอนต์จากภายนอกในไฟล์นี้)
@@ -9,26 +10,11 @@ import type { AllocationModel } from '../app/allocationView';
 
 export const SHARE_CARD_WIDTH = 1080;
 export const SHARE_CARD_HEIGHT = 1350;
-export const SLICE_COLORS = ['#f2d06b', '#6fd3c4', '#8fb4ff', '#ff9f7a', '#c59bff', '#7be0a1', '#ffcf8a'] as const;
-export const OTHER_COLOR = '#8b90a5';
 const FONT = `'IBM Plex Sans Thai', system-ui, sans-serif`;
 
-/**
- * สีของการ์ดแชร์ (รูปที่ส่งออก) รวมไว้ที่เดียว (โหมดสว่าง เฟส 1 · 14 พ.ย. 2569): ตอนนี้ใช้ชุดมืดอย่างเดียว ค่าเดิมทุกตัว
- * เฟส 2 ตัดสินร่วมกับ design-critic ว่ารูปที่ส่งออกจะตามธีมหรือคงเป็นการ์ดแบรนด์สีมืดเสมอ
- */
-export const SHARE_CARD_PALETTE = {
-  bgTop: '#0f1117',
-  bgBottom: '#1d2033',
-  title: '#ffffff',
-  subtitle: '#c9cde0',
-  barGap: '#0f1117',
-  label: '#ffffff',
-  note: '#9fa4bb',
-  brand: '#f2d06b',
-} as const;
+export const sliceColor = (index: number, isOther: boolean): string =>
+  isOther ? chartColor('sliceOther') : chartColor((['slice1', 'slice2', 'slice3', 'slice4', 'slice5', 'slice6', 'slice7'] as const)[index % 7]!);
 
-export const sliceColor = (index: number, isOther: boolean): string => (isOther ? OTHER_COLOR : SLICE_COLORS[index % SLICE_COLORS.length]!);
 
 /** สี่เหลี่ยมมุมมน (เบราว์เซอร์เก่าที่ไม่มี roundRect ใช้สี่เหลี่ยมธรรมดา) */
 function rrect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
@@ -49,17 +35,17 @@ export function drawShareCard(ctx: CanvasRenderingContext2D, model: AllocationMo
   const W = SHARE_CARD_WIDTH;
   const H = SHARE_CARD_HEIGHT;
   const bg = ctx.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, SHARE_CARD_PALETTE.bgTop);
-  bg.addColorStop(1, SHARE_CARD_PALETTE.bgBottom);
+  bg.addColorStop(0, cardColor('bgTop'));
+  bg.addColorStop(1, cardColor('bgBottom'));
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
   ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'left';
-  ctx.fillStyle = SHARE_CARD_PALETTE.title;
+  ctx.fillStyle = cardColor('title');
   ctx.font = `700 60px ${FONT}`;
   ctx.fillText('สัดส่วนพอร์ตการลงทุน', 72, 130);
-  ctx.fillStyle = SHARE_CARD_PALETTE.subtitle;
+  ctx.fillStyle = cardColor('subtitle');
   ctx.font = `400 32px ${FONT}`;
   ctx.fillText(`${model.basis === 'value' ? 'ตามมูลค่า (ราคาที่ผู้ใช้กรอก)' : 'ตามต้นทุน (ราคาที่ซื้อ)'} · ${asOfLabel}`, 72, 184);
 
@@ -79,7 +65,7 @@ export function drawShareCard(ctx: CanvasRenderingContext2D, model: AllocationMo
     ctx.fillRect(x, barY, w + 1, barH);
     // เส้นคั่นระหว่างช่วง (ไม่ให้แยกสีอย่างเดียว)
     if (i > 0) {
-      ctx.fillStyle = SHARE_CARD_PALETTE.barGap;
+      ctx.fillStyle = cardColor('barGap');
       ctx.fillRect(x - 1, barY, 2, barH);
     }
     x += w;
@@ -95,7 +81,7 @@ export function drawShareCard(ctx: CanvasRenderingContext2D, model: AllocationMo
     ctx.beginPath();
     rrect(ctx, 72, y - 34, 40, 40, 10);
     ctx.fill();
-    ctx.fillStyle = SHARE_CARD_PALETTE.label;
+    ctx.fillStyle = cardColor('label');
     ctx.font = `400 42px ${FONT}`;
     ctx.textAlign = 'left';
     ctx.fillText(fitText(ctx, s.label, 600), 136, y);
@@ -105,10 +91,10 @@ export function drawShareCard(ctx: CanvasRenderingContext2D, model: AllocationMo
   });
 
   ctx.textAlign = 'left';
-  ctx.fillStyle = SHARE_CARD_PALETTE.note;
+  ctx.fillStyle = cardColor('note');
   ctx.font = `400 34px ${FONT}`;
   ctx.fillText('แสดงเฉพาะสัดส่วน ไม่แสดงยอดเงิน', 72, H - 110);
-  ctx.fillStyle = SHARE_CARD_PALETTE.brand;
+  ctx.fillStyle = cardColor('brand');
   ctx.font = `700 34px ${FONT}`;
   ctx.fillText('Money Buddy', 72, H - 60);
 }

@@ -214,7 +214,7 @@ describe('ความเป็นส่วนตัวของการ์ด�
   });
   it('รูปไม่ได้อ่านยอดเงิน/หน่วย/ชื่อผู้ใช้: ตัววาดรับเฉพาะโมเดลสัดส่วนและป้ายวันที่', () => {
     const canvas = stripped.find(([p]) => p.endsWith('shareCardCanvas.ts'))![1];
-    expect(canvas.match(/^import .*$/gm)).toEqual(["import { formatBps } from '../domain/invest/allocation';", "import type { AllocationModel } from '../app/allocationView';"]);
+    expect(canvas.match(/^import .*$/gm)).toEqual(["import { formatBps } from '../domain/invest/allocation';", "import type { AllocationModel } from '../app/allocationView';", "import { cardColor, chartColor } from './chartColors';"]); // chartColors = อ่านชื่อสีตามธีมเท่านั้น (ไม่มีข้อมูลผู้ใช้/เครือข่าย)
     expect(canvas).not.toMatch(/\b(portfolio|position|totals|market|trades|assets|email|userId|session)\b/i);
     expect(canvas).toMatch(/drawShareCard\(ctx: CanvasRenderingContext2D, model: AllocationModel, asOfLabel: string\)/);
   });

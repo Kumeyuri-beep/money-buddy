@@ -73,3 +73,32 @@ for (const w of WIDTHS) {
     }
   });
 }
+
+/** กล่องโต้ตอบ (dialog): เพิ่มรายการ / เพิ่มบิล (โหมดสว่าง เฟส 2 ใช้ตรวจสีทุก dialog) */
+for (const w of WIDTHS.filter((x) => x.width !== 390)) {
+  test.describe(`${THEME} dialog ${w.width}px`, () => {
+    test.use({ viewport: { width: w.width, height: w.height } });
+
+    test('dialog เพิ่มรายการ', async ({ page }) => {
+      await prepare(page);
+      if (w.mobile) {
+        await page.getByRole('button', { name: 'เมนู', exact: true }).click();
+        await page.getByRole('dialog').getByRole('button', { name: /เพิ่มรายการ/ }).first().click();
+      } else {
+        await page.getByRole('button', { name: /เพิ่มรายการ/ }).first().click();
+      }
+      await expect(page.locator('dialog[open]')).toBeVisible();
+      await page.waitForTimeout(600);
+      await expect(page).toHaveScreenshot(`dialog-add-${w.width}.png`, { animations: 'disabled', caret: 'hide', maxDiffPixels: 0 });
+    });
+
+    test('dialog เพิ่มบิล', async ({ page }) => {
+      await prepare(page);
+      await openView(page, VIEWS[2], w.mobile);
+      await page.getByRole('button', { name: /เพิ่มบิล/ }).first().click();
+      await expect(page.locator('dialog[open]')).toBeVisible();
+      await page.waitForTimeout(600);
+      await expect(page).toHaveScreenshot(`dialog-bill-${w.width}.png`, { animations: 'disabled', caret: 'hide', maxDiffPixels: 0 });
+    });
+  });
+}
