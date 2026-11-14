@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openDesktopView } from './helpers/nav';
 
 /**
  * เครื่องมือเทียบภาพก่อน/หลังแก้ CSS (โหมดสว่าง เฟส 1+): รันเมื่อตั้ง VISUAL=1 เท่านั้น (ไม่รันใน CI และไม่ใช่ส่วนของ `npm run e2e` ปกติ)
@@ -61,7 +62,7 @@ async function openView(page: Page, view: (typeof VIEWS)[number], mobile: boolea
     await dialog.getByRole('button', { name: view.mobile, exact: true }).first().click();
     await expect(dialog).toBeHidden();
   } else {
-    await page.getByRole('navigation', { name: 'เมนูหลัก' }).getByRole('button', { name: view.desktop }).click();
+    await openDesktopView(page, view.desktop);
   }
   await expect(page.locator('#main h2, #main h1').first()).toBeVisible();
   await page.waitForTimeout(600);

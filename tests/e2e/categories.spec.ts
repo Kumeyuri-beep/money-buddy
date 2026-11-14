@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openDesktopView } from './helpers/nav';
 import { pageContrastFailures } from './helpers/contrast';
 
 /**
@@ -17,7 +18,7 @@ async function goTo(page: Page, mobile: boolean, desktop: string, phone: string)
     await page.getByRole('button', { name: 'เมนู', exact: true }).click();
     await page.getByRole('dialog').getByRole('button', { name: phone, exact: true }).first().click();
   } else {
-    await page.getByRole('navigation', { name: 'เมนูหลัก' }).getByRole('button', { name: desktop }).click();
+    await openDesktopView(page, desktop);
   }
   await expect(page.locator('#main h2, #main h1').first()).toBeVisible();
 }
