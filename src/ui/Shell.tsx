@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Dock } from './Dock';
 import { MobileMenu } from './MobileMenu';
 
 export type ViewId = 'today' | 'ledger' | 'bills' | 'account' | 'averaging' | 'portfolio' | 'retirement' | 'tax';
@@ -90,6 +91,18 @@ export function Shell({ children, showNav = true, current = 'today', onNavigate,
       >
         ข้ามไปเนื้อหาหลัก
       </a>
+      {showNav && (
+        <a
+          className="skip-link skip-link-dock"
+          href="#dock-nav"
+          onClick={(e) => {
+            e.preventDefault();
+            document.querySelector<HTMLElement>('#dock-nav [aria-current="page"]')?.focus();
+          }}
+        >
+          ข้ามไปเมนู
+        </a>
+      )}
       {/* พื้นหลังออโรรา: ก้อนแสง CSS gradient ล้วน (ไม่มีรูป ไม่มี filter blur) ขยับช้ามากบนคอม · นิ่งบนมือถือ/ลดการเคลื่อนไหว */}
       <div className="aurora" aria-hidden="true">
         <span className="aurora-blob aurora-violet" />
@@ -142,6 +155,15 @@ export function Shell({ children, showNav = true, current = 'today', onNavigate,
       <main id="main" className="content" tabIndex={-1}>
         {children}
       </main>
+
+      {showNav && (
+        <Dock
+          items={[...NAV_MAIN, ...NAV_TOOLS].map(({ id, label, icon }) => ({ id, label, icon }))}
+          current={current}
+          onSelect={(id) => onNavigate?.(id)}
+          primaryAction={onAdd ? { label: 'เพิ่มรายการ', icon: 'M12 5v14M5 12h14', onSelect: onAdd } : undefined}
+        />
+      )}
 
       {showNav && (
         <MobileMenu
