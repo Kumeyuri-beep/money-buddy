@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openDesktopView } from './helpers/nav';
 
 /** แท็บ "ย้ายเงิน" (เจ้าของสั่ง 14 พ.ย. 2569): ฟอร์มบันทึกรายการ ฟอร์มเร็ว ตัวกรองรายการ · ทั้งมืดและสว่าง · 360/1280 */
 async function openApp(page: Page): Promise<void> {
@@ -37,7 +38,7 @@ for (const theme of ['dark', 'light'] as const) {
           await page.getByRole('button', { name: 'เมนู', exact: true }).click();
           await page.getByRole('dialog').getByRole('button', { name: 'รายการ', exact: true }).first().click();
         } else {
-          await page.getByRole('navigation', { name: 'เมนูหลัก' }).getByRole('button', { name: 'รายรับ-รายจ่าย' }).click();
+          await openDesktopView(page, 'รายรับ-รายจ่าย');
         }
         const options = await page.locator('.filters select option').allTextContents();
         expect(options).toContain('ย้ายเงิน');

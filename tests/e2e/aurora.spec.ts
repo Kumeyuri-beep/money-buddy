@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openDesktopView } from './helpers/nav';
 
 /**
  * พื้นหลังออโรรา + กระจกโปร่งแสง (14 พ.ย. 2569 · docs/decisions/2026-11-14-aurora-liquid-glass.md)
@@ -37,7 +38,7 @@ async function openView(page: Page, view: (typeof VIEWS)[number], mobile: boolea
     await dialog.getByRole('button', { name: view.mobile, exact: true }).first().click();
     await expect(dialog).toBeHidden();
   } else {
-    await page.getByRole('navigation', { name: 'เมนูหลัก' }).getByRole('button', { name: view.desktop }).click();
+    await openDesktopView(page, view.desktop);
   }
   await expect(page.locator('#main h2, #main h1').first()).toBeVisible();
   await page.waitForTimeout(300);

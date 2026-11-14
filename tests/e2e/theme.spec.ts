@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openDesktopView } from './helpers/nav';
 
 /**
  * ตัวเลือกธีม (โหมดสว่าง เฟส 3): ตามเครื่อง / มืด / สว่าง · จำในเครื่อง · ตั้งก่อนวาดหน้า (ไม่กะพริบ) · สีแถบมือถือตามโหมด
@@ -24,7 +25,7 @@ async function open(page: Page): Promise<void> {
 }
 
 async function openProfile(page: Page): Promise<void> {
-  await page.getByRole('navigation', { name: 'เมนูหลัก' }).getByRole('button', { name: 'โปรไฟล์' }).click();
+  await openDesktopView(page, 'โปรไฟล์');
   await expect(page.getByRole('heading', { name: 'สีหน้าจอ' })).toBeVisible();
 }
 

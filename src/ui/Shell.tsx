@@ -63,6 +63,17 @@ function Icon({ path }: { path: string }) {
   );
 }
 
+/** เมนู dock แนวตั้ง (คอม ≥1024px): 7 เมนูตามลำดับที่เจ้าของกำหนด 15 พ.ย. 2569 · "โปรไฟล์" ย้ายไปอยู่ในเมนูบัญชีท้าย dock · สีพาสเทลคนละสี (โทเคน --dock-hue-<tone>) */
+const DOCK_ITEMS: { id: ViewId; label: string; icon: string; tone: string }[] = [
+  { id: 'today', label: 'ภาพรวม', icon: NAV_MAIN[0]!.icon, tone: 'today' },
+  { id: 'ledger', label: 'รายรับ-รายจ่าย', icon: NAV_MAIN[1]!.icon, tone: 'ledger' },
+  { id: 'bills', label: 'บิลและเป้า', icon: NAV_MAIN[2]!.icon, tone: 'bills' },
+  { id: 'portfolio', label: 'พอร์ตการลงทุน', icon: NAV_MAIN[3]!.icon, tone: 'portfolio' },
+  { id: 'averaging', label: 'ถัวเฉลี่ยต้นทุน', icon: NAV_TOOLS[2]!.icon, tone: 'averaging' },
+  { id: 'retirement', label: 'วางแผนเกษียณ', icon: NAV_TOOLS[0]!.icon, tone: 'retirement' },
+  { id: 'tax', label: 'คำนวณภาษี', icon: NAV_TOOLS[1]!.icon, tone: 'tax' },
+];
+
 export function Shell({ children, showNav = true, current = 'today', onNavigate, status, footer, accountName, onSignOut, onAdd }: ShellProps) {
   const renderItem = ({ id, label, icon }: NavItem) => {
     const active = id === current;
@@ -80,7 +91,7 @@ export function Shell({ children, showNav = true, current = 'today', onNavigate,
   };
 
   return (
-    <div className="page">
+    <div className={showNav ? 'page page-dock' : 'page'}>
       <a
         className="skip-link"
         href="#main"
@@ -112,7 +123,22 @@ export function Shell({ children, showNav = true, current = 'today', onNavigate,
         <span className="aurora-ribbon" />
       </div>
 
-      <aside className="glass-lite sidebar">
+      {/* dock อยู่ก่อนเนื้อหาในต้นไม้ (ลำดับ Tab ตรงกับที่เห็น: dock อยู่ซ้ายสุด) · position: fixed จึงไม่กระทบเลย์เอาต์ */}
+      {showNav && (
+        <Dock
+          items={DOCK_ITEMS}
+          current={current}
+          onSelect={(id) => onNavigate?.(id)}
+          primaryAction={onAdd ? { label: 'เพิ่มรายการ', icon: 'M12 5v14M5 12h14', onSelect: onAdd } : undefined}
+          accountName={accountName}
+          status={status}
+          onProfile={() => onNavigate?.('account')}
+          profileActive={current === 'account'}
+          onSignOut={onSignOut}
+        />
+      )}
+
+      <aside className={showNav ? 'glass-lite sidebar sidebar-has-dock' : 'glass-lite sidebar'}>
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">
             MB
@@ -153,17 +179,10 @@ export function Shell({ children, showNav = true, current = 'today', onNavigate,
       </aside>
 
       <main id="main" className="content" tabIndex={-1}>
+        {/* ป้ายสถานะตรวจบัญชีมุมขวาบนของเนื้อหา (เฉพาะคอม ≥1024px: แถบข้างถูกตัดทั้งแถบ จึงย้ายสถานะมาไว้ตรงนี้และในเมนูบัญชีของ dock) */}
+        {showNav && status ? <div className="status-row">{status}</div> : null}
         {children}
       </main>
-
-      {showNav && (
-        <Dock
-          items={[...NAV_MAIN, ...NAV_TOOLS].map(({ id, label, icon }) => ({ id, label, icon }))}
-          current={current}
-          onSelect={(id) => onNavigate?.(id)}
-          primaryAction={onAdd ? { label: 'เพิ่มรายการ', icon: 'M12 5v14M5 12h14', onSelect: onAdd } : undefined}
-        />
-      )}
 
       {showNav && (
         <MobileMenu

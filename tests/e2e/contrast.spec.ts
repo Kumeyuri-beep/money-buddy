@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openDesktopView } from './helpers/nav';
 import { pageContrastFailures } from './helpers/contrast';
 
 /**
@@ -11,6 +12,7 @@ const WIDTHS = [
   { width: 360, height: 740, mobile: true },
   { width: 390, height: 844, mobile: true },
   { width: 1280, height: 800, mobile: false },
+  { width: 1440, height: 900, mobile: false },
 ] as const;
 
 const VIEWS = [
@@ -39,7 +41,7 @@ async function openView(page: Page, view: (typeof VIEWS)[number], mobile: boolea
     await dialog.getByRole('button', { name: view.mobile, exact: true }).first().click();
     await expect(dialog).toBeHidden();
   } else {
-    await page.getByRole('navigation', { name: 'เมนูหลัก' }).getByRole('button', { name: view.desktop }).click();
+    await openDesktopView(page, view.desktop);
   }
   await expect(page.locator('#main h2, #main h1').first()).toBeVisible();
   await page.waitForTimeout(500);
