@@ -31,9 +31,10 @@ interface SummaryCardsProps {
 }
 
 /** กระจกแท้ (.glass) ถูกใช้ที่นี่ที่เดียว: การ์ดสรุป 8 ใบ ห้ามเพิ่มที่อื่น (เทสต์ตรวจ) */
-function Card({ label, title, children }: { label: string; title: string; children: ReactNode }) {
+/** drift = ใบที่แสงลอยเองบนมือถือ (เฉพาะ 3 ใบแรก ประหยัดแบตเตอรี่) */
+function Card({ label, title, children, drift }: { label: string; title: string; children: ReactNode; drift?: boolean }) {
   return (
-    <article className="glass card summary-card" aria-label={title}>
+    <article className="glass card summary-card" aria-label={title} data-drift={drift ? '' : undefined}>
       <div className="summary-label">
         {title}
         {/* ป้ายอังกฤษเป็นลายเซ็นของดีไซน์ Aurora Glass: ซ่อนบนมือถือ (ผู้ใช้ทั่วไปไม่รู้จักศัพท์) และไม่อ่านออกเสียง ชื่อไทยอยู่ที่ title เสมอ */}
@@ -87,7 +88,7 @@ function Sparkline({ values }: { values: readonly number[] }) {
 
 function NetWorthCard({ state, onAdd }: { state: Overview['netWorth']; onAdd?: () => void }) {
   return (
-    <Card label="NET WORTH" title="ความมั่งคั่งสุทธิ">
+    <Card label="NET WORTH" title="ความมั่งคั่งสุทธิ" drift>
       {state.kind !== 'value' ? (
         <>
           <Waiting headline="ยังไม่มีรายการ" reason="ต้องมีรายการอย่างน้อยหนึ่งรายการ" />
@@ -118,7 +119,7 @@ function IncomeCard({
   onOpenLedger: () => void;
 }) {
   return (
-    <Card label="INCOME" title="รายรับเดือนนี้">
+    <Card label="INCOME" title="รายรับเดือนนี้" drift>
       {state.kind !== 'value' ? (
         <Waiting headline="ยังไม่มีรายการ" reason="ยังไม่มีรายรับ" />
       ) : (
@@ -146,7 +147,7 @@ function OutgoingCard({
   onOpenBills: () => void;
 }) {
   return (
-    <Card label="OUTGOING" title="รายจ่ายเดือนนี้">
+    <Card label="OUTGOING" title="รายจ่ายเดือนนี้" drift>
       {state.kind !== 'value' ? (
         <Waiting headline="ยังไม่มีรายการ" reason="ยังไม่มีรายจ่าย" />
       ) : (

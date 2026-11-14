@@ -11,6 +11,9 @@ import '@fontsource/ibm-plex-sans-thai/500.css';
 import '@fontsource/ibm-plex-sans-thai/600.css';
 import '@fontsource/ibm-plex-sans-thai/700.css';
 import './ui/styles.css';
+import { startLiquidGlass } from './ui/liquidGlass';
+
+startLiquidGlass();
 
 const root = document.getElementById('root');
 if (!root) throw new Error('ไม่พบ #root');

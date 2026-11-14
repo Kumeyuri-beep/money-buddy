@@ -56,6 +56,7 @@
   --scene-dim: rgba(0, 0, 0, 0.42);
   --card-halo: rgba(255, 214, 102, 0.45);
   --card-unlit: rgba(0, 0, 0, 0.1);
+  --fx-color: rgba(255, 255, 255, 0.13);
   --ov-3: rgba(255, 255, 255, 0.03);
   --glass-under: rgba(7, 8, 13, 0.55);
   --ov-40: rgba(255, 255, 255, 0.4);
@@ -281,6 +282,7 @@
   --scene-dim: rgba(20, 28, 70, 0.2);
   --card-halo: rgba(218, 160, 40, 0.45);
   --card-unlit: rgba(20, 28, 70, 0.08);
+  --fx-color: rgba(150, 175, 255, 0.2);
 }
 
 @media (prefers-color-scheme: light) {
@@ -413,6 +415,7 @@
     --scene-dim: rgba(20, 28, 70, 0.2);
     --card-halo: rgba(218, 160, 40, 0.45);
     --card-unlit: rgba(20, 28, 70, 0.08);
+    --fx-color: rgba(150, 175, 255, 0.2);
   }
 }
 
@@ -1163,3 +1166,52 @@ select { font: inherit; }
 .theme-hint { display: block; }
 .theme-option input { flex: none; width: 22px; height: 22px; margin: 2px 0 0; accent-color: var(--gold-fill); }
 @media (min-width: 640px) { .theme-options { grid-template-columns: repeat(3, 1fr); } }
+
+/* liquid glass (14 พ.ย. 2569): แสงสะท้อนบนกระจกตามเมาส์ (คอม) / ตอบสนองตอนแตะ + ลอยเบาๆ เอง (มือถือ) · ใช้เฉพาะ transform/opacity · ตัวคุมอยู่ที่ src/ui/liquidGlass.ts (ตัวฟังเดียว ไม่ขอสิทธิ์เซ็นเซอร์)
+   แสงอยู่ใต้ตัวหนังสือ (z-index -1 ในกลุ่มซ้อนของการ์ด) จึงไม่บังตัวหนังสือ */
+/* overflow-clip-margin 4px = วงโฟกัสของปุ่ม/ลิงก์ที่ชิดขอบการ์ด (เส้น 2px + ระยะ 2px) ไม่ถูกตัด */
+.glass, .glass-lite.card:not(.sankey) { overflow: clip; overflow-clip-margin: 4px; isolation: isolate; }
+.glass::after, .glass-lite.card:not(.sankey)::after, .fx-shine {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: -1;
+  width: 240px;
+  height: 240px;
+  margin: -120px 0 0 -120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--fx-color), transparent 65%);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(var(--fx-x, 120px), var(--fx-y, 60px));
+  transition: opacity 0.35s ease, transform 0.12s ease-out;
+}
+.fx-shine-clip { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; z-index: -1; }
+.glass[data-fx='on']::after, .glass-lite.card[data-fx='on']::after, .auth-card[data-fx='on'] .fx-shine { opacity: 1; }
+.glass[data-fx='tap']::after, .glass-lite.card[data-fx='tap']::after, .auth-card[data-fx='tap'] .fx-shine { animation: fx-tap 0.9s ease-out forwards; }
+@keyframes fx-tap {
+  0% { opacity: 0; transform: translate(var(--fx-x, 120px), var(--fx-y, 60px)) scale(0.4); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--fx-x, 120px), var(--fx-y, 60px)) scale(1.4); }
+}
+/* มือถือ (ไม่มีเมาส์): กระจกแท้ลอยเบาๆ เอง · ช้ามาก ใช้ transform/opacity เท่านั้น */
+@media (hover: none) and (prefers-reduced-motion: no-preference) {
+  /* ลอยเองเฉพาะ 3 ใบแรก (ประหยัดแบตเตอรี่) */
+  .glass[data-drift]::after { opacity: 0.8; animation: fx-drift 16s ease-in-out infinite alternate; }
+  /* อุปกรณ์ไฮบริดที่มีเมาส์: เมื่อเมาส์อยู่บนการ์ด ให้แสงตามเมาส์แทนลอยเอง */
+  .glass[data-fx='on']::after { animation: none; opacity: 1; }
+  /* แตะ: คลื่นแสงชนะการลอยเอง (ต้องอยู่หลังกฎลอยเอง เพราะ specificity เท่ากัน) */
+  .glass[data-fx='tap']::after { animation: fx-tap 0.9s ease-out forwards; opacity: 0; }
+}
+@keyframes fx-drift {
+  from { transform: translate(30px, 20px); }
+  to { transform: translate(260px, 60px); }
+}
+/* ลดการเคลื่อนไหว / ลดความโปร่งใส: ไม่มีแสงสะท้อนเลย */
+@media (prefers-reduced-motion: reduce) {
+  .glass::after, .glass-lite.card:not(.sankey)::after, .fx-shine-clip { display: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .glass::after, .glass-lite.card:not(.sankey)::after, .fx-shine-clip { display: none; }
+}
