@@ -27,7 +27,7 @@ interface Props {
 const KINDS: { value: FormKind; label: string }[] = [
   { value: 'expense', label: 'รายจ่าย' },
   { value: 'income', label: 'รายรับ' },
-  { value: 'transfer', label: 'โอนเงิน' },
+  { value: 'transfer', label: 'ย้ายเงิน' },
 ];
 
 /** ฟอร์มบันทึกรายการ แสดงเป็น dialog ของเบราว์เซอร์ (กด Esc ปิดได้ และโฟกัสอยู่ในฟอร์ม) */
@@ -160,7 +160,7 @@ export function AddEntryDialog({ accounts, entries = [], scan, editing, onClose,
                     clearError();
                   }}
                 >
-                  สลับเป็นโอนเงิน
+                  สลับเป็นย้ายเงิน
                 </button>
               </div>
             )}

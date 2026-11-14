@@ -57,7 +57,7 @@ describe('buildEntry: รายรับ', () => {
   });
 });
 
-describe('buildEntry: โอนเงิน (R4)', () => {
+describe('buildEntry: ย้ายเงิน (R4)', () => {
   it('ย้ายเงินระหว่างกระเป๋า ยอดรวมไม่เปลี่ยน และไม่นับเป็นรายรับหรือรายจ่าย', () => {
     const e = save(form({ kind: 'transfer', walletId: 'wallet-2', counterId: 'wallet-3', amount: '2500' }));
     const all = [...opening, e];
@@ -66,7 +66,7 @@ describe('buildEntry: โอนเงิน (R4)', () => {
     const total = ['wallet-1', 'wallet-2', 'wallet-3'].reduce((s, id) => s + balanceOf(id, all), 0);
     expect(total).toBe(540_841 + 1_020_000 + 500_000);
     expect(periodTotals(accounts, all, NOV)).toMatchObject({ income: 0, expense: 0 });
-    expect(e.memo).toBe('โอน Mainframe ไป Vault Zero');
+    expect(e.memo).toBe('ย้ายเงิน Mainframe ไป Vault Zero');
     expect(describeEntry(accounts, e)).toEqual({ kind: 'transfer', amountText: '฿2,500.00' });
   });
 });

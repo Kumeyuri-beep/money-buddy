@@ -29,7 +29,7 @@ export interface SlipWarning {
   code: 'amount-too-large' | 'date-out-of-range' | 'maybe-transfer' | 'ocr-disagree';
   /** ข้อความภาษาไทยสำหรับแสดงในฟอร์ม */
   message: string;
-  /** เฉพาะ maybe-transfer: กระเป๋าปลายทางที่เดาได้ (ใช้กับปุ่มสลับเป็นโอนเงิน) */
+  /** เฉพาะ maybe-transfer: กระเป๋าปลายทางที่เดาได้ (ใช้กับปุ่มสลับเป็นย้ายเงิน) */
   transferToWalletId?: string;
 }
 
@@ -317,7 +317,7 @@ function detectMaybeTransfer(
     const name = (target ?? matches[0])?.name ?? '';
     const warning: SlipWarning = {
       code: 'maybe-transfer',
-      message: `ผู้รับ "${recipient}" ตรงกับกระเป๋า "${name}" ของคุณ ถ้าเป็นการโอนระหว่างกระเป๋า ให้สลับเป็น "โอนเงิน" (จะไม่นับเป็นรายจ่าย)`,
+      message: `ผู้รับ "${recipient}" ตรงกับกระเป๋า "${name}" ของคุณ ถ้าเป็นการย้ายเงินระหว่างกระเป๋า ให้สลับเป็น "ย้ายเงิน" (จะไม่นับเป็นรายจ่าย)`,
     };
     if (target) warning.transferToWalletId = target.id;
     return warning;
@@ -325,7 +325,7 @@ function detectMaybeTransfer(
   if (CREDIT_CARD.test(recipient)) {
     return {
       code: 'maybe-transfer',
-      message: 'ผู้รับดูเหมือนบัตรเครดิต ถ้าเป็นการจ่ายยอดบัตร ให้สลับเป็น "โอนเงิน" (จะไม่นับเป็นรายจ่าย)',
+      message: 'ผู้รับดูเหมือนบัตรเครดิต ถ้าเป็นการจ่ายยอดบัตร ให้สลับเป็น "ย้ายเงิน" (จะไม่นับเป็นรายจ่าย)',
     };
   }
   return undefined;

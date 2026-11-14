@@ -15,7 +15,7 @@ interface QuickAddProps {
   onSaved: (entry: Entry) => void;
 }
 
-const KIND_LABEL: Record<FormKind, string> = { expense: 'รายจ่าย', income: 'รายรับ', transfer: 'โอนเงิน' };
+const KIND_LABEL: Record<FormKind, string> = { expense: 'รายจ่าย', income: 'รายรับ', transfer: 'ย้ายเงิน' };
 
 /** ช่องพิมพ์สั้นๆ เช่น "กาแฟ 65" พร้อมตัวอย่างที่แก้ได้ก่อนกด Enter บันทึก */
 export function QuickAdd({ ledger, onSaved }: QuickAddProps) {
@@ -91,7 +91,7 @@ export function QuickAdd({ ledger, onSaved }: QuickAddProps) {
           maxLength={MAX_MEMO_LENGTH}
           autoComplete="off"
           placeholder="พิมพ์สั้นๆ เช่น กาแฟ 65"
-          title="ตัวอย่าง: กาแฟ 65 / เงินเดือน 17000 เข้า Mainframe / โอน 2500 ไป Vault / เมื่อวาน ข้าว 50"
+          title="ตัวอย่าง: กาแฟ 65 / เงินเดือน 17000 เข้า Mainframe / ย้ายเงิน 2500 ไป Vault / เมื่อวาน ข้าว 50"
           aria-describedby="quick-preview"
           value={text}
           onChange={(e) => {
