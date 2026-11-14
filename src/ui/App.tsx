@@ -1,6 +1,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { thaiIsoDate, thaiMonthKeyLabel } from '../app/dates';
 import { markBackupDone, snoozeBackupReminder } from '../app/backupReminder';
+import { cashFlowViewPatch, type CashFlowView } from '../app/cashFlowView';
 import { applyTheme, parseThemeChoice, readStoredTheme, storeTheme, type ThemeChoice } from '../app/theme';
 import { downloadBackup } from './backup';
 import { restoreFocus } from './focus';
@@ -140,6 +141,18 @@ export function App() {
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
   }, []);
+
+  // จำมุมมองการ์ดเงินเข้า-ออกบนมือถือ (เขียนเฉพาะคีย์ cashFlowView ผ่าน merge_settings) แล้วโหลดค่าใหม่ให้หน้าอื่นเห็นตรงกัน
+  const saveCashFlowView = useCallback(
+    async (view: CashFlowView) => {
+      try {
+        await repo.updateSettings(['cashFlowView'], () => cashFlowViewPatch(view));
+      } finally {
+        await refresh();
+      }
+    },
+    [repo, refresh],
+  );
 
   // ผลตรวจความถูกต้องของสมุดบัญชี คำนวณใหม่เมื่อข้อมูลเปลี่ยนเท่านั้น
   const integrity = useMemo(
@@ -491,6 +504,7 @@ export function App() {
           onOpenTax={() => setView('tax')}
           today={today}
           backup={{ onDownload: () => void downloadFromReminder(), onSnooze: () => void snoozeReminder(), note: backupNote }}
+          onCashFlowView={saveCashFlowView}
         />
       ) : view === 'account' ? (
         <AccountView onReset={() => void reset()} onWalletsChanged={() => void refresh()} onBackedUp={() => void refresh()} />

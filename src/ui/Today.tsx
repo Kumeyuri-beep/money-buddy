@@ -1,4 +1,5 @@
 import type { Ledger } from '../storage/repository';
+import { parseCashFlowView, type CashFlowView } from '../app/cashFlowView';
 import { CashFlowSankey } from './overview/CashFlowSankey';
 import type { FinanceInput } from '../app/billsOverview';
 import { AllocationPanel } from './overview/AllocationPanel';
@@ -24,9 +25,11 @@ interface TodayProps {
   today: string;
   /** แถบเตือนสำรองข้อมูล (ไม่ส่ง = ไม่แสดง) */
   backup?: { onDownload: () => void; onSnooze: () => void; note?: string };
+  /** บันทึกมุมมองการ์ดเงินเข้า-ออกบนมือถือ (ไม่ส่ง = สลับได้แต่ไม่จำ) */
+  onCashFlowView?: (view: CashFlowView) => Promise<void>;
 }
 
-export function Today({ ledger, onAdd, onOpenLedger, finance, onOpenBills, onOpenPortfolio, onOpenRetirement, onOpenAveraging, onOpenTax, today, backup }: TodayProps) {
+export function Today({ ledger, onAdd, onOpenLedger, finance, onOpenBills, onOpenPortfolio, onOpenRetirement, onOpenAveraging, onOpenTax, today, backup, onCashFlowView }: TodayProps) {
   const { accounts, entries } = ledger;
 
   return (
@@ -36,7 +39,7 @@ export function Today({ ledger, onAdd, onOpenLedger, finance, onOpenBills, onOpe
       {backup && <BackupReminder entries={entries} settings={finance.settings} today={today} onDownload={backup.onDownload} onSnooze={backup.onSnooze} note={backup.note} />}
       <SummaryCards accounts={accounts} entries={entries} today={today} finance={finance} onOpenLedger={onOpenLedger} onOpenBills={onOpenBills} onAdd={onAdd} />
 
-      <CashFlowSankey accounts={accounts} entries={entries} today={today} />
+      <CashFlowSankey accounts={accounts} entries={entries} today={today} view={parseCashFlowView(finance.settings.cashFlowView)} onViewChange={onCashFlowView} />
 
       <div className="row">
         <Wallets accounts={accounts} entries={entries} />
