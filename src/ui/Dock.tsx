@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
-import { magnifyScale } from './dockMagnify';
+import { magnifyScale, radiusFor, safeMaxScale } from './dockMagnify';
 
 export interface DockItem<Id extends string> {
   id: Id;
@@ -64,9 +64,18 @@ export function Dock<Id extends string>({ items, current, onSelect, primaryActio
 
   const apply = () => {
     frame.current = null;
-    navRef.current?.querySelectorAll<HTMLElement>('.dock-cell:not(.dock-cell-static)').forEach((cell) => {
-      const r = cell.getBoundingClientRect(); // ช่องไม่ถูก transform (ขยายเฉพาะปุ่มข้างใน) → ศูนย์กลางนิ่ง ระยะเมาส์ไม่แกว่ง
-      cell.style.setProperty('--s', magnifyScale(lastY.current - (r.top + r.height / 2)).toFixed(4));
+    const cells = Array.from(navRef.current?.querySelectorAll<HTMLElement>('.dock-cell:not(.dock-cell-static)') ?? []);
+    const rects = cells.map((c) => c.getBoundingClientRect()); // ช่องไม่ถูก transform (ขยายเฉพาะปุ่มข้างใน) → ศูนย์กลางนิ่ง ระยะเมาส์ไม่แกว่ง
+    if (rects.length < 2) return;
+    // จอเตี้ยช่องว่างแคบลง: จำกัดระยะขยายตามขนาด/ระยะห่างจริงของไอคอน ให้ติดกันไม่ทับกัน (ปกติได้ค่าเต็ม 1.42)
+    // สมมติฐาน: ทุกช่องในรายการขนาดเท่ากันและห่างเท่ากัน (CSS กำหนดขนาดเดียว/ช่องว่างเดียว) จึงวัดจากช่องที่ 0 กับ 1 · ถ้าวันหนึ่งไม่เท่ากัน ต้องวัดต่อคู่
+    const size = rects[0]!.height;
+    const pitch = rects[1]!.top + rects[1]!.height / 2 - (rects[0]!.top + rects[0]!.height / 2);
+    const max = safeMaxScale(size, pitch);
+    const radius = radiusFor(pitch);
+    cells.forEach((cell, i) => {
+      const r = rects[i]!;
+      cell.style.setProperty('--s', magnifyScale(lastY.current - (r.top + r.height / 2), max, radius).toFixed(4));
     });
   };
 
