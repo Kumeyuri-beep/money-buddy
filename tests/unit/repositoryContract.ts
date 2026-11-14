@@ -354,6 +354,17 @@ export function describeRepositoryContract(name: string, factory: () => Promise<
       expect(await repo.loadSettings()).toEqual({ payDay: 6, lastBackupAt: '2026-11-20' });
     });
 
+    it('ธีมสี: theme เขียนผ่าน updateSettings ได้ · null = ตามเครื่อง (ลบคีย์) · ฟอร์มตั้งค่า (saveSettings) ไม่ลบทิ้ง · ค่าผิดถูกปฏิเสธ', async () => {
+      await seed();
+      await repo.saveSettings({ payDay: 5 });
+      expect(await repo.updateSettings(['theme'], () => ({ theme: 'light' }))).toEqual({ payDay: 5, theme: 'light' });
+      await repo.saveSettings({ payDay: 6 });
+      expect(await repo.loadSettings()).toEqual({ payDay: 6, theme: 'light' });
+      await expect(repo.updateSettings(['theme'], () => ({ theme: 'blue' as never }))).rejects.toThrow(StorageError);
+      expect(await repo.loadSettings()).toEqual({ payDay: 6, theme: 'light' });
+      expect(await repo.updateSettings(['theme'], () => ({ theme: null }))).toEqual({ payDay: 6 });
+    });
+
     it('updateSettings + baseline: ค่าของคีย์ที่ประกาศยังเหมือน baseline = เขียนได้ · ต่างแล้ว = SettingsConflictError ไม่เขียนทับ · คีย์อื่นเปลี่ยนไม่นับว่าชน', async () => {
       await seed();
       await repo.saveSettings({ payDay: 5, monthlyBudget: 1_000_000 });

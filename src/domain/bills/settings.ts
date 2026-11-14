@@ -31,6 +31,8 @@ export interface FinanceSettings {
   lastBackupAt?: string;
   /** ปิดแถบเตือนสำรองข้อมูลชั่วคราวจนถึงวันนี้ (YYYY-MM-DD) · ถึงวันนั้นแล้วเตือนใหม่ */
   backupSnoozeUntil?: string;
+  /** ธีมที่ผู้ใช้เลือก (โหมดสว่าง เฟส 3): 'dark' | 'light' · ไม่ตั้ง = ตามเครื่อง · ไม่ใช่ข้อมูลเงิน */
+  theme?: 'dark' | 'light';
 }
 
 const isSatang = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
@@ -50,6 +52,7 @@ export function settingsProblem(s: FinanceSettings): string | null {
   }
   if (s.lastBackupAt !== undefined && !isValidIsoDate(s.lastBackupAt)) return `วันที่ดาวน์โหลดสำรองล่าสุดต้องเป็นวันที่ที่มีจริง YYYY-MM-DD (ได้รับ ${String(s.lastBackupAt)})`;
   if (s.backupSnoozeUntil !== undefined && !isValidIsoDate(s.backupSnoozeUntil)) return `วันปิดแถบเตือนสำรองต้องเป็นวันที่ที่มีจริง YYYY-MM-DD (ได้รับ ${String(s.backupSnoozeUntil)})`;
+  if (s.theme !== undefined && s.theme !== 'dark' && s.theme !== 'light') return `ธีมต้องเป็น dark หรือ light (ได้รับ ${String(s.theme)})`;
   if (s.dcaPlans !== undefined) {
     if (!Array.isArray(s.dcaPlans)) return 'แผนซื้อประจำต้องเป็นอาร์เรย์';
     if (s.dcaPlans.length > MAX_DCA_PLANS) return `แผนซื้อประจำมีได้ไม่เกิน ${MAX_DCA_PLANS} แผน`;
@@ -84,6 +87,7 @@ export function sanitizeSettings(raw: unknown): FinanceSettings {
   if (typeof r.nextPaydayOverride === 'string' && isValidIsoDate(r.nextPaydayOverride)) out.nextPaydayOverride = r.nextPaydayOverride;
   if (typeof r.lastBackupAt === 'string' && isValidIsoDate(r.lastBackupAt)) out.lastBackupAt = r.lastBackupAt;
   if (typeof r.backupSnoozeUntil === 'string' && isValidIsoDate(r.backupSnoozeUntil)) out.backupSnoozeUntil = r.backupSnoozeUntil;
+  if (r.theme === 'dark' || r.theme === 'light') out.theme = r.theme;
   if (Array.isArray(r.dcaPlans)) {
     const plans = sanitizeDcaPlans(r.dcaPlans);
     if (plans.length > 0) out.dcaPlans = plans;
