@@ -35,7 +35,7 @@ test.describe('เครื่องตั้งสีมืด', () => {
     await open(page);
     expect((await state(page)).attr).toBeNull();
     await openProfile(page);
-    await page.getByRole('radio', { name: /สว่าง/ }).check();
+    await page.getByRole('radio', { name: /^สว่าง/ }).check();
     await expect.poll(async () => (await state(page)).attr).toBe('light');
     const s = await state(page);
     expect(s.stored).toBe('light');
@@ -52,9 +52,9 @@ test.describe('เครื่องตั้งสีมืด', () => {
   test('เลือก "ตามเครื่อง" แล้วกลับไปตามเครื่อง (มืด) และล้างค่าในเครื่อง', async ({ page }) => {
     await open(page);
     await openProfile(page);
-    await page.getByRole('radio', { name: /สว่าง/ }).check();
+    await page.getByRole('radio', { name: /^สว่าง/ }).check();
     await expect.poll(async () => (await state(page)).attr).toBe('light');
-    await page.getByRole('radio', { name: /ตามเครื่อง/ }).check();
+    await page.getByRole('radio', { name: /^ตามเครื่อง/ }).check();
     await expect.poll(async () => (await state(page)).attr).toBeNull();
     const s = await state(page);
     expect(s.stored).toBeNull();
@@ -64,11 +64,11 @@ test.describe('เครื่องตั้งสีมืด', () => {
   test('คีย์บอร์ด: ลูกศรเลือกธีมได้ และตัวเลือกที่เลือกอยู่ถูกติ๊ก', async ({ page }) => {
     await open(page);
     await openProfile(page);
-    await expect(page.getByRole('radio', { name: /ตามเครื่อง/ })).toBeChecked();
-    await page.getByRole('radio', { name: /ตามเครื่อง/ }).focus();
+    await expect(page.getByRole('radio', { name: /^ตามเครื่อง/ })).toBeChecked();
+    await page.getByRole('radio', { name: /^ตามเครื่อง/ }).focus();
     await page.keyboard.press('ArrowDown'); // → มืด
     await page.keyboard.press('ArrowDown'); // → สว่าง
-    await expect(page.getByRole('radio', { name: /สว่าง/ })).toBeChecked();
+    await expect(page.getByRole('radio', { name: /^สว่าง/ })).toBeChecked();
     await expect.poll(async () => (await state(page)).attr).toBe('light');
   });
 });
@@ -82,7 +82,7 @@ test.describe('เครื่องตั้งสีสว่าง', () => {
     expect((await state(page)).bar).toBe(LIGHT_BAR);
     await expect(page.getByText('ข้าวมันไก่').first()).toBeVisible({ timeout: 20_000 });
     await openProfile(page);
-    await page.getByRole('radio', { name: /มืด/ }).check();
+    await page.getByRole('radio', { name: /^มืด/ }).check();
     await expect.poll(async () => (await state(page)).attr).toBe('dark');
     const s = await state(page);
     expect(s.bar).toBe(DARK_BAR);
