@@ -275,3 +275,18 @@ describe('ตรวจเพิ่มจากผู้ตรวจ M2-D1', () =
     expect(MAX_IMPORT_ENTRIES).toBe(10_000); // รวมทั้งไฟล์ ตรงกับ import_ledger_begin
   });
 });
+
+describe('ชื่อบัญชีที่มีอักขระมองไม่เห็น (constraint accounts_name_no_invisible · 14 พ.ย. 2569)', () => {
+  const base = (name: string) =>
+    JSON.stringify({ schemaVersion: 2, exportedAt: '2026-11-14T00:00:00.000Z', accounts: [{ id: 'w1', type: 'asset', name, currency: 'THB' }, { id: 'open', type: 'equity', name: 'ยอดยกมา', currency: 'THB' }], entries: [], bills: [], settings: {} });
+  it('ศูนย์ความกว้าง/ตัวกำกับทิศ/BOM ในชื่อ = ถูกปฏิเสธตั้งแต่ตรวจไฟล์ พร้อมข้อความไทย (ไม่ปล่อยให้ฐานข้อมูลปฏิเสธตอนนำเข้า)', () => {
+    for (const bad of ['เงิน​สด', 'เงิน‎สด', 'เงิน⁠สด', 'เงิน﻿สด']) {
+      const r = parseBackup(base(bad), '2026-11-14');
+      expect(r.ok, JSON.stringify(bad)).toBe(false);
+      if (!r.ok) expect(r.problems.join('|')).toMatch(/ชื่อมีอักขระที่มองไม่เห็น/);
+    }
+  });
+  it('ชื่อปกติ (ไทย อังกฤษ สัญลักษณ์ อีโมจิ) ผ่าน', () => {
+    for (const ok of ['เงินสด', 'Cash (main) #1', 'กระเป๋า 😀']) expect(parseBackup(base(ok), '2026-11-14').ok, ok).toBe(true);
+  });
+});
