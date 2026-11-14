@@ -5,6 +5,7 @@ import { buildCashFlow, cashFlowMonths } from '../../domain/ledger/sankey';
 import type { FlowNode } from '../../domain/ledger/sankey';
 import type { Account, Entry } from '../../domain/ledger/types';
 import { formatBaht, satang } from '../../domain/money/satang';
+import { chartColor, type ChartColorKey } from '../chartColors';
 import { stackColumn } from './sankeyLayout';
 import type { Placed } from './sankeyLayout';
 
@@ -16,24 +17,23 @@ interface CashFlowSankeyProps {
 }
 
 /** สีหมวดตามโทเคนดีไซน์ A หมวดที่ไม่มีสีกำหนดวนใช้สีสำรอง สีไม่ใช่ตัวบอกความหมายเดียว (มีป้ายชื่อและยอดกำกับ) */
-const CATEGORY_COLORS: Record<string, string> = {
-  บิลประจำ: '#A99BFF',
-  บิล: '#A99BFF',
-  อาหาร: '#FF8F82',
-  เดินทาง: '#FFB86B',
-  ช้อปปิ้ง: '#FF7EB6',
-  อื่นๆ: '#9AA0B4',
-  เหลือเก็บ: '#6FD9A8',
+const CATEGORY_COLOR_KEYS: Record<string, ChartColorKey> = {
+  บิลประจำ: 'catBill',
+  บิล: 'catBill',
+  อาหาร: 'catFood',
+  เดินทาง: 'catTravel',
+  ช้อปปิ้ง: 'catShopping',
+  อื่นๆ: 'catOther',
+  เหลือเก็บ: 'catSaved',
 };
-const FALLBACK_COLORS = ['#8FB8FF', '#C9A7FF', '#7FE0E0', '#E5D27A'];
-const INCOME_COLOR = '#6FD9A8';
-const SHORTFALL_COLOR = '#FFB86B';
-const MID_COLOR = '#F2D06B';
+const FALLBACK_COLOR_KEYS: readonly ChartColorKey[] = ['fb1', 'fb2', 'fb3', 'fb4'];
 
+/** สีโหนด: อ่านจากตัวแปร CSS ของธีมที่ใช้อยู่ (src/ui/chartColors.ts) */
 function colorOf(node: FlowNode, index: number): string {
-  if (node.kind === 'income') return INCOME_COLOR;
-  if (node.kind === 'shortfall') return SHORTFALL_COLOR;
-  return CATEGORY_COLORS[node.name] ?? FALLBACK_COLORS[index % FALLBACK_COLORS.length] ?? '#9AA0B4';
+  if (node.kind === 'income') return chartColor('income');
+  if (node.kind === 'shortfall') return chartColor('shortfall');
+  const key = CATEGORY_COLOR_KEYS[node.name] ?? FALLBACK_COLOR_KEYS[index % FALLBACK_COLOR_KEYS.length] ?? 'catOther';
+  return chartColor(key);
 }
 
 // ขนาดวาด (หน่วยพิกเซลของ viewBox)
@@ -188,7 +188,7 @@ export function CashFlowSankey({ accounts, entries, today }: CashFlowSankeyProps
           {left.placed.map((p, i) => (
             <rect key={p.node.key} x={X_LEFT} y={PAD_TOP + p.y} width={BAR_W} height={p.h} rx={4} fill={colorOf(p.node, i)} />
           ))}
-          <rect x={X_MID} y={PAD_TOP} width={BAR_W} height={midHeight} rx={4} fill={MID_COLOR} />
+          <rect x={X_MID} y={PAD_TOP} width={BAR_W} height={midHeight} rx={4} fill={chartColor('mid')} />
           {right.placed.map((p, i) => (
             <rect key={p.node.key} x={X_RIGHT} y={PAD_TOP + p.y} width={BAR_W} height={p.h} rx={4} fill={colorOf(p.node, i)} />
           ))}

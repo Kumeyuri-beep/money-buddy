@@ -72,7 +72,9 @@ describe('prefers-reduced-transparency ครอบคลุมพื้นผ�
     expect(block).toMatch(/\.glass,\s*\.glass-lite\s*\{[^}]*backdrop-filter:\s*none/);
   });
   it('พื้นทึบ (.solid) ที่ปกติโปร่ง 10% กลายเป็นสีทึบเต็ม', () => {
-    expect(block).toMatch(/\.solid\s*\{[^}]*background:\s*#[0-9a-f]{6}\b/i);
+    // ย้ายเป็น token แล้ว (โหมดสว่าง เฟส 1): พื้นต้องเป็น var(--surface-solid) และ token นั้นต้องเป็นสีทึบเต็ม (hex 6 หลัก ไม่โปร่ง)
+    expect(block).toMatch(/\.solid\s*\{[^}]*background:\s*var\(--surface-solid\)/);
+    expect(css).toMatch(/--surface-solid:\s*#[0-9a-f]{6};/i);
   });
   it('backdrop-filter blur มีเฉพาะ .glass กับฉากหลังกล่องเพิ่มรายการ (glass-lite/solid ไม่มี)', () => {
     const outside = css.replace(block, '').replace(/\/\*[\s\S]*?\*\//g, '');

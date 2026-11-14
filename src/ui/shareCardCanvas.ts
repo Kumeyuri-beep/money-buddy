@@ -13,6 +13,21 @@ export const SLICE_COLORS = ['#f2d06b', '#6fd3c4', '#8fb4ff', '#ff9f7a', '#c59bf
 export const OTHER_COLOR = '#8b90a5';
 const FONT = `'IBM Plex Sans Thai', system-ui, sans-serif`;
 
+/**
+ * สีของการ์ดแชร์ (รูปที่ส่งออก) รวมไว้ที่เดียว (โหมดสว่าง เฟส 1 · 14 พ.ย. 2569): ตอนนี้ใช้ชุดมืดอย่างเดียว ค่าเดิมทุกตัว
+ * เฟส 2 ตัดสินร่วมกับ design-critic ว่ารูปที่ส่งออกจะตามธีมหรือคงเป็นการ์ดแบรนด์สีมืดเสมอ
+ */
+export const SHARE_CARD_PALETTE = {
+  bgTop: '#0f1117',
+  bgBottom: '#1d2033',
+  title: '#ffffff',
+  subtitle: '#c9cde0',
+  barGap: '#0f1117',
+  label: '#ffffff',
+  note: '#9fa4bb',
+  brand: '#f2d06b',
+} as const;
+
 export const sliceColor = (index: number, isOther: boolean): string => (isOther ? OTHER_COLOR : SLICE_COLORS[index % SLICE_COLORS.length]!);
 
 /** สี่เหลี่ยมมุมมน (เบราว์เซอร์เก่าที่ไม่มี roundRect ใช้สี่เหลี่ยมธรรมดา) */
@@ -34,17 +49,17 @@ export function drawShareCard(ctx: CanvasRenderingContext2D, model: AllocationMo
   const W = SHARE_CARD_WIDTH;
   const H = SHARE_CARD_HEIGHT;
   const bg = ctx.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, '#0f1117');
-  bg.addColorStop(1, '#1d2033');
+  bg.addColorStop(0, SHARE_CARD_PALETTE.bgTop);
+  bg.addColorStop(1, SHARE_CARD_PALETTE.bgBottom);
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
   ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = SHARE_CARD_PALETTE.title;
   ctx.font = `700 60px ${FONT}`;
   ctx.fillText('สัดส่วนพอร์ตการลงทุน', 72, 130);
-  ctx.fillStyle = '#c9cde0';
+  ctx.fillStyle = SHARE_CARD_PALETTE.subtitle;
   ctx.font = `400 32px ${FONT}`;
   ctx.fillText(`${model.basis === 'value' ? 'ตามมูลค่า (ราคาที่ผู้ใช้กรอก)' : 'ตามต้นทุน (ราคาที่ซื้อ)'} · ${asOfLabel}`, 72, 184);
 
@@ -64,7 +79,7 @@ export function drawShareCard(ctx: CanvasRenderingContext2D, model: AllocationMo
     ctx.fillRect(x, barY, w + 1, barH);
     // เส้นคั่นระหว่างช่วง (ไม่ให้แยกสีอย่างเดียว)
     if (i > 0) {
-      ctx.fillStyle = '#0f1117';
+      ctx.fillStyle = SHARE_CARD_PALETTE.barGap;
       ctx.fillRect(x - 1, barY, 2, barH);
     }
     x += w;
@@ -80,7 +95,7 @@ export function drawShareCard(ctx: CanvasRenderingContext2D, model: AllocationMo
     ctx.beginPath();
     rrect(ctx, 72, y - 34, 40, 40, 10);
     ctx.fill();
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = SHARE_CARD_PALETTE.label;
     ctx.font = `400 42px ${FONT}`;
     ctx.textAlign = 'left';
     ctx.fillText(fitText(ctx, s.label, 600), 136, y);
@@ -90,10 +105,10 @@ export function drawShareCard(ctx: CanvasRenderingContext2D, model: AllocationMo
   });
 
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#9fa4bb';
+  ctx.fillStyle = SHARE_CARD_PALETTE.note;
   ctx.font = `400 34px ${FONT}`;
   ctx.fillText('แสดงเฉพาะสัดส่วน ไม่แสดงยอดเงิน', 72, H - 110);
-  ctx.fillStyle = '#f2d06b';
+  ctx.fillStyle = SHARE_CARD_PALETTE.brand;
   ctx.font = `700 34px ${FONT}`;
   ctx.fillText('Money Buddy', 72, H - 60);
 }
