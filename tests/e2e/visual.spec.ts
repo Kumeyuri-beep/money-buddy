@@ -7,6 +7,9 @@ import { expect, test, type Page } from '@playwright/test';
  *   เทียบหลังแก้:               VISUAL=1 npx playwright test visual   (ต้องตรงกัน 100%: maxDiffPixels = 0)
  * เวลาแช่แข็ง ข้อมูลสมมติจาก harness · ธีม: ตั้งด้วย VISUAL_THEME=dark|light (ค่าเริ่มต้น dark; ใช้ emulateMedia colorScheme)
  */
+// ไม่มี @types/node ในโปรเจกต์: ประกาศเฉพาะส่วนที่ใช้ (ตัวแปรสภาพแวดล้อมของ Node ตอนรัน Playwright)
+declare const process: { env: Record<string, string | undefined> };
+
 test.skip(process.env.VISUAL !== '1', 'ตั้ง VISUAL=1 เพื่อรันการเทียบภาพ');
 
 const THEME = (process.env.VISUAL_THEME === 'light' ? 'light' : 'dark') as 'light' | 'dark';
