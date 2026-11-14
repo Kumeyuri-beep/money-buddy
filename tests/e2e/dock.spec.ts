@@ -76,7 +76,8 @@ for (const theme of ['dark', 'light'] as const) {
         await page.keyboard.press('Enter');
         await expect(dockBtn(page, 'รายรับ-รายจ่าย')).toHaveAttribute('aria-current', 'page');
         await expect(page.locator('#main h2, #main h1').first()).toBeVisible();
-        // หลังเปลี่ยนหน้า แอปย้ายโฟกัสไปเนื้อหาหลักตามมาตรฐานเดิม (เหมือนแถบข้าง) · กลับเข้า dock ด้วยคีย์บอร์ดแล้วทดสอบ Space
+        // หลังเปลี่ยนหน้า แอปย้ายโฟกัสไปเนื้อหาหลักตามมาตรฐานเดิม (เหมือนแถบข้าง ย้ายแบบไม่พร้อมกัน) · รอให้โฟกัสออกจาก dock ก่อน แล้วกลับเข้า dock ด้วยคีย์บอร์ดเพื่อทดสอบ Space
+        await expect.poll(() => page.evaluate(() => !document.activeElement?.closest('nav.dock')), { timeout: 5000 }).toBe(true);
         await dockBtn(page, 'บิลและเป้า').focus();
         await page.keyboard.press('Space');
         await expect(dockBtn(page, 'บิลและเป้า')).toHaveAttribute('aria-current', 'page');
