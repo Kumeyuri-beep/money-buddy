@@ -48,28 +48,47 @@ class Frac {
   }
 }
 
-/** เงินที่ต้องมีและเงินเก็บต่อเดือนแบบคณิตศาสตร์แท้ (ไม่ปัดระหว่างทาง) */
+/**
+ * เงินที่ต้องมีและเงินเก็บต่อเดือนแบบคณิตศาสตร์แท้ (ไม่ปัดระหว่างทาง)
+ * คำนวณเป็นเศษส่วนเดียวที่ตัวส่วนร่วม (ตารางกำลังของ BigInt ครั้งเดียว + ตัดเศษส่วนที่ท้ายสุดครั้งเดียว)
+ * แทนการบวก/คูณเศษส่วนทีละเดือนแล้วตัดทอนทุกขั้น: ผลเท่ากันทุกตัวเลข แต่เร็วกว่าราว 100 เท่า
+ * (เดิมเทสต์ชุดนี้กิน CPU ~1.2 วินาทีต่อเคส จึงเกินเวลา 5 วินาทีของ vitest เมื่อรันขนานกับไฟล์อื่น · แก้ที่ต้นเหตุคือปริมาณงาน ไม่ใช่เพิ่มเวลารอ)
+ */
+function powers(base: bigint, n: number): bigint[] {
+  const out: bigint[] = [1n];
+  for (let k = 1; k <= n; k++) out.push(out[k - 1]! * base);
+  return out;
+}
+
 function exact(i: RetirementInput): { required: bigint; exactPv: Frac; monthly: bigint } {
-  const years = BigInt(i.retireAge - i.currentAge);
+  const years = i.retireAge - i.currentAge;
   const retMonths = (i.lifeExpectancy - i.retireAge) * 12;
-  const accMonths = (i.retireAge - i.currentAge) * 12;
-  const infl = new Frac(BigInt(10_000 + i.inflationBps), 10_000n);
-  const disc = new Frac(120_000n, BigInt(120_000 + i.returnAfterBps));
-  const grow = new Frac(BigInt(120_000 + i.returnBeforeBps), 120_000n);
+  const accMonths = years * 12;
+  // เงินเฟ้อต่อปี I/J · ตัวคูณลดค่าต่อเดือนหลังเกษียณ P/Q · ตัวคูณโตต่อเดือนก่อนเกษียณ G/H
+  const [I, J] = [BigInt(10_000 + i.inflationBps), 10_000n];
+  const [P, Q] = [120_000n, BigInt(120_000 + i.returnAfterBps)];
+  const [G, H] = [BigInt(120_000 + i.returnBeforeBps), 120_000n];
+  // เงินที่ต้องมี: Σ_m E · (I/J)^k(m) · (P/Q)^m ที่ k(m) = ปีถึงเกษียณ + ⌊m/12⌋ → ตัวส่วนร่วม J^Kmax · Q^(R-1)
   let pv = new Frac(0n);
-  let wYear = new Frac(BigInt(i.monthlyExpense));
-  for (let y = 0n; y < years; y++) wYear = wYear.mul(infl);
-  let v = new Frac(1n);
-  for (let m = 0; m < retMonths; m++) {
-    if (m > 0 && m % 12 === 0) wYear = wYear.mul(infl);
-    pv = pv.add(wYear.mul(v));
-    v = v.mul(disc);
+  if (retMonths > 0) {
+    const kMax = years + Math.floor((retMonths - 1) / 12);
+    const [pI, pJ, pP, pQ] = [powers(I, kMax), powers(J, kMax), powers(P, retMonths - 1), powers(Q, retMonths - 1)];
+    let num = 0n;
+    for (let m = 0; m < retMonths; m++) {
+      const k = years + Math.floor(m / 12);
+      num += BigInt(i.monthlyExpense) * pI[k]! * pJ[kMax - k]! * pP[m]! * pQ[retMonths - 1 - m]!;
+    }
+    pv = new Frac(num, pJ[kMax]! * pQ[retMonths - 1]!);
   }
+  // ช่วงสะสม: a = Σ_{t<A} (G/H)^t (ตัวส่วน H^(A-1)) · p = (G/H)^A
   let a = new Frac(0n);
   let p = new Frac(1n);
-  for (let t = 0; t < accMonths; t++) {
-    a = a.add(p);
-    p = p.mul(grow);
+  if (accMonths > 0) {
+    const [pG, pH] = [powers(G, accMonths), powers(H, accMonths)];
+    let num = 0n;
+    for (let t = 0; t < accMonths; t++) num += pG[t]! * pH[accMonths - 1 - t]!;
+    a = new Frac(num, pH[accMonths - 1]!);
+    p = new Frac(pG[accMonths]!, pH[accMonths]!);
   }
   const fv = new Frac(BigInt(i.currentSavings ?? 0)).mul(p);
   const gap = pv.sub(fv);

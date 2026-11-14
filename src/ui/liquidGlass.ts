@@ -16,7 +16,7 @@ export function fxPosition(rect: { left: number; top: number; width: number; hei
   return { x: Math.round(x), y: Math.round(y) };
 }
 
-/** เกณฑ์เครื่องช้า: เฟรมเฉลี่ยระหว่างเลื่อน > 34ms (ต่ำกว่า ~30fps) ติดกัน 24 เฟรม */
+/** เกณฑ์เครื่องช้า: เฟรมเฉลี่ยระหว่างเลื่อน > 34ms (ต่ำกว่า ~30fps) ใน 24 เฟรมล่าสุดที่เลื่อน (สะสมข้ามช่วงเลื่อน) */
 export const SLOW_FRAME_MS = 34;
 export const SLOW_FRAME_WINDOW = 24;
 
@@ -107,9 +107,11 @@ export function startLiquidGlass(doc: Document = document): () => void {
   // ตัวป้องกันเครื่องช้า: ถ้าระหว่างเลื่อนหน้าเฟรมเฉลี่ยช้ากว่า 34ms ติดกัน 24 เฟรม (ค่าคงที่ SLOW_FRAME_*) ให้ตั้ง data-lite ที่ html (CSS ปิด blur ของการ์ดหน้า glass-lite · พื้นยังโปร่งแสงและตัวหนังสือผ่านเกณฑ์เท่าเดิม) ตลอดการใช้งานครั้งนั้น
   let monitoring = false;
   let degraded = false;
+  // เฟรมที่วัดระหว่างเลื่อน สะสมข้ามช่วงเลื่อน: เครื่องที่ช้ามากจนเฟรมห่างกันเกิน 160ms (data-scrolling หมดเวลาระหว่างเฟรม) ก็ยังสะสมครบ 24 เฟรมได้
+  // (ถ้านับ "ติดกัน" ในช่วงเลื่อนเดียว ช่วงเลื่อนจะขาดทุกเฟรมแล้วเริ่มนับใหม่ → เครื่องที่ช้าที่สุดกลับตรวจไม่เจอ · พบจากเทสต์ไม่นิ่งตอนเครื่องแย่ง CPU)
+  const deltas: number[] = [];
   const monitor = () => {
     monitoring = true;
-    const deltas: number[] = [];
     let last = win.performance.now();
     const tick = (now: number) => {
       if (!doc.documentElement.hasAttribute('data-scrolling') || degraded) {

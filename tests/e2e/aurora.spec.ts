@@ -175,19 +175,22 @@ test.describe('การขยับของพื้นหลังออโ�
 
   test.describe('คอม: เครื่องช้า', () => {
     test.use({ viewport: { width: 1280, height: 800 }, reducedMotion: 'no-preference' });
+    test.setTimeout(120_000); // เลื่อนครบ 40 เฟรมจริงแม้เครื่องแย่ง CPU หนัก (ไม่พึ่งเวลาที่กำหนดตายตัว)
     test('เลื่อนหน้าแล้วเฟรมช้ามาก (CPU ช้าลง 24 เท่า) → ตัวป้องกันปิด blur ของการ์ดหน้า (glass-lite) แต่การ์ดยังโปร่งแสง', async ({ page }) => {
       await openApp(page);
       const cdp = await page.context().newCDPSession(page);
       await cdp.send('Emulation.setCPUThrottlingRate', { rate: 24 });
+      // เลื่อนจนครบ "จำนวนเฟรม" ไม่ใช่ "เวลา": ตัวป้องกันตัดสินจากเฟรมที่เรนเดอร์จริง 24 เฟรม ถ้าเครื่องแย่ง CPU จนหน้าเรนเดอร์ได้แค่ไม่กี่เฟรมใน 4 วินาที
+      // การเลื่อนตามเวลาจะจบก่อนมีเฟรมพอ (วัดจริงได้ 3 เฟรมใน 4 วินาทีตอนรัน 8 งานขนาน) → ล้มทั้งที่ตัวป้องกันไม่ผิด
       await page.evaluate(
         () =>
           new Promise<void>((resolve) => {
             let y = 0;
-            const t0 = performance.now();
-            const tick = (now: number) => {
+            let frames = 0;
+            const tick = () => {
               y = (y + 14) % 600;
               window.scrollTo(0, y);
-              if (now - t0 < 4000) requestAnimationFrame(tick);
+              if (++frames < 40) requestAnimationFrame(tick);
               else resolve();
             };
             requestAnimationFrame(tick);
