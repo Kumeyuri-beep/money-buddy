@@ -31,9 +31,10 @@ describe('Playwright e2e', () => {
     expect(pkg.scripts.e2e).toBe('playwright test');
     expect(pkg.devDependencies['@playwright/test']).toBeTruthy();
   });
-  it('CI: job e2e แยกจาก test · ไม่ใช้ secrets · มีเพดานเวลา', () => {
+  it('CI: job e2e (รวมผลจาก shard) แยกจาก test · ไม่ใช้ secrets · มีเพดานเวลา', () => {
     expect(ci).toMatch(/^\s{2}e2e:/m);
-    expect(ci).toContain('npm run e2e');
+    // ตั้งแต่ 14 พ.ย. 2569 แยกเป็น 4 shard (npx playwright test --shard=n/4 · โครงสร้างละเอียดดู ciWorkflow.test.ts)
+    expect(ci).toContain('npx playwright test --shard=');
     expect(ci).toMatch(/timeout-minutes:\s*\d+/);
     expect(ci).not.toContain('secrets.');
   });
