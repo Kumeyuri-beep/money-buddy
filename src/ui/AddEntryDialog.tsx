@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { friendlyError } from '../app/errorText';
 import { restoreFocus } from './focus';
 import { thaiIsoDate, thaiDayLabel } from '../app/dates';
@@ -7,8 +7,10 @@ import { buildEntry, counterOptions, entryToForm, walletOptions, type FormKind }
 import { newId } from '../app/ids';
 import { findDuplicateEntry } from '../app/slipDuplicates';
 import type { SlipDraft } from '../app/slipParser';
-import { MAX_MEMO_LENGTH } from '../domain/ledger/limits';
+import { buildMemoIndex } from '../app/memoSuggest';
 import type { Account, Entry } from '../domain/ledger/types';
+import { AccountContext } from './AuthContext';
+import { MemoField } from './MemoField';
 import { useRepository } from './RepositoryContext';
 
 interface Props {
@@ -56,6 +58,11 @@ export function AddEntryDialog({ accounts, entries = [], scan, editing, onClose,
   // แก้รายการเก่า: หมวดเดิมต้องยังเลือกได้แม้ถูกซ่อนไปแล้ว (ติดป้าย "ซ่อนอยู่") · ไม่ใช่โหมดแก้ = ไม่แสดงหมวดที่ซ่อน
   const keepCounterId = editing ? initial?.counterId : undefined;
   const counters = counterOptions(accounts, kind, walletId, keepCounterId);
+  // ดัชนีคำแนะนำของบันทึกช่วยจำ: คำนวณในเครื่องจากรายการที่โหลดแล้ว (ของผู้ใช้คนนี้เท่านั้น) ไม่ส่งไปที่ใด
+  const memoIndex = useMemo(() => buildMemoIndex(accounts, entries), [accounts, entries]);
+  const account = useContext(AccountContext);
+  // ตั้งหมวดให้ตามคำแนะนำของบันทึกช่วยจำ: บอกผู้ใช้บนจอ (หายเมื่อเปลี่ยนหมวดเองหรือเปลี่ยนประเภท)
+  const [autoCounter, setAutoCounter] = useState<{ id: string; kind: FormKind } | null>(null);
   // เติมจากสลิป: ห้ามเลือกหมวดแรกให้เงียบๆ ถ้าเดาไม่ได้ ต้องให้ผู้ใช้เลือกเอง
   const counterId = counters.some((a) => a.id === chosenCounter) ? chosenCounter : scan ? '' : (counters[0]?.id ?? '');
 
@@ -278,6 +285,11 @@ export function AddEntryDialog({ accounts, entries = [], scan, editing, onClose,
                 </option>
               ))}
             </select>
+            {autoCounter && autoCounter.kind === kind && autoCounter.id === counterId && (
+              <p id="entry-counter-auto" className="field-hint">
+                ตั้งหมวดให้ตามที่เคยใช้ · เปลี่ยนได้
+              </p>
+            )}
             {scan && counterId === '' && (
               <p id="entry-counter-hint" className="field-hint">
                 {kind === 'transfer' ? 'เลือกกระเป๋าปลายทางก่อนบันทึก' : 'เลือกหมวดก่อนบันทึก'}
@@ -323,17 +335,20 @@ export function AddEntryDialog({ accounts, entries = [], scan, editing, onClose,
               </p>
             )}
           </div>
-          <div className="field">
-            <label htmlFor="entry-memo">บันทึกช่วยจำ (ไม่ใส่ก็ได้)</label>
-            <input
-              id="entry-memo"
-              type="text"
-              maxLength={MAX_MEMO_LENGTH}
-              placeholder="เช่น กาแฟหน้าออฟฟิศ"
-              value={memo}
-              onChange={(e) => setMemo(e.target.value)}
-            />
-          </div>
+          <MemoField
+            value={memo}
+            onChange={setMemo}
+            kind={kind}
+            index={memoIndex}
+            user={account?.username ?? 'local'}
+            onPickCounter={(id) => {
+              // ตั้งหมวดให้เฉพาะเมื่อหมวดนั้นยังเลือกได้ในฟอร์มนี้ (ผู้ใช้เปลี่ยนเองทีหลังได้ · ไม่เติมจำนวนเงิน)
+              if (counters.some((a) => a.id === id)) {
+                setChosenCounter(id);
+                setAutoCounter({ id, kind });
+              }
+            }}
+          />
         </div>
 
         {/* live region ที่คงอยู่ตลอด: ประกาศผลหลังกดยืนยัน (เมื่อข้อความเตือนหายไป โปรแกรมอ่านหน้าจอจะได้ยินผล) */}

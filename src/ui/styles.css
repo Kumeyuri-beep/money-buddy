@@ -1253,3 +1253,19 @@ select { font: inherit; }
 @media (prefers-reduced-transparency: reduce) {
   .glass::after, .glass-lite.card:not(.sankey)::after, .fx-shine-clip { display: none; }
 }
+
+/* บันทึกช่วยจำแบบเดาคำ (14 พ.ย. 2569): รายการคำแนะนำพื้นทึบ อ่านชัด · เดสก์ท็อปอยู่ใต้ช่อง · มือถือเด้งเหนือช่อง (แป้นพิมพ์อยู่ใต้ช่อง จึงไม่บัง) · ตัวที่เลือกอยู่มีแถบข้างและตัวหนา (ไม่พึ่งสีอย่างเดียว) */
+.memo-input-wrap { position: relative; display: flex; flex-direction: column; }
+/* เดสก์ท็อป: รายการดันเนื้อหาลงในกล่อง (กล่องโต้ตอบเลื่อนได้ ถ้าลอยจะถูกตัดที่ขอบกล่อง) */
+.memo-suggest { list-style: none; margin: 4px 0 0; padding: 4px; position: static; max-height: 270px; overflow-y: auto; background: var(--surface-solid); border: 1px solid var(--control-border); border-radius: 12px; box-shadow: 0 12px 32px -12px var(--shade-85); }
+.memo-option { display: flex; align-items: stretch; min-height: 44px; border-radius: 8px; border-left: 4px solid transparent; }
+.memo-option-active { background: var(--ov-14); border-left-color: var(--gold); font-weight: 700; }
+.memo-option-text { flex: 1; min-width: 0; display: flex; align-items: center; padding: 6px 10px; cursor: pointer; overflow-wrap: anywhere; }
+.memo-option-remove { flex: none; width: 44px; border: 0; background: none; color: var(--text-80); cursor: pointer; border-radius: 8px; font: inherit; }
+.memo-option-remove:hover { background: var(--ov-12); }
+/* มือถือ: เด้งเหนือช่อง (แป้นพิมพ์อยู่ใต้ช่อง) สูงสุดราว 3.5 รายการให้เห็นว่าเลื่อนต่อได้ ไม่ล้นขอบบนของกล่อง */
+@media (max-width: 720px) {
+  .memo-suggest { position: absolute; left: 0; right: 0; bottom: 100%; z-index: 30; margin: 0 0 4px; max-height: 164px; }
+  #entry-memo { scroll-margin-bottom: 96px; }
+}
+.memo-option-remove { border-left: 1px solid var(--ov-12); border-radius: 0 8px 8px 0; font-size: 16px; }
