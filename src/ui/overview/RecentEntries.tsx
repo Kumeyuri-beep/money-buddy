@@ -3,9 +3,9 @@ import { amountClass, describeEntry } from '../../app/describe';
 import { groupRecentByDay } from '../../app/recentGroups';
 import type { Account, Entry, EntryKind } from '../../domain/ledger/types';
 
-const KIND_TEXT: Record<EntryKind, string> = { income: 'รายรับ', expense: 'รายจ่าย', transfer: 'โอน' };
+const KIND_TEXT: Record<EntryKind, string> = { income: 'รายรับ', expense: 'รายจ่าย', transfer: 'ย้ายเงิน' };
 
-/** ไอคอนเส้น: ลูกศรลง = รายรับ, ลูกศรขึ้น = รายจ่าย, ลูกศรสองทาง = โอน (รูปทรงต่างกัน ไม่พึ่งสีอย่างเดียว) */
+/** ไอคอนเส้น: ลูกศรลง = รายรับ, ลูกศรขึ้น = รายจ่าย, ลูกศรสองทาง = ย้ายเงิน (รูปทรงต่างกัน ไม่พึ่งสีอย่างเดียว) */
 function KindIcon({ kind }: { kind: EntryKind }) {
   const d =
     kind === 'income'

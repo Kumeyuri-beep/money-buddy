@@ -5,7 +5,7 @@ import { formatBaht, satang } from '../domain/money/satang';
 
 export interface EntryDescription {
   kind: EntryKind;
-  /** "−฿65.00" รายจ่าย, "+฿17,000.00" รายรับ, "฿2,500.00" โอน */
+  /** "−฿65.00" รายจ่าย, "+฿17,000.00" รายรับ, "฿2,500.00" ย้ายเงิน */
   amountText: string;
 }
 

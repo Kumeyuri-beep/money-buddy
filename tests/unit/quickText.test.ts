@@ -207,3 +207,18 @@ describe('ร่างที่ได้ใช้สร้างรายกา�
     expect(() => buildEntry(accounts, draft('ตัดผม 150').form, 'x')).toThrow(/เลือกหมวดรายจ่าย/);
   });
 });
+
+describe('ย้ายเงิน (แท็บเปลี่ยนชื่อจาก "โอนเงิน" 14 พ.ย. 2569)', () => {
+  it('"ย้ายเงิน 2500 ไป Vault" และ "ย้าย 2500 ไป Vault" อ่านเป็นย้ายเงินเหมือน "โอน ..." (โอนยังใช้ได้)', () => {
+    const a = draft('ย้ายเงิน 2500 ไป Vault');
+    expect(a.form.kind).toBe('transfer');
+    expect(a.form.amount).toBe('2,500.00');
+    expect(draft('ย้าย 2500 ไป Vault').form.kind).toBe('transfer');
+    expect(draft('โอน 2500 ไป Vault').form.kind).toBe('transfer');
+    expect(draft('ย้ายเงิน 2500 ไป Vault').form.counterId).toBe(draft('โอน 2500 ไป Vault').form.counterId);
+  });
+  it('"ย้ายบ้าน 5000" / "ค่าย้ายของ 300" ไม่ถูกตีเป็นย้ายเงิน (ต้องเป็นคำเดี่ยว "ย้าย"/"ย้ายเงิน")', () => {
+    expect(draft('ย้ายบ้าน 5000').form.kind).toBe('expense');
+    expect(draft('ค่าย้ายของ 300').form.kind).toBe('expense');
+  });
+});

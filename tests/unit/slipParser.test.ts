@@ -417,11 +417,11 @@ describe('slipToDraft: เติมฟอร์มรายจ่ายให้
     const slipTo = (recipient: string) =>
       slipToDraft(parseSlipText(`12 พ.ย. 69 14:35 น.\nไปยัง ${recipient}\nจำนวน: 500.00 บาท`), ctx);
 
-    it('ผู้รับตรงกับชื่อกระเป๋าอื่นของผู้ใช้ -> เตือน และบอกกระเป๋าปลายทางสำหรับปุ่มสลับเป็นโอน', () => {
+    it('ผู้รับตรงกับชื่อกระเป๋าอื่นของผู้ใช้ -> เตือน และบอกกระเป๋าปลายทางสำหรับปุ่มสลับเป็นย้ายเงิน', () => {
       const d = slipTo('Mainframe');
       expect(d.warnings.map((w) => w.code)).toEqual(['maybe-transfer']);
       expect(d.warnings[0]?.transferToWalletId).toBe('wallet-2');
-      expect(d.warnings[0]?.message).toContain('โอน');
+      expect(d.warnings[0]?.message).toContain('ย้ายเงิน');
     });
 
     it('เทียบชื่อกระเป๋าแบบไม่สนตัวพิมพ์เล็กใหญ่ และผู้รับมีคำอื่นต่อท้ายได้', () => {

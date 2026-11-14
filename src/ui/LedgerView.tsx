@@ -16,7 +16,7 @@ interface LedgerViewProps {
   onCancelPayment: (entry: Entry) => void;
 }
 
-const KIND_LABEL = { all: 'ทุกประเภท', expense: 'รายจ่าย', income: 'รายรับ', transfer: 'โอนเงิน' } as const;
+const KIND_LABEL = { all: 'ทุกประเภท', expense: 'รายจ่าย', income: 'รายรับ', transfer: 'ย้ายเงิน' } as const;
 
 export function LedgerView({ ledger, onAdd, onEdit, onDelete, onCancelPayment }: LedgerViewProps) {
   const { accounts, entries } = ledger;

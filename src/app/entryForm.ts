@@ -92,7 +92,7 @@ export function buildEntry(accounts: readonly Account[], form: EntryForm, id: st
     case 'transfer':
       return {
         ...base,
-        memo: memo || `โอน ${wallet.name} ไป ${counter.name}`,
+        memo: memo || `ย้ายเงิน ${wallet.name} ไป ${counter.name}`,
         lines: [
           { accountId: counter.id, amount },
           { accountId: wallet.id, amount: -amount },
