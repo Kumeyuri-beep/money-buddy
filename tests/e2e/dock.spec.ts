@@ -306,3 +306,55 @@ test.describe('ต่ำกว่า 1024px: ไม่มี dock และแ�
     expect(d.y + d.height).toBeLessThanOrEqual(768);
   });
 });
+
+/**
+ * จอเตี้ย (15 พ.ย. 2569): ลากเมาส์ไล่ไอคอนทั้ง dock ทีละ 5px ที่ทุกความสูง → ไอคอนที่ขยายต้องไม่ทับกันทุกตำแหน่ง และ dock ไม่ล้นจอ
+ * (ที่ ≤760 ช่องว่างแคบลง ที่ ≤620 ปุ่มเล็กลง · ระยะขยายถูกจำกัดตามขนาด/ระยะห่างจริง)
+ */
+test.describe('dock บนจอเตี้ย: ไอคอนที่ขยายไม่ทับกัน · ไม่ล้นจอ', () => {
+  for (const height of [480, 560, 620, 680, 760, 800, 900]) {
+    test(`สูง ${height}px`, async ({ page }) => {
+      await page.setViewportSize({ width: 1280, height });
+      await open(page);
+      const box = (await dock(page).boundingBox())!;
+      expect(box.y, 'dock ไม่ล้นบน').toBeGreaterThanOrEqual(0);
+      expect(box.y + box.height, 'dock ไม่ล้นล่าง').toBeLessThanOrEqual(height);
+      expect((await dockBtn(page, 'บัญชีของฉัน').boundingBox())!.y + 40, 'ปุ่มบัญชีท้ายสุดอยู่ในจอ').toBeLessThanOrEqual(height);
+      const rects = () =>
+        page.evaluate(() =>
+          Array.from(document.querySelectorAll<HTMLElement>('nav.dock .dock-list .dock-item')).map((b) => {
+            const r = b.getBoundingClientRect();
+            return { y: r.y, h: r.height };
+          }),
+        );
+      const rest = await rects();
+      let worst = -Infinity;
+      let maxRatio = 1;
+      for (let y = box.y; y <= box.y + box.height; y += 5) {
+        await page.mouse.move(box.x + 36, y);
+        await page.waitForTimeout(40);
+        await page.waitForFunction(() => new Promise<boolean>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))));
+        const now = await rects();
+        for (let i = 0; i < now.length - 1; i++) worst = Math.max(worst, now[i]!.y + now[i]!.h - now[i + 1]!.y);
+        maxRatio = Math.max(maxRatio, ...now.map((r, i) => r.h / rest[i]!.h));
+      }
+      // transition 0.09s: ตัวอย่างที่จับระหว่างเปลี่ยนอาจเหลื่อมเล็กน้อย → ยอมซ้อนไม่เกิน 1.5px ที่ทุกตำแหน่งเมาส์ (ไม่ใช่ซ้อนเป็นแถบ)
+      expect(worst, `ไอคอนติดกันซ้อนกันสูงสุด ${worst.toFixed(2)}px ที่สูง ${height}`).toBeLessThanOrEqual(1.5);
+      expect(maxRatio, 'ยังขยายได้ (ไม่ได้ปิดการขยาย)').toBeGreaterThan(1.05);
+      expect(maxRatio).toBeLessThanOrEqual(1.43);
+    });
+  }
+});
+
+test.describe('dock บนจอเตี้ย + ลดการเคลื่อนไหว', () => {
+  test.use({ viewport: { width: 1280, height: 560 }, reducedMotion: 'reduce' });
+  test('ไม่ขยาย ตำแหน่งไม่กระโดด แม้จอเตี้ย', async ({ page }) => {
+    await open(page);
+    const rects = () => page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.dock .dock-item')).map((b) => { const r = b.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; }));
+    const rest = await rects();
+    const c = (await dockBtn(page, 'พอร์ตการลงทุน').boundingBox())!;
+    await page.mouse.move(c.x + c.width / 2, c.y + c.height / 2, { steps: 4 });
+    await page.waitForTimeout(250);
+    expect(await rects()).toEqual(rest);
+  });
+});

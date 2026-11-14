@@ -1356,7 +1356,7 @@ select { font: inherit; }
   .dock-c-tax { --dock-hue: var(--dock-hue-tax); --dock-ink: var(--dock-ink-tax); }
   /* ชื่อหน้า: ทางขวาของไอคอน (พื้นทึบ) ตอนเมาส์ชี้หรือโฟกัสคีย์บอร์ด */
   .dock-cell-static[data-open] .dock-tip { display: none; }
-  .dock-tip { position: absolute; top: 50%; left: calc(100% + 14px + (var(--s, 1) - 1) * 48px); transform: translateY(-50%); padding: 6px 12px; border-radius: 10px; border: 1px solid var(--ov-18); background: var(--surface-solid); color: var(--text-strong); font-size: 13px; font-weight: 600; line-height: 1.4; white-space: nowrap; pointer-events: none; opacity: 0; visibility: hidden; transition: opacity 0.1s; box-shadow: 0 8px 22px var(--shade-45); }
+  .dock-tip { position: absolute; top: 50%; left: calc(100% + 14px + (var(--s, 1) - 1) * var(--dock-cell, 48px)); transform: translateY(-50%); padding: 6px 12px; border-radius: 10px; border: 1px solid var(--ov-18); background: var(--surface-solid); color: var(--text-strong); font-size: 13px; font-weight: 600; line-height: 1.4; white-space: nowrap; pointer-events: none; opacity: 0; visibility: hidden; transition: opacity 0.1s; box-shadow: 0 8px 22px var(--shade-45); }
   .dock-cell:hover .dock-tip, .dock-cell:has(.dock-item:focus-visible) .dock-tip { opacity: 1; visibility: visible; }
   .dock[data-tips-off] .dock-cell .dock-tip { opacity: 0; visibility: hidden; }
   /* เมนูบัญชี */
@@ -1378,8 +1378,13 @@ select { font: inherit; }
   .dock { gap: 4px; padding: 8px 10px; }
   .dock-list { gap: 4px; }
   .dock-logo { width: 36px; height: 36px; font-size: 13px; border-radius: 12px; }
+  .dock { --dock-cell: 40px; }
   .dock-cell, .dock-item { width: 40px; height: 40px; }
   .dock-account { border-radius: 50%; }
+}
+/* จอเตี้ยสุดขั้ว (สูง ≤480px): dock เลื่อนในตัวเองได้ ปุ่มบัญชีท้ายสุดไม่ตกขอบจอ (ผลตรวจ design-critic) */
+@media (min-width: 1024px) and (max-height: 480px) {
+  .dock { max-height: calc(100dvh - 24px); overflow-y: auto; scrollbar-width: none; }
 }
 /* ลดการเคลื่อนไหว: ไม่ขยาย ตำแหน่งไม่กระโดด (JS ก็ไม่ตั้งค่า) */
 @media (prefers-reduced-motion: reduce) {
