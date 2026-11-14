@@ -31,11 +31,26 @@ const VIEWS = [
 
 test.use({ colorScheme: THEME, locale: 'th-TH', timezoneId: 'Asia/Bangkok' });
 
+/**
+ * ทำให้ภาพนิ่งแน่นอนก่อนถ่าย (14 พ.ย. 2569 · แก้ภาพ select เดือนที่ติดๆ ดับๆ)
+ * สาเหตุที่หาได้จากการทดลอง (รันซ้ำ 60 รอบต่อแบบ ภายใต้โหลด CPU หนัก ภาพที่ได้ต่างกัน 2 แบบ):
+ *   ตัวหนังสือของ <select> ที่วาดแบบเนทีฟของเบราว์เซอร์ เลื่อนตำแหน่งไม่ถึง 1 พิกเซลเป็นบางรอบเมื่อเครื่องโหลดหนัก (ทั้งหน้ามีเฉพาะ select ที่ต่าง)
+ *   ไม่ใช่ฟอนต์ (โหลดครบเสมอ) · ไม่ใช่เลย์เอาต์ (ขนาด/ตำแหน่งเท่ากัน) · ไม่ใช่ LCD/เกรย์สเกล · ไม่ใช่ blur/ชั้น compositor (ปิด blur หรือบังคับแยกชั้นแล้วยังเกิด)
+ *   เมื่อวาด select แบบ appearance:none ภาพเหมือนกันทุกรอบ (60/60) ขณะที่ค่าเดิมผิด ~8% → เครื่องมือนี้ถ่ายด้วย appearance:none (ฐานภาพไม่มีลูกศรเนทีฟ) ส่วนหน้าตาจริงของ select ตรวจโดยเทสต์ layout/contrast
+ * เพิ่มเติมตามที่เจ้าของสั่ง: ปิดอนิเมชัน/ทรานซิชันทั้งหมด (รวมพื้นหลังออโรรา) และรอฟอนต์โหลดเสร็จ + 2 เฟรมก่อนถ่ายทุกภาพ
+ */
+const STABLE_CSS = '*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}select{appearance:none;-webkit-appearance:none}';
+
+async function settle(page: Page): Promise<void> {
+  await page.evaluate(() => document.fonts.ready.then(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))));
+}
+
 async function prepare(page: Page): Promise<void> {
   await page.clock.setFixedTime(new Date('2026-11-14T03:00:00Z')); // 10:00 เวลาไทย
   await page.route((url) => !/^(localhost|127\.0\.0\.1)$/.test(url.hostname), (route) => route.abort());
   await page.goto('/harness.html?seed=1');
   await expect(page.getByText('ข้าวมันไก่').first()).toBeVisible({ timeout: 20_000 });
+  await page.addStyleTag({ content: STABLE_CSS });
 }
 
 async function openView(page: Page, view: (typeof VIEWS)[number], mobile: boolean): Promise<void> {
@@ -59,6 +74,7 @@ for (const w of WIDTHS) {
       test(`หน้า ${view.id}`, async ({ page }) => {
         await prepare(page);
         await openView(page, view, w.mobile);
+        await settle(page);
         await expect(page).toHaveScreenshot(`${view.id}-${w.width}.png`, { fullPage: true, maxDiffPixels: 0, animations: 'disabled', caret: 'hide' });
       });
     }
@@ -68,6 +84,7 @@ for (const w of WIDTHS) {
         await page.getByRole('button', { name: 'เมนู', exact: true }).click();
         await expect(page.getByRole('dialog')).toBeVisible();
         await page.waitForTimeout(600);
+        await settle(page);
         await expect(page).toHaveScreenshot(`menu-${w.width}.png`, { animations: 'disabled', caret: 'hide', maxDiffPixels: 0 });
       });
     }
@@ -89,7 +106,8 @@ for (const w of WIDTHS.filter((x) => x.width !== 390)) {
       }
       await expect(page.locator('dialog[open]')).toBeVisible();
       await page.waitForTimeout(600);
-      await expect(page).toHaveScreenshot(`dialog-add-${w.width}.png`, { animations: 'disabled', caret: 'hide', maxDiffPixels: 0 });
+      await settle(page);
+        await expect(page).toHaveScreenshot(`dialog-add-${w.width}.png`, { animations: 'disabled', caret: 'hide', maxDiffPixels: 0 });
     });
 
     test('dialog เพิ่มบิล', async ({ page }) => {
@@ -98,7 +116,8 @@ for (const w of WIDTHS.filter((x) => x.width !== 390)) {
       await page.getByRole('button', { name: /เพิ่มบิล/ }).first().click();
       await expect(page.locator('dialog[open]')).toBeVisible();
       await page.waitForTimeout(600);
-      await expect(page).toHaveScreenshot(`dialog-bill-${w.width}.png`, { animations: 'disabled', caret: 'hide', maxDiffPixels: 0 });
+      await settle(page);
+        await expect(page).toHaveScreenshot(`dialog-bill-${w.width}.png`, { animations: 'disabled', caret: 'hide', maxDiffPixels: 0 });
     });
   });
 }
