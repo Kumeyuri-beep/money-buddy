@@ -20,15 +20,15 @@ jobs:
       - run: npm run build
 
   # เทสต์หน้าจอด้วย Playwright (ข้อมูลสมมติจาก harness ไม่ต่อฐานข้อมูลจริง ไม่ใช้ secrets)
-  # แบ่งเป็น 4 shard รันขนานกัน (เดิมงานเดียว 4+ นาที เกินเพดาน 3 นาทีที่ตั้งไว้) · เทสต์ครบทุกตัว ไม่ลดจำนวน (Playwright แบ่งชุดเดียวกันเป็น 4 ส่วนไม่ซ้ำไม่ตก)
+  # แบ่งเป็น 5 shard รันขนานกัน (เดิมงานเดียว 4+ นาที เกินเพดาน 3 นาทีที่ตั้งไว้ · เพิ่มจาก 4 เป็น 5 เมื่อ 15 พ.ย. 2569 เพราะ shard ที่ช้าสุดเกือบ 3 นาทีหลังเพิ่มเทสต์ dock) · เทสต์ครบทุกตัว ไม่ลดจำนวน (Playwright แบ่งชุดเดียวกันเป็น 5 ส่วนไม่ซ้ำไม่ตก)
   e2e-shard:
-    name: e2e-shard (${{ matrix.shard }}/4)
+    name: e2e-shard (${{ matrix.shard }}/5)
     runs-on: ubuntu-latest
     timeout-minutes: 6
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -46,7 +46,7 @@ jobs:
         if: steps.pw-cache.outputs.cache-hit != 'true'
       - run: npx playwright install-deps chromium
         if: steps.pw-cache.outputs.cache-hit == 'true'
-      - run: npx playwright test --shard=${{ matrix.shard }}/4
+      - run: npx playwright test --shard=${{ matrix.shard }}/5
       - name: เก็บผลเมื่อล้ม (ข้อมูลสมมติเท่านั้น)
         if: failure()
         uses: actions/upload-artifact@v4
@@ -55,7 +55,7 @@ jobs:
           path: test-results/
           retention-days: 3
 
-  # งานรวมชื่อ "e2e": ผ่านก็ต่อเมื่อทุก shard ผ่าน · คงชื่อเดิมไว้เพราะกติกา merge ใน CLAUDE.md ตรวจ job ชื่อ e2e (ใน gh pr checks จะเห็น e2e-shard (n/4) เพิ่มอีก 4 แถว)
+  # งานรวมชื่อ "e2e": ผ่านก็ต่อเมื่อทุก shard ผ่าน · คงชื่อเดิมไว้เพราะกติกา merge ใน CLAUDE.md ตรวจ job ชื่อ e2e (ใน gh pr checks จะเห็น e2e-shard (n/5) เพิ่มอีก 5 แถว)
   e2e:
     needs: e2e-shard
     if: ${{ always() }}
