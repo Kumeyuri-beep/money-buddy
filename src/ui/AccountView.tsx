@@ -10,6 +10,7 @@ import { usePasswordPrompt } from './PasswordPrompt';
 import { PolicyText } from './PolicyText';
 import { CategoryNames } from './CategoryNames';
 import { WalletNames } from './WalletNames';
+import { ThemeSelector } from './ThemeSelector';
 import { useRepository } from './RepositoryContext';
 
 /** หน้าโปรไฟล์: ชื่อผู้ใช้ เปลี่ยนรหัสผ่าน ออกจากระบบ (หัวหน้าหลักของแอปเป็น h1 แล้ว หน้านี้ใช้ h2) */
@@ -101,6 +102,7 @@ export function AccountView({ onReset, onWalletsChanged, onBackedUp }: { onReset
           ออกจากระบบ
         </button>
       </section>
+      <ThemeSelector />
       <WalletNames onChanged={onWalletsChanged} />
       <CategoryNames onChanged={onWalletsChanged} />
       <section className="solid card" aria-labelledby="change-pw-title">

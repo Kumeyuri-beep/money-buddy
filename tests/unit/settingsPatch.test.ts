@@ -39,7 +39,7 @@ describe('planSettingsPatch (เปลี่ยนเฉพาะคีย์ท
     expect(plan(planSettingsPatch({}))).toEqual({ set: {}, remove: [] });
   });
   it('คีย์ทั้งหมดของ FinanceSettings อยู่ใน SETTINGS_KEYS', () => {
-    expect([...SETTINGS_KEYS]).toEqual(['payDay', 'monthlySavingsGoal', 'monthlyBudget', 'nextPaydayOverride', 'dcaPlans', 'retirementAssetIds', 'taxRmfAssetIds', 'taxThaiEsgAssetIds', 'lastBackupAt', 'backupSnoozeUntil']);
+    expect([...SETTINGS_KEYS]).toEqual(['payDay', 'monthlySavingsGoal', 'monthlyBudget', 'nextPaydayOverride', 'dcaPlans', 'retirementAssetIds', 'taxRmfAssetIds', 'taxThaiEsgAssetIds', 'lastBackupAt', 'backupSnoozeUntil', 'theme']);
   });
 });
 
@@ -57,7 +57,7 @@ describe('planSettingsReplace (saveSettings แบบเดิม: ไม่ส�
     expect(p.remove).toContain('retirementAssetIds');
   });
   it('ส่งทุกคีย์: ไม่ลบอะไร', () => {
-    const p = plan(planSettingsReplace({ payDay: 1, monthlySavingsGoal: 0, monthlyBudget: 0, nextPaydayOverride: '2026-12-01', dcaPlans: [dca], retirementAssetIds: ['a1'], taxRmfAssetIds: ['r1'], taxThaiEsgAssetIds: ['e1'], lastBackupAt: '2026-11-13', backupSnoozeUntil: '2026-11-16' }));
+    const p = plan(planSettingsReplace({ payDay: 1, monthlySavingsGoal: 0, monthlyBudget: 0, nextPaydayOverride: '2026-12-01', dcaPlans: [dca], retirementAssetIds: ['a1'], taxRmfAssetIds: ['r1'], taxThaiEsgAssetIds: ['e1'], lastBackupAt: '2026-11-13', backupSnoozeUntil: '2026-11-16', theme: 'light' }));
     expect(p.remove).toEqual([]);
     expect(Object.keys(p.set).sort()).toEqual([...SETTINGS_KEYS].sort());
   });

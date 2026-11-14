@@ -1061,3 +1061,13 @@ select { font: inherit; }
   .topbar-actions { flex: 1 1 100%; justify-content: stretch; }
   .btn-scan { flex: 1 1 100%; justify-content: center; }
 }
+
+/* ตัวเลือกธีมสี (หน้าโปรไฟล์) */
+.theme-options { display: grid; grid-template-columns: 1fr; gap: 8px; border: 0; padding: 0; margin: 8px 0; }
+.theme-options legend { padding: 0; margin-bottom: 8px; }
+.theme-option { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; min-height: 44px; border-radius: 12px; background: var(--ov-9); border: 1px solid var(--control-border); cursor: pointer; }
+.theme-option:has(input:checked) { border-color: var(--gold); background: var(--ov-14); }
+.theme-option:has(input:focus-visible) { outline: 2px solid var(--gold); outline-offset: 2px; }
+.theme-hint { display: block; }
+.theme-option input { flex: none; width: 22px; height: 22px; margin: 2px 0 0; accent-color: var(--gold-fill); }
+@media (min-width: 640px) { .theme-options { grid-template-columns: repeat(3, 1fr); } }

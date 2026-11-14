@@ -1,6 +1,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { thaiIsoDate, thaiMonthKeyLabel } from '../app/dates';
 import { markBackupDone, snoozeBackupReminder } from '../app/backupReminder';
+import { applyTheme, parseThemeChoice, readStoredTheme, storeTheme, type ThemeChoice } from '../app/theme';
 import { downloadBackup } from './backup';
 import { restoreFocus } from './focus';
 import { describeEntry } from '../app/describe';
@@ -123,6 +124,22 @@ export function App() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // ธีม: ค่าในบัญชีมาก่อนค่าในเครื่อง (ตามผู้ใช้ไปทุกเครื่อง) · ไม่ได้ตั้งในบัญชี = ตามเครื่อง · ค่าในเครื่องมีไว้กันจอกะพริบตอนเปิดเท่านั้น
+  const accountTheme: ThemeChoice | null = state.status === 'ready' ? parseThemeChoice(state.settings.theme) : null;
+  useEffect(() => {
+    if (accountTheme === null) return;
+    storeTheme(accountTheme);
+    applyTheme(accountTheme);
+  }, [accountTheme]);
+  // เลือก "ตามเครื่อง" แล้วเครื่องสลับมืด/สว่าง: ปรับสีแถบมือถือตาม
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(prefers-color-scheme: light)');
+    const onChange = () => applyTheme(readStoredTheme());
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
   // ผลตรวจความถูกต้องของสมุดบัญชี คำนวณใหม่เมื่อข้อมูลเปลี่ยนเท่านั้น
   const integrity = useMemo(

@@ -57,8 +57,8 @@ describe('สีกราฟและการ์ดแชร์ (chartColors)',
 });
 
 describe('ซอร์ส TS ไม่มีค่าสีตรงๆ (ยกเว้นไฟล์ค่าสำรองที่ตั้งใจ)', () => {
-  it('มีสีตรงๆ เฉพาะ chartColors.ts (ค่าสำรองโหมดมืด) และ harness สำหรับนักพัฒนา', () => {
-    const allowed = ['/src/ui/chartColors.ts'];
+  it('มีสีตรงๆ เฉพาะ chartColors.ts (ค่าสำรองโหมดมืด) และ theme.ts (สีแถบมือถือ) และ harness สำหรับนักพัฒนา', () => {
+    const allowed = ['/src/ui/chartColors.ts', '/src/app/theme.ts']; // theme.ts: สีแถบมือถือ (meta theme-color) ไม่ใช่สีในหน้าจอ
     const offenders = Object.entries(sources)
       .filter(([p]) => !allowed.includes(p) && !p.startsWith('/src/dev/'))
       .filter(([, text]) => /['"`]#[0-9a-fA-F]{3,8}['"`]|rgba?\(/.test(text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')))
