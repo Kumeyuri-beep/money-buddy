@@ -7,6 +7,8 @@ dist
 .live-logs/
 # ผลเทสต์หน้าจอ Playwright
 test-results/
+# ภาพฐานเทียบก่อน/หลังของ visual.spec.ts (ภาพต่าง OS ไม่ตรงกัน จึงไม่ commit)
+.visual/
 playwright-report/
 .DS_Store
 
