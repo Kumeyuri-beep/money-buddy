@@ -31,9 +31,10 @@ export function walletOptions(accounts: readonly Account[]): Account[] {
 }
 
 /** ตัวเลือกช่องที่สอง (หมวดหรือกระเป๋าปลายทาง) ตามประเภทรายการ */
-export function counterOptions(accounts: readonly Account[], kind: FormKind, walletId: string): Account[] {
+export function counterOptions(accounts: readonly Account[], kind: FormKind, walletId: string, keepId?: string): Account[] {
   if (kind === 'transfer') return walletOptions(accounts).filter((a) => a.id !== walletId);
-  return accounts.filter((a) => a.type === kind && a.currency === 'THB' && !a.archived && !isInvestResultAccount(a));
+  // หมวดที่ซ่อนไม่แสดงในฟอร์ม ยกเว้น keepId = หมวดเดิมของรายการที่กำลังแก้ (ไม่งั้นแก้รายการเก่าแล้วหมวดถูกเปลี่ยนเงียบๆ เป็นหมวดแรก)
+  return accounts.filter((a) => a.type === kind && a.currency === 'THB' && (!a.archived || a.id === keepId) && !isInvestResultAccount(a));
 }
 
 /**
@@ -42,8 +43,9 @@ export function counterOptions(accounts: readonly Account[], kind: FormKind, wal
  *   รายรับ:  เดบิตกระเป๋า       เครดิตหมวดรายรับ
  *   โอน:     เดบิตกระเป๋าปลายทาง เครดิตกระเป๋าต้นทาง (ไม่นับเป็นรายรับรายจ่าย ตามกฎ R4)
  * ผลลัพธ์ยังต้องผ่าน createEntry ตอนบันทึกอีกชั้นหนึ่ง
+ * options.keepCounterId = หมวดเดิมของรายการที่กำลังแก้ (ยอมให้เป็นหมวดที่ซ่อนอยู่ได้เฉพาะหมวดนั้น หมวดซ่อนอื่นยังเลือกไม่ได้)
  */
-export function buildEntry(accounts: readonly Account[], form: EntryForm, id: string): NewEntry {
+export function buildEntry(accounts: readonly Account[], form: EntryForm, id: string, options?: { keepCounterId?: string }): NewEntry {
   let amount: number;
   try {
     amount = parseBahtToSatang(form.amount);
@@ -57,7 +59,7 @@ export function buildEntry(accounts: readonly Account[], form: EntryForm, id: st
   const wallet = walletOptions(accounts).find((a) => a.id === form.walletId);
   if (!wallet) throw new EntryFormError('เลือกกระเป๋าเงิน');
 
-  const counter = counterOptions(accounts, form.kind, form.walletId).find((a) => a.id === form.counterId);
+  const counter = counterOptions(accounts, form.kind, form.walletId, options?.keepCounterId).find((a) => a.id === form.counterId);
   if (!counter) {
     if (form.kind === 'transfer') {
       throw new EntryFormError(

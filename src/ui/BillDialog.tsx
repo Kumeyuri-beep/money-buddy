@@ -30,7 +30,8 @@ export function BillDialog({ accounts, editing, today, onClose, onSaved }: Props
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const wallets = walletOptions(accounts);
-  const categories = accounts.filter((a) => a.type === 'expense' && a.currency === 'THB' && !a.archived);
+  // หมวดเดิมของบิลที่กำลังแก้ ถ้าถูกซ่อนไปแล้ว ยังแสดงให้เห็น (ติดป้าย "ซ่อนอยู่") ไม่ให้ดูเหมือนบิลไม่มีหมวด
+  const categories = accounts.filter((a) => a.type === 'expense' && a.currency === 'THB' && (!a.archived || a.id === editing?.categoryId));
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -139,6 +140,7 @@ export function BillDialog({ accounts, editing, today, onClose, onSaved }: Props
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
+                  {c.archived ? ' (ซ่อนอยู่)' : ''}
                 </option>
               ))}
             </select>

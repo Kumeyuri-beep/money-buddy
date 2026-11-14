@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { thaiIsoDate, thaiDayLabel, thaiMonthKeyLabel } from '../app/dates';
-import { counterOptions, walletOptions } from '../app/entryForm';
+import { walletOptions } from '../app/entryForm';
+import { hiddenCategories, visibleCategories } from '../domain/ledger/accountName';
 import { amountClass } from '../app/describe';
 import { groupByDate, monthsWithEntries, queryLedger, type LedgerFilter } from '../app/ledgerQuery';
 import { periodTotals } from '../domain/ledger/balance';
@@ -49,7 +50,8 @@ export function LedgerView({ ledger, onAdd, onEdit, onDelete, onCancelPayment }:
   // ถ้าลบรายการสุดท้ายของเดือนที่เลือกอยู่ เดือนนั้นจะหายจากรายการ จึงคงไว้เป็นตัวเลือกให้ตรงกับค่าที่เลือก
   const monthOptions = filter.month === 'all' || months.includes(filter.month) ? months : [filter.month, ...months];
   const wallets = walletOptions(accounts);
-  const categories = [...counterOptions(accounts, 'expense', ''), ...counterOptions(accounts, 'income', '')];
+  // ตัวกรองต้องมีหมวดที่ซ่อนด้วย (รายการเก่าในหมวดนั้นยังต้องกรองดูได้) ติดป้าย "ซ่อนอยู่"
+  const categories = [...visibleCategories(accounts, 'expense'), ...visibleCategories(accounts, 'income'), ...hiddenCategories(accounts)];
   const filtered = filter.kind !== 'all' || filter.accountId !== 'all' || filter.text.trim() !== '';
 
   return (
@@ -107,6 +109,7 @@ export function LedgerView({ ledger, onAdd, onEdit, onDelete, onCancelPayment }:
               {categories.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}
+                  {a.archived ? ' (ซ่อนอยู่)' : ''}
                 </option>
               ))}
             </optgroup>

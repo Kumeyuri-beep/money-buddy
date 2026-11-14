@@ -53,7 +53,9 @@ export function AddEntryDialog({ accounts, entries = [], scan, editing, onClose,
   const [warnedUnverified, setWarnedUnverified] = useState(false);
 
   // ตัวเลือกช่องที่สองเปลี่ยนตามประเภท ถ้าค่าที่เลือกไว้ใช้ไม่ได้แล้ว ใช้ตัวแรกแทน
-  const counters = counterOptions(accounts, kind, walletId);
+  // แก้รายการเก่า: หมวดเดิมต้องยังเลือกได้แม้ถูกซ่อนไปแล้ว (ติดป้าย "ซ่อนอยู่") · ไม่ใช่โหมดแก้ = ไม่แสดงหมวดที่ซ่อน
+  const keepCounterId = editing ? initial?.counterId : undefined;
+  const counters = counterOptions(accounts, kind, walletId, keepCounterId);
   // เติมจากสลิป: ห้ามเลือกหมวดแรกให้เงียบๆ ถ้าเดาไม่ได้ ต้องให้ผู้ใช้เลือกเอง
   const counterId = counters.some((a) => a.id === chosenCounter) ? chosenCounter : scan ? '' : (counters[0]?.id ?? '');
 
@@ -104,7 +106,7 @@ export function AddEntryDialog({ accounts, entries = [], scan, editing, onClose,
       const form = { kind, date, amount, walletId, counterId, memo };
       if (editing) {
         // คงแหล่งที่มาเดิม (เช่น สแกนสลิป) และกลุ่มเดิมไว้
-        const input = { ...buildEntry(accounts, form, editing.id), source: editing.source, groupId: editing.groupId };
+        const input = { ...buildEntry(accounts, form, editing.id, { keepCounterId }), source: editing.source, groupId: editing.groupId };
         const { before, after } = await repo.updateEntry(editing.id, input);
         onSaved(after, before);
       } else {
@@ -272,6 +274,7 @@ export function AddEntryDialog({ accounts, entries = [], scan, editing, onClose,
               {counters.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}
+                  {a.archived ? ' (ซ่อนอยู่)' : ''}
                 </option>
               ))}
             </select>
