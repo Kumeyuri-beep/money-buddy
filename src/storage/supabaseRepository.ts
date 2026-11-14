@@ -21,8 +21,8 @@ import {
   type SettingsPlanResult,
 } from '../domain/bills/settingsPatch';
 import type { Bill } from '../domain/bills/types';
-import { isCashWallet } from '../domain/ledger/accountKind';
-import { checkCategoryRename, checkWalletRename } from '../domain/ledger/accountName';
+import { isCashWallet, isInvestResultAccount } from '../domain/ledger/accountKind';
+import { checkCategoryAdd, checkCategoryHide, checkCategoryRename, checkWalletRename } from '../domain/ledger/accountName';
 import { createEntry } from '../domain/ledger/entry';
 import { runIntegrityCheck } from '../domain/ledger/integrity';
 import type { Account, AccountType, Entry, EntrySource, NewEntry } from '../domain/ledger/types';
@@ -774,6 +774,31 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       const row = Array.isArray(data) ? (data[0] as AccountRow | undefined) : undefined;
       if (!row) throw new StorageError('ไม่พบหมวดนี้');
       return rowToAccount(row);
+    },
+
+    async addCategory(input) {
+      const id = String(input.id ?? '').trim();
+      if (id === '' || id.length > 90) throw new StorageError('รหัสหมวดไม่ถูกต้อง');
+      const accounts = await loadAccounts();
+      // รหัสของหมวดผลการลงทุนที่ระบบสร้าง (inv-gain ฯลฯ) ห้ามใช้เป็นหมวดทั่วไป (security-auditor)
+      if (accounts.some((a) => a.id === id) || isInvestResultAccount({ id })) throw new StorageError('รหัสหมวดซ้ำ ลองอีกครั้ง');
+      const verdict = checkCategoryAdd(accounts, input.type, input.name);
+      if (!verdict.ok) throw new StorageError(verdict.message ?? 'เพิ่มหมวดไม่ได้');
+      const { error } = await client.from('accounts').insert({ id, type: input.type, name: verdict.name, currency: 'THB', kind: 'normal' });
+      check(error);
+      return { id, type: input.type, name: verdict.name, currency: 'THB' };
+    },
+
+    async setCategoryHidden(id, hidden) {
+      // ตรวจกติกาจากบัญชีทั้งหมดของผู้ใช้ก่อน แล้วให้ฐานข้อมูลตรวจซ้ำในฟังก์ชัน set_category_archived (เจ้าของแถว ชนิดบัญชี ต้องเหลืออย่างน้อย 1 หมวด · กันสองแท็บ)
+      const accounts = await loadAccounts();
+      const verdict = checkCategoryHide(accounts, id, hidden);
+      if (!verdict.ok) throw new StorageError(verdict.message ?? 'ซ่อนหมวดไม่ได้');
+      await rpc('set_category_archived', { p_id: id, p_archived: hidden });
+      const { data, error } = await client.from('accounts').select('*').eq('id', id).maybeSingle();
+      check(error);
+      if (!data) throw new StorageError('ไม่พบหมวดนี้');
+      return rowToAccount(data as AccountRow);
     },
 
     async recordTrade({ trade, walletId }) {

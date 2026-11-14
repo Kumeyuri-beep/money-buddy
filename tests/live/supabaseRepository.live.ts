@@ -274,6 +274,10 @@ describe('แยกข้อมูลระหว่างผู้ใช้ (RL
       p_entry: { id: 'x1', date: '2026-11-02', memo: 'x', source: 'manual', lines: [{ accountId: wallet.id, amount: 1 }, { accountId: category.id, amount: -1 }] },
     });
     expect(cross.error).not.toBeNull(); // บัญชีของ A ไม่มีในพื้นที่ของ B
+    // ซ่อนหมวดของ A ผ่าน RPC set_category_archived (ฟีดแบ็ก 14 พ.ย. 2569): B ทำไม่ได้ (หาไม่เจอในพื้นที่ของ B) และหมวดของ A ไม่เปลี่ยน
+    const crossHide = await bc.rpc('set_category_archived', { p_id: category.id, p_archived: true });
+    expect(crossHide.error?.code).toBe('P0002'); // หาไม่เจอในพื้นที่ของ B (ถ้ารั่วไปถึงแถวของ A จะได้รหัสอื่นหรือสำเร็จ)
+    expect((await a.loadLedger()).accounts.find((x) => x.id === category.id)?.archived).not.toBe(true);
     // หลังทั้งหมด ข้อมูลของ A ครบเหมือนเดิม
     const after = await a.loadLedger();
     expect(after.entries).toHaveLength(aLedger.entries.length);

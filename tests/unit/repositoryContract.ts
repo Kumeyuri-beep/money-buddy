@@ -437,6 +437,66 @@ export function describeRepositoryContract(name: string, factory: () => Promise<
       expect(end.entries).toEqual(after.entries);
     });
 
+    it('เพิ่มหมวด/ซ่อนหมวด (ฟีดแบ็ก 14 พ.ย. 2569): เพิ่มหมวดใหม่ได้ · ซ่อนแล้วฟอร์มไม่เห็นแต่รายการเก่ายังอ้างถึงและยอดเดิม · เปิดกลับได้ · ชื่อว่าง/ซ้ำ/ซ่อนตัวสุดท้าย/ไม่ใช่หมวดถูกปฏิเสธ ไม่เปลี่ยนอะไร', async () => {
+      await seed();
+      await repo.appendEntry({ id: 'ah1', date: '2026-11-02', memo: 'ทดสอบ', lines: [{ accountId: categoryId, amount: 4_500 }, { accountId: walletId, amount: -4_500 }] });
+      const before = await repo.loadLedger();
+      const balanceBefore = balanceOf(categoryId, before.entries);
+
+      // เพิ่มหมวดใหม่ (รายจ่าย/รายรับ) · ตัดช่องว่าง · ไม่ซ้ำ
+      const added = await repo.addCategory({ id: 'cat-new-1', type: 'expense', name: '  ค่ากาแฟ  ' });
+      expect(added).toMatchObject({ id: 'cat-new-1', type: 'expense', name: 'ค่ากาแฟ', currency: 'THB' });
+      expect(added.archived).not.toBe(true);
+      const addedIncome = await repo.addCategory({ id: 'cat-new-2', type: 'income', name: 'ค่ากาแฟ' }); // คนละประเภทใช้ชื่อเดียวกันได้
+      expect(addedIncome.type).toBe('income');
+      const afterAdd = await repo.loadLedger();
+      expect(afterAdd.accounts.find((a) => a.id === 'cat-new-1')?.name).toBe('ค่ากาแฟ');
+      expect(afterAdd.entries).toEqual(before.entries);
+
+      // ซ่อนหมวดที่มีรายการแล้ว: archived เปลี่ยน รายการ/ยอด/ชื่อไม่เปลี่ยน
+      const hidden = await repo.setCategoryHidden(categoryId, true);
+      expect(hidden).toMatchObject({ id: categoryId, archived: true });
+      const afterHide = await repo.loadLedger();
+      const hiddenAcc = afterHide.accounts.find((a) => a.id === categoryId)!;
+      expect(hiddenAcc.archived).toBe(true);
+      expect(hiddenAcc.name).toBe(before.accounts.find((a) => a.id === categoryId)?.name);
+      expect(afterHide.entries).toEqual(before.entries);
+      expect(balanceOf(categoryId, afterHide.entries)).toBe(balanceBefore);
+      expect(runIntegrityCheck(afterHide.accounts, afterHide.entries).ok).toBe(true);
+      for (const a of afterHide.accounts) if (a.id !== categoryId) expect(a, a.id).toEqual(afterAdd.accounts.find((b) => b.id === a.id));
+
+      // เปิดกลับ
+      const shown = await repo.setCategoryHidden(categoryId, false);
+      expect(shown.archived).not.toBe(true);
+      expect((await repo.loadLedger()).accounts.find((a) => a.id === categoryId)?.archived).not.toBe(true);
+
+      // ปฏิเสธ: ชื่อว่าง/ซ้ำ/ยาวเกิน/อักขระมองไม่เห็น · ซ้ำกับหมวดที่ซ่อน
+      await repo.setCategoryHidden('cat-new-1', true);
+      const badAdd: [string, 'income' | 'expense', string][] = [
+        ['x1', 'expense', ''],
+        ['x2', 'expense', '   '],
+        ['x3', 'expense', 'x'.repeat(201)],
+        ['x4', 'expense', before.accounts.find((a) => a.id === categoryId)!.name],
+        ['x5', 'expense', 'ค่ากาแฟ'], // ซ้ำกับหมวดที่ซ่อนอยู่
+        ['x6', 'expense', 'หมวด​ใหม่'],
+      ];
+      for (const [id, type, name] of badAdd) await expect(repo.addCategory({ id, type, name }), name).rejects.toThrow(StorageError);
+      await expect(repo.addCategory({ id: 'cat-new-1', type: 'expense', name: 'ชื่ออื่นแต่รหัสซ้ำ' })).rejects.toThrow(StorageError);
+
+      // ปฏิเสธ: ซ่อนตัวสุดท้ายของประเภท · ไม่ใช่หมวด · ไม่มีอยู่ · ซ่อน/เปิดซ้ำสถานะเดิม
+      const now = await repo.loadLedger();
+      const visibleIncome = now.accounts.filter((a) => a.type === 'income' && !a.archived && !a.id.startsWith('inv-'));
+      for (const inc of visibleIncome.slice(0, -1)) await repo.setCategoryHidden(inc.id, true);
+      const lastIncome = visibleIncome[visibleIncome.length - 1]!;
+      await expect(repo.setCategoryHidden(lastIncome.id, true)).rejects.toThrow(StorageError);
+      for (const id of [walletId, 'opening', 'no-such-account']) await expect(repo.setCategoryHidden(id, true), id).rejects.toThrow(StorageError);
+      await expect(repo.setCategoryHidden('cat-new-1', true)).rejects.toThrow(StorageError); // ซ่อนอยู่แล้ว
+      await expect(repo.setCategoryHidden(categoryId, false)).rejects.toThrow(StorageError); // เปิดอยู่แล้ว
+      const end = await repo.loadLedger();
+      expect(end.entries).toEqual(before.entries);
+      expect(runIntegrityCheck(end.accounts, end.entries).ok).toBe(true);
+    });
+
     it('renameWallet: เปลี่ยนเฉพาะชื่อที่แสดง (รหัส ชนิด สกุลเงิน ยอด รายการไม่เปลี่ยน) · ชื่อว่าง/ยาวเกิน/ซ้ำ/ไม่ใช่กระเป๋า/ไม่มีอยู่ = StorageError ไม่เปลี่ยนอะไร', async () => {
       await seed();
       await repo.appendEntry({ id: 'rn1', date: '2026-11-02', memo: 'ทดสอบ', lines: [{ accountId: categoryId, amount: 12_300 }, { accountId: walletId, amount: -12_300 }] });

@@ -4,8 +4,8 @@ import { billProblem, markBillPaid, payableCycle } from '../domain/bills/schedul
 import { sanitizeSettings, settingsProblem, type FinanceSettings } from '../domain/bills/settings';
 import { applySettingsPlan, planConflictProblem, planOutsideKeysProblem, planSettingsPatch, planSettingsReplace, settingsKeysChanged, type SettingsKey, type SettingsPatch } from '../domain/bills/settingsPatch';
 import type { Bill } from '../domain/bills/types';
-import { isCashWallet } from '../domain/ledger/accountKind';
-import { checkCategoryRename, checkWalletRename } from '../domain/ledger/accountName';
+import { isCashWallet, isInvestResultAccount } from '../domain/ledger/accountKind';
+import { checkCategoryAdd, checkCategoryHide, checkCategoryRename, checkWalletRename } from '../domain/ledger/accountName';
 import { createEntry } from '../domain/ledger/entry';
 import { runIntegrityCheck } from '../domain/ledger/integrity';
 import type { Account, Entry, NewEntry } from '../domain/ledger/types';
@@ -615,6 +615,36 @@ export async function renameCategory(db: MoneyDB, id: string, rawName: string): 
     const updated = await db.accounts.get(id);
     if (!updated) throw new StorageError('ไม่พบหมวดนี้');
     return updated;
+  });
+}
+
+/** เพิ่มหมวดรายรับ/รายจ่ายในเครื่อง (ดู LedgerRepository.addCategory) */
+export async function addCategory(db: MoneyDB, input: { id: string; type: 'income' | 'expense'; name: string }): Promise<Account> {
+  return db.transaction('rw', db.accounts, async () => {
+    const id = String(input.id ?? '').trim();
+    if (id === '' || id.length > 90) throw new StorageError('รหัสหมวดไม่ถูกต้อง');
+    const accounts = await db.accounts.toArray();
+    if (accounts.some((a) => a.id === id) || isInvestResultAccount({ id })) throw new StorageError('รหัสหมวดซ้ำ ลองอีกครั้ง');
+    const check = checkCategoryAdd(accounts, input.type, input.name);
+    if (!check.ok) throw new StorageError(check.message ?? 'เพิ่มหมวดไม่ได้');
+    const account: Account = { id, type: input.type, name: check.name, currency: 'THB' };
+    await db.accounts.add(account);
+    return account;
+  });
+}
+
+/** ซ่อน/เปิดกลับหมวดในเครื่อง: เขียนเฉพาะสถานะ archived (ซ่อน = archived true · เปิดกลับ = ลบคีย์ ให้เหมือนข้อมูลเดิมที่ไม่มีคีย์) */
+export async function setCategoryHidden(db: MoneyDB, id: string, hidden: boolean): Promise<Account> {
+  return db.transaction('rw', db.accounts, async () => {
+    const accounts = await db.accounts.toArray();
+    const check = checkCategoryHide(accounts, id, hidden);
+    if (!check.ok) throw new StorageError(check.message ?? 'ซ่อนหมวดไม่ได้');
+    const current = accounts.find((a) => a.id === id)!;
+    const { archived: _drop, ...rest } = current;
+    void _drop;
+    const next: Account = hidden ? { ...rest, archived: true } : rest;
+    await db.accounts.put(next);
+    return next;
   });
 }
 

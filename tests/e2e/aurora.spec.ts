@@ -174,10 +174,10 @@ test.describe('การขยับของพื้นหลังออโ�
 
   test.describe('คอม: เครื่องช้า', () => {
     test.use({ viewport: { width: 1280, height: 800 }, reducedMotion: 'no-preference' });
-    test('เลื่อนหน้าแล้วเฟรมช้ามาก (CPU ช้าลง 12 เท่า) → ตัวป้องกันปิด blur ของการ์ดหน้า (glass-lite) แต่การ์ดยังโปร่งแสง', async ({ page }) => {
+    test('เลื่อนหน้าแล้วเฟรมช้ามาก (CPU ช้าลง 24 เท่า) → ตัวป้องกันปิด blur ของการ์ดหน้า (glass-lite) แต่การ์ดยังโปร่งแสง', async ({ page }) => {
       await openApp(page);
       const cdp = await page.context().newCDPSession(page);
-      await cdp.send('Emulation.setCPUThrottlingRate', { rate: 12 });
+      await cdp.send('Emulation.setCPUThrottlingRate', { rate: 24 });
       await page.evaluate(
         () =>
           new Promise<void>((resolve) => {

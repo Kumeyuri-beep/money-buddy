@@ -79,6 +79,15 @@ export interface LedgerRepository {
    */
   renameCategory(id: string, name: string): Promise<Account>;
   /**
+   * เพิ่มหมวดรายรับ/รายจ่ายใหม่ (ฟีดแบ็กใช้งานจริง 14 พ.ย. 2569) · สกุลเงินบาท · ชื่อว่าง/ยาวเกิน/ซ้ำกับหมวดประเภทเดียวกัน (รวมที่ซ่อนอยู่)/รหัสซ้ำ = StorageError ไม่เพิ่มอะไร
+   */
+  addCategory(input: { id: string; type: 'income' | 'expense'; name: string }): Promise<Account>;
+  /**
+   * ซ่อน/เปิดกลับหมวด (ห้ามลบจริง เพราะรายการเก่ายังอ้างถึง) · เขียนเฉพาะสถานะ archived · ออนไลน์ผ่าน RPC set_category_archived (ตรวจเจ้าของฝั่งฐานข้อมูล)
+   * ไม่ใช่หมวดรายรับ/รายจ่ายทั่วไป (กระเป๋า ยอดยกมา หมวดผลการลงทุนของระบบ)/ไม่มีอยู่/สถานะเดิมอยู่แล้ว/ซ่อนตัวสุดท้ายของประเภท = StorageError ไม่เปลี่ยนอะไร
+   */
+  setCategoryHidden(id: string, hidden: boolean): Promise<Account>;
+  /**
    * บันทึกรายการลงทุน + รายการในสมุดบัญชีคู่ในธุรกรรมเดียว (P4 · RPC record_trade)
    * ตรวจกติกาลำดับ/ขายเกิน (domain/invest/rules) ก่อนส่ง และฐานข้อมูลตรวจซ้ำ (trigger กันสองแท็บ)
    * walletId = กระเป๋าเงินสดที่จ่าย/รับเงิน (ปันผลลงทุนต่อไม่ใช้)
@@ -123,6 +132,8 @@ export function createDexieRepository(db: MoneyDB): LedgerRepository {
     addWallet: () => Promise.reject(localInvestError()),
     renameWallet: (id, name) => dexie.renameWallet(db, id, name),
     renameCategory: (id, name) => dexie.renameCategory(db, id, name),
+    addCategory: (input) => dexie.addCategory(db, input),
+    setCategoryHidden: (id, hidden) => dexie.setCategoryHidden(db, id, hidden),
     recordTrade: () => Promise.reject(localInvestError()),
     deleteTrade: () => Promise.reject(localInvestError()),
     savePrice: () => Promise.reject(localInvestError()),
