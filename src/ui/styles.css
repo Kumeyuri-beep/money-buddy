@@ -940,10 +940,26 @@ select { font: inherit; }
 
 /* Sankey บนมือถือ: แผนภาพกว้าง 640px ต้องเลื่อนแนวนอนและตัวหนังสือถูกตัด → ซ่อนแผนภาพ โชว์กราฟแท่งแนวนอน (ตารางข้อมูลยังซ่อนไว้ให้โปรแกรมอ่านจอ) */
 .sankey-bars { display: none; }
+.sankey-compact, .sankey-viewtoggle, .sankey-viewnote { display: none; }
 @media (max-width: 720px) {
   .sankey { overflow-x: visible; }
   .sankey-svg { display: none; }
-  .sankey-bars { display: block; }
+  .sankey-viewtoggle { display: flex; gap: 8px; margin: 4px 0 8px; }
+  .sankey-viewbtn { flex: 1; min-height: 44px; border-radius: 12px; background: var(--ov-9); border: 1px solid var(--control-border); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
+  .sankey-viewbtn[aria-pressed='true'] { border-color: var(--gold); background: var(--ov-14); box-shadow: inset 0 0 0 1px var(--gold); }
+  .sankey-viewbtn[aria-pressed='true']::before { content: '✓ '; content: '✓ ' / ''; }
+  .sankey-viewbtn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .sankey-viewnote { display: block; }
+  .sankey-viewnote:empty { display: none; }
+  .sankey[data-view='diagram'] .sankey-compact { display: block; }
+  .sankey[data-view='list'] .sankey-bars { display: block; }
+  .sankey-compact svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .sankey-label-sm { font-size: 12px; }
+  .sankey-name-selected { font-weight: 700; }
+  .sankey-hit { cursor: pointer; outline: none; }
+  .sankey-hit:focus-visible { stroke: var(--gold); stroke-width: 2; }
+  .sankey-bar-selected { stroke: var(--text); stroke-width: 2; }
+  .sankey-detail { min-height: 2.6em; margin: 8px 0 0; padding: 8px 12px; border-radius: 10px; background: var(--ov-9); font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
   .sankey-bars ul { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 12px; }
   .sankey-bars-title { margin: 14px 0 8px; font-size: 14px; font-weight: 600; color: var(--muted); }
   .sankey-bar-head { display: flex; justify-content: space-between; gap: 12px; font-weight: 600; }

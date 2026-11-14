@@ -21,6 +21,15 @@ describe('Sankey / กราฟแท่งมือถือ', () => {
     expect(css).toContain('.sankey-bars { display: none; }');
     const block = /@media \(max-width: 720px\) \{\s*\.sankey \{ overflow-x: visible; \}[\s\S]*?\n\}/.exec(css)?.[0] ?? '';
     expect(block).toContain('.sankey-svg { display: none; }');
-    expect(block).toContain('.sankey-bars { display: block; }');
+    // 14 พ.ย. 2569: มือถือมีปุ่มสลับ แผนภาพกะทัดรัด (ค่าเริ่มต้น) / รายการแท่ง
+    expect(block).toContain(".sankey[data-view='diagram'] .sankey-compact { display: block; }");
+    expect(block).toContain(".sankey[data-view='list'] .sankey-bars { display: block; }");
+    expect(css).toContain('.sankey-compact, .sankey-viewtoggle, .sankey-viewnote { display: none; }');
+  });
+  it('แผนภาพกะทัดรัด: หมวดเล็กหลายอันเรียงชิดสุดแล้วจุดแตะยังไม่ทับกัน (ระยะแท่งเล็กสุด + ช่องว่าง ≥ ความสูงจุดแตะ) และ viewBox เล็กพอให้วาด 1:1 ที่ 360px', () => {
+    const num = (name: string): number => Number(new RegExp('const ' + name + ' = (\\d+)').exec(sankey)?.[1]);
+    expect(num('C_MIN_BAR') + num('C_GAP')).toBeGreaterThanOrEqual(num('HIT_H'));
+    expect(num('CW')).toBeLessThanOrEqual(280);
+    expect(num('C_RIGHT') + num('C_BAR_W') + 6 + 60).toBeLessThanOrEqual(num('CW')); // เหลือที่ให้ป้ายฝั่งขวา ≥ 60 หน่วย
   });
 });
