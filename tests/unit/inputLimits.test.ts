@@ -39,7 +39,7 @@ describe('ช่องกรอกมี maxLength ตรงกับ DB', () =>
     expect(inputTag(read('src/ui/BillDialog.tsx'), 'id="bill-name"')).toContain('maxLength={MAX_NAME_LENGTH}');
   });
   it('บันทึกช่วยจำของรายการ', () => {
-    expect(inputTag(read('src/ui/AddEntryDialog.tsx'), 'id="entry-memo"')).toContain('maxLength={MAX_MEMO_LENGTH}');
+    expect(inputTag(read('src/ui/MemoField.tsx'), 'id="entry-memo"')).toContain('maxLength={MAX_MEMO_LENGTH}');
   });
   it('ช่องพิมพ์จดด่วน (กลายเป็น memo)', () => {
     expect(inputTag(read('src/ui/QuickAdd.tsx'), 'id="quick-text"')).toContain('maxLength={MAX_MEMO_LENGTH}');
@@ -48,7 +48,7 @@ describe('ช่องกรอกมี maxLength ตรงกับ DB', () =>
     for (const [file, name] of [
       ['src/ui/Setup.tsx', 'MAX_NAME_LENGTH'],
       ['src/ui/BillDialog.tsx', 'MAX_NAME_LENGTH'],
-      ['src/ui/AddEntryDialog.tsx', 'MAX_MEMO_LENGTH'],
+      ['src/ui/MemoField.tsx', 'MAX_MEMO_LENGTH'],
       ['src/ui/QuickAdd.tsx', 'MAX_MEMO_LENGTH'],
     ] as const) {
       expect(read(file), file).toMatch(new RegExp(`import[^;]*${name}[^;]*from '[^']*domain/ledger/limits'`, 's'));
