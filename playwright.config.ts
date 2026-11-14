@@ -7,6 +7,8 @@ import { defineConfig } from '@playwright/test';
  */
 export default defineConfig({
   testDir: 'tests/e2e',
+  // ภาพเทียบก่อน/หลัง (tests/e2e/visual.spec.ts · รันเมื่อ VISUAL=1) เก็บใน .visual/<ธีม>/ ไม่เข้า git
+  snapshotPathTemplate: `.visual/${process.env.VISUAL_THEME === 'light' ? 'light' : 'dark'}/{arg}{ext}`,
   testMatch: '**/*.spec.ts',
   timeout: 45_000,
   fullyParallel: true,
