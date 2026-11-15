@@ -2,6 +2,11 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { chunkEntries } from '../domain/backup/chunk';
 import { buildTradeEntry, TradeLinkError } from '../domain/invest/ledgerLink';
 import { checkTradeAdd, checkTradeDelete, replayRecords } from '../domain/invest/rules';
+import { replayTradesFx } from '../domain/invest/costBasisFx';
+import { fxRateFromExchange } from '../domain/invest/fx';
+import { buildFxExchangeEntry, buildUsdTradeEntry, UsdLinkError } from '../domain/invest/ledgerLinkFx';
+import { toTradesFx } from '../domain/invest/tradesFx';
+import { INSTRUMENT_EXCHANGES, assetCurrency } from '../domain/invest/types';
 import { lengthWithin, MAX_NAME_LENGTH } from '../domain/ledger/limits';
 import {
   ASSET_KINDS,
@@ -932,6 +937,121 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
         p_accounts: built.resultAccountIds.map((id) => ({ id })),
       });
       return linked;
+    },
+
+    async addUsdCash(input) {
+      const id = String(input.id ?? '').trim();
+      const name = String(input.name ?? '').trim();
+      if (id === '' || id.length > 90) throw new StorageError('รหัสบัญชีไม่ถูกต้อง');
+      if (!lengthWithin(name, 1, MAX_NAME_LENGTH)) throw new StorageError(`ชื่อบัญชีต้องยาว 1-${MAX_NAME_LENGTH} ตัวอักษร`);
+      const { error } = await client.from('accounts').insert({ id, type: 'asset', name, currency: 'USD', kind: 'investment' });
+      check(error);
+      return { id, type: 'asset', name, currency: 'USD', kind: 'investment' };
+    },
+
+    async addUsdStock(input) {
+      const id = String(input.id ?? '').trim();
+      const name = String(input.name ?? '').trim();
+      const ticker = String(input.ticker ?? '').trim().toUpperCase();
+      const exchange = String(input.exchange ?? '').trim();
+      if (id === '' || id.length > 90) throw new StorageError('รหัสสินทรัพย์ไม่ถูกต้อง');
+      if (!lengthWithin(name, 1, MAX_NAME_LENGTH)) throw new StorageError(`ชื่อหุ้นต้องยาว 1-${MAX_NAME_LENGTH} ตัวอักษร`);
+      if (!lengthWithin(ticker, 1, 20)) throw new StorageError('ticker ต้องยาว 1-20 ตัวอักษร');
+      if (!(INSTRUMENT_EXCHANGES as readonly string[]).includes(exchange)) throw new StorageError('ตลาดไม่อยู่ในรายการที่รองรับ');
+      const accountId = `inv-${id}`;
+      const acc = await client.from('accounts').insert({ id: accountId, type: 'asset', name, currency: 'USD', kind: 'investment' });
+      check(acc.error);
+      const ins = await client.from('assets').insert({ id, name, kind: 'stock', account_id: accountId, instrument_currency: 'USD', ticker, exchange });
+      if (ins.error) {
+        await client.from('accounts').delete().eq('id', accountId).eq('kind', 'investment');
+        check(ins.error);
+      }
+      return { id, name, kind: 'stock', accountId, currency: 'USD', ticker, exchange } as Asset;
+    },
+
+    async recordTradeFx({ trade, cashAccountId }) {
+      const found = await client.from('assets').select('*').eq('id', trade.assetId).maybeSingle();
+      check(found.error);
+      if (!found.data) throw new StorageError('ไม่พบสินทรัพย์นี้');
+      const asset = rowToAsset(found.data as AssetRow);
+      if (assetCurrency(asset) !== 'USD') throw new StorageError('รายการนี้ใช้ได้เฉพาะหุ้นสกุล USD');
+      if (trade.fxRateMicro === undefined) throw new StorageError('ต้องมีอัตราแลกเปลี่ยนของวันรายการ');
+      const siblings = await fetchAll<TradeRow>(
+        'trades',
+        (from, to) => client.from('trades').select('*').eq('asset_id', trade.assetId).order('id').range(from, to),
+        (row) => row.id,
+        'id',
+        { column: 'asset_id', value: trade.assetId },
+      );
+      const existing = siblings.map(rowToTrade);
+      const problem = checkTradeAdd(existing, trade);
+      if (problem) throw new StorageError(problem);
+      const entryId = `${trade.id}-entry`;
+      let built;
+      try {
+        // เล่นซ้ำ 2 ถังรวมรายการใหม่: ตรวจ R20.3 (ต้นทุนบาทปัดเป็น 0) ขายเกิน และได้ต้นทุนที่ตัดออกของรายการขาย
+        const replay = replayTradesFx(toTradesFx([...existing, trade]));
+        const sell = trade.kind === 'sell' ? replay.sells.find((x) => x.id === trade.id)?.result : undefined;
+        built = buildUsdTradeEntry({ trade, assetName: asset.name, assetAccountId: asset.accountId, cashAccountId, entryId, sell });
+      } catch (e) {
+        if (e instanceof UsdLinkError || e instanceof RangeError) throw new StorageError(e.message);
+        throw e;
+      }
+      const linked: TradeRecord = { ...trade, entryId };
+      await rpc('record_trade_fx', {
+        p_trade: {
+          id: linked.id, assetId: linked.assetId, kind: linked.kind, date: linked.date, createdAt: linked.createdAt,
+          units: linked.units, priceMicro: linked.priceMicro, amount: linked.amount, fee: linked.fee,
+          withholding: linked.withholding, memo: linked.memo, fxRateMicro: linked.fxRateMicro,
+          basedOn: existing.length,
+        },
+        p_entry: entryToJson(built.entry),
+        p_accounts: built.resultAccountIds.map((id) => ({ id })),
+      });
+      return linked;
+    },
+
+    async recordFxExchange({ exchange, walletId, cashAccountId }) {
+      let rateMicro: number;
+      try {
+        rateMicro = fxRateFromExchange(exchange.thbSatang, exchange.usdCents);
+      } catch (e) {
+        if (e instanceof RangeError) throw new StorageError(e.message);
+        throw e;
+      }
+      const entryId = `${exchange.id}-entry`;
+      let built;
+      try {
+        built = buildFxExchangeEntry({ exchange: { ...exchange, rateMicro, entryId }, walletId, cashAccountId, entryId });
+      } catch (e) {
+        if (e instanceof UsdLinkError) throw new StorageError(e.message);
+        throw e;
+      }
+      await rpc('record_fx_exchange', {
+        p_exchange: {
+          id: exchange.id, date: exchange.date, createdAt: exchange.createdAt, direction: exchange.direction,
+          thbSatang: exchange.thbSatang, usdCents: exchange.usdCents, memo: exchange.memo,
+        },
+        p_entry: entryToJson(built.entry),
+        p_accounts: built.suspenseAccountIds.map((id) => ({ id })),
+      });
+      return { ...exchange, rateMicro, entryId };
+    },
+
+    async deleteFxExchange(id) {
+      const found = await client.from('fx_exchanges').select('entry_id').eq('id', id).maybeSingle();
+      check(found.error);
+      const entryId = (found.data as { entry_id?: string } | null)?.entry_id;
+      if (!entryId) throw new StorageError('ไม่พบรายการแลกเงินนี้ อาจถูกลบไปแล้ว');
+      await deleteEntryRow(entryId);
+    },
+
+    async saveFxRate(rate: FxRateRecord) {
+      if (!Number.isSafeInteger(rate.rateMicro) || rate.rateMicro <= 0) throw new StorageError('อัตราแลกเปลี่ยนต้องเป็นจำนวนเต็ม micro ที่มากกว่า 0');
+      const { error } = await client
+        .from('fx_rates')
+        .upsert({ user_id: userId, account_id: rate.accountId, date: rate.date, rate_micro: rate.rateMicro }, { onConflict: 'user_id,account_id,date' });
+      check(error);
     },
 
     async deleteTrade(id) {
