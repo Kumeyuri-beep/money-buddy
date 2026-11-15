@@ -121,6 +121,16 @@ describe('ขอบเขตของ applyBuyFx / applySellFx', () => {
     expect(() => buy(1, 0, 400_000)).toThrow(/ปัดเป็น 0 สตางค์/);
     expect(buy(1, 0, 500_000).costThb).toBe(1); // 0.5 -> 1 ผ่าน
   });
+  it('ตรวจต้นทุนบาทของรายการซื้อต่อรายการ (A+F) ทั้งซื้อครั้งแรกและซื้อเพิ่ม: (A+F)×fx = 500,000 ผ่าน · 499,999 ปฏิเสธ · ค่าธรรมเนียมช่วยให้ผ่าน', () => {
+    expect(buy(1, 0, 500_000).costThb).toBe(1);
+    expect(() => buy(1, 0, 499_999)).toThrow(/ปัดเป็น 0 สตางค์/);
+    expect(() => buy(1, 0, 200_000)).toThrow(/ปัดเป็น 0 สตางค์/);
+    expect(buy(1, 2, 200_000).costThb).toBe(1); // (1+2)×0.2 = 0.6 -> 1
+    // ถืออยู่แล้ว (Cthb ≥ 1) ซื้อเพิ่มรายการเล็กที่ปัดเป็น 0 ก็ต้องปฏิเสธ (ถ้อยคำกฎ R20.3 ที่เสนอแก้ให้ตรงกับพฤติกรรมนี้)
+    const held = applyBuyFx(emptyPositionFx(), { units: U(1), amount: 100_100, fee: 0, fxRateMicro: 35_000_000 });
+    expect(held.costThb).toBeGreaterThanOrEqual(1);
+    expect(() => applyBuyFx(held, { units: U(1), amount: 1, fee: 0, fxRateMicro: 400_000 })).toThrow(/ปัดเป็น 0 สตางค์/);
+  });
   it('มูลค่าซื้อ 0 / ค่าธรรมเนียมติดลบ / หน่วย 0 / ทศนิยม ปฏิเสธ', () => {
     expect(() => buy(0, 0, 35_000_000)).toThrow(RangeError);
     expect(() => buy(100, -1, 35_000_000)).toThrow(RangeError);

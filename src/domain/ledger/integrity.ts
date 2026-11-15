@@ -1,3 +1,5 @@
+import type { InvestmentData } from '../invest/types';
+import { checkUsdInvestmentIntegrity } from '../invest/usdIntegrity';
 import { isValidIsoDate, sumByCurrency } from './entry';
 import type { Account, Entry } from './types';
 
@@ -10,7 +12,13 @@ export type IntegrityIssueCode =
   | 'non-integer'
   | 'zero-line'
   | 'unbalanced'
-  | 'amount-overflow';
+  | 'amount-overflow'
+  /** ต้นทุน USD ในสมุดไม่ตรงกับต้นทุนที่เล่นซ้ำ (R17/R20.8) */
+  | 'invest-usd-cost'
+  /** รายการลงทุน USD ผิดรูปแบบ (ไม่มีอัตรา/ชนิดที่ยังไม่รองรับ) */
+  | 'invest-usd-trade'
+  /** รายการแลกเงินไม่ตรงกับ Entry ในสมุด/อัตราไม่ตรงจำนวน (R20.2) */
+  | 'invest-fx-exchange';
 
 export interface IntegrityIssue {
   code: IntegrityIssueCode;
@@ -32,6 +40,8 @@ export interface IntegrityReport {
 export function runIntegrityCheck(
   accounts: readonly Account[],
   entries: readonly Entry[],
+  /** ข้อมูลลงทุน (ไม่บังคับ) ใส่แล้วจะตรวจต้นทุน USD และการแลกเงินด้วย */
+  investments?: InvestmentData,
 ): IntegrityReport {
   const issues: IntegrityIssue[] = [];
 
@@ -114,6 +124,8 @@ export function runIntegrityCheck(
       }
     }
   }
+
+  if (investments) issues.push(...checkUsdInvestmentIntegrity(accounts, entries, investments));
 
   return { ok: issues.length === 0, checkedEntries: entries.length, issues };
 }

@@ -68,6 +68,11 @@ export interface LedgerRepository {
   /** สร้างกระเป๋าเงินสดบาท (บัญชี asset ไม่ใช่บัญชีลงทุน ยอดเริ่มต้น 0) · ใช้เมื่อยังไม่มีกระเป๋าให้ผูกรายการลงทุน */
   addWallet(input: { id: string; name: string }): Promise<Account>;
   /**
+   * เปลี่ยนป้าย kind ของบัญชีเงินสดสกุลบาท (normal = เงินใช้จ่าย · investment = เงินลงทุน) แม้มีรายการแล้ว (R23) · ไม่แตะ Entry/Line · ออนไลน์ผ่าน RPC set_account_kind
+   * บัญชีที่ผูกสินทรัพย์/บัญชี USD/บัญชีที่เป็นกระเป๋าจ่ายของบิล (เมื่อเปลี่ยนเป็นลงทุน) = StorageError · ที่เก็บในเครื่องไม่รองรับ
+   */
+  setAccountKind(id: string, kind: 'normal' | 'investment'): Promise<void>;
+  /**
    * เปลี่ยน "ชื่อที่แสดง" ของกระเป๋าเงิน (เจ้าของตัดสิน 13 พ.ย. 2569) · เขียนเฉพาะคอลัมน์ name เท่านั้น ห้ามแตะรหัสบัญชี ชนิด สกุลเงิน ยอด หรือรายการ
    * ชื่อว่าง/ยาวเกิน/ซ้ำกับกระเป๋าอื่น/ไม่ใช่กระเป๋าเงิน (เช่น บัญชีลงทุน หมวด ยอดยกมา) = StorageError ไม่เปลี่ยนอะไร
    * ทั้งสอง implementation ต้องผ่านชุดเทสต์สัญญาเดียวกัน
@@ -130,6 +135,7 @@ export function createDexieRepository(db: MoneyDB): LedgerRepository {
     loadInvestments: () => Promise.resolve(emptyInvestments()),
     addAsset: () => Promise.reject(localInvestError()),
     addWallet: () => Promise.reject(localInvestError()),
+    setAccountKind: () => Promise.reject(localInvestError()),
     renameWallet: (id, name) => dexie.renameWallet(db, id, name),
     renameCategory: (id, name) => dexie.renameCategory(db, id, name),
     addCategory: (input) => dexie.addCategory(db, input),

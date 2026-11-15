@@ -13,7 +13,18 @@ export interface Asset {
   /** บัญชีลงทุน (kind = investment) ที่เก็บต้นทุนของสินทรัพย์นี้ */
   accountId: string;
   archived?: boolean;
+  /** สกุลของสินทรัพย์ (R20) · ไม่มี = THB (ข้อมูลเดิมทุกรายการ) · ใส่เฉพาะ 'USD' */
+  currency?: InstrumentCurrency;
+  /** ชื่อย่อหุ้น เช่น AAPL (ไม่บังคับ) */
+  ticker?: string;
+  /** ตลาด (ไม่บังคับ) */
+  exchange?: string;
 }
+
+/** สกุลของสินทรัพย์ที่รองรับ (R11/R20) */
+export type InstrumentCurrency = 'THB' | 'USD';
+export const INSTRUMENT_EXCHANGES: readonly string[] = ['NYSE', 'NASDAQ', 'AMEX', 'OTC'];
+export const assetCurrency = (a: Pick<Asset, 'currency'>): InstrumentCurrency => a.currency ?? 'THB';
 
 /** buy = ซื้อ · sell = ขาย · dividend = ปันผลเป็นเงินสด · reinvest = ปันผลลงทุนต่อ (หน่วยเพิ่ม ไม่มีเงินสด) */
 export type TradeKind = 'buy' | 'sell' | 'dividend' | 'reinvest';
@@ -29,7 +40,7 @@ export interface TradeRecord {
   createdAt: string;
   /** จำนวนหน่วย x 10^8 เป็นข้อความจำนวนเต็มบวก (ซื้อ ขาย ปันผลลงทุนต่อ) */
   units?: string;
-  /** ราคาต่อหน่วย micro-baht (ขายต้องมี) */
+  /** ราคาต่อหน่วย micro ของสกุลสินทรัพย์ (ขายต้องมี) */
   priceMicro?: number;
   /** ซื้อ = มูลค่าซื้อ · ปันผล = ยอดปันผล · ปันผลลงทุนต่อ = ต้นทุนที่เพิ่ม (สตางค์ ≥ 1) */
   amount?: number;
@@ -40,6 +51,8 @@ export interface TradeRecord {
   memo: string;
   /** รายการในสมุดบัญชีคู่ที่ผูกกับรายการนี้ (P4) */
   entryId?: string;
+  /** อัตราแลกเปลี่ยน บาทต่อ 1 USD x 10^6 ณ วันรายการ (R20) · มีเฉพาะรายการของสินทรัพย์ USD */
+  fxRateMicro?: number;
 }
 
 export interface AssetPrice {
@@ -49,18 +62,49 @@ export interface AssetPrice {
   priceMicro: number;
 }
 
+/** อัตราที่ผู้ใช้กรอกต่อบัญชีเงินสด USD ต่อวัน (R20 · ใช้เติมอัตราเริ่มต้นของรายการถัดไป) */
+export interface FxRateRecord {
+  accountId: string;
+  /** YYYY-MM-DD */
+  date: string;
+  rateMicro: number;
+}
+
+export type FxDirection = 'thb_to_usd' | 'usd_to_thb';
+export const FX_DIRECTIONS: readonly FxDirection[] = ['thb_to_usd', 'usd_to_thb'];
+
+/** การแลกเงิน: จำนวนสองฝั่งเป็นข้อมูลหลัก · อัตราคำนวณจากสองค่า (R20.2) · ผูกกับ Entry 4 บรรทัดในสมุด */
+export interface FxExchangeRecord {
+  id: string;
+  /** YYYY-MM-DD */
+  date: string;
+  createdAt: string;
+  direction: FxDirection;
+  thbSatang: number;
+  usdCents: number;
+  rateMicro: number;
+  memo: string;
+  entryId: string;
+}
+
 export interface InvestmentData {
   assets: Asset[];
   trades: TradeRecord[];
   prices: AssetPrice[];
+  /** มีเฉพาะเมื่อมีข้อมูล USD (ไฟล์บาทเดิมไม่มีฟิลด์นี้) */
+  fxRates?: FxRateRecord[];
+  fxExchanges?: FxExchangeRecord[];
 }
 
 export const emptyInvestments = (): InvestmentData => ({ assets: [], trades: [], prices: [] });
 
 export const isEmptyInvestments = (d: InvestmentData | undefined): boolean =>
-  d === undefined || (d.assets.length === 0 && d.trades.length === 0 && d.prices.length === 0);
+  d === undefined ||
+  (d.assets.length === 0 && d.trades.length === 0 && d.prices.length === 0 && (d.fxRates?.length ?? 0) === 0 && (d.fxExchanges?.length ?? 0) === 0);
 
 /** เพดานแถวต่อผู้ใช้ (ต้องตรงกับ private.enforce_invest_limits ใน migration 20261111000100) */
 export const MAX_ASSETS = 200;
 export const MAX_TRADES = 10_000;
 export const MAX_PRICES = 10_000;
+export const MAX_FX_RATES = 10_000;
+export const MAX_FX_EXCHANGES = 10_000;

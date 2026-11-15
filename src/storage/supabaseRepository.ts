@@ -3,7 +3,19 @@ import { chunkEntries } from '../domain/backup/chunk';
 import { buildTradeEntry, TradeLinkError } from '../domain/invest/ledgerLink';
 import { checkTradeAdd, checkTradeDelete, replayRecords } from '../domain/invest/rules';
 import { lengthWithin, MAX_NAME_LENGTH } from '../domain/ledger/limits';
-import { ASSET_KINDS, TRADE_KINDS, emptyInvestments, isEmptyInvestments, type Asset, type AssetPrice, type InvestmentData, type TradeRecord } from '../domain/invest/types';
+import {
+  ASSET_KINDS,
+  FX_DIRECTIONS,
+  TRADE_KINDS,
+  emptyInvestments,
+  isEmptyInvestments,
+  type Asset,
+  type AssetPrice,
+  type FxExchangeRecord,
+  type FxRateRecord,
+  type InvestmentData,
+  type TradeRecord,
+} from '../domain/invest/types';
 import { SINGLE_IMPORT_MAX_ENTRIES, SINGLE_IMPORT_MAX_LINES, type BackupData } from '../domain/backup/parseBackup';
 import { payAmountProblem } from '../domain/bills/payAmount';
 import { billProblem, markBillPaid, payableCycle } from '../domain/bills/schedule';
@@ -144,6 +156,10 @@ export interface AssetRow {
   kind: string;
   account_id: string;
   archived: boolean;
+  /** สกุลของสินทรัพย์ (migration 20261115000100) · ไม่มีคอลัมน์/ค่าว่าง = THB */
+  instrument_currency?: string | null;
+  ticker?: string | null;
+  exchange?: string | null;
 }
 
 export interface TradeRow {
@@ -160,6 +176,26 @@ export interface TradeRow {
   withholding: number | string;
   memo: string;
   entry_id: string | null;
+  /** บาทต่อ 1 USD x 10^6 (เฉพาะรายการของสินทรัพย์ USD) */
+  fx_rate_micro?: number | string | null;
+}
+
+export interface FxRateRow {
+  account_id: string;
+  date: string;
+  rate_micro: number | string;
+}
+
+export interface FxExchangeRow {
+  id: string;
+  date: string;
+  created_at: string;
+  direction: string;
+  thb_satang: number | string;
+  usd_cents: number | string;
+  rate_micro: number | string;
+  memo: string;
+  entry_id: string;
 }
 
 export interface PriceRow {
@@ -172,6 +208,12 @@ export function rowToAsset(row: AssetRow): Asset {
   if (!(ASSET_KINDS as readonly string[]).includes(row.kind)) throw new StorageError(`ข้อมูลจากเซิร์ฟเวอร์ไม่ถูกต้อง: ชนิดสินทรัพย์ "${row.kind}"`);
   const asset: Asset = { id: row.id, name: row.name, kind: row.kind as Asset['kind'], accountId: row.account_id };
   if (row.archived) asset.archived = true;
+  if (row.instrument_currency === 'USD') asset.currency = 'USD';
+  else if (row.instrument_currency !== undefined && row.instrument_currency !== null && row.instrument_currency !== 'THB') {
+    throw new StorageError(`ข้อมูลจากเซิร์ฟเวอร์ไม่ถูกต้อง: สกุลของสินทรัพย์ "${row.instrument_currency}"`);
+  }
+  if (typeof row.ticker === 'string' && row.ticker !== '') asset.ticker = row.ticker;
+  if (typeof row.exchange === 'string' && row.exchange !== '') asset.exchange = row.exchange;
   return asset;
 }
 
@@ -203,7 +245,27 @@ export function rowToTrade(row: TradeRow): TradeRecord {
   if (row.price_micro !== null) trade.priceMicro = safeInt(row.price_micro, 'ราคาต่อหน่วย');
   if (row.amount !== null) trade.amount = safeInt(row.amount, 'มูลค่า');
   if (row.entry_id !== null) trade.entryId = row.entry_id;
+  if (row.fx_rate_micro !== undefined && row.fx_rate_micro !== null) trade.fxRateMicro = safeInt(row.fx_rate_micro, 'อัตราแลกเปลี่ยน');
   return trade;
+}
+
+export function rowToFxRate(row: FxRateRow): FxRateRecord {
+  return { accountId: row.account_id, date: row.date, rateMicro: safeInt(row.rate_micro, 'อัตราแลกเปลี่ยน') };
+}
+
+export function rowToFxExchange(row: FxExchangeRow): FxExchangeRecord {
+  if (!(FX_DIRECTIONS as readonly string[]).includes(row.direction)) throw new StorageError(`ข้อมูลจากเซิร์ฟเวอร์ไม่ถูกต้อง: ทิศทางการแลกเงิน "${row.direction}"`);
+  return {
+    id: row.id,
+    date: row.date,
+    createdAt: instantOf(row.created_at),
+    direction: row.direction as FxExchangeRecord['direction'],
+    thbSatang: safeInt(row.thb_satang, 'จำนวนบาทที่แลก'),
+    usdCents: safeInt(row.usd_cents, 'จำนวน USD ที่แลก'),
+    rateMicro: safeInt(row.rate_micro, 'อัตราแลกเปลี่ยน'),
+    memo: row.memo,
+    entryId: row.entry_id,
+  };
 }
 
 export function rowToPrice(row: PriceRow): AssetPrice {
@@ -213,6 +275,9 @@ export function rowToPrice(row: PriceRow): AssetPrice {
 export function assetToJson(a: Asset): Record<string, unknown> {
   const out: Record<string, unknown> = { id: a.id, name: a.name, kind: a.kind, accountId: a.accountId };
   if (a.archived === true) out.archived = true;
+  if (a.currency === 'USD') out.currency = 'USD';
+  if (a.ticker !== undefined) out.ticker = a.ticker;
+  if (a.exchange !== undefined) out.exchange = a.exchange;
   return out;
 }
 
@@ -222,11 +287,24 @@ export function tradeToJson(t: TradeRecord): Record<string, unknown> {
   if (t.priceMicro !== undefined) out.priceMicro = t.priceMicro;
   if (t.amount !== undefined) out.amount = t.amount;
   if (t.entryId !== undefined) out.entryId = t.entryId;
+  if (t.fxRateMicro !== undefined) out.fxRateMicro = t.fxRateMicro;
   return out;
 }
 
+export function fxExchangeToJson(x: FxExchangeRecord): Record<string, unknown> {
+  return { id: x.id, date: x.date, createdAt: x.createdAt, direction: x.direction, thbSatang: x.thbSatang, usdCents: x.usdCents, rateMicro: x.rateMicro, memo: x.memo, entryId: x.entryId };
+}
+
+/** ไฟล์สำรอง/คำสั่งนำเข้า: ฟิลด์ USD ใส่เฉพาะเมื่อมีข้อมูล (ข้อมูลบาทเดิมได้ไฟล์เหมือนเดิมทุกไบต์) */
 export function investmentsToJson(d: InvestmentData): Record<string, unknown> {
-  return { assets: d.assets.map(assetToJson), trades: d.trades.map(tradeToJson), prices: d.prices.map((p) => ({ assetId: p.assetId, date: p.date, priceMicro: p.priceMicro })) };
+  const out: Record<string, unknown> = {
+    assets: d.assets.map(assetToJson),
+    trades: d.trades.map(tradeToJson),
+    prices: d.prices.map((p) => ({ assetId: p.assetId, date: p.date, priceMicro: p.priceMicro })),
+  };
+  if ((d.fxRates?.length ?? 0) > 0) out.fxRates = (d.fxRates ?? []).map((r) => ({ accountId: r.accountId, date: r.date, rateMicro: r.rateMicro }));
+  if ((d.fxExchanges?.length ?? 0) > 0) out.fxExchanges = (d.fxExchanges ?? []).map(fxExchangeToJson);
+  return out;
 }
 
 export function rowToEntry(row: EntryRow): Entry {
@@ -448,7 +526,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
 
   /** ข้อมูลลงทุนของผู้ใช้ (RLS กรองเฉพาะของตัวเอง) · เรียงให้ผลคงที่ */
   async function loadInvestments(): Promise<InvestmentData> {
-    const [assets, trades, prices] = await Promise.all([
+    const [assets, trades, prices, fxRates, fxExchanges] = await Promise.all([
       fetchAll<AssetRow>('assets', (from, to) => client.from('assets').select('*').order('id').range(from, to)),
       fetchAll<TradeRow>('trades', (from, to) => client.from('trades').select('*').order('date').order('created_at').order('id').range(from, to)),
       fetchAll<PriceRow>(
@@ -457,8 +535,18 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
         (row) => `${row.asset_id}\u0000${row.date}`,
         'asset_id',
       ),
+      fetchAll<FxRateRow>(
+        'fx_rates',
+        (from, to) => client.from('fx_rates').select('*').order('account_id').order('date').range(from, to),
+        (row) => `${row.account_id}\u0000${row.date}`,
+        'account_id',
+      ),
+      fetchAll<FxExchangeRow>('fx_exchanges', (from, to) => client.from('fx_exchanges').select('*').order('date').order('created_at').order('id').range(from, to)),
     ]);
-    return { assets: assets.map(rowToAsset), trades: trades.map(rowToTrade), prices: prices.map(rowToPrice) };
+    const data: InvestmentData = { assets: assets.map(rowToAsset), trades: trades.map(rowToTrade), prices: prices.map(rowToPrice) };
+    if (fxRates.length > 0) data.fxRates = fxRates.map(rowToFxRate);
+    if (fxExchanges.length > 0) data.fxExchanges = fxExchanges.map(rowToFxExchange);
+    return data;
   }
 
   /** นำเข้าข้อมูลลงทุนหลังสมุดบัญชีนำเข้าเสร็จ (ฟังก์ชันฐานข้อมูลเดียว อะตอมมิก) · ล้ม = สมุดนำเข้าแล้วแต่ข้อมูลลงทุนยังไม่เข้า */
@@ -750,6 +838,11 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       const { error } = await client.from('accounts').insert({ id, type: 'asset', name, currency: 'THB', kind: 'normal' });
       check(error);
       return { id, type: 'asset', name, currency: 'THB', kind: 'normal' };
+    },
+
+    async setAccountKind(id, kind) {
+      if (typeof id !== 'string' || id === '' || (kind !== 'normal' && kind !== 'investment')) throw new StorageError('ข้อมูลไม่ครบหรือป้ายไม่ถูกต้อง');
+      await rpc('set_account_kind', { p_id: id, p_kind: kind });
     },
 
     async renameWallet(id, rawName) {
