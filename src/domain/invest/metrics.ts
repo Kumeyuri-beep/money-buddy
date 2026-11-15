@@ -395,13 +395,15 @@ function powFixed(f: bigint, n: number): bigint {
  * XIRR: หาอัตราต่อปี (bps) ที่ทำให้มูลค่ารวมของกระแสเงินเป็น 0 นับวันจริง/365 · BigInt ล้วน (แบ่งครึ่งบนอัตรารายวัน -2% ถึง +5%)
  * เงื่อนไขไม่คำนวณ: กระแสเงินน้อยกว่า 2 รายการ · ไม่มีทั้งเข้าและออก · ช่วงน้อยกว่า 30 วัน · ไม่มีคำตอบในช่วงค้นหา
  */
-export function xirrBps(flows: readonly CashFlow[]): IrrResult {
+export function xirrBps(flows: readonly CashFlow[], spanEnd?: string): IrrResult {
   const live = flows.filter((f) => f.amount !== 0n);
   if (live.length < 2) return { kind: 'na', reason: 'few-flows' };
   if (!live.some((f) => f.amount < 0n) || !live.some((f) => f.amount > 0n)) return { kind: 'na', reason: 'no-sign' };
   const sorted = [...live].sort((a, b) => cmp(a.date, b.date));
   const first = sorted[0]!.date;
-  const span = daysBetweenIso(first, sorted[sorted.length - 1]!.date);
+  // R25.3: ช่วงนับจากรายการแรกถึงวันนี้ (spanEnd) · ถ้าไม่ระบุ ใช้กระแสสุดท้าย
+  const lastDate = sorted[sorted.length - 1]!.date;
+  const span = daysBetweenIso(first, spanEnd !== undefined && spanEnd > lastDate ? spanEnd : lastDate);
   if (span < IRR_MIN_DAYS) return { kind: 'na', reason: 'short' };
   const offsets = sorted.map((f) => ({ t: daysBetweenIso(first, f.date), amount: f.amount }));
   const T = offsets[offsets.length - 1]!.t;
@@ -448,7 +450,7 @@ export function computeIrr(data: InvestmentData, asOf: string): IrrResult {
     for (const d of dividendsOf(trades)) flows.push({ date: d.date, amount: BigInt(d.grossThb - d.whtThb) });
   }
   if (holding && holdings && holdings.valueThb !== null && holdings.valueThb > 0) flows.push({ date: asOf, amount: BigInt(holdings.valueThb) });
-  return xirrBps(flows);
+  return xirrBps(flows, asOf);
 }
 
 // ───────────────────────── R25.4 ผลตอบแทนรายเดือน (Modified Dietz) ─────────────────────────

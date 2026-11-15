@@ -317,3 +317,74 @@ describe('R25.4 ผลตอบแทนรายเดือน (Modified Dietz
     expect(r.months[1]).toEqual({ month: '2026-02', bps: 1_000 });
   });
 });
+
+describe('ข้อสังเกตจาก money-auditor (เทสต์เพิ่ม)', () => {
+  it('IRR ขายหมดเร็ว: ซื้อ 1 ม.ค. ขายหมด 10 ม.ค. ดูวันที่ 13 พ.ย. ช่วงนับถึงวันนี้ (>30 วัน) จึงคำนวณได้ ไม่ใช่ short', () => {
+    const d = data({
+      trades: [
+        trade({ id: 'b', date: '2026-01-01', units: '1000000000', amount: 100_000, fee: 0, fxRateMicro: 35_000_000 }),
+        trade({ id: 's', kind: 'sell', date: '2026-01-10', units: '1000000000', priceMicro: 110_000_000, amount: undefined, fee: 0, fxRateMicro: 35_000_000 }),
+      ],
+    });
+    expect(computeIrr(d, '2026-11-13').kind).toBe('ok');
+    expect(computeIrr(d, '2026-01-20')).toEqual({ kind: 'na', reason: 'short' });
+  });
+  it('สลับลำดับ trades ที่ส่งเข้า ผลเท่าเดิมทุกสตางค์', () => {
+    const rev = { ...MAIN, trades: [...MAIN.trades].reverse() };
+    expect(computeProfitSources(rev, TODAY)).toEqual(computeProfitSources(MAIN, TODAY));
+  });
+  it('ขาดทุนลงเศษ .5 ปัดออกจากศูนย์: −15 เซนต์ × 34.50 = −517.5 → −518 สตางค์ · ไม่เป็น −0', () => {
+    const d = data({
+      trades: [trade({ id: 'b', units: '100000000', amount: 10_000, fee: 0, fxRateMicro: 34_500_000 })],
+      prices: [{ assetId: 'us1', date: '2026-11-10', priceMicro: 99_850_000 }],
+      fxRates: [{ accountId: 'usd-cash', date: '2026-11-10', rateMicro: 34_500_000 }],
+    });
+    const r = computeProfitSources(d, TODAY);
+    expect(r.thb!.priceUnrealized).toBe(-518);
+    expect(r.thb!.total).toBe(-517); // 9,985×34.5=344,482.5→344,483 − ต้นทุน 345,000 = −517
+    expect(Object.is(r.thb!.feesAndTax, 0)).toBe(true);
+    const e = computeProfitSources(data(), TODAY).thb!;
+    for (const v of Object.values(e)) expect(Object.is(v, 0)).toBe(true);
+  });
+  it('รายการหลัง asOf ถูกตัดทิ้ง · หุ้นบาท (THB) ไม่เข้าพอร์ตสหรัฐ', () => {
+    const later = { ...MAIN, trades: [...MAIN.trades, trade({ id: 'late', kind: 'dividend', date: '2026-12-01', units: undefined, priceMicro: undefined, amount: 9_999, fee: 0, withholding: 0, fxRateMicro: 34_000_000 })] };
+    expect(computeProfitSources(later, TODAY)).toEqual(computeProfitSources(MAIN, TODAY));
+    expect(computeDividendMetrics(later, TODAY)).toEqual(computeDividendMetrics(MAIN, TODAY));
+    const thb: Asset = { id: 'th1', name: 'หุ้นไทย', kind: 'stock', accountId: 'inv-th', currency: 'THB', ticker: 'TH1', exchange: 'SET' };
+    const withThb = { ...MAIN, assets: [...MAIN.assets, thb], trades: [...MAIN.trades, trade({ id: 'tb', assetId: 'th1', amount: 999_999, fxRateMicro: undefined })] };
+    expect(computeProfitSources(withThb, TODAY)).toEqual(computeProfitSources(MAIN, TODAY));
+  });
+  it('เดือน 30 วันและ ก.พ. ปีอธิกสุรทิน (29 วัน): ซื้อวันที่ 1 → น้ำหนักเต็มเดือน', () => {
+    const mk = (date: string, end: string, priceEnd: number) =>
+      computeMonthlyReturns(
+        data({
+          trades: [trade({ id: 'b', date, units: '1000000000', amount: 100_000, fee: 0, fxRateMicro: 35_000_000 })],
+          prices: [{ assetId: 'us1', date: end, priceMicro: priceEnd }],
+          fxRates: [{ accountId: 'usd-cash', date, rateMicro: 35_000_000 }],
+        }),
+        end,
+      );
+    // ซื้อวันที่ 1: เงินอยู่ครบ (L−1)/L ของเดือน ตัวหาร = 3,500,000 × 29/30 (เม.ย.) และ × 28/29 (ก.พ. 2028)
+    expect(mk('2026-04-01', '2026-04-30', 110_000_000).months[0]!.bps).toBe(1_034); // 350,000 ÷ (3,500,000×29/30)=10.345%
+    expect(mk('2028-02-01', '2028-02-29', 110_000_000).months[0]!.bps).toBe(1_036); // ÷ (3,500,000×28/29)=10.357%
+  });
+  it('ตัวเลขใหญ่เกินช่วงปลอดภัย: throw RangeError ไม่เงียบเพี้ยน', () => {
+    const d = data({
+      trades: [trade({ id: 'b', units: '9000000000000000000', priceMicro: 1_000_000_000, amount: 9_000_000_000_000_000, fee: 0, fxRateMicro: 35_000_000 })],
+      prices: [{ assetId: 'us1', date: '2026-11-10', priceMicro: 1_000_000_000 }],
+      fxRates: [{ accountId: 'usd-cash', date: '2026-11-10', rateMicro: 35_000_000 }],
+    });
+    expect(() => computeProfitSources(d, TODAY)).toThrow(RangeError);
+  });
+  it('หน่วยน้อยมาก/ราคา 1 micro: มูลค่า 0 สตางค์ → yield และ Dietz เป็น null ไม่หารศูนย์', () => {
+    const d = data({
+      trades: [
+        trade({ id: 'b', date: '2026-01-02', units: '1000000000', amount: 100_000, fee: 0, fxRateMicro: 35_000_000 }),
+        trade({ id: 'dv', kind: 'dividend', date: '2026-06-01', units: undefined, priceMicro: undefined, amount: 100, fee: 0, withholding: 0, fxRateMicro: 35_000_000 }),
+      ],
+      prices: [{ assetId: 'us1', date: '2026-11-10', priceMicro: 1 }],
+      fxRates: [{ accountId: 'usd-cash', date: '2026-11-10', rateMicro: 35_000_000 }],
+    });
+    expect(computeDividendMetrics(d, TODAY).yieldBps).toBeNull();
+  });
+});
