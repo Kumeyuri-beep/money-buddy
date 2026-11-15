@@ -314,7 +314,13 @@ export function parseBackup(text: string, today: string): ParseResult {
   const bills = accountsOk ? parseBills(rawBills, accounts, today, p) : [];
   // ข้อมูลลงทุนต้องตรวจเมื่อบัญชีและรายการผ่านแล้วเท่านั้น (อ้างอิงบัญชีลงทุนและ Entry)
   const investments = accountsOk ? parseInvestments(root.investments, accounts, entries, (m) => p.add(m)) : undefined;
-  const hasInvestments = investments !== undefined && (investments.assets.length > 0 || investments.trades.length > 0 || investments.prices.length > 0);
+  const hasInvestments =
+    investments !== undefined &&
+    (investments.assets.length > 0 ||
+      investments.trades.length > 0 ||
+      investments.prices.length > 0 ||
+      (investments.fxRates?.length ?? 0) > 0 ||
+      (investments.fxExchanges?.length ?? 0) > 0);
 
   const rawSettings = isObject(root.settings) ? root.settings : {};
   const settings: FinanceSettings = {};
