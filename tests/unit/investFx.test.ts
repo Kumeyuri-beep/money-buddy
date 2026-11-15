@@ -152,6 +152,35 @@ describe('ขอบเขตของ applyBuyFx / applySellFx', () => {
     expect(s.gainThb).toBe(3_240_000 - 3_000_000);
     expect(s.priceGainThb + s.fxGainThb).toBe(s.gainThb);
   });
+  it('ขายบางส่วนที่ปัดแล้วจะตัดต้นทุนหมด: costOut ถูกจำกัดที่ C−1 ทั้งสองถัง (ต้องเหลือต้นทุน ≥ 1 เมื่อยังถือหน่วยอยู่)', () => {
+    // ต้นทุน 3 เซนต์ ถือ 10 หุ้น ขาย 9 หุ้น: round(3×9/10)=round(2.7)=3 → จำกัดเหลือ 2 · ถังบาท 105 สตางค์: round(105×9/10)=round(94.5)=95 (ไม่เกิน C−1)
+    const p = applyBuyFx(emptyPositionFx(), { units: U(10), amount: 3, fee: 0, fxRateMicro: 35_000_000 });
+    expect(p.costThb).toBe(105);
+    const s = applySellFx(p, { units: U(9), priceMicro: 100_000_000, fee: 0, fxRateMicro: 35_000_000 });
+    expect(s.costOutUsd).toBe(2);
+    expect(s.position.costUsd).toBe(1);
+    expect(s.costOutThb).toBe(95);
+    expect(s.position.costThb).toBe(10);
+    expect(s.position.units).toBe(U(1));
+  });
+  it('ส่วนราคาเป็นศูนย์ต้องเป็น 0 ไม่ใช่ -0 · ส่วนราคาติดลบ 1 เซนต์ที่ 0.5 บาท/USD ปัดออกจากศูนย์เป็น −1', () => {
+    const p0 = applyBuyFx(emptyPositionFx(), { units: U(10), amount: 100_000, fee: 0, fxRateMicro: 35_000_000 });
+    const s0 = applySellFx(p0, { units: U(10), priceMicro: 100_000_000, fee: 0, fxRateMicro: 33_000_000 });
+    expect(s0.priceGainUsd).toBe(0);
+    expect(Object.is(s0.priceGainThb, 0)).toBe(true);
+    expect(s0.fxGainThb).toBe(s0.gainThb);
+    expect(s0.gainThb).toBe(-200_000);
+    const p1 = applyBuyFx(emptyPositionFx(), { units: U(1), amount: 101, fee: 0, fxRateMicro: 1_000_000 });
+    const s1 = applySellFx(p1, { units: U(1), priceMicro: 1_000_000, fee: 0, fxRateMicro: 500_000 }); // ขาย $1.00 ได้ 100 เซนต์ ต้นทุน 101
+    expect(s1.priceGainUsd).toBe(-1);
+    expect(s1.priceGainThb).toBe(-1);
+    expect(s1.gainThb).toBe(-51);
+    expect(s1.fxGainThb).toBe(-50);
+  });
+  it('convertMinor ที่ขอบ 2^53−1: ผลพอดีผ่าน · เกินหนึ่งหน่วยปฏิเสธ', () => {
+    expect(convertMinor(Number.MAX_SAFE_INTEGER, 1_000_000)).toBe(Number.MAX_SAFE_INTEGER);
+    expect(() => convertMinor(Number.MAX_SAFE_INTEGER, 1_000_001)).toThrow(RangeError);
+  });
   it('ตัวเลขใหญ่ใกล้ช่วงปลอดภัยไม่เพี้ยน: ต้นทุน $9,000,000,000.00 ที่อัตรา 35 ยังคำนวณได้ · เกินแล้ว RangeError', () => {
     const p = applyBuyFx(emptyPositionFx(), { units: U(1), amount: 900_000_000_000, fee: 0, fxRateMicro: 35_000_000 });
     expect(p.costThb).toBe(31_500_000_000_000);
@@ -209,7 +238,7 @@ describe('invariant ของ R20.8 (สุ่มลำดับซื้อ/ข
       expect(r.realizedGainThb).toBe(r.realizedPriceGainThb + r.realizedFxGainThb);
       for (const { result } of r.sells) {
         expect(result.priceGainThb + result.fxGainThb).toBe(result.gainThb);
-        expect(result.costOutUsd).toBeGreaterThanOrEqual(1);
+        expect(result.costOutUsd).toBeGreaterThanOrEqual(0); // กฎ R17 ต้องการเพียง C' ≥ 1 เมื่อ U' > 0 (ถ้า C = 1 ขายบางส่วน costOut = 0 ถูกต้อง)
         expect(result.position.costUsd).toBeGreaterThanOrEqual(0);
       }
       const shuffled = [...trades].reverse();
