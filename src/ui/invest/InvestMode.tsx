@@ -80,15 +80,17 @@ export default function InvestMode({ today, accounts, entries, wallets, onLedger
           <div className="invest-head-tools">
             <div className="invest-currency" role="group" aria-label="สกุลเงินที่แสดง">
               {(['THB', 'USD'] as const).map((c) => (
-                <button key={c} type="button" className={`invest-cur${currency === c ? ' is-active' : ''}`} aria-pressed={currency === c} onClick={() => setCurrency(c)}>
+                <button key={c} type="button" aria-label={c === 'THB' ? 'บาท' : 'ดอลลาร์สหรัฐ'} className={`invest-cur${currency === c ? ' is-active' : ''}`} aria-pressed={currency === c} onClick={() => setCurrency(c)}>
                   {c === 'THB' ? '฿' : 'USD'}
                 </button>
               ))}
             </div>
-            <p className="invest-badge muted small" role="status">
-              {badge.updatedOn ? `อัปเดต ${thaiDayLabel(badge.updatedOn)}` : 'ยังไม่มีราคา/อัตรา'}
-              {badge.rateText ? ` · อัตรา ${badge.rateText}` : ''}
-            </p>
+            {data !== null && (
+              <p className="invest-badge muted small" role="status">
+                {badge.updatedOn ? `อัปเดต ${thaiDayLabel(badge.updatedOn)}` : 'ยังไม่มีราคา/อัตรา'}
+                {badge.rateText ? ` · อัตราแลกเปลี่ยน ${badge.rateText}` : ''}
+              </p>
+            )}
           </div>
         </header>
         {loadError !== '' && (
@@ -110,7 +112,7 @@ export default function InvestMode({ today, accounts, entries, wallets, onLedger
               role="tab"
               id={`inv-tab-${t.id}`}
               aria-selected={tab === t.id}
-              aria-controls={`inv-panel-${t.id}`}
+              aria-controls="inv-panel"
               tabIndex={tab === t.id ? 0 : -1}
               className={`pf-tab${tab === t.id ? ' is-active' : ''}`}
               onClick={() => setTab(t.id)}
@@ -120,9 +122,9 @@ export default function InvestMode({ today, accounts, entries, wallets, onLedger
             </button>
           ))}
         </div>
-        <div role="tabpanel" id={`inv-panel-${tab}`} aria-labelledby={`inv-tab-${tab}`}>
+        <div role="tabpanel" id="inv-panel" tabIndex={0} aria-labelledby={`inv-tab-${tab}`}>
           {data === null && loadError === '' ? (
-            <p className="muted" role="status">
+            <p className="muted">
               กำลังโหลดข้อมูลพอร์ต…
             </p>
           ) : tab === 'dashboard' ? (
