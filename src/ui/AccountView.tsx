@@ -9,6 +9,7 @@ import { ChangePasswordForm } from './ChangePasswordForm';
 import { usePasswordPrompt } from './PasswordPrompt';
 import { PolicyText } from './PolicyText';
 import { CategoryNames } from './CategoryNames';
+import { AccountKinds } from './AccountKinds';
 import { WalletNames } from './WalletNames';
 import { ThemeSelector } from './ThemeSelector';
 import { useRepository } from './RepositoryContext';
@@ -104,6 +105,7 @@ export function AccountView({ onReset, onWalletsChanged, onBackedUp }: { onReset
       </section>
       <ThemeSelector />
       <WalletNames onChanged={onWalletsChanged} />
+      <AccountKinds onChanged={onWalletsChanged} />
       <CategoryNames onChanged={onWalletsChanged} />
       <section className="solid card" aria-labelledby="change-pw-title">
         <h2 id="change-pw-title">เปลี่ยนรหัสผ่าน</h2>

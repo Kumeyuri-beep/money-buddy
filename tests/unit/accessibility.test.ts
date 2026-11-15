@@ -148,7 +148,7 @@ describe('หน้าที่โหลดทีหลัง (lazy): ลดข�
   const lazy = src('lazyViews.tsx');
   const app = src('App.tsx');
   it('หน้าภาษี/เกษียณ/พอร์ต/ถัวเฉลี่ย/บัญชี และลิงก์พอร์ตของหน้าภาษีโหลดแยก ไม่ได้ import ตรงใน App', () => {
-    for (const n of ['TaxView', 'TaxPortfolioLink', 'RetirementView', 'PortfolioView', 'AveragingView', 'AccountView']) {
+    for (const n of ['TaxView', 'TaxPortfolioLink', 'RetirementView', 'PortfolioPage', 'AveragingView', 'AccountView']) {
       expect(lazy).toContain(`export const ${n} = lazyView(`);
       expect(app).not.toMatch(new RegExp(`import \\{ ${n} \\} from '\\./${n}'`));
     }

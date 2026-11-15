@@ -40,7 +40,7 @@ function lazyView<C extends ComponentType<any>>(load: () => Promise<C>): Compone
 export const TaxView = lazyView(() => import('./TaxView').then((m) => m.TaxView));
 export const TaxPortfolioLink = lazyView(() => import('./TaxPortfolioLink').then((m) => m.TaxPortfolioLink));
 export const RetirementView = lazyView(() => import('./RetirementView').then((m) => m.RetirementView));
-export const PortfolioView = lazyView(() => import('./PortfolioView').then((m) => m.PortfolioView));
+export const PortfolioPage = lazyView(() => import('./PortfolioPage').then((m) => m.default));
 export const AveragingView = lazyView(() => import('./AveragingView').then((m) => m.AveragingView));
 export const AccountView = lazyView(() => import('./AccountView').then((m) => m.AccountView));
 

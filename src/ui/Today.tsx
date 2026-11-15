@@ -9,6 +9,7 @@ import { RecentEntries } from './overview/RecentEntries';
 import { BackupReminder } from './overview/BackupReminder';
 import { StartGuide } from './overview/StartGuide';
 import { SummaryCards } from './overview/SummaryCards';
+import { WealthPanel } from './overview/WealthPanel';
 import { Wallets } from './overview/Wallets';
 
 interface TodayProps {
@@ -38,6 +39,8 @@ export function Today({ ledger, onAdd, onOpenLedger, finance, onOpenBills, onOpe
       <StartGuide entries={entries} finance={finance} onAdd={onAdd} onOpenBills={onOpenBills} />
       {backup && <BackupReminder entries={entries} settings={finance.settings} today={today} onDownload={backup.onDownload} onSnooze={backup.onSnooze} note={backup.note} />}
       <SummaryCards accounts={accounts} entries={entries} today={today} finance={finance} onOpenLedger={onOpenLedger} onOpenBills={onOpenBills} onAdd={onAdd} />
+
+      <WealthPanel accounts={accounts} entries={entries} today={today} />
 
       <CashFlowSankey accounts={accounts} entries={entries} today={today} view={parseCashFlowView(finance.settings.cashFlowView)} onViewChange={onCashFlowView} />
 
