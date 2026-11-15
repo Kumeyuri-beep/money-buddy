@@ -12,7 +12,7 @@ import { replayTrades } from './costBasis';
 import { replayTradesFx, type TradeFx } from './costBasisFx';
 import { convertMinor } from './fx';
 import { toReplayTrades } from './rules';
-import { assetCurrency, type Asset, type InvestmentData } from './types';
+import { assetCurrency, type Asset, type FxRateRecord, type InvestmentData } from './types';
 import { valueInSatang } from './units';
 
 export type PortfolioTransferKind = 'to-portfolio' | 'from-portfolio';
@@ -72,6 +72,19 @@ function daysBetween(from: string, to: string): number {
   return (t - f) / 86_400_000;
 }
 
+/**
+ * อัตราแลกเปลี่ยนล่าสุดที่ผู้ใช้กรอก ณ วัน asOf (R20.7): วันที่ล่าสุดก่อนหรือเท่า asOf · วันเดียวกันหลายบัญชี USD ให้รหัสบัญชีมากสุดชนะ (กติกาเดียวกันทุกหน้าจอ ตัวเลขจึงตรงกัน)
+ * ไม่มี = null (ไม่เดา)
+ */
+export function latestFxRate(rates: readonly FxRateRecord[], asOf: string): { date: string; rateMicro: number } | null {
+  let best: FxRateRecord | null = null;
+  for (const r of rates) {
+    if (r.date > asOf) continue;
+    if (best === null || r.date > best.date || (r.date === best.date && r.accountId > best.accountId)) best = r;
+  }
+  return best ? { date: best.date, rateMicro: best.rateMicro } : null;
+}
+
 export type WealthMissing = { kind: 'price'; assetId: string } | { kind: 'fx' };
 export type WealthStale = { kind: 'price'; assetId: string; date: string; days: number } | { kind: 'fx'; date: string; days: number };
 
@@ -106,10 +119,7 @@ export function wealthSummary(accounts: readonly Account[], entries: readonly En
   }
 
   // ---- อัตราล่าสุดที่กรอก (R20.7) ----
-  let fx: { date: string; rateMicro: number } | undefined;
-  for (const r of [...(inv.fxRates ?? [])].sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : x.accountId < y.accountId ? -1 : 1))) {
-    if (r.date <= asOf) fx = { date: r.date, rateMicro: r.rateMicro };
-  }
+  const fx = latestFxRate(inv.fxRates ?? [], asOf) ?? undefined;
   let fxNeeded = false;
   const toThb = (cents: number): number | undefined => (fx ? convertMinor(cents, fx.rateMicro) : undefined);
 

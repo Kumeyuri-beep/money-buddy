@@ -2,7 +2,7 @@ import type { BackupData } from '../domain/backup/parseBackup';
 import type { FinanceSettings } from '../domain/bills/settings';
 import type { SettingsKey, SettingsPatch } from '../domain/bills/settingsPatch';
 import type { Bill } from '../domain/bills/types';
-import { emptyInvestments, type Asset, type AssetKind, type AssetPrice, type InvestmentData, type TradeRecord } from '../domain/invest/types';
+import { emptyInvestments, type Asset, type AssetKind, type AssetPrice, type FxExchangeRecord, type FxRateRecord, type InvestmentData, type TradeRecord } from '../domain/invest/types';
 import type { Account, Entry, NewEntry } from '../domain/ledger/types';
 import type { MoneyDB } from './db';
 import * as dexie from './repository';
@@ -102,6 +102,24 @@ export interface LedgerRepository {
   deleteTrade(id: string): Promise<void>;
   /** ราคาล่าสุดที่ผู้ใช้กรอกเอง (หนึ่งราคาต่อสินทรัพย์ต่อวัน · กรอกซ้ำวันเดิม = แก้ราคา) */
   savePrice(price: AssetPrice): Promise<void>;
+
+  // ---- หุ้นสหรัฐและการแลกเงิน (A3-2 · R20) · ออนไลน์เท่านั้น ----
+  /** สร้างบัญชีเงินสด USD (บัญชีสินทรัพย์สกุล USD ป้ายเงินลงทุน ไม่ผูกสินทรัพย์ ยอดเริ่มต้น 0) · รหัสซ้ำ/ชื่อผิดกติกา = StorageError */
+  addUsdCash(input: { id: string; name: string }): Promise<Account>;
+  /** สร้างหุ้นสหรัฐ: สินทรัพย์สกุล USD (ticker + ตลาด) + บัญชีต้นทุน USD ของมัน · ล้มกลางทางจะลบบัญชีที่สร้างทิ้ง */
+  addUsdStock(input: { id: string; name: string; ticker: string; exchange: string }): Promise<Asset>;
+  /**
+   * บันทึกซื้อ/ขาย/ปันผลของหุ้นสหรัฐ + รายการในสมุด USD ในธุรกรรมเดียว (RPC record_trade_fx)
+   * trade.fxRateMicro = อัตราบาทต่อ 1 USD ณ วันรายการ (บังคับ) · เล่นซ้ำ 2 ถังและตรวจ R20.3 ก่อนส่ง · ฐานข้อมูลตรวจซ้ำ
+   * cashAccountId = บัญชีเงินสด USD ที่จ่าย/รับเงิน
+   */
+  recordTradeFx(input: { trade: TradeRecord; cashAccountId: string }): Promise<TradeRecord>;
+  /** บันทึกการแลกเงินบาท↔USD + Entry 4 บรรทัดในธุรกรรมเดียว (RPC record_fx_exchange) · อัตราคำนวณจากสองจำนวน (R20.2) */
+  recordFxExchange(input: { exchange: Omit<FxExchangeRecord, 'rateMicro' | 'entryId'>; walletId: string; cashAccountId: string }): Promise<FxExchangeRecord>;
+  /** ลบการแลกเงิน = ลบรายการในสมุดที่ผูก (แถวแลกเงินถูกลบตาม) · เงินสด USD อาจติดลบได้ (หน้าจอเตือน) */
+  deleteFxExchange(id: string): Promise<void>;
+  /** อัตราแลกเปลี่ยนล่าสุดที่ผู้ใช้กรอกเอง (หนึ่งอัตราต่อบัญชี USD ต่อวัน · ซ้ำวันเดิม = แก้) ใช้คำนวณมูลค่าพอร์ตเป็นบาท */
+  saveFxRate(rate: FxRateRecord): Promise<void>;
 }
 
 const localInvestError = (): StorageError => new StorageError('พอร์ตลงทุนใช้ได้เฉพาะบัญชีออนไลน์ (ที่เก็บในเครื่องไม่รองรับ)');
@@ -143,5 +161,11 @@ export function createDexieRepository(db: MoneyDB): LedgerRepository {
     recordTrade: () => Promise.reject(localInvestError()),
     deleteTrade: () => Promise.reject(localInvestError()),
     savePrice: () => Promise.reject(localInvestError()),
+    addUsdCash: () => Promise.reject(localInvestError()),
+    addUsdStock: () => Promise.reject(localInvestError()),
+    recordTradeFx: () => Promise.reject(localInvestError()),
+    recordFxExchange: () => Promise.reject(localInvestError()),
+    deleteFxExchange: () => Promise.reject(localInvestError()),
+    saveFxRate: () => Promise.reject(localInvestError()),
   };
 }

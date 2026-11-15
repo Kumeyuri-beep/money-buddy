@@ -88,7 +88,7 @@ function Sparkline({ values }: { values: readonly number[] }) {
 
 function NetWorthCard({ state, onAdd }: { state: Overview['netWorth']; onAdd?: () => void }) {
   return (
-    <Card label="NET WORTH" title="ความมั่งคั่งสุทธิ" drift>
+    <Card label="NET WORTH" title="มูลค่าสุทธิ (ราคาทุน)" drift>
       {state.kind !== 'value' ? (
         <>
           <Waiting headline="ยังไม่มีรายการ" reason="ต้องมีรายการอย่างน้อยหนึ่งรายการ" />

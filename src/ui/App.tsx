@@ -36,7 +36,7 @@ import { IntegrityBanner, IntegrityStatus } from './Integrity';
 import { LedgerView } from './LedgerView';
 import { Setup } from './Setup';
 import { FORM_SETTINGS_KEYS, formSettingsPatch } from '../domain/bills/settingsPatch';
-import { AccountView, AveragingView, PortfolioView, RetirementView, TaxPortfolioLink, TaxView, ViewLoading } from './lazyViews';
+import { AccountView, AveragingView, PortfolioPage, RetirementView, TaxPortfolioLink, TaxView, ViewLoading } from './lazyViews';
 import { Shell, type ViewId } from './Shell';
 import { ScanStatus } from './ScanStatus';
 import { Toast } from './Toast';
@@ -515,7 +515,7 @@ export function App() {
       ) : view === 'tax' ? (
         <TaxView portfolio={(fill, current) => <TaxPortfolioLink onFill={fill} current={current} />} />
       ) : view === 'portfolio' ? (
-        <PortfolioView today={today} wallets={walletOptions(accounts).map((a) => ({ id: a.id, name: a.name }))} onLedgerChanged={() => void refresh()} />
+        <PortfolioPage today={today} accounts={accounts} entries={state.ledger.entries} wallets={walletOptions(accounts).map((a) => ({ id: a.id, name: a.name }))} onLedgerChanged={() => void refresh()} />
       ) : view === 'bills' ? (
         <BillsView
           bills={state.bills}
