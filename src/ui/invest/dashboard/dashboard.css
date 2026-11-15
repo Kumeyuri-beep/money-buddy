@@ -1,0 +1,60 @@
+/* แท็บแดชบอร์ดของโหมดพอร์ต · ฐาน (ทุกจอ): เรียงเป็นคอลัมน์เดียว · จัดตารางหลายคอลัมน์เฉพาะคอม (≥1024px) */
+.dash { display: grid; gap: 16px; }
+.dash-row { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+.dash-card { min-width: 0; display: grid; gap: 8px; align-content: start; }
+.dash-card h2 { margin: 0; font-size: 16px; }
+.dash-card p { margin: 0; }
+.dash-big { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: normal; }
+.dash .is-pos { color: var(--income); }
+.dash .is-neg { color: var(--expense); }
+.dash-hero .dash-big { color: var(--gold); }
+
+.dash-seg { display: inline-flex; gap: 6px; }
+.dash-seg-btn { min-height: 44px; padding: 6px 14px; font: inherit; font-weight: 600; color: var(--text); background: var(--ov-6); border: 1px solid var(--ov-14); border-radius: 999px; cursor: pointer; }
+.dash-seg-btn.is-active { background: var(--ov-14); border-color: var(--gold); text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 5px; }
+.dash-seg-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+.dash-alloc { display: grid; gap: 12px; justify-items: center; }
+.dash-donut { width: 160px; height: 160px; }
+.dash-donut-bg { stroke: var(--ov-14); }
+.dash-slice.s1 { stroke: var(--chart-slice1); }
+.dash-swatch.s1 { background: var(--chart-slice1); }
+.dash-slice.s2 { stroke: var(--chart-slice2); }
+.dash-swatch.s2 { background: var(--chart-slice2); }
+.dash-slice.s3 { stroke: var(--chart-slice3); }
+.dash-swatch.s3 { background: var(--chart-slice3); }
+.dash-slice.s4 { stroke: var(--chart-slice4); }
+.dash-swatch.s4 { background: var(--chart-slice4); }
+.dash-slice.s5 { stroke: var(--chart-slice5); }
+.dash-swatch.s5 { background: var(--chart-slice5); }
+.dash-slice.s6 { stroke: var(--chart-slice6); }
+.dash-swatch.s6 { background: var(--chart-slice6); }
+.dash-slice.s7 { stroke: var(--chart-slice7); }
+.dash-swatch.s7 { background: var(--chart-slice7); }
+.dash-slice.sother { stroke: var(--chart-slice-other); }
+.dash-swatch.sother { background: var(--chart-slice-other); }
+.dash-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; width: 100%; }
+.dash-legend li { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.dash-swatch { width: 12px; height: 12px; border-radius: 3px; }
+
+.dash-months { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.dash-months li { display: grid; grid-template-columns: 3.2em minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.dash-months .dash-hbar { margin-top: 0; }
+.dash-mlabel { font-size: 13px; color: var(--muted); }
+.dash-mval { font-size: 13px; white-space: nowrap; text-align: right; }
+
+.dash-sources { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.dash-src-head { display: flex; justify-content: space-between; gap: 12px; }
+.dash-hbar { height: 8px; border-radius: 999px; background: var(--ov-14); overflow: hidden; margin-top: 4px; }
+.dash-hbar-fill { display: block; height: 100%; border-radius: 999px; }
+.dash-hbar-fill.is-pos { background: var(--income); }
+.dash-hbar-fill.is-neg { background: var(--expense); }
+
+@media (min-width: 1024px) {
+  .dash-top { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .dash-top .dash-hero { grid-column: 1 / -1; }
+  .dash-mid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dash-bottom { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dash-big { font-size: clamp(18px, 1.6vw, 22px); }
+  .dash-hero .dash-big { font-size: clamp(28px, 2.6vw, 34px); }
+}

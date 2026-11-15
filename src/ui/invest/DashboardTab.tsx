@@ -1,21 +1,39 @@
+import { useMemo } from 'react';
+import { friendlyError } from '../../app/errorText';
 import { WealthPanel } from '../overview/WealthPanel';
-import { UsOverview } from '../UsOverview';
 import { useInvest } from './InvestContext';
+import { DashboardBody } from './dashboard/DashboardCards';
+import { buildDashboardView } from './dashboard/dashboardView';
+import './dashboard/dashboard.css';
 
 /**
- * แท็บ "แดชบอร์ด" — โครงที่ GM วางไว้ให้ลูกน้อง 1 (ดูบรีฟ docs/plans/brief-invest-dashboard.md)
- * ระหว่างรอ: แสดงการ์ดเดิมของ A3-2 (ความมั่งคั่งรวม + สรุปหุ้นสหรัฐ) ที่ย้ายมาจากหน้าภาพรวม เพื่อไม่ให้ฟีเจอร์หาย
- * ลูกน้อง 1 แทนที่ทั้งแท็บนี้ด้วยแดชบอร์ดเต็ม (ไฟล์นี้และโฟลเดอร์ src/ui/invest/dashboard/ เป็นของลูกน้อง 1)
+ * แท็บ "แดชบอร์ด" ของโหมดพอร์ต (แบบ A แนว Snowball · ดูบรีฟ docs/plans/brief-invest-dashboard.md)
+ * ตัวเลขทั้งหมดมาจากฟังก์ชันโดเมน (ดู dashboard/dashboardView.ts) · สกุลที่แสดงตามปุ่ม ฿/USD ที่หัวโหมด
+ * การ์ด "ความมั่งคั่งรวม" เดิม (WealthPanel · ตัวเลขเดิมไม่เปลี่ยน) คงไว้ท้ายหน้า เพื่อไม่ให้ฟีเจอร์เดิมหาย
  */
 export function DashboardTab() {
-  const { today, accounts, entries, data } = useInvest();
+  const { today, accounts, entries, data, currency } = useInvest();
+  // สร้างมุมมองใน try/catch: ข้อมูลพังเฉพาะแท็บนี้ ไม่ทำให้ทั้งโหมดล้ม
+  const built = useMemo(() => {
+    if (data === null) return null;
+    try {
+      return { view: buildDashboardView(accounts, entries, data, today), failure: '' };
+    } catch (e) {
+      return { view: null, failure: friendlyError(e) };
+    }
+  }, [accounts, entries, data, today]);
+
+  if (built === null) return null;
   return (
-    <div className="invest-tab invest-dashboard">
-      <p className="muted small" role="note">
-        แดชบอร์ดเต็มรูปแบบกำลังพัฒนา ตอนนี้แสดงสรุปเดิม
-      </p>
+    <div className="invest-tab invest-dashboard dash">
+      {built.view === null ? (
+        <p className="form-error" role="alert">
+          แสดงแดชบอร์ดไม่สำเร็จ: {built.failure}
+        </p>
+      ) : (
+        <DashboardBody view={built.view} currency={currency} />
+      )}
       <WealthPanel accounts={accounts} entries={entries} today={today} investments={data} />
-      <UsOverview today={today} accounts={accounts} entries={entries} investments={data} />
     </div>
   );
 }
