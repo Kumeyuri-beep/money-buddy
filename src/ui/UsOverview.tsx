@@ -21,11 +21,13 @@ function Dash() {
  * ภาพรวมพอร์ตหุ้นสหรัฐ (A3-2 · แท็บ "ภาพรวมพอร์ต"): มูลค่ารวมบาท/USD ต้นทุนบาท กำไรยังไม่ขาย การ์ด "กำไรมาจากไหน" และสัดส่วน
  * แสดงเมื่อมีข้อมูล USD เท่านั้น (ไม่มี = ไม่แสดงอะไร ภาพรวมเดิมไม่เปลี่ยน) · ไม่มีราคา/อัตรา = "—" ไม่ใช้ต้นทุนแทน (R20.7)
  */
-export function UsOverview({ today, accounts, entries }: { today: string; accounts: readonly Account[]; entries: readonly Entry[] }) {
+export function UsOverview({ today, accounts, entries, investments }: { today: string; accounts: readonly Account[]; entries: readonly Entry[]; investments?: InvestmentData | null }) {
   const repo = useRepository();
-  const [data, setData] = useState<InvestmentData | null>(null);
+  const [own, setData] = useState<InvestmentData | null>(null);
   const [error, setError] = useState('');
+  const data = investments !== undefined ? investments : own;
   useEffect(() => {
+    if (investments !== undefined) return; // ผู้เรียกส่งข้อมูลมาให้แล้ว ไม่ต้องโหลดซ้ำ
     let cancelled = false;
     repo
       .loadInvestments()
@@ -34,7 +36,7 @@ export function UsOverview({ today, accounts, entries }: { today: string; accoun
     return () => {
       cancelled = true;
     };
-  }, [repo]);
+  }, [repo, investments]);
   const view = useMemo(() => buildUsPortfolio(accounts, entries, data ?? emptyInvestments(), today), [accounts, entries, data, today]);
 
   if (error !== '') {
