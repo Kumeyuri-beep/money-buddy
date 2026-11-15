@@ -72,3 +72,19 @@ describe('buildFxExchange', () => {
     expect(tiny.ok).toBe(false);
   });
 });
+
+describe('ขอบเขตตัวเลข (R14) ของฟอร์ม USD', () => {
+  const ex = (thb: string, usd: string) => buildFxExchange({ ...emptyFxExchangeForm('2026-11-02'), thb, usd }, 'x', NOW, TODAY);
+  it('0.005 ปัดครึ่งขึ้นเป็น 1 เซนต์ · -0 และ +5 ถูกปฏิเสธ · เลขยาวเกินช่วงปลอดภัยถูกปฏิเสธ ไม่ throw', () => {
+    expect(ex('0.005', '0.005')).toMatchObject({ ok: true, rateMicro: 1_000_000, exchange: { thbSatang: 1, usdCents: 1 } });
+    expect(ex('-0', '10').ok).toBe(false);
+    expect(ex('+5', '10').ok).toBe(false);
+    expect(ex('99999999999999999999', '10').ok).toBe(false);
+    expect(ex('10', '99999999999999999999').ok).toBe(false);
+  });
+  it('ปันผลที่ภาษีหัก = ยอด − 1 เซนต์ ผ่าน (สุทธิ 1 เซนต์) แต่ = ยอดถูกปฏิเสธ', () => {
+    const f = (w: string) => buildUsTradeRecord({ ...emptyUsTradeForm('us1', 'dividend', '2026-11-03', '35'), amount: '1.00', withholding: w }, 'd', NOW, TODAY);
+    expect(f('0.99')).toMatchObject({ ok: true, trade: { amount: 100, withholding: 99 } });
+    expect(f('1.00').ok).toBe(false);
+  });
+});

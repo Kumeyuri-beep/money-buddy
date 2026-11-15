@@ -12,6 +12,7 @@ import { INSTRUMENT_EXCHANGES, assetCurrency, emptyInvestments, type InvestmentD
 import { formatUnits, parsePriceMicro } from '../domain/invest/units';
 import type { Account, Entry } from '../domain/ledger/types';
 import { formatMicro } from '../domain/money/micro';
+import { safeAdd } from '../domain/money/safe';
 import { nextCreatedAt } from '../storage/repository';
 import { useRepository } from './RepositoryContext';
 
@@ -767,7 +768,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
       {view.rows.length > 0 && t.valueThb > 0 && (
         <p className="muted small" role="note">
           สัดส่วนตามมูลค่า: {view.allocation.map((s) => `${s.key === 'other' ? 'อื่นๆ' : (view.rows.find((r) => r.assetId === s.key)?.ticker ?? s.key)} ${formatBps(s.bps)}`).join(' · ')} · กำไรรวมที่ขายแล้ว {signed(t.realizedGainThb)} (ตัวเลขช่วยดู ไม่ใช่ตัวเลขสำหรับยื่นภาษี)
-          · ปันผลสะสมสุทธิรวม {usdSigned(view.rows.reduce((n, r) => n + r.dividendNetUsd, 0))}
+          · ปันผลสะสมสุทธิรวม {usdSigned(view.rows.reduce((n, r) => safeAdd(n, r.dividendNetUsd), 0))}
         </p>
       )}
     </div>

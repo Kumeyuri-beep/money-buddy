@@ -9,14 +9,14 @@ import { daysBetween } from '../domain/bills/calendar';
 import { allocateBps, groupSmallShares, type AllocationShare } from '../domain/invest/allocation';
 import { replayTradesFx } from '../domain/invest/costBasisFx';
 import { convertMinor, dividendInThb } from '../domain/invest/fx';
-import { WEALTH_STALE_DAYS } from '../domain/invest/portfolioMoney';
+import { WEALTH_STALE_DAYS, latestFxRate } from '../domain/invest/portfolioMoney';
 import { toTradesFx } from '../domain/invest/tradesFx';
 import { assetCurrency, type FxDirection, type InvestmentData, type TradeRecord } from '../domain/invest/types';
 import { toSafeSatang, valueInSatang } from '../domain/invest/units';
 import { usdCashBalances, type UsdCashBalance } from '../domain/invest/usdIntegrity';
 import type { Account, Entry } from '../domain/ledger/types';
 import { roundHalfUpBig } from '../domain/money/round';
-import { safeAdd } from '../domain/money/safe';
+import { safeAdd, safeSub } from '../domain/money/safe';
 
 export interface UsStockRow {
   assetId: string;
@@ -109,15 +109,9 @@ function avgCostMicroOf(costUsd: number, units: bigint): number | null {
   }
 }
 
-function latestFx(data: InvestmentData, today: string): { rateMicro: number; date: string } | null {
-  let best: { rateMicro: number; date: string } | null = null;
-  for (const r of data.fxRates ?? []) if (r.date <= today && (best === null || r.date > best.date)) best = { rateMicro: r.rateMicro, date: r.date };
-  return best;
-}
-
 export function buildUsPortfolio(accounts: readonly Account[], entries: readonly Entry[], data: InvestmentData, today: string): UsPortfolio {
   const usdAssets = data.assets.filter((a) => assetCurrency(a) === 'USD');
-  const fxRaw = latestFx(data, today);
+  const fxRaw = latestFxRate(data.fxRates ?? [], today);
   const fx = fxRaw ? (() => { const days = daysBetween(fxRaw.date, today); return { ...fxRaw, days, stale: days > WEALTH_STALE_DAYS }; })() : null;
 
   const rows: UsStockRow[] = [];
@@ -160,23 +154,33 @@ export function buildUsPortfolio(accounts: readonly Account[], entries: readonly
     let unrealized: number | null = null;
     let priceGain: number | null = null;
     let fxGain: number | null = null;
+    let rowError: string | undefined;
     if (pos.units > 0n) {
       if (price === null || fx === null) complete = false;
-      if (price !== null) {
-        valueUsd = valueInSatang(pos.units, price.priceMicro);
-        if (fx !== null) {
-          valueThb = convertMinor(valueUsd, fx.rateMicro);
-          unrealized = valueThb - pos.costThb;
-          const gainUsd = valueUsd - pos.costUsd;
-          priceGain = gainUsd < 0 ? -convertMinor(-gainUsd, fx.rateMicro) : convertMinor(gainUsd, fx.rateMicro);
-          fxGain = unrealized - priceGain;
+      try {
+        if (price !== null) {
+          valueUsd = valueInSatang(pos.units, price.priceMicro);
+          if (fx !== null) {
+            valueThb = convertMinor(valueUsd, fx.rateMicro);
+            unrealized = safeSub(valueThb, pos.costThb);
+            const gainUsd = safeSub(valueUsd, pos.costUsd);
+            priceGain = gainUsd < 0 ? -convertMinor(-gainUsd, fx.rateMicro) : convertMinor(gainUsd, fx.rateMicro);
+            priceGain = priceGain || 0; // กัน -0
+            fxGain = safeSub(unrealized, priceGain) || 0;
+          }
         }
+      } catch (e) {
+        if (!(e instanceof RangeError)) throw e;
+        // ตัวเลขใหญ่เกินช่วงปลอดภัย: แถวนี้ไม่แสดงมูลค่า/กำไร (ไม่ทำให้ทั้งหน้าล้ม) และรวมไม่ครบ
+        valueUsd = valueThb = unrealized = priceGain = fxGain = null;
+        rowError = 'ตัวเลขใหญ่เกินช่วงที่รองรับ จึงคำนวณมูลค่าไม่ได้';
+        complete = false;
       }
     }
     rows.push({
       ...base, units: pos.units, costUsd: pos.costUsd, costThb: pos.costThb, avgCostMicro: avgCostMicroOf(pos.costUsd, pos.units), price,
       valueUsd, valueThb, unrealizedThb: unrealized, priceGainThb: priceGain, fxGainThb: fxGain,
-      dividendNetUsd: divUsd, dividendNetThb: divThb, realizedGainThb: replay.realizedGainThb,
+      dividendNetUsd: divUsd, dividendNetThb: divThb, realizedGainThb: replay.realizedGainThb, ...(rowError ? { error: rowError } : {}),
     });
     totals.costThb = safeAdd(totals.costThb, pos.costThb);
     totals.dividendNetThb = safeAdd(totals.dividendNetThb, divThb);

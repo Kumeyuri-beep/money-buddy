@@ -140,3 +140,56 @@ describe('buildUsPortfolio (A3-2)', () => {
     expect(q.allocation.map((s) => s.key)).toEqual(['us1', 'us2']);
   });
 });
+
+describe('buildUsPortfolio: ขอบเขตตัวเลข (R14) และกติกาอัตราล่าสุด', () => {
+  const one = (over: Partial<InvestmentData>) => buildUsPortfolio(accounts, entries, data(over), TODAY);
+
+  it('อัตราวันเดียวกันหลายบัญชี USD: รหัสบัญชีมากสุดชนะ เหมือนการ์ดความมั่งคั่งรวม (ตัวเลขตรงกันทุกหน้า)', () => {
+    const rates = [
+      { accountId: 'usd-b', date: '2026-11-12', rateMicro: 36_000_000 },
+      { accountId: 'usd-a', date: '2026-11-12', rateMicro: 35_000_000 },
+      { accountId: 'usd-a', date: '2026-11-05', rateMicro: 99_000_000 },
+    ];
+    const q = one({ fxRates: rates });
+    expect(q.fx).toMatchObject({ rateMicro: 36_000_000, date: '2026-11-12' });
+    expect(q.rows[0]!.valueThb).toBe(75_000 * 36);
+    // สลับลำดับในอาร์เรย์ ผลต้องเท่าเดิม
+    expect(one({ fxRates: [...rates].reverse() }).fx).toMatchObject({ rateMicro: 36_000_000 });
+  });
+
+  it('ตัวเลขใหญ่เกินช่วงปลอดภัย: แถวนั้นคำนวณไม่ได้ (error + ไม่ครบ) ไม่ทำให้ทั้งหน้าล้ม', () => {
+    // 1,000 หุ้น x ราคา $9,007,199,254 ต่อหุ้น = 9 x 10^14 เซนต์ · x อัตรา 40 = 3.6 x 10^16 สตางค์ เกินช่วงปลอดภัย
+    const t = [trade({ id: 'big', units: '100000000000', amount: 100_000, fee: 0 })];
+    const big = one({ trades: t, prices: [{ assetId: 'us1', date: '2026-11-12', priceMicro: Number.MAX_SAFE_INTEGER }], fxRates: [{ accountId: 'usd-cash', date: '2026-11-12', rateMicro: 40_000_000 }] });
+    expect(big.rows[0]).toMatchObject({ valueUsd: null, valueThb: null, unrealizedThb: null, priceGainThb: null, fxGainThb: null });
+    expect(big.rows[0]!.error).toContain('เกินช่วง');
+    expect(big.totals.complete).toBe(false);
+    expect(big.rows[0]!.units).toBe(100_000_000_000n); // หน่วยและต้นทุนยังถูกต้อง
+  });
+
+  it('ขาดทุนราคา 1 เซนต์ที่อัตราต่ำมาก (ปัดเป็น 0 สตางค์): ส่วนราคาเป็น 0 ไม่ใช่ -0', () => {
+    // ซื้อ 1 หุ้น $100.00 ที่ 35 · ราคาตอนนี้ $99.99 (ขาดทุน 1 เซนต์) · อัตราตอนนี้ 0.4 บาท/USD → 1 เซนต์ x 0.4 = 0.4 สตางค์ ปัดเป็น 0
+    const t = [trade({ id: 'one', units: '100000000', amount: 10_000, fee: 0 })];
+    const q = one({ trades: t, prices: [{ assetId: 'us1', date: '2026-11-12', priceMicro: 99_990_000 }], fxRates: [{ accountId: 'usd-cash', date: '2026-11-12', rateMicro: 400_000 }] });
+    expect(Object.is(q.rows[0]!.priceGainThb, -0)).toBe(false);
+    expect(q.rows[0]!.priceGainThb).toBe(0);
+    expect(q.rows[0]!.priceGainThb! + q.rows[0]!.fxGainThb!).toBe(q.rows[0]!.unrealizedThb);
+  });
+
+  it('มูลค่าบาทที่ลงที่ .5 สตางค์พอดีปัดครึ่งขึ้นครั้งเดียว · มูลค่าเล็กจนเป็น 0 สตางค์ไม่ crash', () => {
+    // 1 หุ้น ราคา $0.01 = 1 เซนต์ ที่อัตรา 0.5 บาท/USD → 0.5 สตางค์ → ปัดเป็น 1
+    const t = [trade({ id: 'half', units: '100000000', amount: 10, fee: 0 })];
+    const half = one({ trades: t, prices: [{ assetId: 'us1', date: '2026-11-12', priceMicro: 10_000 }], fxRates: [{ accountId: 'usd-cash', date: '2026-11-12', rateMicro: 500_000 }] });
+    expect(half.rows[0]).toMatchObject({ valueUsd: 1, valueThb: 1 });
+    const tiny = one({ trades: t, prices: [{ assetId: 'us1', date: '2026-11-12', priceMicro: 1 }], fxRates: [{ accountId: 'usd-cash', date: '2026-11-12', rateMicro: 35_000_000 }] });
+    expect(tiny.rows[0]).toMatchObject({ valueUsd: 0, valueThb: 0 });
+  });
+
+  it('ปันผลสุทธิ 1 เซนต์ (W = D − 1): ได้ net 1 เซนต์ และบาทไม่ติดลบ', () => {
+    const t = [...trades, trade({ id: 'd2', kind: 'dividend', date: '2026-11-11', createdAt: '2026-11-11T03:00:00.000Z', units: undefined, priceMicro: undefined, amount: 100, fee: 0, withholding: 99, fxRateMicro: 35_000_000 })];
+    const q = one({ trades: t });
+    const d2 = q.dividends.find((d) => d.id === 'd2')!;
+    expect([d2.grossUsd, d2.whtUsd, d2.netUsd]).toEqual([100, 99, 1]);
+    expect(d2.netThb).toBe(3_500 - 3_465);
+  });
+});

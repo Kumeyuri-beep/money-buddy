@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { friendlyError } from '../../app/errorText';
 import { usd } from '../../app/usdFormat';
-import { wealthSummary } from '../../domain/invest/portfolioMoney';
+import { WEALTH_STALE_DAYS, wealthSummary } from '../../domain/invest/portfolioMoney';
 import { emptyInvestments, type InvestmentData } from '../../domain/invest/types';
 import { naturalBalance } from '../../domain/ledger/balance';
 import type { Account, Entry } from '../../domain/ledger/types';
@@ -65,7 +65,7 @@ export function WealthPanel({ accounts, entries, today }: { accounts: readonly A
           )}
           {w.stale.length > 0 && (
             <p className="muted small" role="status">
-              ราคาหรืออัตราแลกเปลี่ยนบางตัวเก่ากว่า {30} วัน ตัวเลขนี้อาจคลาดเคลื่อน
+              ราคาหรืออัตราแลกเปลี่ยนบางตัวเก่ากว่า {WEALTH_STALE_DAYS} วัน ตัวเลขนี้อาจคลาดเคลื่อน
             </p>
           )}
           <dl className="avg-result">
