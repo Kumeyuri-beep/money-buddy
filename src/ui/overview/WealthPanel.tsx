@@ -14,11 +14,13 @@ import { useRepository } from '../RepositoryContext';
  *   ไม่มีราคา/อัตรา = ไม่นับส่วนนั้นและติดป้าย "ไม่ครบ" (ไม่ใช้ต้นทุนแทน) · ราคา/อัตราเก่าเกิน 30 วัน = เตือน
  * แสดงเมื่อมีข้อมูลลงทุน (บัญชีป้ายเงินลงทุนหรือสินทรัพย์) เท่านั้น: ผู้ใช้ที่ยังไม่มีเงินลงทุนไม่เห็นการ์ดนี้ ภาพรวมเดิมไม่เปลี่ยน
  */
-export function WealthPanel({ accounts, entries, today }: { accounts: readonly Account[]; entries: readonly Entry[]; today: string }) {
+export function WealthPanel({ accounts, entries, today, investments }: { accounts: readonly Account[]; entries: readonly Entry[]; today: string; investments?: InvestmentData | null }) {
   const repo = useRepository();
-  const [data, setData] = useState<InvestmentData | null>(null);
+  const [own, setData] = useState<InvestmentData | null>(null);
   const [error, setError] = useState('');
+  const data = investments !== undefined ? investments : own;
   useEffect(() => {
+    if (investments !== undefined) return; // ผู้เรียกส่งข้อมูลมาให้แล้ว ไม่ต้องโหลดซ้ำ
     let cancelled = false;
     repo
       .loadInvestments()
@@ -27,7 +29,7 @@ export function WealthPanel({ accounts, entries, today }: { accounts: readonly A
     return () => {
       cancelled = true;
     };
-  }, [repo]);
+  }, [repo, investments]);
 
   const model = useMemo(() => {
     const inv = data ?? emptyInvestments();

@@ -8,14 +8,14 @@ import { useInvest } from './InvestContext';
  * ลูกน้อง 1 แทนที่ทั้งแท็บนี้ด้วยแดชบอร์ดเต็ม (ไฟล์นี้และโฟลเดอร์ src/ui/invest/dashboard/ เป็นของลูกน้อง 1)
  */
 export function DashboardTab() {
-  const { today, accounts, entries } = useInvest();
+  const { today, accounts, entries, data } = useInvest();
   return (
     <div className="invest-tab invest-dashboard">
       <p className="muted small" role="note">
         แดชบอร์ดเต็มรูปแบบกำลังพัฒนา ตอนนี้แสดงสรุปเดิม
       </p>
-      <WealthPanel accounts={accounts} entries={entries} today={today} />
-      <UsOverview today={today} accounts={accounts} entries={entries} />
+      <WealthPanel accounts={accounts} entries={entries} today={today} investments={data} />
+      <UsOverview today={today} accounts={accounts} entries={entries} investments={data} />
     </div>
   );
 }

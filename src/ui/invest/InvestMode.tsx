@@ -121,7 +121,19 @@ export default function InvestMode({ today, accounts, entries, wallets, onLedger
           ))}
         </div>
         <div role="tabpanel" id={`inv-panel-${tab}`} aria-labelledby={`inv-tab-${tab}`}>
-          {tab === 'dashboard' ? <DashboardTab /> : tab === 'analysis' ? <AnalysisTab /> : tab === 'transactions' ? <TransactionsTab /> : <DividendCalendarTab />}
+          {data === null && loadError === '' ? (
+            <p className="muted" role="status">
+              กำลังโหลดข้อมูลพอร์ต…
+            </p>
+          ) : tab === 'dashboard' ? (
+            <DashboardTab />
+          ) : tab === 'analysis' ? (
+            <AnalysisTab />
+          ) : tab === 'transactions' ? (
+            <TransactionsTab />
+          ) : (
+            <DividendCalendarTab />
+          )}
         </div>
       </div>
     </InvestContext.Provider>

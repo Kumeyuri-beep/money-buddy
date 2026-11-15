@@ -1414,3 +1414,16 @@ select { font: inherit; }
 .account-kinds .ak-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; }
 .account-kinds .notice { margin-top: 14px; }
 .pf-tab.is-active { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 5px; }
+
+/* โหมดการลงทุน (/invest · ขั้น 1): หัวโหมด ปุ่มสลับสกุล ป้ายอัปเดต · แท็บใช้ .pf-tabs/.pf-tab เดิม · ใช้ได้ทุกขนาดจอ (ตัดบรรทัดได้) */
+.invest-mode { display: grid; gap: 16px; }
+.invest-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.invest-head .page-title { margin: 0; }
+.invest-head-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.invest-currency { display: inline-flex; gap: 6px; }
+.invest-cur { min-height: 40px; min-width: 56px; padding: 6px 14px; font: inherit; font-weight: 600; color: var(--text); background: var(--ov-6); border: 1px solid var(--ov-14); border-radius: 999px; cursor: pointer; }
+.invest-cur:hover { background: var(--ov-10); }
+.invest-cur.is-active { background: var(--ov-14); border-color: var(--gold); text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 5px; }
+.invest-cur:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.invest-badge { margin: 0; }
+.invest-tab { display: grid; gap: 16px; }
