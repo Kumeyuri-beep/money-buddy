@@ -74,11 +74,14 @@ describe('แดชบอร์ดพอร์ต: หน้าจอ (เรน
   it('IRR ถือไม่ถึง 30 วัน = "ใช้ได้เมื่อถือครบ 30 วัน" (ไม่มีเลขปลอม)', () => {
     expect(html(MAIN, 'THB')).toContain('ใช้ได้เมื่อถือครบ 30 วัน');
   });
-  it('ยังไม่มีหุ้น: ทุกการ์ดมี empty state ไม่มีเลขเงิน', () => {
+  it('ยังไม่มีหุ้น: การ์ดว่างใบเดียว บอกทางไปแท็บ รายการ ไม่มีเลขเงิน', () => {
     const h = html(emptyInvestments(), 'THB');
-    expect(h).toContain('ยังไม่มีหุ้น');
+    expect(h.match(/ยังไม่มีหุ้น/g)).toHaveLength(1);
+    expect(h).toContain('รายการ');
     expect(h).not.toContain('฿');
-    expect(h).toContain('ยังไม่ได้ตั้งเป้าหมาย');
+  });
+  it('มีข้อมูล: การ์ดเป้าหมายบอกสั้นๆ ว่ายังไม่ได้ตั้งเป้าหมาย', () => {
+    expect(html(MAIN, 'THB')).toContain('ยังไม่ได้ตั้งเป้าหมาย');
   });
   it('ไม่มีราคา: มูลค่า/กำไรเป็น "—" พร้อมเหตุผล ไม่ใช้ต้นทุนแทน', () => {
     const noPrice: InvestmentData = { ...MAIN, prices: [] };

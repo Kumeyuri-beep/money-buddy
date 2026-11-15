@@ -91,12 +91,17 @@ export function buildDashboardView(accounts: readonly Account[], entries: readon
   const costUsd = us.rows.reduce((n, r) => safeAdd(n, r.costUsd), 0);
 
   let currencySlices: DonutSlice[] | null = null;
-  if (us.fx !== null && us.totals.complete && holding) {
+  if (us.fx !== null && us.totals.complete && us.rows.length > 0) {
     const w = wealthSummary(accounts, entries, data, today);
     if (!w.incomplete) {
-      const usdPart = safeAdd(us.totals.valueThb, us.cashUsd > 0 ? convertMinor(us.cashUsd, us.fx.rateMicro) : 0);
+      // เงินสด USD แปลงทีละบัญชี ด้วยเครื่องหมายเดียวกับ wealthSummary (ติดลบ = หักออก) เพื่อให้ USD + บาท = เงินลงทุนรวมพอดี
+      let usdPart = us.totals.valueThb;
+      for (const c of us.cash) {
+        if (c.cents === 0) continue;
+        usdPart = safeAdd(usdPart, c.cents > 0 ? convertMinor(c.cents, us.fx.rateMicro) : -convertMinor(-c.cents, us.fx.rateMicro));
+      }
       const thbPart = safeSub(w.investmentThb, usdPart);
-      if (thbPart >= 0) {
+      if (usdPart >= 0 && thbPart >= 0) {
         const shares = allocateBps([
           { key: 'USD', weight: usdPart },
           { key: 'THB', weight: thbPart },

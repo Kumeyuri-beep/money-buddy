@@ -23,8 +23,17 @@ function Dash({ why }: { why?: string }) {
   );
 }
 
+function EmptyAll() {
+  return (
+    <section className="solid card dash-card dash-empty" aria-labelledby="dash-empty-title">
+      <h2 id="dash-empty-title">ยังไม่มีหุ้นในพอร์ต</h2>
+      <p className="muted">เริ่มบันทึกหุ้นสหรัฐได้ที่แท็บ "รายการ" (แท็บหุ้นสหรัฐ) แดชบอร์ดจะแสดงมูลค่า กำไร ปันผล และสัดส่วนให้เมื่อมีข้อมูล</p>
+    </section>
+  );
+}
+
 function Empty() {
-  return <p className="muted small">ยังไม่มีหุ้น · เริ่มบันทึกที่แท็บ "รายการ"</p>;
+  return null;
 }
 
 /** แถวบน: 5 การ์ดตัวเลขหลัก */
@@ -68,7 +77,7 @@ function TopRow({ view, currency }: { view: DashboardView; currency: DashCurrenc
         ) : profit !== null ? (
           <>
             <p className={`dash-big num ${tone(profit.total)}`}>{moneySigned(currency, profit.total)}</p>
-            <p className="muted small">รวม 6 แหล่ง · ดูรายละเอียดด้านล่าง</p>
+            <p className="muted small">ดูที่ "กำไรมาจากไหน" ด้านล่าง</p>
           </>
         ) : (
           <>
@@ -81,13 +90,13 @@ function TopRow({ view, currency }: { view: DashboardView; currency: DashCurrenc
       </section>
 
       <section className="glass-lite card dash-card" aria-labelledby="dash-irr-title">
-        <h2 id="dash-irr-title">ผลตอบแทนต่อปี (IRR)</h2>
+        <h2 id="dash-irr-title">ผลตอบแทนต่อปี</h2>
         {view.empty ? (
           <Empty />
         ) : view.irr.kind === 'ok' ? (
           <>
             <p className={`dash-big num ${tone(view.irr.bps)}`}>{bpsText(view.irr.bps, true)}</p>
-            <p className="muted small">คิดเป็นบาทตามวันที่ซื้อ/ขาย/ปันผลจริง (XIRR)</p>
+            <p className="muted small">คิดจากวันที่ซื้อ ขาย และรับปันผลจริง</p>
           </>
         ) : (
           <>
@@ -118,7 +127,7 @@ function TopRow({ view, currency }: { view: DashboardView; currency: DashCurrenc
             <p className="dash-big num">{money(currency, net)}</p>
             <p className="muted small num">
               หลังภาษี (12 เดือนล่าสุด) · ก่อนภาษี {money(currency, gross)}
-              {d.yieldBps !== null ? ` · yield ${bpsText(d.yieldBps)}` : ' · yield —'}
+              {d.yieldBps !== null ? ` · อัตราปันผล ${bpsText(d.yieldBps)}` : ' · อัตราปันผล —'}
             </p>
           </>
         )}
@@ -130,13 +139,13 @@ function TopRow({ view, currency }: { view: DashboardView; currency: DashCurrenc
 const SLICE_CLASSES = ['s1', 's2', 's3', 's4', 's5', 's6', 's7'];
 
 function Donut({ slices }: { slices: DonutSlice[] }) {
-  // วงกลมความยาวเส้นรอบวง 100 หน่วย (pathLength) · แต่ละชิ้น = bps ÷ 100 หน่วย (แสดงผลอย่างเดียว)
+  // วงกลมความยาวเส้นรอบวง 10,000 หน่วย (pathLength) · แต่ละชิ้น = bps หน่วย (จำนวนเต็ม แสดงผลอย่างเดียว)
   let acc = 0;
   return (
-    <svg className="dash-donut" viewBox="0 0 42 42" role="img" aria-label="วงกลมสัดส่วนพอร์ต">
+    <svg className="dash-donut" viewBox="0 0 42 42" aria-hidden="true">
       <circle className="dash-donut-bg" cx="21" cy="21" r="15.9155" fill="none" strokeWidth="6" />
       {slices.map((s, i) => {
-        const len = s.bps / 100;
+        const len = s.bps; // pathLength 10,000 หน่วย: 1 bps = 1 หน่วย (จำนวนเต็ม ไม่ใช่เงิน)
         const el = (
           <circle
             key={s.key}
@@ -146,8 +155,8 @@ function Donut({ slices }: { slices: DonutSlice[] }) {
             r="15.9155"
             fill="none"
             strokeWidth="6"
-            pathLength={100}
-            strokeDasharray={`${len} ${100 - len}`}
+            pathLength={10000}
+            strokeDasharray={`${len} ${10000 - len}`}
             strokeDashoffset={-acc}
             transform="rotate(-90 21 21)"
           />
@@ -163,7 +172,7 @@ function AllocationCard({ view }: { view: DashboardView }) {
   const [mode, setMode] = useState<'stock' | 'currency'>('stock');
   const slices = mode === 'stock' ? view.stockSlices : view.currencySlices;
   return (
-    <section className="glass-lite card dash-card" aria-labelledby="dash-alloc-title">
+    <section className="solid card dash-card" aria-labelledby="dash-alloc-title">
       <h2 id="dash-alloc-title">สัดส่วนพอร์ต</h2>
       <div className="dash-seg" role="group" aria-label="แบ่งสัดส่วนตาม">
         <button type="button" className={`dash-seg-btn${mode === 'stock' ? ' is-active' : ''}`} aria-pressed={mode === 'stock'} onClick={() => setMode('stock')}>
@@ -178,7 +187,7 @@ function AllocationCard({ view }: { view: DashboardView }) {
       ) : slices === null || slices.length === 0 ? (
         <p className="muted small">แบ่งสัดส่วนไม่ได้: ข้อมูลไม่ครบ (ยังไม่มีราคาหรืออัตราแลกเปลี่ยน)</p>
       ) : (
-        <div className="dash-alloc">
+        <div className="dash-alloc" aria-live="polite">
           <Donut slices={slices} />
           <ul className="dash-legend">
             {slices.map((s, i) => (
@@ -208,12 +217,12 @@ function MonthlyDividendCard({ view, currency }: { view: DashboardView; currency
       ) : (
         <ol className="dash-months">
           {view.monthly.map((m, i) => (
-            <li key={m.month} aria-label={`${THAI_MONTH_SHORT[i]} ${money(currency, vals[i] ?? 0)}`}>
-              <span className="dash-mbar-wrap">
-                <span className="dash-mbar" style={{ height: `${barPercent(vals[i] ?? 0, max)}%` }} />
+            <li key={m.month}>
+              <span className="dash-mlabel">{THAI_MONTH_SHORT[i]}</span>
+              <span className="dash-hbar" aria-hidden="true">
+                <span className="dash-hbar-fill is-pos" style={{ width: `${barPercent(vals[i] ?? 0, max)}%` }} />
               </span>
-              <span className="dash-mlabel small">{THAI_MONTH_SHORT[i]}</span>
-              <span className="dash-mval num small">{(vals[i] ?? 0) > 0 ? money(currency, vals[i] ?? 0) : '—'}</span>
+              <span className="dash-mval num">{(vals[i] ?? 0) > 0 ? money(currency, vals[i] ?? 0) : '—'}</span>
             </li>
           ))}
         </ol>
@@ -259,12 +268,13 @@ function GoalCard() {
     <section className="solid card dash-card" aria-labelledby="dash-goal-title">
       <h2 id="dash-goal-title">ความคืบหน้าเป้าหมาย</h2>
       <p className="muted">ยังไม่ได้ตั้งเป้าหมาย</p>
-      <p className="muted small">เป้าเกษียณคำนวณได้ที่เครื่องคิดเลขเป้าเกษียณ (เมนู "เกษียณ") แต่ตอนนี้ระบบยังไม่เก็บเป้าไว้ จึงยังเทียบกับพอร์ตที่นี่ไม่ได้</p>
+      <p className="muted">ยังไม่ได้ตั้งเป้าหมาย</p>
     </section>
   );
 }
 
 export function DashboardBody({ view, currency }: { view: DashboardView; currency: DashCurrency }) {
+  if (view.empty) return <EmptyAll />;
   return (
     <>
       <TopRow view={view} currency={currency} />
@@ -274,7 +284,7 @@ export function DashboardBody({ view, currency }: { view: DashboardView; currenc
         </CardUnavailable>
         <AllocationCard view={view} />
         <CardUnavailable id="dash-today" title="วันนี้ขึ้น/ลง">
-          ต้องมีราคาที่อัปเดตทุกวัน (รอเฟส B)
+          ยังไม่รองรับ
         </CardUnavailable>
       </div>
       <div className="dash-row dash-bottom">
