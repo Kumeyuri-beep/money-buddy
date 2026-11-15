@@ -36,8 +36,9 @@ import { IntegrityBanner, IntegrityStatus } from './Integrity';
 import { LedgerView } from './LedgerView';
 import { Setup } from './Setup';
 import { FORM_SETTINGS_KEYS, formSettingsPatch } from '../domain/bills/settingsPatch';
-import { AccountView, AveragingView, PortfolioPage, RetirementView, TaxPortfolioLink, TaxView, ViewLoading } from './lazyViews';
+import { AccountView, AveragingView, InvestMode, RetirementView, TaxPortfolioLink, TaxView, ViewLoading } from './lazyViews';
 import { Shell, type ViewId } from './Shell';
+import { initialView, useViewHistory } from './useViewHistory';
 import { ScanStatus } from './ScanStatus';
 import { Toast } from './Toast';
 import { useAccount } from './AuthContext';
@@ -93,7 +94,8 @@ export function App() {
   const repo = useRepository();
   const [state, setState] = useState<State>({ status: 'loading' });
   const { username, signOut } = useAccount();
-  const [view, setView] = useState<ViewId>('today');
+  const [view, setView] = useState<ViewId>(initialView);
+  useViewHistory(view, setView);
   // "วันนี้" ตามเวลาไทย อัปเดตเองเมื่อข้ามเที่ยงคืนหรือกลับมาเปิดแท็บ (ต้องเรียก hook ก่อน return ใดๆ)
   const today = useThaiToday();
   const [dialog, setDialog] = useState<DialogState>(null);
@@ -515,7 +517,7 @@ export function App() {
       ) : view === 'tax' ? (
         <TaxView portfolio={(fill, current) => <TaxPortfolioLink onFill={fill} current={current} />} />
       ) : view === 'portfolio' ? (
-        <PortfolioPage today={today} accounts={accounts} entries={state.ledger.entries} wallets={walletOptions(accounts).map((a) => ({ id: a.id, name: a.name }))} onLedgerChanged={() => void refresh()} />
+        <InvestMode today={today} accounts={accounts} entries={state.ledger.entries} wallets={walletOptions(accounts).map((a) => ({ id: a.id, name: a.name }))} onLedgerChanged={() => void refresh()} />
       ) : view === 'bills' ? (
         <BillsView
           bills={state.bills}
