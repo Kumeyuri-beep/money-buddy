@@ -29,6 +29,7 @@ export function AccountKinds({ onChanged }: { onChanged: () => void }) {
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const confirmRef = useRef<HTMLHeadingElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
 
   const load = useCallback(async () => {
@@ -88,6 +89,7 @@ export function AccountKinds({ onChanged }: { onChanged: () => void }) {
       setPending(null);
       await load();
       onChanged();
+      titleRef.current?.focus(); // ปุ่มเดิมถูกย้ายกลุ่ม/หายไป: คืนโฟกัสที่หัวข้อของส่วนนี้
     } catch (e) {
       setMessage({ text: friendlyError(e, 'เปลี่ยนป้ายไม่สำเร็จ ลองอีกครั้ง'), error: true });
     } finally {
@@ -123,14 +125,15 @@ export function AccountKinds({ onChanged }: { onChanged: () => void }) {
 
   return (
     <section className="solid card account-kinds" aria-labelledby="ak-title">
-      <h2 id="ak-title">กลุ่มบัญชีเงินสด</h2>
+      <h2 id="ak-title" ref={titleRef} tabIndex={-1}>กลุ่มบัญชีเงินสด</h2>
       <p className="muted small">แยกเงินใช้จ่ายรายวันออกจากเงินลงทุน (เช่น เงินที่พักกับโบรกเกอร์) เป็นการจัดกลุ่มที่การแสดงผลและตัวเลขเท่านั้น สมุดบัญชียังเหมือนเดิม</p>
       <div role="status">{message && !message.error && <p className="auth-ok">{message.text}</p>}</div>
       <div role="alert">{message?.error && <p className="form-error">{message.text}</p>}</div>
       {group('เงินใช้จ่าย', spending, 'investment', 'ย้ายไปเงินลงทุน', 'ak-spending')}
       {group('เงินลงทุน', investing, 'normal', 'ย้ายไปเงินใช้จ่าย', 'ak-investing')}
+      {spending.length <= 1 && <p className="muted small">ต้องเหลือกระเป๋าเงินใช้จ่ายอย่างน้อย 1 ใบ จึงย้ายใบสุดท้ายไปเงินลงทุนไม่ได้</p>}
       {pending && (
-        <div className="notice" role="alertdialog" aria-labelledby="ak-confirm-title" aria-describedby="ak-confirm-body">
+        <div className="notice" role="alertdialog" aria-labelledby="ak-confirm-title" aria-describedby="ak-confirm-body" onKeyDown={(e) => { if (e.key === 'Escape' && !busy) cancel(); }}>
           <h3 id="ak-confirm-title" ref={confirmRef} tabIndex={-1}>
             ย้าย "{pending.name}" ไปกลุ่ม{pending.next === 'investment' ? 'เงินลงทุน' : 'เงินใช้จ่าย'}?
           </h3>

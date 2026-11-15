@@ -53,8 +53,10 @@ function Field(props: {
   hint?: string;
   type?: string;
   placeholder?: string;
+  /** ช่องข้อความ (ชื่อ ticker หมายเหตุ) ใช้แป้นพิมพ์ปกติ · ช่องตัวเลขใช้แป้นทศนิยม */
+  text?: boolean;
 }) {
-  const { id, label, value, onChange, error, hint, type, placeholder } = props;
+  const { id, label, value, onChange, error, hint, type, placeholder, text } = props;
   const describedBy = [hint ? `${id}-hint` : '', error ? `${id}-err` : ''].filter(Boolean).join(' ') || undefined;
   return (
     <div className="field">
@@ -62,7 +64,7 @@ function Field(props: {
       <input
         id={id}
         type={type ?? 'text'}
-        inputMode={type === 'date' ? undefined : 'decimal'}
+        inputMode={type === 'date' || text ? undefined : 'decimal'}
         autoComplete="off"
         placeholder={placeholder}
         value={value}
@@ -76,7 +78,7 @@ function Field(props: {
         </p>
       )}
       {error && (
-        <p id={`${id}-err`} className="avg-err">
+        <p id={`${id}-err`} className="avg-err" role="alert">
           {error}
         </p>
       )}
@@ -152,7 +154,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
     if (el && el.isConnected) window.setTimeout(() => el.focus(), 0);
   };
   const closeOnEscape = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') close();
+    if (e.key === 'Escape' && !e.defaultPrevented && !(e.target instanceof HTMLSelectElement)) close();
   };
   const finish = async (text: string) => {
     await load();
@@ -301,7 +303,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
   return (
     <div className="us-stocks">
       <div className="page-header">
-        <h2 className="page-title">หุ้นสหรัฐ</h2>
+        <h2 className="page-title">พอร์ตหุ้นสหรัฐ</h2>
         <p className="muted">หุ้นสกุลดอลลาร์ (ซื้อเป็นหุ้นเศษส่วนได้) แลกเงินบาท↔ดอลลาร์ ราคาและอัตราแลกเปลี่ยนกรอกเอง</p>
       </div>
 
@@ -323,7 +325,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
           </p>
           {view.negativeCash.map((c) => (
             <p key={c.accountId} className="small">
-              {c.name}: {usd(c.cents)} · เกิดได้เมื่อลบรายการแลกเงินที่ดอลลาร์ถูกใช้ซื้อหุ้นไปแล้ว หรือซื้อเกินเงินสด ตรวจรายการแลกเงิน/ซื้อ แล้วบันทึกแลกเงินเพิ่มหรือแก้รายการให้ยอดไม่ติดลบ
+              {c.name}: {usd(c.cents)} · ดอลลาร์ไม่พอ: บันทึกแลกเงินเพิ่ม หรือตรวจรายการแลกเงิน/ซื้อ แล้วแก้ให้ยอดไม่ติดลบ (เกิดได้เมื่อลบรายการแลกเงินที่ดอลลาร์ถูกใช้ซื้อหุ้นไปแล้ว หรือซื้อเกินเงินสด)
             </p>
           ))}
         </div>
@@ -374,7 +376,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
             สร้างบัญชีเงินสด USD
           </h2>
           <form onSubmit={submitCash} onKeyDown={closeOnEscape} className="settings-form" noValidate>
-            <Field id="us-cash-name" label="ชื่อบัญชี" value={cashName} onChange={setCashName} error={cashError} />
+            <Field id="us-cash-name" text label="ชื่อบัญชี" value={cashName} onChange={setCashName} error={cashError} />
             <p className="muted small">บัญชีนี้เป็นบัญชีเงินลงทุนสกุลดอลลาร์ ยอดเริ่มต้น 0 ไม่นับเป็นเงินใช้จ่ายรายวัน</p>
             <div className="dialog-actions">
               <button type="button" className="btn btn-ghost btn-small" onClick={close}>
@@ -408,7 +410,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
               <Field id="us-ex-thb" label="จำนวนเงินบาท" value={exForm.thb} onChange={(v) => exSet({ thb: v })} error={errOf(exErrors, 'thb')} placeholder="เช่น 70,000" />
               <Field id="us-ex-usd" label="จำนวนดอลลาร์" value={exForm.usd} onChange={(v) => exSet({ usd: v })} error={errOf(exErrors, 'usd')} placeholder="เช่น 2,000" />
             </div>
-            <p className="muted small" role="status">
+            <p className="muted small" aria-live="polite" aria-atomic="false">
               {exPreview ? `อัตราที่ได้ ≈ ${exPreview} (คำนวณจากสองจำนวน)` : 'กรอกจำนวนเงินบาทและดอลลาร์ ระบบคำนวณอัตราให้'}
             </p>
             <div className="field-row">
@@ -436,7 +438,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
                 </div>
               )}
             </div>
-            <Field id="us-ex-memo" label="หมายเหตุ (ไม่บังคับ)" value={exForm.memo} onChange={(v) => exSet({ memo: v })} error={errOf(exErrors, 'memo')} />
+            <Field id="us-ex-memo" text label="หมายเหตุ (ไม่บังคับ)" value={exForm.memo} onChange={(v) => exSet({ memo: v })} error={errOf(exErrors, 'memo')} />
             <div className="dialog-actions">
               <button type="button" className="btn btn-ghost btn-small" onClick={close}>
                 ยกเลิก
@@ -456,8 +458,8 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
           </h2>
           <form onSubmit={submitStock} onKeyDown={closeOnEscape} className="settings-form" noValidate>
             <div className="field-row">
-              <Field id="us-stock-name" label="ชื่อหุ้น" value={stockForm.name} onChange={(v) => setStockForm((f) => ({ ...f, name: v }))} placeholder="เช่น Apple Inc." />
-              <Field id="us-stock-ticker" label="Ticker" value={stockForm.ticker} onChange={(v) => setStockForm((f) => ({ ...f, ticker: v }))} placeholder="เช่น AAPL" />
+              <Field id="us-stock-name" text label="ชื่อหุ้น" value={stockForm.name} onChange={(v) => setStockForm((f) => ({ ...f, name: v }))} placeholder="เช่น Apple Inc." />
+              <Field id="us-stock-ticker" text label="ชื่อย่อหุ้น (Ticker)" value={stockForm.ticker} onChange={(v) => setStockForm((f) => ({ ...f, ticker: v }))} placeholder="เช่น AAPL" />
               <div className="field">
                 <label htmlFor="us-stock-ex">ตลาด</label>
                 <select id="us-stock-ex" value={stockForm.exchange} onChange={(e) => setStockForm((f) => ({ ...f, exchange: e.target.value }))}>
@@ -510,7 +512,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
             {tradeKind === 'dividend' && (
               <div className="field-row">
                 <Field id="us-t-amount" label="ยอดปันผลก่อนภาษี (ดอลลาร์)" value={form.amount} onChange={(v) => setT({ amount: v })} error={errOf(tradeErrors, 'amount')} />
-                <Field id="us-t-wht" label="ภาษีที่ถูกหัก ณ ที่จ่าย (ดอลลาร์)" value={form.withholding} onChange={(v) => setT({ withholding: v })} error={errOf(tradeErrors, 'withholding')} hint="ค่าตั้งต้นที่แนะนำ 15% ถ้ายื่น W-8BEN แล้ว (ไม่ยื่นอาจ 30%) แก้ตามที่โบรกเกอร์หักจริง" />
+                <Field id="us-t-wht" label="ภาษีที่ถูกหัก ณ ที่จ่าย (ดอลลาร์)" value={form.withholding} onChange={(v) => setT({ withholding: v })} error={errOf(tradeErrors, 'withholding')} hint="แนะนำ 15% ถ้ายื่นแบบ W-8BEN (แบบแจ้งสถานะผู้ไม่ใช่คนสหรัฐ) แล้ว ไม่ยื่นอาจ 30% · แก้ตามที่โบรกเกอร์หักจริง" />
                 <div className="field">
                   <button
                     type="button"
@@ -544,7 +546,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
                 </select>
               </div>
             )}
-            <Field id="us-t-memo" label="หมายเหตุ (ไม่บังคับ)" value={form.memo} onChange={(v) => setT({ memo: v })} error={errOf(tradeErrors, 'memo')} />
+            <Field id="us-t-memo" text label="หมายเหตุ (ไม่บังคับ)" value={form.memo} onChange={(v) => setT({ memo: v })} error={errOf(tradeErrors, 'memo')} />
             {activeCash === '' && <p className="avg-err">ต้องสร้างบัญชีเงินสด USD และแลกเงินก่อนจึงจะบันทึกรายการได้</p>}
             <div className="dialog-actions">
               <button type="button" className="btn btn-ghost btn-small" onClick={close}>
@@ -587,7 +589,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
         </section>
       )}
 
-      <section className="glass-lite card" aria-labelledby="us-list-title">
+      <section className="solid card" aria-labelledby="us-list-title">
         <h2 id="us-list-title">หุ้นที่ถืออยู่</h2>
         {view.rows.length === 0 ? (
           <p className="muted">ยังไม่มีหุ้นสหรัฐ เริ่มจากสร้างบัญชีเงินสด USD แลกเงิน แล้วเพิ่มหุ้น</p>
@@ -708,8 +710,8 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
                 <div className="bill-figures">
                   {confirmDelete === `ex-${x.id}` ? (
                     <>
-                      <p className="muted small">ลบรายการแลกเงินนี้ (ยอดบาทและดอลลาร์ในสมุดคืนตาม) ถ้าดอลลาร์ถูกใช้ซื้อหุ้นไปแล้ว เงินสด USD จะติดลบ</p>
-                      <button type="button" className="btn btn-ghost btn-small" onClick={() => setConfirmDelete('')}>ไม่ลบ</button>
+                      <p className="muted small" role="alert">ลบรายการแลกเงินนี้ (ยอดบาทและดอลลาร์ในสมุดคืนตาม) ถ้าดอลลาร์ถูกใช้ซื้อหุ้นไปแล้ว เงินสด USD จะติดลบ</p>
+                      <button type="button" className="btn btn-ghost btn-small" autoFocus onClick={() => setConfirmDelete('')}>ไม่ลบ</button>
                       <button type="button" className="btn btn-small" disabled={busy} onClick={() => void doDelete('exchange', x.id)}>ยืนยันลบ</button>
                     </>
                   ) : (
@@ -747,7 +749,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
                 <div className="bill-figures">
                   {confirmDelete === `tr-${tr.id}` ? (
                     <>
-                      <button type="button" className="btn btn-ghost btn-small" onClick={() => setConfirmDelete('')}>ไม่ลบ</button>
+                      <button type="button" className="btn btn-ghost btn-small" autoFocus onClick={() => setConfirmDelete('')}>ไม่ลบ</button>
                       <button type="button" className="btn btn-small" disabled={busy} onClick={() => void doDelete('trade', tr.id)}>ยืนยันลบ</button>
                     </>
                   ) : (
@@ -764,7 +766,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
 
       {view.rows.length > 0 && t.valueThb > 0 && (
         <p className="muted small" role="note">
-          สัดส่วนตามมูลค่า: {view.allocation.map((s) => `${s.key === 'other' ? 'อื่นๆ' : (view.rows.find((r) => r.assetId === s.key)?.ticker ?? s.key)} ${formatBps(s.bps)}`).join(' · ')} · กำไรรวมที่ขายแล้ว {signed(t.realizedGainThb)} (ไม่ใช่ฐานภาษีไทย)
+          สัดส่วนตามมูลค่า: {view.allocation.map((s) => `${s.key === 'other' ? 'อื่นๆ' : (view.rows.find((r) => r.assetId === s.key)?.ticker ?? s.key)} ${formatBps(s.bps)}`).join(' · ')} · กำไรรวมที่ขายแล้ว {signed(t.realizedGainThb)} (ตัวเลขช่วยดู ไม่ใช่ตัวเลขสำหรับยื่นภาษี)
           · ปันผลสะสมสุทธิรวม {usdSigned(view.rows.reduce((n, r) => n + r.dividendNetUsd, 0))}
         </p>
       )}

@@ -54,14 +54,14 @@ export function UsOverview({ today, accounts, entries }: { today: string; accoun
   return (
     <div className="us-overview">
       <section className="glass-lite card" aria-labelledby="uso-sum-title">
-        <h2 id="uso-sum-title">หุ้นสหรัฐ (ดอลลาร์)</h2>
+        <h2 id="uso-sum-title">พอร์ตหุ้นสหรัฐ (ดอลลาร์)</h2>
         <dl className="avg-result">
           <div>
-            <dt>มูลค่ารวม (บาท)</dt>
+            <dt>มูลค่ารวม (บาท){t.complete ? '' : ' · ⚠ ไม่ครบ'}</dt>
             <dd className="num">{!holding || hasValue ? baht(t.valueThb) : <Dash />}</dd>
           </div>
           <div>
-            <dt>มูลค่ารวม (ดอลลาร์)</dt>
+            <dt>มูลค่ารวม (ดอลลาร์){t.complete ? '' : ' · ⚠ ไม่ครบ'}</dt>
             <dd className="num">{!holding || hasValueUsd ? usd(t.valueUsd) : <Dash />}</dd>
           </div>
           <div>
@@ -69,7 +69,7 @@ export function UsOverview({ today, accounts, entries }: { today: string; accoun
             <dd className="num">{baht(t.costThb)}</dd>
           </div>
           <div>
-            <dt>กำไรยังไม่ขาย (บาท)</dt>
+            <dt>กำไรยังไม่ขาย (บาท){t.complete ? '' : ' · ⚠ ไม่ครบ'}</dt>
             <dd className="num">{!holding || whyReady ? signed(t.unrealizedThb) : <Dash />}</dd>
           </div>
           <div>
@@ -108,7 +108,12 @@ export function UsOverview({ today, accounts, entries }: { today: string; accoun
                 <dd className="num">{signed(t.unrealizedThb)}</dd>
               </div>
             </dl>
-            <p className="muted small">จากราคาหุ้น = กำไรเป็นดอลลาร์แปลงที่อัตราล่าสุด · จากค่าเงิน = ส่วนที่เหลือ (ค่าแสดงผล ไม่ใช่ฐานภาษี)</p>
+            {!t.complete && (
+              <p className="muted small" role="status">
+                ⚠ ไม่ครบ: นับเฉพาะหุ้นที่มีทั้งราคาและอัตราแลกเปลี่ยน
+              </p>
+            )}
+            <p className="muted small">จากราคาหุ้น = กำไรเป็นดอลลาร์แปลงเป็นบาทที่อัตราล่าสุด · จากค่าเงิน = ผลต่างจากบาทแข็ง/อ่อนเทียบดอลลาร์ (ตัวเลขช่วยดู ไม่ใช่ตัวเลขสำหรับยื่นภาษี)</p>
           </>
         ) : (
           <p className="muted">ยังแยกไม่ได้ เพราะยังไม่มีหุ้นที่ถืออยู่พร้อมราคาและอัตราแลกเปลี่ยน</p>
