@@ -55,6 +55,18 @@ const problemsOf = (investments: unknown): string => {
   return r.problems.join(' | ');
 };
 
+describe('R23: เปลี่ยนป้ายกระเป๋าบาทที่เคยใช้แลกเงินแล้ว ไฟล์สำรองต้องยังผ่าน (A3-1 ผลตรวจ money-auditor ข้อสูง)', () => {
+  it('กระเป๋า w1 ป้าย investment: ไฟล์สำรองที่มีรายการแลกเงินยังนำเข้าได้ และ Integrity ไม่ฟ้อง', () => {
+    const relabeled = accounts.map((a) => (a.id === 'w1' ? { ...a, kind: 'investment' as const } : a));
+    const text = JSON.stringify({ schemaVersion: 2, exportedAt: '2026-11-10T00:00:00.000Z', accounts: relabeled, entries, bills: [], settings: {}, investments: inv() });
+    const r = parseBackup(text, TODAY);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const data = r.data.investments as InvestmentData;
+    expect(checkUsdInvestmentIntegrity(relabeled, entries, data)).toEqual([]);
+  });
+});
+
 describe('ไฟล์สำรอง: ข้อมูล USD (A3-1)', () => {
   it('ไฟล์ที่มีข้อมูล USD ครบผ่าน ได้ข้อมูลครบทุกฟิลด์', () => {
     const d = parsed(inv());

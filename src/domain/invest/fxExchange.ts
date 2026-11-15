@@ -18,7 +18,8 @@ export function exchangeEntryProblem(x: FxExchangeRecord, entry: Entry, accountB
   for (const line of entry.lines) {
     const account = accountById.get(line.accountId);
     if (!account) return 'รายการในสมุดของการแลกเงินอ้างบัญชีที่ไม่มี';
-    if (account.currency === 'THB' && account.type === 'asset' && account.kind !== 'investment') thbAsset.push(line.amount);
+    // กระเป๋าบาทรับได้ทั้งป้าย normal และ investment: R23 ให้เปลี่ยนป้ายได้แม้มีรายการ (แสดงผลล้วน ไม่แตะสมุด) จึงห้ามให้ป้ายมีผลต่อความถูกต้องของรายการแลกเงินที่บันทึกไปแล้ว
+    if (account.currency === 'THB' && account.type === 'asset') thbAsset.push(line.amount);
     else if (account.currency === 'THB' && account.type === 'equity') thbEquity.push(line.amount);
     else if (account.currency === 'USD' && account.type === 'asset' && account.kind === 'investment') usdAsset.push(line.amount);
     else if (account.currency === 'USD' && account.type === 'equity') usdEquity.push(line.amount);
