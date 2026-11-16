@@ -13,18 +13,36 @@ import './analysis/analysis.css';
  */
 export function AnalysisTab() {
   const { today, accounts, entries, data, currency } = useInvest();
-  const model = useMemo(() => (data === null ? null : buildAnalysisModel(accounts, entries, data, today)), [accounts, entries, data, today]);
+  const built = useMemo(() => {
+    if (data === null) return { model: null, failed: false };
+    try {
+      return { model: buildAnalysisModel(accounts, entries, data, today), failed: false };
+    } catch (e) {
+      if (e instanceof RangeError) return { model: null, failed: true }; // ตัวเลขใหญ่เกินช่วงปลอดภัย: ไม่ให้ทั้งแอปล้ม
+      throw e;
+    }
+  }, [accounts, entries, data, today]);
+  const model = built.model;
 
   return (
     <div className="invest-tab invest-analysis">
-      <section className="glass-lite card" aria-labelledby="inv-analysis-title">
+      <header className="an-head">
         <h2 id="inv-analysis-title">วิเคราะห์พอร์ต</h2>
-        <p className="muted">ตารางหุ้นที่ถือ ผลตอบแทนรายเดือน และสัดส่วนตามสกุลเงิน · ตัวเลขทุกตัวคำนวณจากรายการที่บันทึกไว้ ไม่เดาราคา</p>
-      </section>
-      {model === null ? (
+        <p className="muted">ตัวเลขทุกตัวคำนวณจากรายการที่บันทึกไว้ ไม่เดาราคา</p>
+      </header>
+      {built.failed ? (
+        <p className="form-error" role="alert">
+          คำนวณไม่ได้: ตัวเลขใหญ่เกินช่วงที่ระบบรองรับ
+        </p>
+      ) : model === null ? (
         <p className="muted" role="status">
           กำลังโหลดข้อมูลพอร์ต…
         </p>
+      ) : !model.hasStocks ? (
+        <section className="solid card an-card" aria-labelledby="an-empty-title">
+          <h2 id="an-empty-title">ยังไม่มีหุ้นสหรัฐ</h2>
+          <p className="muted">เพิ่มหุ้นและบันทึกการซื้อได้ที่แท็บ "รายการ" แล้วกลับมาดูตารางหุ้นที่ถือ ผลตอบแทนรายเดือน และปันผลที่นี่</p>
+        </section>
       ) : (
         <>
           <HoldingsCard model={model} currency={currency} />
@@ -33,9 +51,9 @@ export function AnalysisTab() {
             <CurrencyCard model={model} />
             <DividendCard model={model} currency={currency} />
           </div>
+          <CardUnavailable id="inv-analysis-today" title="ขึ้นลงวันนี้" />
         </>
       )}
-      <CardUnavailable id="inv-analysis-today" title="ขึ้นลงวันนี้" />
     </div>
   );
 }

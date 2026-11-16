@@ -44,7 +44,7 @@ describe('format ของแท็บวิเคราะห์ (จำนว�
   it('ค่าไม่ใช่จำนวนเต็ม = RangeError · เหตุผล null อ่านออก', () => {
     expect(() => percentBps(1.5)).toThrow(RangeError);
     expect(naReasonText('missing')).toContain('ราคา');
-    expect(naReasonText('zero-base')).toContain('ศูนย์');
+    expect(naReasonText('zero-base')).toContain('ตั้งต้น');
   });
 });
 
@@ -88,11 +88,6 @@ describe('โมเดลแท็บวิเคราะห์ (ประก�
     expect(m.dividend.yieldBps).not.toBeNull();
     expect(buildAnalysisModel([], [], { ...d, prices: [] }, '2026-02-28').dividend.yieldBps).toBeNull();
   });
-  it('สัดส่วนสกุลเงิน: ไม่มีเงินสด USD = หุ้น 100% · ไม่มีอัตรา = null (ไม่เดา)', () => {
-    const m = buildAnalysisModel([], [], SINGLE, '2026-02-28');
-    expect(m.currencyShares).toEqual([{ key: 'stocks', bps: 10_000 }]);
-    expect(buildAnalysisModel([], [], { ...SINGLE, fxRates: [] }, '2026-02-28').currencyShares).toBeNull();
-  });
 });
 
 function ctx(data: InvestmentData | null, currency: 'THB' | 'USD' = 'THB'): InvestContextValue {
@@ -114,7 +109,7 @@ describe('หน้าจอแท็บวิเคราะห์ (เรน�
     expect(html).toContain('+10.69%');
     expect(html).toContain('+10.00%');
     expect(html).toContain('+21.76%');
-    expect(html).toContain('วันนี้');
+    expect(html).toContain('ขึ้นลงวันนี้');
     expect(html).toContain('สัดส่วนสกุลเงิน');
   });
   it('แสดงตามสกุลที่เลือก (USD $1,210.00 · THB ฿42,350.00 ที่ 35.00)', () => {

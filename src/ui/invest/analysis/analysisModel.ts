@@ -6,11 +6,11 @@
  */
 import { buildUsPortfolio, type UsPortfolio, type UsStockRow } from '../../../app/usPortfolio';
 import { allocateBps, type AllocationShare } from '../../../domain/invest/allocation';
-import { convertMinor } from '../../../domain/invest/fx';
 import { computeDividendMetrics, computeMonthlyReturns, computeProfitSources, type DividendMetrics, type ProfitResult } from '../../../domain/invest/metrics';
 import type { InvestmentData } from '../../../domain/invest/types';
 import type { Account, Entry } from '../../../domain/ledger/types';
 import { safeAdd } from '../../../domain/money/safe';
+import { buildDashboardView, type DonutSlice } from '../dashboard/dashboardView';
 
 export interface AnalysisRow {
   row: UsStockRow;
@@ -30,6 +30,11 @@ export interface MonthlyYearRow {
   total: number | null;
 }
 
+export type CurrencyShares =
+  | { kind: 'ok'; shares: DonutSlice[] }
+  | { kind: 'none' } // ไม่มีสินทรัพย์ดอลลาร์
+  | { kind: 'incomplete' }; // ข้อมูลไม่ครบ (ไม่มีราคา/อัตรา) หรือเงินสดติดลบ จึงแบ่งไม่ได้
+
 export interface AnalysisModel {
   hasStocks: boolean;
   us: UsPortfolio;
@@ -40,8 +45,8 @@ export interface AnalysisModel {
   profit: ProfitResult;
   /** ปันผลสะสมสุทธิรวมทุกหุ้น (เซนต์ USD) · ผลบวกของค่าที่ buildUsPortfolio คำนวณแล้ว */
   dividendNetUsdTotal: number;
-  /** สัดส่วนสินทรัพย์สกุลดอลลาร์ (หุ้น / เงินสด USD) · null = แปลงเป็นบาทไม่ได้ (ไม่มีอัตรา) หรือไม่มีมูลค่า */
-  currencyShares: AllocationShare[] | null;
+  /** สัดส่วน USD เทียบบาท (มูลค่าตลาด) */
+  currencyShares: CurrencyShares;
 }
 
 export function buildAnalysisModel(accounts: readonly Account[], entries: readonly Entry[], data: InvestmentData, today: string): AnalysisModel {
@@ -57,7 +62,7 @@ export function buildAnalysisModel(accounts: readonly Account[], entries: readon
   const shareOf = new Map(shares.map((s) => [s.key, s.bps]));
   const rows: AnalysisRow[] = us.rows.map((row, i) => ({ row, shareBps: shareOf.get(row.assetId) ?? null, colorIndex: i % 7 }));
 
-  const mr = computeMonthlyReturns(data, today);
+  const mr = guard(() => computeMonthlyReturns(data, today), { months: [], years: {} });
   const byYear = new Map<string, MonthCell[]>();
   for (const m of mr.months) {
     const y = m.month.slice(0, 4);
@@ -76,28 +81,26 @@ export function buildAnalysisModel(accounts: readonly Account[], entries: readon
     us,
     rows,
     monthly,
-    dividend: computeDividendMetrics(data, today),
-    profit: computeProfitSources(data, today),
-    dividendNetUsdTotal: us.rows.reduce((n, r) => safeAdd(n, r.dividendNetUsd), 0),
-    currencyShares: currencySharesOf(us),
+    dividend: guard(() => computeDividendMetrics(data, today), { fromExclusive: today, toInclusive: today, grossThb: 0, netThb: 0, grossUsd: 0, netUsd: 0, yieldBps: null, yieldOnCostBps: null }),
+    profit: guard(() => computeProfitSources(data, today), { complete: false, missing: [], thb: null, usd: null, parts: null }),
+    dividendNetUsdTotal: guard(() => us.rows.reduce((n, r) => safeAdd(n, r.dividendNetUsd), 0), 0),
+    currencyShares: currencySharesOf(accounts, entries, data, today, hasStocks),
   };
 }
 
-function currencySharesOf(us: UsPortfolio): AllocationShare[] | null {
-  if (!us.totals.complete) return null;
-  let cashThb = 0;
-  const positive = us.cash.filter((c) => c.cents > 0);
-  if (positive.length > 0) {
-    if (us.fx === null) return null;
-    for (const c of positive) cashThb = safeAdd(cashThb, convertMinor(c.cents, us.fx.rateMicro));
-  }
+/** สัดส่วนสกุลเงิน USD เทียบบาท ใช้นิยามเดียวกับแดชบอร์ด (buildDashboardView: เงินสด USD ติดลบหักออกตามเครื่องหมาย wealthSummary) */
+function currencySharesOf(accounts: readonly Account[], entries: readonly Entry[], data: InvestmentData, today: string, hasRows: boolean): CurrencyShares {
+  if (!hasRows) return { kind: 'none' };
+  const slices = guard(() => buildDashboardView(accounts, entries, data, today).currencySlices, null);
+  return slices === null ? { kind: 'incomplete' } : { kind: 'ok', shares: slices };
+}
+
+/** ตัวเลขใหญ่เกินช่วงปลอดภัย (RangeError) ในส่วนใดส่วนหนึ่ง = ส่วนนั้นใช้ค่าสำรอง ไม่ทำให้ทั้งหน้าล้ม */
+function guard<T>(fn: () => T, fallback: T): T {
   try {
-    const out = allocateBps([
-      { key: 'stocks', weight: us.totals.valueThb },
-      { key: 'cash', weight: cashThb },
-    ]);
-    return out.length === 0 ? null : out;
-  } catch {
-    return null;
+    return fn();
+  } catch (e) {
+    if (e instanceof RangeError) return fallback;
+    throw e;
   }
 }

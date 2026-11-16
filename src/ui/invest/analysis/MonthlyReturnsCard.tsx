@@ -33,7 +33,7 @@ export function MonthlyReturnsCard({ model }: { model: AnalysisModel }) {
                     <th scope="row">{y.year}</th>
                     {y.cells.map((c, i) => (
                       <td key={i} className={`num an-cell${c.kind === 'ok' ? ` an-cell-${toneOf(c.bps)}` : ''}`}>
-                        {c.kind === 'ok' ? signedPercentBps(c.bps) : c.kind === 'na' ? <Dash why={naReasonText(c.reason)} /> : ''}
+                        {c.kind === 'ok' ? signedPercentBps(c.bps) : c.kind === 'na' ? <Dash why={naReasonText(c.reason)} /> : <span className="sr-only">ยังไม่ถึงเดือนนี้</span>}
                       </td>
                     ))}
                     <td className={`num an-cell an-total${y.total === null ? '' : ` an-cell-${toneOf(y.total)}`}`}>
@@ -44,9 +44,7 @@ export function MonthlyReturnsCard({ model }: { model: AnalysisModel }) {
               </tbody>
             </table>
           </div>
-          <p className="muted small">
-            คิดเป็นบาท (รวมผลจากค่าเงิน) แบบ Modified Dietz ถ่วงน้ำหนักตามวันที่เงินเข้าออก รวมปันผลหลังภาษี · ทั้งปีเชื่อมจากรายเดือน · "—" = คำนวณไม่ได้ (ไม่มีราคาหรืออัตราของเดือนนั้น) ระบบไม่เดา
-          </p>
+          <p className="muted small">ผลตอบแทนคิดแบบถ่วงตามวันที่เงินเข้าออก เป็นบาท รวมปันผลหลังภาษี "—" = คำนวณไม่ได้ ระบบไม่เดา</p>
         </>
       )}
     </section>

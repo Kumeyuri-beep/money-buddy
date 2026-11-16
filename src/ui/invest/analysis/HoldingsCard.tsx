@@ -59,6 +59,7 @@ export function HoldingsCard({ model, currency }: { model: AnalysisModel; curren
     );
   }
   const anyShare = rows.some((r) => r.shareBps !== null);
+  const shareTotal = rows.reduce((n, r) => n + (r.shareBps ?? 0), 0); // ผลรวมสัดส่วนจริง (ครบ 10,000 เมื่อทุกหุ้นมีมูลค่า)
   const anyValue = rows.some((r) => r.row.valueThb !== null);
   const anyGain = rows.some((r) => r.row.unrealizedThb !== null);
   const holding = rows.some((r) => r.row.units > 0n);
@@ -99,7 +100,7 @@ export function HoldingsCard({ model, currency }: { model: AnalysisModel; curren
         <div className="migrate-table-wrap" role="region" aria-label="ตารางหุ้นที่ถือ เลื่อนซ้ายขวาได้" tabIndex={0}>
           {sub === 'general' && (
             <table className="migrate-table an-table">
-              <caption className="sr-only">หุ้นที่ถือ สัดส่วน จำนวน ต้นทุนเฉลี่ย ราคาล่าสุด มูลค่า กำไรยังไม่ขาย และขึ้นลงวันนี้</caption>
+              <caption className="sr-only">หุ้นที่ถือ สัดส่วน จำนวน ต้นทุนเฉลี่ย ราคาล่าสุด มูลค่า และกำไรยังไม่ขาย</caption>
               <thead>
                 <tr>
                   <th scope="col">หุ้น</th>
@@ -109,7 +110,6 @@ export function HoldingsCard({ model, currency }: { model: AnalysisModel; curren
                   <th scope="col" className="num">ราคาล่าสุด (USD)</th>
                   <th scope="col" className="num">มูลค่า ({unit})</th>
                   <th scope="col" className="num">กำไรยังไม่ขาย (บาท)</th>
-                  <th scope="col" className="num">วันนี้</th>
                 </tr>
               </thead>
               <tbody>
@@ -129,16 +129,13 @@ export function HoldingsCard({ model, currency }: { model: AnalysisModel; curren
                     <td className="num">
                       <MoneyCell thb={r.unrealizedThb} currency="THB" signedValue why={NEED} />
                     </td>
-                    <td className="num">
-                      <Dash why="รอราคาอัตโนมัติ" />
-                    </td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr>
                   <th scope="row">รวม{complete ? '' : ' (ไม่ครบ)'}</th>
-                  <td className="num">{anyShare ? formatBps(10_000) : <Dash why={NEED} />}</td>
+                  <td className="num">{anyShare ? formatBps(shareTotal) : <Dash why={NEED} />}</td>
                   <td className="num"><Dash /></td>
                   <td className="num"><Dash /></td>
                   <td className="num"><Dash /></td>
@@ -147,9 +144,6 @@ export function HoldingsCard({ model, currency }: { model: AnalysisModel; curren
                   </td>
                   <td className="num">
                     {holding && !anyGain ? <Dash why={NEED} /> : <MoneyCell thb={us.totals.unrealizedThb} currency="THB" signedValue />}
-                  </td>
-                  <td className="num">
-                    <Dash why="รอราคาอัตโนมัติ" />
                   </td>
                 </tr>
               </tfoot>
@@ -215,21 +209,15 @@ export function HoldingsCard({ model, currency }: { model: AnalysisModel; curren
             </table>
           )}
         </div>
-        {sub === 'general' && currency === 'USD' && (
-          <p className="muted small">กำไรยังไม่ขายแสดงเป็นบาทเท่านั้น (ต้นทุนบาทของแต่ละรายการอยู่ที่อัตราวันซื้อ) · สลับเป็น ฿ เพื่อดูส่วนต่างราคาและค่าเงิน</p>
-        )}
+        {sub === 'general' && currency === 'USD' && <p className="muted small">กำไรยังไม่ขายแสดงเป็นบาทเท่านั้น สลับเป็น ฿ เพื่อดูส่วนต่างราคาและค่าเงิน</p>}
         {sub === 'profit' && <ProfitSources profit={model.profit} currency={currency} />}
-        <p className="muted small">
-          {sub === 'dividend'
-            ? 'ปันผลสะสมสุทธิ = หลังหักภาษี ณ ที่จ่าย · ยอดบาทแปลงที่อัตราวันที่รับปันผลของแต่ละรายการ'
-            : 'มูลค่าแปลงเป็นบาทที่อัตราล่าสุดที่กรอก · ต้นทุนเฉลี่ยและราคาเป็นดอลลาร์ต่อหุ้น · "วันนี้" ใช้ได้เมื่อเปิดราคาอัตโนมัติ'}
-        </p>
+        <p className="muted small">{sub === 'dividend' ? 'ปันผลสะสมสุทธิ = หลังหักภาษี ณ ที่จ่าย' : 'มูลค่าแปลงเป็นบาทที่อัตราล่าสุดที่กรอก ส่วนต้นทุนเฉลี่ยและราคาเป็นดอลลาร์ต่อหุ้น'}</p>
       </div>
     </section>
   );
 }
 
-function ProfitSources({ profit, currency }: { profit: ProfitResult; currency: 'THB' | 'USD' }) {
+export function ProfitSources({ profit, currency }: { profit: ProfitResult; currency: 'THB' | 'USD' }) {
   const src = currency === 'THB' ? profit.thb : profit.usd;
   if (src === null) {
     return (

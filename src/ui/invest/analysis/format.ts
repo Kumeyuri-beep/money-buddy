@@ -20,7 +20,7 @@ export const THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม
 
 /** เหตุผลที่คำนวณผลตอบแทนเดือนไม่ได้ (จาก MonthReturn.na) */
 export function naReasonText(na: 'missing' | 'zero-base' | undefined): string {
-  return na === 'zero-base' ? 'คำนวณไม่ได้: ฐานเงินเป็นศูนย์ (ซื้อวันสุดท้ายของเดือน)' : 'ไม่มีราคาหรืออัตราแลกเปลี่ยนของเดือนนี้';
+  return na === 'zero-base' ? 'คำนวณไม่ได้: เดือนนี้ยังไม่มีเงินลงทุนตั้งต้น' : 'ไม่มีราคาหรืออัตราแลกเปลี่ยนของเดือนนี้';
 }
 
 export type Tone = 'pos' | 'neg' | 'zero';
