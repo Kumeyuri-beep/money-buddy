@@ -25,8 +25,8 @@ async function openPortfolio(page: Page, mobile: boolean): Promise<void> {
     await openDesktopView(page, 'พอร์ตการลงทุน');
   }
   // ขั้น 1: ฟังก์ชันหุ้นสหรัฐอยู่ในโหมดการลงทุน → แท็บ "รายการ"
-  await expect(page.getByRole('heading', { name: 'พอร์ตการลงทุน', level: 2 }).first()).toBeVisible();
-  await page.getByRole('tab', { name: 'รายการ', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Main portfolio', level: 2 }).first()).toBeVisible();
+  await page.getByRole('tab', { name: 'Portfolio', exact: true }).click();
   await expect(page.getByRole('tablist', { name: 'หน้าย่อยของพอร์ตการลงทุน' })).toBeVisible();
 }
 
@@ -50,7 +50,7 @@ for (const w of WIDTHS) {
       const overview = page.getByRole('tab', { name: 'ภาพรวมพอร์ต' });
       const us = page.getByRole('tab', { name: 'หุ้นสหรัฐ' });
       await expect(overview).toHaveAttribute('aria-selected', 'true');
-      await expect(page.getByRole('heading', { name: 'พอร์ตการลงทุน', level: 2 }).first()).toBeVisible(); // หน้าเดิมยังอยู่
+      await expect(page.getByRole('heading', { name: 'Main portfolio', level: 2 }).first()).toBeVisible(); // หน้าเดิมยังอยู่
       await expectClean(page, seen);
 
       await us.click();

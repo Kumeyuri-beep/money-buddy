@@ -2,7 +2,7 @@
 .iv-mode { display: grid; gap: 16px; }
 
 /* ---------- แถบบน ---------- */
-.iv-topbar { z-index: 20; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 10px 14px; border-radius: 20px; }
+.iv-topbar { z-index: 1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 10px 14px; border-radius: 20px; }
 .iv-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
 .iv-tab { min-height: 44px; padding: 0 18px; border: 0; border-radius: 14px; background: transparent; color: var(--muted); font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; }
 .iv-tab:hover { color: var(--text); background: var(--ov-6); }
