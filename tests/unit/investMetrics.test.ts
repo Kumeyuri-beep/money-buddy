@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { replayTradesFx } from '../../src/domain/invest/costBasisFx';
 import {
-  addMonthsClamped, computeDividendMetrics, computeIrr, computeMonthlyReturns, computeProfitSources, replayWithFees, xirrBps,
+  addMonthsClamped, computeDividendMetrics, computeIrr, computeMonthlyReturns, computeProfitSources, profitPercentBps, replayWithFees, xirrBps,
 } from '../../src/domain/invest/metrics';
 import { toTradesFx } from '../../src/domain/invest/tradesFx';
 import type { Asset, InvestmentData, TradeRecord } from '../../src/domain/invest/types';
@@ -386,5 +386,37 @@ describe('ข้อสังเกตจาก money-auditor (เทสต์เ
       fxRates: [{ accountId: 'usd-cash', date: '2026-11-10', rateMicro: 35_000_000 }],
     });
     expect(computeDividendMetrics(d, TODAY).yieldBps).toBeNull();
+  });
+});
+
+describe('R24.5 กำไรรวมเป็น % (÷ ต้นทุนที่ยังถืออยู่)', () => {
+  it('ตัวอย่างหลัก: บาท 774,113 ÷ 2,102,100 = 3,682.57 → 3,683 bps (36.83%) · USD 27,050 ÷ 60,060 = 4,503.83 → 4,504 bps (45.04%)', () => {
+    const r = computeProfitSources(MAIN, TODAY);
+    const rep = replayWithFees(toTradesFx(MAIN.trades));
+    expect(rep.position.costThb).toBe(2_102_100);
+    expect(rep.position.costUsd).toBe(60_060);
+    expect(profitPercentBps(r.thb!.total, rep.position.costThb)).toBe(3_683);
+    expect(profitPercentBps(r.usd!.total, rep.position.costUsd)).toBe(4_504);
+  });
+  it('ไม่ตัดเศษทิ้ง: .4 → ลง · .5 พอดี → ขึ้น (ออกจากศูนย์) · .6 → ขึ้น', () => {
+    expect(profitPercentBps(10_004, 100_000)).toBe(1_000); // 1000.4
+    expect(profitPercentBps(10_005, 100_000)).toBe(1_001); // 1000.5 พอดี
+    expect(profitPercentBps(10_006, 100_000)).toBe(1_001); // 1000.6
+  });
+  it('ขาดทุน: ปัดสมมาตรออกจากศูนย์ · −.4 → −1000 · −.5 พอดี → −1001 · −.6 → −1001', () => {
+    expect(profitPercentBps(-10_004, 100_000)).toBe(-1_000);
+    expect(profitPercentBps(-10_005, 100_000)).toBe(-1_001);
+    expect(profitPercentBps(-10_006, 100_000)).toBe(-1_001);
+  });
+  it('ต้นทุน 0 (ขายหมด) หรือกำไรไม่มี (null) → null · กำไร 0 → 0 ไม่ใช่ −0', () => {
+    expect(profitPercentBps(500, 0)).toBeNull();
+    expect(profitPercentBps(null, 100_000)).toBeNull();
+    expect(Object.is(profitPercentBps(0, 100_000), 0)).toBe(true);
+    expect(Object.is(profitPercentBps(-1, 1_000_000_000), 0)).toBe(true); // −0.00001 bps → 0 ไม่ใช่ −0
+  });
+  it('ต้นทุนน้อยมาก (1 สตางค์) และตัวเลขใหญ่: คำนวณด้วย BigInt ไม่เพี้ยน · ผลเกินช่วงปลอดภัย = RangeError', () => {
+    expect(profitPercentBps(3, 1)).toBe(30_000);
+    expect(profitPercentBps(9_000_000_000_000_000, 9_000_000_000_000_000)).toBe(10_000);
+    expect(() => profitPercentBps(9_000_000_000_000_000, 1)).toThrow(RangeError);
   });
 });

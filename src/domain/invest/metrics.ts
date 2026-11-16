@@ -574,3 +574,14 @@ export function computeMonthlyReturns(data: InvestmentData, asOf: string): Month
   }
   return { months, years };
 }
+
+// ───────────────────────── R24.5 กำไรรวมเป็น % ─────────────────────────
+
+/**
+ * กำไรรวมเป็น bps = กำไรรวม ÷ ต้นทุนของที่ยังถืออยู่ (R24.5) · หน่วยของทั้งสองค่าต้องเป็นสกุลเดียวกัน (สตางค์/สตางค์ หรือ เซนต์/เซนต์)
+ * null = ไม่คำนวณ: กำไรรวมไม่มี (ข้อมูลไม่ครบ) หรือต้นทุนที่ถืออยู่เป็น 0 (เช่น ขายหมดแล้ว) · ปัดครึ่งออกจากศูนย์ ด้วย BigInt
+ */
+export function profitPercentBps(total: number | null, heldCost: number): number | null {
+  if (total === null || heldCost <= 0) return null;
+  return toSafeSatang(roundHalfUpBig(BigInt(total) * 10_000n, BigInt(heldCost)));
+}
