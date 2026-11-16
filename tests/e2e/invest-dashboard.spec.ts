@@ -39,9 +39,9 @@ for (const w of WIDTHS) {
       await expect(page.getByText('แท็บ "รายการ"')).toBeVisible();
       await expect(page.getByRole('heading', { level: 2, name: 'มูลค่าพอร์ต', exact: true })).toHaveCount(0);
       await expect(page.getByRole('button', { name: 'สกุลเงิน', exact: true })).toHaveCount(0);
-      await page.getByRole('button', { name: 'ดอลลาร์สหรัฐ', exact: true }).click();
+      await page.getByRole('button', { name: 'USD', exact: true }).click();
       await expect(page.getByRole('heading', { name: 'ยังไม่มีหุ้นในพอร์ต', level: 2 })).toBeVisible();
-      await page.getByRole('button', { name: 'บาท', exact: true }).click();
+      await page.getByRole('button', { name: 'บาท ฿', exact: true }).click();
 
       const doc = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
       expect(doc.scroll, `หน้าเลื่อนแนวนอนได้ (${doc.scroll} > ${doc.client})`).toBeLessThanOrEqual(doc.client + 1);
