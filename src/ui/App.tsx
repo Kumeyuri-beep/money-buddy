@@ -517,7 +517,7 @@ export function App() {
       ) : view === 'tax' ? (
         <TaxView portfolio={(fill, current) => <TaxPortfolioLink onFill={fill} current={current} />} />
       ) : view === 'portfolio' ? (
-        <InvestMode today={today} accounts={accounts} entries={state.ledger.entries} wallets={walletOptions(accounts).map((a) => ({ id: a.id, name: a.name }))} onLedgerChanged={() => void refresh()} />
+        <InvestMode today={today} accounts={accounts} entries={state.ledger.entries} wallets={walletOptions(accounts).map((a) => ({ id: a.id, name: a.name }))} onLedgerChanged={() => void refresh()} onOpenRetirement={() => setView('retirement')} />
       ) : view === 'bills' ? (
         <BillsView
           bills={state.bills}

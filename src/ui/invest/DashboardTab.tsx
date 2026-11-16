@@ -12,7 +12,7 @@ import './dashboard/dashboard.css';
  * การ์ด "ความมั่งคั่งรวม" เดิม (WealthPanel · ตัวเลขเดิมไม่เปลี่ยน) คงไว้ท้ายหน้า เพื่อไม่ให้ฟีเจอร์เดิมหาย
  */
 export function DashboardTab() {
-  const { today, accounts, entries, data, currency } = useInvest();
+  const { today, accounts, entries, data, currency, onOpenRetirement } = useInvest();
   // สร้างมุมมองใน try/catch: ข้อมูลพังเฉพาะแท็บนี้ ไม่ทำให้ทั้งโหมดล้ม
   const built = useMemo(() => {
     if (data === null) return null;
@@ -31,7 +31,7 @@ export function DashboardTab() {
           แสดงแดชบอร์ดไม่สำเร็จ: {built.failure}
         </p>
       ) : (
-        <DashboardBody view={built.view} currency={currency} />
+        <DashboardBody view={built.view} currency={currency} onOpenRetirement={onOpenRetirement} />
       )}
       <WealthPanel accounts={accounts} entries={entries} today={today} investments={data} />
     </div>

@@ -18,6 +18,8 @@ export interface InvestContextValue {
   reload: () => Promise<void>;
   /** แจ้งแอปให้โหลดสมุดบัญชีใหม่ (หลังรายการลงทุนเปลี่ยนยอดในสมุด) */
   onLedgerChanged: () => void;
+  /** ไปหน้าแผนเกษียณ (ถ้าแอปส่งมา) */
+  onOpenRetirement?: () => void;
   currency: InvestCurrency;
   setCurrency: (c: InvestCurrency) => void;
 }

@@ -5,7 +5,7 @@
  * ข้อมูลไม่ครบ = null (ห้ามเลขปลอม/ห้ามใช้ 0 แทน)
  */
 import { buildUsPortfolio, type UsPortfolio } from '../../../app/usPortfolio';
-import { computeDividendMetrics, computeIrr, computeProfitSources, type DividendMetrics, type IrrResult, type ProfitResult } from '../../../domain/invest/metrics';
+import { computeDividendMetrics, computeIrr, computeProfitSources, profitPercentBps, type DividendMetrics, type IrrResult, type ProfitResult } from '../../../domain/invest/metrics';
 import { allocateBps, groupSmallShares, type AllocationShare } from '../../../domain/invest/allocation';
 import { convertMinor } from '../../../domain/invest/fx';
 import { wealthSummary } from '../../../domain/invest/portfolioMoney';
@@ -46,6 +46,9 @@ export interface DashboardView {
   costThb: number;
   costUsd: number;
   profit: ProfitResult;
+  /** กำไรรวมเป็น bps ÷ ต้นทุนที่ยังถืออยู่ (R24.5) · null = ไม่คำนวณ (ต้นทุน 0 หรือข้อมูลไม่ครบ) */
+  profitPctThb: number | null;
+  profitPctUsd: number | null;
   dividend: DividendMetrics;
   irr: IrrResult;
   fxText: { rateMicro: number; stale: boolean; days: number } | null;
@@ -111,6 +114,7 @@ export function buildDashboardView(accounts: readonly Account[], entries: readon
     }
   }
 
+  const profit = computeProfitSources(data, today);
   return {
     empty: us.rows.length === 0,
     holding,
@@ -118,7 +122,9 @@ export function buildDashboardView(accounts: readonly Account[], entries: readon
     valueUsd,
     costThb: us.totals.costThb,
     costUsd,
-    profit: computeProfitSources(data, today),
+    profit,
+    profitPctThb: profitPercentBps(profit.thb ? profit.thb.total : null, us.totals.costThb),
+    profitPctUsd: profitPercentBps(profit.usd ? profit.usd.total : null, costUsd),
     dividend: computeDividendMetrics(data, today),
     irr: computeIrr(data, today),
     fxText: us.fx ? { rateMicro: us.fx.rateMicro, stale: us.fx.stale, days: us.fx.days } : null,

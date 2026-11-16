@@ -17,6 +17,7 @@ interface Props {
   entries: readonly Entry[];
   wallets: readonly { id: string; name: string }[];
   onLedgerChanged: () => void;
+  onOpenRetirement?: () => void;
 }
 
 type Tab = 'dashboard' | 'analysis' | 'transactions' | 'calendar';
@@ -31,7 +32,7 @@ const TABS: { id: Tab; label: string }[] = [
  * โหมดการลงทุน (/invest · ขั้น 1 ปรับโครงเว็บ): หัวข้อ "พอร์ตการลงทุน" + ปุ่มสลับ ฿/USD + ป้ายอัปเดต/อัตรา + 4 แท็บ
  * โหลดข้อมูลลงทุนครั้งเดียวที่นี่แล้วแชร์ทุกแท็บผ่าน InvestContext · เป็นไฟล์ที่โหลดแยก (lazy chunk) ไม่อยู่ในก้อนหลักของหน้าหลัก
  */
-export default function InvestMode({ today, accounts, entries, wallets, onLedgerChanged }: Props) {
+export default function InvestMode({ today, accounts, entries, wallets, onLedgerChanged, onOpenRetirement }: Props) {
   const repo = useRepository();
   const [tab, setTab] = useState<Tab>('dashboard');
   const [currency, setCurrency] = useState<InvestCurrency>('THB');
@@ -53,8 +54,8 @@ export default function InvestMode({ today, accounts, entries, wallets, onLedger
 
   const badge = useMemo(() => buildInvestBadge(data, today), [data, today]);
   const ctx = useMemo(
-    () => ({ today, accounts, entries, wallets, data, loadError, reload, onLedgerChanged, currency, setCurrency }),
-    [today, accounts, entries, wallets, data, loadError, reload, onLedgerChanged, currency],
+    () => ({ today, accounts, entries, wallets, data, loadError, reload, onLedgerChanged, onOpenRetirement, currency, setCurrency }),
+    [today, accounts, entries, wallets, data, loadError, reload, onLedgerChanged, onOpenRetirement, currency],
   );
 
   const onKey = (e: KeyboardEvent<HTMLButtonElement>, index: number) => {
