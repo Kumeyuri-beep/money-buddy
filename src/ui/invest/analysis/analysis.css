@@ -1,0 +1,44 @@
+/* แท็บ "วิเคราะห์" ของโหมดการลงทุน · ใช้ตัวแปรสีเดิมของระบบ (ไม่เพิ่ม token กลาง) · สไตล์ที่ทำให้หน้าตาเปลี่ยนเฉพาะคอมอยู่ใน @media (min-width: 1024px) */
+.an-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.an-card-head h2 { margin: 0; }
+.an-card-head .pf-tabs { margin: 0; }
+.invest-analysis > *, .an-pair > * { min-width: 0; }
+.invest-analysis .migrate-table-wrap { position: relative; } /* sr-only ในเซลล์ตั้งตำแหน่งสัมบูรณ์ ต้องถูกตัดในกรอบเลื่อนของตาราง ไม่ให้ดันหน้าเลื่อนข้าง */
+.an-pair { display: grid; gap: 16px; }
+.an-table th[scope='row'] { white-space: nowrap; }
+.an-table tfoot th, .an-table tfoot td { font-weight: 600; border-top: 1px solid var(--ov-18); border-bottom: 0; }
+.an-table tfoot th, .an-table tbody th { background: var(--surface-solid); }
+.an-table tfoot th { position: sticky; left: 0; }
+.an-table thead th.num { white-space: normal; }
+.an-head h2 { margin: 0 0 4px; }
+.an-head p { margin: 0; }
+.an-subtabs .pf-tab.is-active { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 5px; }
+.invest-analysis .migrate-table-wrap { background: linear-gradient(to left, var(--ov-10), transparent 16px) right / 16px 100% no-repeat scroll; }
+.an-swatch { display: inline-block; width: 4px; height: 1.2em; margin-right: 8px; vertical-align: middle; border-radius: 2px; }
+.an-name { vertical-align: middle; }
+/* ตัวเลขบวก/ลบ: มีเครื่องหมาย +/- กำกับเสมอ สีเป็นตัวช่วย (อยู่บนพื้นทึบ .solid เท่านั้น) */
+.an-pos { color: var(--income); }
+.an-neg { color: var(--expense); }
+.an-zero { color: inherit; }
+dl.avg-result .an-pos, dl.avg-result .an-neg { font-weight: 600; }
+.an-months { min-width: 860px; }
+.an-cell { white-space: nowrap; }
+.an-cell-pos { background: color-mix(in srgb, var(--income) 14%, transparent); color: var(--income); }
+.an-cell-neg { background: color-mix(in srgb, var(--expense) 14%, transparent); color: var(--expense); }
+.an-total { font-weight: 600; }
+.an-sources { margin-top: 16px; }
+.an-sources h3 { margin: 0 0 8px; font-size: 16px; }
+.an-bars { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.an-bar-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.an-bar { height: 10px; border-radius: 999px; background: var(--ov-10); overflow: hidden; }
+.an-bar > span { display: block; height: 100%; border-radius: 999px; background: var(--chart-slice1); }
+.an-bars li:nth-child(2) .an-bar > span { background: var(--chart-slice2); }
+@media (min-width: 1024px) {
+  .an-pair { grid-template-columns: 1fr 1fr; align-items: start; }
+  .an-table { font-size: 15px; }
+  .an-months { min-width: 0; }
+  .an-months th, .an-months td { padding: 10px 8px; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .an-cell-pos, .an-cell-neg { background: transparent; }
+}
