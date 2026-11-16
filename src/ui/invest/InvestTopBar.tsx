@@ -59,8 +59,15 @@ function PortfolioMenu({ portfolio, onSave }: MenuProps) {
     const onDown = (e: MouseEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) close(false);
     };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close(true);
+    };
     document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onEsc);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 

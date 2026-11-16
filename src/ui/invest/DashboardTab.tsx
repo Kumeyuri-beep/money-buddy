@@ -1,13 +1,14 @@
 import { useMemo } from 'react';
 import { friendlyError } from '../../app/errorText';
 import { useInvest } from './InvestContext';
+import { LowerCards } from './dashboard/LowerCards';
 import { PortfolioCard } from './dashboard/PortfolioCard';
 import { StatCards } from './dashboard/StatCards';
 import { buildDashboardView } from './dashboard/dashboardView';
 import './dashboard/dashboard.css';
 
 /**
- * แท็บ Dashboard ของโหมด /invest (แบบร่างใหม่ · ภาษาอังกฤษ) · PR 1: 4 การ์ดตัวเลข + การ์ด Portfolio
+ * แท็บ Dashboard ของโหมด /invest (แบบร่างใหม่ · ภาษาอังกฤษ) · PR 1: 4 การ์ดตัวเลข + การ์ด Portfolio · PR 2: การ์ดล่าง (Top day gainers/losers, events, Future payments, My goal)
  * ตัวเลขทั้งหมดมาจากฟังก์ชันโดเมนผ่าน dashboard/dashboardView.ts · สกุลที่แสดงตามปุ่ม ฿/USD ที่แถบบน
  * (การ์ดความมั่งคั่งรวมเดิม WealthPanel ยังอยู่ที่หน้าภาพรวมของแอป ไม่ได้หายไป)
  */
@@ -34,6 +35,7 @@ export function DashboardTab() {
         <>
           <StatCards view={built.view} currency={currency} onOpenRetirement={onOpenRetirement} />
           <PortfolioCard view={built.view} currency={currency} />
+          <LowerCards view={built.view} currency={currency} onOpenRetirement={onOpenRetirement} />
         </>
       )}
     </div>

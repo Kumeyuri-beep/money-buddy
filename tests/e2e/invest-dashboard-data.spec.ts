@@ -183,6 +183,41 @@ for (const w of WIDTHS) {
       }
     });
 
+    test('การ์ดล่าง (PR 2): empty state ตามที่กำหนด · ปุ่ม sort สลับทันที คำอธิบายขึ้นเฉพาะตอนชี้/โฟกัส · ⓘ ขึ้นข้อความ · แท่ง Received ใช้ปันผลจริง', async ({ page }) => {
+      await openDemo(page);
+      for (const name of ['Top day gainers', 'Top day losers', 'Recent and upcoming events', 'Future payments', 'My goal']) await expect(page.getByRole('heading', { level: 2, name, exact: true })).toBeVisible();
+      expect(await page.getByText('Available after automatic data is enabled', { exact: true }).count()).toBeGreaterThanOrEqual(3);
+      await expect(page.getByRole('button', { name: 'See all →' })).toHaveAttribute('aria-disabled', 'true');
+
+      const sort = page.getByRole('button', { name: /currently by percentage change/ }).first();
+      const sortTip = page.getByRole('tooltip').filter({ hasText: 'Sort by the asset price change as a percentage' }).first();
+      await expect(sortTip).toBeHidden();
+      await sort.focus();
+      await expect(sortTip).toBeVisible();
+      await sort.click();
+      await expect(page.getByRole('button', { name: /currently by value change/ }).first()).toContainText('฿');
+      await expect(page.getByRole('tooltip').filter({ hasText: 'Sort by change in the value of assets in the portfolio' }).first()).toBeVisible();
+
+      await page.getByRole('button', { name: 'About Top day gainers' }).focus();
+      await expect(page.getByRole('tooltip').filter({ hasText: 'intraday' }).first()).toBeVisible();
+      await page.getByRole('button', { name: 'About Future payments' }).focus();
+      await expect(page.getByRole('tooltip').filter({ hasText: 'BEFORE tax' })).toBeVisible();
+
+      // ปันผลสมมติ 1 ครั้ง (ส.ค.) → แท่งเดียวที่สูงกว่า 0
+      const heights = await page.locator('.iv-bar').evaluateAll((els) => els.map((e) => (e as HTMLElement).style.height));
+      expect(heights).toHaveLength(12);
+      expect(heights.filter((h) => h !== '0%')).toHaveLength(1);
+      const px = await page.locator('.iv-bar').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
+      expect(Math.max(...px), 'the Received bar must have a visible height at every width').toBeGreaterThan(20);
+      await shot(page, `lower-cards-${w.width}`);
+    });
+
+    test('My goal: Set a target ไปหน้าแผนเกษียณ', async ({ page }) => {
+      await openDemo(page);
+      await page.getByRole('button', { name: 'Set a target' }).click();
+      await expect(page.getByRole('heading', { level: 2, name: /เกษียณ/ }).first()).toBeVisible();
+    });
+
     for (const theme of ['dark', 'light'] as const) {
       test(`ตัวหนังสือผ่าน WCAG AA (${theme})`, async ({ page }) => {
         await page.emulateMedia({ colorScheme: theme });
