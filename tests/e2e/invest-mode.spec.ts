@@ -40,8 +40,8 @@ for (const w of WIDTHS) {
       for (const name of ['แดชบอร์ด', 'วิเคราะห์', 'รายการ', 'ปฏิทินปันผล']) await expect(tabs.getByRole('tab', { name, exact: true })).toBeVisible();
       await expect(tabs.getByRole('tab', { name: 'แดชบอร์ด', exact: true })).toHaveAttribute('aria-selected', 'true');
 
-      const thb = page.getByRole('button', { name: 'บาท', exact: true });
-      const usd = page.getByRole('button', { name: 'ดอลลาร์สหรัฐ', exact: true });
+      const thb = page.getByRole('button', { name: 'บาท ฿', exact: true });
+      const usd = page.getByRole('button', { name: 'USD', exact: true });
       await expect(thb).toHaveAttribute('aria-pressed', 'true');
       await usd.click();
       await expect(usd).toHaveAttribute('aria-pressed', 'true');
