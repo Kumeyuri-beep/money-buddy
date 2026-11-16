@@ -80,7 +80,7 @@ export default function InvestMode({ today, accounts, entries, wallets, onLedger
           <div className="invest-head-tools">
             <div className="invest-currency" role="group" aria-label="สกุลเงินที่แสดง">
               {(['THB', 'USD'] as const).map((c) => (
-                <button key={c} type="button" aria-label={c === 'THB' ? 'บาท' : 'ดอลลาร์สหรัฐ'} className={`invest-cur${currency === c ? ' is-active' : ''}`} aria-pressed={currency === c} onClick={() => setCurrency(c)}>
+                <button key={c} type="button" aria-label={c === 'THB' ? 'บาท ฿' : undefined} className={`invest-cur${currency === c ? ' is-active' : ''}`} aria-pressed={currency === c} onClick={() => setCurrency(c)}>
                   {c === 'THB' ? '฿' : 'USD'}
                 </button>
               ))}

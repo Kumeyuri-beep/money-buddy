@@ -42,9 +42,9 @@ for (const w of WIDTHS) {
       await expect(page.getByRole('heading', { name: 'ผลตอบแทนรายเดือน' })).toHaveCount(0);
       await expect(page.locator('.invest-analysis').getByText(/฿\d|\$\d/)).toHaveCount(0);
 
-      await page.getByRole('button', { name: 'ดอลลาร์สหรัฐ', exact: true }).click();
+      await page.getByRole('button', { name: 'USD', exact: true }).click();
       await expect(page.getByRole('heading', { name: 'ยังไม่มีหุ้นสหรัฐ', level: 2 })).toBeVisible();
-      await page.getByRole('button', { name: 'บาท', exact: true }).click();
+      await page.getByRole('button', { name: 'บาท ฿', exact: true }).click();
 
       const doc = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
       expect(doc.scroll, `หน้าเลื่อนแนวนอนได้ (${doc.scroll} > ${doc.client})`).toBeLessThanOrEqual(doc.client + 1);
