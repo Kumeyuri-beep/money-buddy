@@ -1275,3 +1275,10 @@ money-auditor ตรวจ 5 ตัวที่เกี่ยวกับเง
 **backlog (ไม่ทำตอนนี้):** เครื่องหมายลบของ % ใช้ "-" แต่ของเงินใช้ "−" (ควรเป็นแบบเดียวกัน) · แถวตารางยังไม่มี aria-label บอกสัดส่วน · Esc ปิด tooltip ตอนเมาส์ชี้อย่างเดียว (ไม่โฟกัส) · แปลแท็บ Analytics/Portfolio เป็นอังกฤษ · ผลรวม % ของปุ่ม Currency ใช้บาทเสมอ
 **ต่อไป:** PR 2 การ์ดที่เหลือ (Top day gainers/losers, Recent and upcoming events, Future payments, My goal) หลัง PR 1 merge
 **ต้องลองบนคอม:** ดูหัวข้อ "ต้องลองบนคอม" ใน PR / รายงาน
+
+## 85. Dashboard ใหม่ของ /invest — PR 2 การ์ดล่าง (17 พ.ย. 2569 · PR `auto/invest-dashboard-v2-cards`)
+
+**PR 1 merge แล้ว:** #198 (36bb40d) · CI ผ่านครบ · live-contract บน branch และบน main = 65/65 ทั้งคู่ (`live-2026-11-16T18-10-11-268Z.log`, `live-2026-11-16T18-21-48-398Z.log`) ครั้งแรกผ่านทุกครั้ง ไม่มีรายการล้มแล้วผ่านซ้ำ · CI ล้มรอบแรกเพราะ e2e เก่าใช้ป้ายไทย (us-stocks) และแถบบน z-index บังปุ่มเมนูมือถือ → แก้แล้วในรอบสอง
+**ทำแล้ว (PR 2):** Top day gainers/losers (ⓘ + ปุ่ม sort สลับ % ↔ ฿ · empty state) · Recent and upcoming events (empty state + See all) · Future payments (ⓘ · แท่ง Received = ปันผลจริงของปีนี้ก่อนภาษี `monthlyDividends` · Forecast รอข้อมูลอัตโนมัติ) · My goal (Set a target → แผนเกษียณ) · ไม่มีสูตรเงินใหม่ ไม่มี migration
+**backlog:** ปุ่ม See all / Calendar / More ยังปิดอยู่ (รอข้อมูลอัตโนมัติ/ปฏิทินปันผล) · ที่เก็บเป้าหมายเกษียณ (ต้อง migration) · Future payments แสดงปีปฏิทินปัจจุบัน ไม่ใช่ 12 เดือนข้างหน้าแบบแบบร่าง (เพราะ Forecast ยังไม่มี)
+**ต้องลองบนคอม:** ดูรายงานท้าย PR

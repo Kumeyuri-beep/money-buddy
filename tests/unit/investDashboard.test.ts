@@ -3,6 +3,7 @@ import { renderToString } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { emptyInvestments, type Asset, type InvestmentData, type TradeRecord } from '../../src/domain/invest/types';
 import type { Account, Entry } from '../../src/domain/ledger/types';
+import { LowerCards } from '../../src/ui/invest/dashboard/LowerCards';
 import { PortfolioCard } from '../../src/ui/invest/dashboard/PortfolioCard';
 import { StatCards } from '../../src/ui/invest/dashboard/StatCards';
 import { barPercent, bpsText, buildDashboardView, monthlyDividends, profitSourceRows } from '../../src/ui/invest/dashboard/dashboardView';
@@ -184,5 +185,31 @@ describe('R24.5 Total profit percentage', () => {
     const v = buildDashboardView(accounts, entries, { ...MAIN, fxRates: [] }, TODAY);
     expect(v.profitPctThb).toBeNull();
     expect(v.profitPctUsd).toBe(4_504);
+  });
+});
+
+const lower = (data: InvestmentData, currency: 'THB' | 'USD', onOpenRetirement?: () => void): string =>
+  renderToString(createElement(LowerCards, { view: buildDashboardView(accounts, entries, data, TODAY), currency, onOpenRetirement }));
+
+describe('Dashboard (PR 2): lower cards', () => {
+  it('movers, events and forecast are empty states with the required wording, no fake numbers', () => {
+    const h = lower(MAIN, 'THB');
+    for (const t of ['Top day gainers', 'Top day losers', 'Recent and upcoming events', 'Future payments', 'My goal']) expect(h).toContain(t);
+    expect(h).toContain('Available after automatic data is enabled');
+    expect(h).toContain('See all');
+    expect(h).toContain('The change in the asset price (intraday). If the stock exchange is closed now, the change for the previous working day is shown.');
+    expect(h).toContain('Forecast of future payments based on your current holdings. All values are shown BEFORE tax. To change the tax for specific holdings, go to Portfolio → Holdings.');
+    expect(h).toContain('Sort by the asset price change as a percentage');
+  });
+  it('Future payments: Received bars use real dividends (gross, before tax) of this year, per currency', () => {
+    expect(lower(MAIN, 'THB')).toContain('฿1,728.39'); // 172,839 satang gross (R20 dividend-day rate)
+    expect(lower(MAIN, 'USD')).toContain('$50.00');
+    const none = lower({ ...MAIN, trades: [MAIN.trades[0]!] }, 'THB');
+    expect(none).toContain('No dividends received this year yet');
+  });
+  it('My goal: shows the question and a Set a target button that is live only when the retirement link exists', () => {
+    expect(lower(MAIN, 'THB', () => undefined)).toContain('How far away is your target?');
+    expect(lower(MAIN, 'THB', () => undefined)).toMatch(/<button type="button" class="iv-btn iv-btn-gold">Set a target<\/button>/);
+    expect(lower(MAIN, 'THB')).toContain('aria-disabled="true"');
   });
 });

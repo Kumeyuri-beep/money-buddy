@@ -53,3 +53,18 @@ export function InfoTip({ label, tip }: { label: string; tip: string }) {
     </span>
   );
 }
+
+/** ปุ่มที่ใช้งานได้จริงแต่มีคำอธิบายขึ้นเฉพาะตอนชี้/โฟกัส (เช่น ปุ่มสลับการเรียง) */
+export function TipAction({ tip, className, ariaLabel, onClick, children }: { tip: string; className?: string; ariaLabel: string; onClick: () => void; children: ReactNode }) {
+  const t = useTip();
+  return (
+    <span className={`iv-tipwrap${t.dismissed ? ' is-dismissed' : ''}`} onMouseLeave={t.reset} onBlur={t.onBlur}>
+      <button type="button" className={className} aria-label={ariaLabel} aria-describedby={t.id} onKeyDown={t.onKeyDown} onClick={onClick}>
+        {children}
+      </button>
+      <span role="tooltip" id={t.id} className="iv-tip iv-tip-right">
+        {tip}
+      </span>
+    </span>
+  );
+}
