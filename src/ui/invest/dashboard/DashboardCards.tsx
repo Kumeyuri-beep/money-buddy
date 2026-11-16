@@ -42,6 +42,7 @@ function TopRow({ view, currency }: { view: DashboardView; currency: DashCurrenc
   const other = currency === 'THB' ? view.valueUsd : view.valueThb;
   const cost = currency === 'THB' ? view.costThb : view.costUsd;
   const profit = currency === 'THB' ? view.profit.thb : view.profit.usd;
+  const profitPct = currency === 'THB' ? view.profitPctThb : view.profitPctUsd;
   const d = view.dividend;
   const net = currency === 'THB' ? d.netThb : d.netUsd;
   const gross = currency === 'THB' ? d.grossThb : d.grossUsd;
@@ -77,7 +78,11 @@ function TopRow({ view, currency }: { view: DashboardView; currency: DashCurrenc
         ) : profit !== null ? (
           <>
             <p className={`dash-big num ${tone(profit.total)}`}>{moneySigned(currency, profit.total)}</p>
-            <p className="muted small">ดูที่ "กำไรมาจากไหน" ด้านล่าง</p>
+            <p className={`dash-pct num ${profitPct === null ? 'muted' : tone(profitPct)}`}>
+              <span className="sr-only">กำไรเป็นเปอร์เซ็นต์ </span>
+              {profitPct === null ? <Dash why="ไม่มีต้นทุนที่ยังถืออยู่" /> : bpsText(profitPct, true)}
+            </p>
+            <p className="muted small">เทียบกับต้นทุนที่ยังถืออยู่</p>
           </>
         ) : (
           <>
@@ -263,17 +268,21 @@ function ProfitSourcesCard({ view, currency }: { view: DashboardView; currency: 
   );
 }
 
-function GoalCard() {
+function GoalCard({ onOpenRetirement }: { onOpenRetirement?: () => void }) {
   return (
     <section className="solid card dash-card" aria-labelledby="dash-goal-title">
       <h2 id="dash-goal-title">ความคืบหน้าเป้าหมาย</h2>
       <p className="muted">ยังไม่ได้ตั้งเป้าหมาย</p>
-      <p className="muted">ยังไม่ได้ตั้งเป้าหมาย</p>
+      {onOpenRetirement && (
+        <button type="button" className="card-link" onClick={onOpenRetirement}>
+          ตั้งเป้าในแผนเกษียณ <span aria-hidden="true">→</span>
+        </button>
+      )}
     </section>
   );
 }
 
-export function DashboardBody({ view, currency }: { view: DashboardView; currency: DashCurrency }) {
+export function DashboardBody({ view, currency, onOpenRetirement }: { view: DashboardView; currency: DashCurrency; onOpenRetirement?: () => void }) {
   if (view.empty) return <EmptyAll />;
   return (
     <>
@@ -290,7 +299,7 @@ export function DashboardBody({ view, currency }: { view: DashboardView; currenc
       <div className="dash-row dash-bottom">
         <MonthlyDividendCard view={view} currency={currency} />
         <ProfitSourcesCard view={view} currency={currency} />
-        <GoalCard />
+        <GoalCard onOpenRetirement={onOpenRetirement} />
       </div>
     </>
   );

@@ -112,3 +112,64 @@ describe('ตัวช่วยแสดงผล', () => {
     expect(barPercent(1, 3)).toBe(33);
   });
 });
+
+describe('R24.5 กำไรรวมเป็น % และการ์ดเป้าหมาย', () => {
+  it('ตัวอย่างหลัก: บาท +36.83% · USD +45.04% · มีคำอธิบาย "เทียบกับต้นทุนที่ยังถืออยู่"', () => {
+    const v = buildDashboardView(accounts, entries, MAIN, TODAY);
+    expect([v.profitPctThb, v.profitPctUsd]).toEqual([3_683, 4_504]);
+    expect(html(MAIN, 'THB')).toContain('+36.83%');
+    expect(html(MAIN, 'USD')).toContain('+45.04%');
+    expect(html(MAIN, 'THB')).toContain('เทียบกับต้นทุนที่ยังถืออยู่');
+  });
+  it('ไม่มีราคา → % เป็น null และไม่แสดงตัวเลข', () => {
+    const noPrice = { ...MAIN, prices: [] };
+    const v = buildDashboardView(accounts, entries, noPrice, TODAY);
+    expect(v.profitPctThb).toBeNull();
+    expect(html(noPrice, 'THB')).not.toContain('36.83%');
+  });
+  it('ขายหมด (ต้นทุนที่ถืออยู่ 0) → % เป็น null แสดง "—" แต่ยังแสดงยอดกำไร', () => {
+    const sold: InvestmentData = {
+      ...MAIN,
+      trades: [
+        trade({ id: 'b', kind: 'buy', date: '2026-11-03', units: '1000000000', amount: 100_000, fee: 0, fxRateMicro: 35_000_000 }),
+        trade({ id: 's', kind: 'sell', date: '2026-11-10', units: '1000000000', priceMicro: 120_000_000, amount: undefined, fee: 0, fxRateMicro: 33_000_000 }),
+      ],
+    };
+    const v = buildDashboardView(accounts, entries, sold, TODAY);
+    expect([v.profitPctThb, v.profitPctUsd]).toEqual([null, null]);
+    expect(v.profit.thb).not.toBeNull();
+  });
+  it('การ์ดเป้าหมาย: ไม่มีตัวเลขปลอม มีปุ่ม "ตั้งเป้าในแผนเกษียณ" เมื่อแอปส่งทางไปแผนเกษียณมา', () => {
+    const view = buildDashboardView(accounts, entries, MAIN, TODAY);
+    const withBtn = renderToString(createElement(DashboardBody, { view, currency: 'THB', onOpenRetirement: () => undefined }));
+    expect(withBtn).toContain('ตั้งเป้าในแผนเกษียณ');
+    expect(withBtn).toContain('ยังไม่ได้ตั้งเป้าหมาย');
+    expect(html(MAIN, 'THB')).not.toContain('ตั้งเป้าในแผนเกษียณ');
+  });
+});
+
+describe('R24.5 เคสเพิ่มจากผลตรวจ money-auditor', () => {
+  it('ขาดทุน: ราคาต่ำกว่าต้นทุน → แสดง "-x.xx%" ทั้งสองสกุล', () => {
+    const loss: InvestmentData = { ...MAIN, trades: [MAIN.trades[0]!], prices: [{ assetId: 'us1', date: '2026-11-12', priceMicro: 90_000_000 }] };
+    const v = buildDashboardView(accounts, entries, loss, TODAY);
+    expect(v.profitPctUsd!).toBeLessThan(0);
+    expect(html(loss, 'USD')).toMatch(/-\d+(\.\d+)?%/);
+  });
+  it('มีราคาแต่ไม่มีอัตรา: บาทเป็น null แต่ USD ยังคำนวณได้ (สองสกุลแยกกัน)', () => {
+    const noFx: InvestmentData = { ...MAIN, fxRates: [] };
+    const v = buildDashboardView(accounts, entries, noFx, TODAY);
+    expect(v.profitPctThb).toBeNull();
+    expect(v.profitPctUsd).toBe(4_504);
+  });
+  it('ขายหมด: หน้าจอไม่แสดง % (แสดง "—") แต่ยังแสดงยอดกำไร', () => {
+    const sold: InvestmentData = {
+      ...MAIN,
+      trades: [
+        trade({ id: 'b', kind: 'buy', date: '2026-11-03', units: '1000000000', amount: 100_000, fee: 0, fxRateMicro: 35_000_000 }),
+        trade({ id: 's', kind: 'sell', date: '2026-11-10', units: '1000000000', priceMicro: 120_000_000, amount: undefined, fee: 0, fxRateMicro: 33_000_000 }),
+      ],
+    };
+    expect(html(sold, 'THB')).not.toMatch(/\+\d+(\.\d+)?%<\/p>\s*<p class="muted small">เทียบกับต้นทุน/);
+    expect(html(sold, 'THB')).toContain('เทียบกับต้นทุนที่ยังถืออยู่');
+  });
+});
