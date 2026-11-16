@@ -24,41 +24,40 @@ async function openInvest(page: Page, mobile: boolean): Promise<void> {
   } else {
     await openDesktopView(page, 'พอร์ตการลงทุน');
   }
-  await expect(page.getByRole('heading', { name: 'พอร์ตการลงทุน', level: 2 }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Main portfolio', level: 2 }).first()).toBeVisible();
 }
 
 for (const w of WIDTHS) {
   test.describe(`ความกว้าง ${w.width}px`, () => {
     test.use({ viewport: { width: w.width, height: w.height } });
 
-    test('โหมดการลงทุน: หัวโหมด ปุ่ม ฿/USD ป้ายอัปเดต 4 แท็บ การ์ดรอราคาอัตโนมัติ · ไม่ล้นจอ ไม่มี error', async ({ page }) => {
+    test('โหมดการลงทุน: ชื่อพอร์ต ปุ่ม ฿/USD ป้ายอัปเดต 4 แท็บ (ภาษาอังกฤษ) · ไม่ล้นจอ ไม่มี error', async ({ page }) => {
       const seen = watch(page);
       await openHarness(page);
       await openInvest(page, w.mobile);
 
-      const tabs = page.getByRole('tablist', { name: 'หน้าย่อยของโหมดการลงทุน' });
-      for (const name of ['แดชบอร์ด', 'วิเคราะห์', 'รายการ', 'ปฏิทินปันผล']) await expect(tabs.getByRole('tab', { name, exact: true })).toBeVisible();
-      await expect(tabs.getByRole('tab', { name: 'แดชบอร์ด', exact: true })).toHaveAttribute('aria-selected', 'true');
+      const tabs = page.getByRole('tablist', { name: 'Portfolio sections' });
+      for (const name of ['Dashboard', 'Analytics', 'Portfolio', 'Tools']) await expect(tabs.getByRole('tab', { name, exact: true })).toBeVisible();
+      await expect(tabs.getByRole('tab', { name: 'Dashboard', exact: true })).toHaveAttribute('aria-selected', 'true');
 
-      const thb = page.getByRole('button', { name: 'บาท ฿', exact: true });
-      const usd = page.getByRole('button', { name: 'USD', exact: true });
+      const thb = page.getByRole('button', { name: '฿ THB', exact: true });
+      const usd = page.getByRole('button', { name: '$ USD', exact: true });
       await expect(thb).toHaveAttribute('aria-pressed', 'true');
       await usd.click();
       await expect(usd).toHaveAttribute('aria-pressed', 'true');
       await expect(thb).toHaveAttribute('aria-pressed', 'false');
       await thb.click();
-      await expect(page.getByText('ยังไม่มีราคา/อัตรา')).toBeVisible();
+      await expect(page.getByText('No prices or rates yet')).toBeVisible();
 
-      await tabs.getByRole('tab', { name: 'วิเคราะห์', exact: true }).click();
+      await tabs.getByRole('tab', { name: 'Analytics', exact: true }).click();
       await expect(page.getByRole('heading', { name: 'วิเคราะห์พอร์ต', level: 2 })).toBeVisible();
-      await tabs.getByRole('tab', { name: 'ปฏิทินปันผล', exact: true }).click();
-      await expect(page.getByRole('heading', { name: 'ปฏิทินปันผล', level: 2 })).toBeVisible();
-      await expect(page.getByText('ใช้ได้เมื่อเปิดราคาอัตโนมัติ').first()).toBeVisible();
+      await tabs.getByRole('tab', { name: 'Tools', exact: true }).click();
+      await expect(page.getByRole('heading', { name: 'Tools', level: 2 })).toBeVisible();
 
-      await tabs.getByRole('tab', { name: 'ปฏิทินปันผล', exact: true }).focus();
+      await tabs.getByRole('tab', { name: 'Tools', exact: true }).focus();
       await page.keyboard.press('ArrowRight'); // วนกลับแท็บแรก
-      await expect(tabs.getByRole('tab', { name: 'แดชบอร์ด', exact: true })).toHaveAttribute('aria-selected', 'true');
-      await expect(tabs.getByRole('tab', { name: 'แดชบอร์ด', exact: true })).toBeFocused();
+      await expect(tabs.getByRole('tab', { name: 'Dashboard', exact: true })).toHaveAttribute('aria-selected', 'true');
+      await expect(tabs.getByRole('tab', { name: 'Dashboard', exact: true })).toBeFocused();
 
       const doc = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
       expect(doc.scroll, `หน้าเลื่อนแนวนอนได้ (${doc.scroll} > ${doc.client})`).toBeLessThanOrEqual(doc.client + 1);
@@ -76,10 +75,10 @@ for (const w of WIDTHS) {
       await expect(page.getByText('มูลค่าสุทธิ (ราคาทุน)')).toBeVisible();
     });
 
-    test('แท็บ "รายการ" มีฟังก์ชันหุ้นสหรัฐเดิมครบ (แท็บย่อยหุ้นสหรัฐ ปุ่มสร้างบัญชีเงินสด USD)', async ({ page }) => {
+    test('แท็บ Portfolio มีฟังก์ชันหุ้นสหรัฐเดิมครบ (แท็บย่อยหุ้นสหรัฐ ปุ่มสร้างบัญชีเงินสด USD)', async ({ page }) => {
       await openHarness(page);
       await openInvest(page, w.mobile);
-      await page.getByRole('tab', { name: 'รายการ', exact: true }).click();
+      await page.getByRole('tab', { name: 'Portfolio', exact: true }).click();
       await page.getByRole('tab', { name: 'หุ้นสหรัฐ', exact: true }).click();
       await expect(page.getByRole('button', { name: 'สร้างบัญชีเงินสด USD' })).toBeVisible();
     });
@@ -93,7 +92,7 @@ test.describe('เส้นทางและปุ่ม back/forward (1280)', 
     const seen = watch(page);
     await openHarness(page);
     await openDesktopView(page, 'พอร์ตการลงทุน');
-    await expect(page.getByRole('heading', { name: 'พอร์ตการลงทุน', level: 2 }).first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Main portfolio', level: 2 }).first()).toBeVisible();
     expect(new URL(page.url()).hash).toBe('#/invest');
 
     await openDesktopView(page, 'คำนวณภาษี');
@@ -101,22 +100,22 @@ test.describe('เส้นทางและปุ่ม back/forward (1280)', 
     expect(new URL(page.url()).hash).toBe('#/tax');
 
     await page.goBack();
-    await expect(page.getByRole('heading', { name: 'พอร์ตการลงทุน', level: 2 }).first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Main portfolio', level: 2 }).first()).toBeVisible();
     expect(new URL(page.url()).hash).toBe('#/invest');
     await page.goBack();
     await expect(page.getByText('ใช้ได้ต่อวันอย่างปลอดภัย').first()).toBeVisible();
     expect(new URL(page.url()).hash).toBe('');
     await page.goForward();
-    await expect(page.getByRole('heading', { name: 'พอร์ตการลงทุน', level: 2 }).first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Main portfolio', level: 2 }).first()).toBeVisible();
     expect(seen.errors, 'error ใน console').toEqual([]);
   });
 
   test('เปิดตรงที่ URL (#/invest และ #/tax) แล้วอยู่หน้านั้นเลย · รีเฟรชแล้วยังอยู่หน้าเดิม', async ({ page }) => {
     await page.route((url) => !/^(localhost|127\.0\.0\.1)$/.test(url.hostname), (route) => route.abort());
     await page.goto('/harness.html?seed=1#/invest');
-    await expect(page.getByRole('heading', { name: 'พอร์ตการลงทุน', level: 2 }).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('heading', { name: 'Main portfolio', level: 2 }).first()).toBeVisible({ timeout: 20_000 });
     await page.reload();
-    await expect(page.getByRole('heading', { name: 'พอร์ตการลงทุน', level: 2 }).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('heading', { name: 'Main portfolio', level: 2 }).first()).toBeVisible({ timeout: 20_000 });
     await page.goto('/harness.html?seed=1#/tax');
     await page.reload();
     await expect(page.getByRole('heading', { name: 'คำนวณภาษี', level: 2 }).first()).toBeVisible({ timeout: 20_000 });

@@ -5,7 +5,17 @@ import type { Account, Entry } from '../../domain/ledger/types';
 /** สกุลที่แสดงในโหมดพอร์ต (สลับด้วยปุ่ม ฿/USD ที่หัวโหมด) · แท็บที่แสดงตัวเลขเงินอ่านค่านี้เพื่อเลือกสกุลที่โชว์ (ตัวเลขทั้งหมดมาจากฟังก์ชันใน src/domain) */
 export type InvestCurrency = 'THB' | 'USD';
 
+/** ชื่อ/คำอธิบาย/สกุลเริ่มต้นของพอร์ต (เก็บใน settings · ไม่ใช่ข้อมูลเงิน) */
+export interface PortfolioSettings {
+  name: string;
+  note: string;
+  currency: InvestCurrency;
+}
+
+export const DEFAULT_PORTFOLIO_NAME = 'Main portfolio';
+
 export interface InvestContextValue {
+  portfolio?: PortfolioSettings;
   today: string;
   accounts: readonly Account[];
   entries: readonly Entry[];
