@@ -3,7 +3,8 @@ import { renderToString } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { emptyInvestments, type Asset, type InvestmentData, type TradeRecord } from '../../src/domain/invest/types';
 import type { Account, Entry } from '../../src/domain/ledger/types';
-import { DashboardBody } from '../../src/ui/invest/dashboard/DashboardCards';
+import { PortfolioCard } from '../../src/ui/invest/dashboard/PortfolioCard';
+import { StatCards } from '../../src/ui/invest/dashboard/StatCards';
 import { barPercent, bpsText, buildDashboardView, monthlyDividends, profitSourceRows } from '../../src/ui/invest/dashboard/dashboardView';
 
 /** ข้อมูลทดสอบสมมติ = ตัวอย่างหลัก R24 (เหมือน tests/unit/investMetrics.test.ts) · ห้ามใช้ข้อมูลจริง */
@@ -26,8 +27,6 @@ const TODAY = '2026-11-13';
 const accounts: Account[] = [];
 const entries: Entry[] = [];
 
-const html = (data: InvestmentData, currency: 'THB' | 'USD', today = TODAY): string =>
-  renderToString(createElement(DashboardBody, { view: buildDashboardView(accounts, entries, data, today), currency }));
 
 describe('แดชบอร์ดพอร์ต: view ตรงตัวอย่างหลัก R24', () => {
   const v = buildDashboardView(accounts, entries, MAIN, TODAY);
@@ -56,41 +55,76 @@ describe('แดชบอร์ดพอร์ต: view ตรงตัวอย
   });
 });
 
-describe('แดชบอร์ดพอร์ต: หน้าจอ (เรนเดอร์ฝั่งเซิร์ฟเวอร์)', () => {
-  it('มุมมองบาท: เห็น ฿7,741.13 (774,113 สตางค์) และป้ายแหล่งกำไรตามที่กำหนด', () => {
+
+const retirement = () => undefined;
+const html = (data: InvestmentData, currency: 'THB' | 'USD', today = TODAY, onOpenRetirement?: () => void): string => {
+  const view = buildDashboardView(accounts, entries, data, today);
+  return renderToString(createElement('div', null, createElement(StatCards, { view, currency, onOpenRetirement }), createElement(PortfolioCard, { view, currency })));
+};
+
+describe('Dashboard (PR 1): หน้าจอ (เรนเดอร์ฝั่งเซิร์ฟเวอร์ · ภาษาอังกฤษ)', () => {
+  it('THB view: Value, invested, Total profit (774,113 satang = ฿7,741.13) and card titles', () => {
     const h = html(MAIN, 'THB');
     expect(h).toContain('฿7,741.13');
-    expect(h).toContain('ปันผล (ก่อนภาษี)');
-    expect(h).toContain('ค่าธรรมเนียมและภาษีที่ถูกหัก');
-    expect(h).toContain('มูลค่าพอร์ต');
-    expect(h).toContain('ใช้ได้เมื่อเปิดราคาอัตโนมัติ'); // กราฟย้อนหลัง/วันนี้ขึ้นลง
+    expect(h).toContain('฿25,500.00'); // value 600 shares x $125 x 34.00
+    expect(h).toContain('Value');
+    expect(h).toContain('Total profit');
+    expect(h).toContain('IRR');
+    expect(h).toContain('Passive income');
+    expect(h).toContain('Portfolio');
   });
-  it('ปุ่ม ฿/USD มีผล: มุมมอง USD เห็น $270.50 และ $750.00', () => {
+  it('the ฿/USD toggle changes the numbers: USD view shows +$270.50 and $750.00 and no ฿7,741.13', () => {
     const h = html(MAIN, 'USD');
     expect(h).toContain('+$270.50');
     expect(h).toContain('$750.00');
     expect(h).not.toContain('฿7,741.13');
   });
-  it('IRR ถือไม่ถึง 30 วัน = "ใช้ได้เมื่อถือครบ 30 วัน" (ไม่มีเลขปลอม)', () => {
-    expect(html(MAIN, 'THB')).toContain('ใช้ได้เมื่อถือครบ 30 วัน');
+  it('IRR before 30 days: explains the rule, no fake number', () => {
+    expect(html(MAIN, 'THB')).toContain('Available after 30 days of holding');
   });
-  it('ยังไม่มีหุ้น: การ์ดว่างใบเดียว บอกทางไปแท็บ รายการ ไม่มีเลขเงิน', () => {
+  it('no holdings: every number card shows a dash and the Portfolio card gives a hint, no money amounts', () => {
     const h = html(emptyInvestments(), 'THB');
-    expect(h.match(/ยังไม่มีหุ้น/g)).toHaveLength(1);
-    expect(h).toContain('รายการ');
+    expect(h).toContain('No holdings yet');
+    expect(h).toContain('Use + Add');
     expect(h).not.toContain('฿');
   });
-  it('มีข้อมูล: การ์ดเป้าหมายบอกสั้นๆ ว่ายังไม่ได้ตั้งเป้าหมาย', () => {
-    expect(html(MAIN, 'THB')).toContain('ยังไม่ได้ตั้งเป้าหมาย');
-  });
-  it('ไม่มีราคา: มูลค่า/กำไรเป็น "—" พร้อมเหตุผล ไม่ใช้ต้นทุนแทน', () => {
+  it('no price: value and profit are dashes with a reason, cost is not used instead', () => {
     const noPrice: InvestmentData = { ...MAIN, prices: [] };
     const h = html(noPrice, 'THB');
-    expect(h).toContain('ไม่ครบ');
+    expect(h).toContain('Incomplete');
     expect(h).not.toContain('฿7,741.13');
     const v = buildDashboardView(accounts, entries, noPrice, TODAY);
     expect(v.valueThb).toBeNull();
     expect(profitSourceRows(v.profit, 'THB')).toBeNull();
+  });
+  it('the Today line is hidden until daily prices exist', () => {
+    expect(html(MAIN, 'THB')).not.toContain('Today');
+  });
+  it('Value card: hide-amounts button and the "Worth in 10 years?" chip only when the app provides the retirement link', () => {
+    expect(html(MAIN, 'THB')).toContain('Hide amounts');
+    expect(html(MAIN, 'THB')).not.toContain('Worth in 10 years?');
+    expect(html(MAIN, 'THB', TODAY, retirement)).toContain('Worth in 10 years?');
+  });
+  it('Passive income shows yield and the annual amount before tax', () => {
+    const h = html(MAIN, 'THB');
+    expect(h).toContain('annually (before tax)');
+    expect(h).toContain('฿1,728.39'); // gross dividend 172,839 satang
+  });
+  it('Portfolio card: Holdings by default, Sector is disabled with a tooltip, Currency is available, no text under the donut', () => {
+    const h = html(MAIN, 'THB');
+    expect(h).toContain('Sector');
+    expect(h).toContain('Available after automatic data is enabled');
+    expect(h).toContain('aria-pressed="true">Holdings');
+    expect(h).toContain('Value / Invested');
+    expect(h).toContain('Allocation');
+    expect(h).toContain('100%'); // one holding
+  });
+  it('Warning button appears only when one stock is over 20% (single holding = 100%)', () => {
+    const h = html(MAIN, 'THB');
+    expect(h).toContain('Warning');
+    expect(h).toContain('Concentration risk');
+    expect(h).toContain('Largest portfolio weights');
+    expect(h).toContain('stocks held inside funds are not counted');
   });
 });
 
@@ -113,63 +147,42 @@ describe('ตัวช่วยแสดงผล', () => {
   });
 });
 
-describe('R24.5 กำไรรวมเป็น % และการ์ดเป้าหมาย', () => {
-  it('ตัวอย่างหลัก: บาท +36.83% · USD +45.04% · มีคำอธิบาย "เทียบกับต้นทุนที่ยังถืออยู่"', () => {
+
+const soldOut = (): InvestmentData => ({
+  ...MAIN,
+  trades: [
+    trade({ id: 'b', kind: 'buy', date: '2026-11-03', units: '1000000000', amount: 100_000, fee: 0, fxRateMicro: 35_000_000 }),
+    trade({ id: 's', kind: 'sell', date: '2026-11-10', units: '1000000000', priceMicro: 120_000_000, amount: undefined, fee: 0, fxRateMicro: 33_000_000 }),
+  ],
+});
+
+describe('R24.5 Total profit percentage', () => {
+  it('main example: THB +36.83% and USD +45.04% with the caption', () => {
     const v = buildDashboardView(accounts, entries, MAIN, TODAY);
     expect([v.profitPctThb, v.profitPctUsd]).toEqual([3_683, 4_504]);
     expect(html(MAIN, 'THB')).toContain('+36.83%');
     expect(html(MAIN, 'USD')).toContain('+45.04%');
-    expect(html(MAIN, 'THB')).toContain('เทียบกับต้นทุนที่ยังถืออยู่');
+    expect(html(MAIN, 'THB')).toContain('Compared with the cost of what you still hold');
   });
-  it('ไม่มีราคา → % เป็น null และไม่แสดงตัวเลข', () => {
+  it('no price: percentage is null and not shown', () => {
     const noPrice = { ...MAIN, prices: [] };
-    const v = buildDashboardView(accounts, entries, noPrice, TODAY);
-    expect(v.profitPctThb).toBeNull();
+    expect(buildDashboardView(accounts, entries, noPrice, TODAY).profitPctThb).toBeNull();
     expect(html(noPrice, 'THB')).not.toContain('36.83%');
   });
-  it('ขายหมด (ต้นทุนที่ถืออยู่ 0) → % เป็น null แสดง "—" แต่ยังแสดงยอดกำไร', () => {
-    const sold: InvestmentData = {
-      ...MAIN,
-      trades: [
-        trade({ id: 'b', kind: 'buy', date: '2026-11-03', units: '1000000000', amount: 100_000, fee: 0, fxRateMicro: 35_000_000 }),
-        trade({ id: 's', kind: 'sell', date: '2026-11-10', units: '1000000000', priceMicro: 120_000_000, amount: undefined, fee: 0, fxRateMicro: 33_000_000 }),
-      ],
-    };
-    const v = buildDashboardView(accounts, entries, sold, TODAY);
+  it('sold out (held cost 0): percentage is null but the profit amount stays', () => {
+    const v = buildDashboardView(accounts, entries, soldOut(), TODAY);
     expect([v.profitPctThb, v.profitPctUsd]).toEqual([null, null]);
     expect(v.profit.thb).not.toBeNull();
   });
-  it('การ์ดเป้าหมาย: ไม่มีตัวเลขปลอม มีปุ่ม "ตั้งเป้าในแผนเกษียณ" เมื่อแอปส่งทางไปแผนเกษียณมา', () => {
-    const view = buildDashboardView(accounts, entries, MAIN, TODAY);
-    const withBtn = renderToString(createElement(DashboardBody, { view, currency: 'THB', onOpenRetirement: () => undefined }));
-    expect(withBtn).toContain('ตั้งเป้าในแผนเกษียณ');
-    expect(withBtn).toContain('ยังไม่ได้ตั้งเป้าหมาย');
-    expect(html(MAIN, 'THB')).not.toContain('ตั้งเป้าในแผนเกษียณ');
-  });
-});
-
-describe('R24.5 เคสเพิ่มจากผลตรวจ money-auditor', () => {
-  it('ขาดทุน: ราคาต่ำกว่าต้นทุน → แสดง "-x.xx%" ทั้งสองสกุล', () => {
+  it('loss: negative percentage for both currencies', () => {
     const loss: InvestmentData = { ...MAIN, trades: [MAIN.trades[0]!], prices: [{ assetId: 'us1', date: '2026-11-12', priceMicro: 90_000_000 }] };
     const v = buildDashboardView(accounts, entries, loss, TODAY);
     expect(v.profitPctUsd!).toBeLessThan(0);
     expect(html(loss, 'USD')).toMatch(/-\d+(\.\d+)?%/);
   });
-  it('มีราคาแต่ไม่มีอัตรา: บาทเป็น null แต่ USD ยังคำนวณได้ (สองสกุลแยกกัน)', () => {
-    const noFx: InvestmentData = { ...MAIN, fxRates: [] };
-    const v = buildDashboardView(accounts, entries, noFx, TODAY);
+  it('price but no exchange rate: THB is null, USD still works (computed separately)', () => {
+    const v = buildDashboardView(accounts, entries, { ...MAIN, fxRates: [] }, TODAY);
     expect(v.profitPctThb).toBeNull();
     expect(v.profitPctUsd).toBe(4_504);
-  });
-  it('ขายหมด: หน้าจอไม่แสดง % (แสดง "—") แต่ยังแสดงยอดกำไร', () => {
-    const sold: InvestmentData = {
-      ...MAIN,
-      trades: [
-        trade({ id: 'b', kind: 'buy', date: '2026-11-03', units: '1000000000', amount: 100_000, fee: 0, fxRateMicro: 35_000_000 }),
-        trade({ id: 's', kind: 'sell', date: '2026-11-10', units: '1000000000', priceMicro: 120_000_000, amount: undefined, fee: 0, fxRateMicro: 33_000_000 }),
-      ],
-    };
-    expect(html(sold, 'THB')).not.toMatch(/\+\d+(\.\d+)?%<\/p>\s*<p class="muted small">เทียบกับต้นทุน/);
-    expect(html(sold, 'THB')).toContain('เทียบกับต้นทุนที่ยังถืออยู่');
   });
 });

@@ -1,15 +1,15 @@
 import { useMemo } from 'react';
 import { friendlyError } from '../../app/errorText';
-import { WealthPanel } from '../overview/WealthPanel';
 import { useInvest } from './InvestContext';
-import { DashboardBody } from './dashboard/DashboardCards';
+import { PortfolioCard } from './dashboard/PortfolioCard';
+import { StatCards } from './dashboard/StatCards';
 import { buildDashboardView } from './dashboard/dashboardView';
 import './dashboard/dashboard.css';
 
 /**
- * แท็บ "แดชบอร์ด" ของโหมดพอร์ต (แบบ A แนว Snowball · ดูบรีฟ docs/plans/brief-invest-dashboard.md)
- * ตัวเลขทั้งหมดมาจากฟังก์ชันโดเมน (ดู dashboard/dashboardView.ts) · สกุลที่แสดงตามปุ่ม ฿/USD ที่หัวโหมด
- * การ์ด "ความมั่งคั่งรวม" เดิม (WealthPanel · ตัวเลขเดิมไม่เปลี่ยน) คงไว้ท้ายหน้า เพื่อไม่ให้ฟีเจอร์เดิมหาย
+ * แท็บ Dashboard ของโหมด /invest (แบบร่างใหม่ · ภาษาอังกฤษ) · PR 1: 4 การ์ดตัวเลข + การ์ด Portfolio
+ * ตัวเลขทั้งหมดมาจากฟังก์ชันโดเมนผ่าน dashboard/dashboardView.ts · สกุลที่แสดงตามปุ่ม ฿/USD ที่แถบบน
+ * (การ์ดความมั่งคั่งรวมเดิม WealthPanel ยังอยู่ที่หน้าภาพรวมของแอป ไม่ได้หายไป)
  */
 export function DashboardTab() {
   const { today, accounts, entries, data, currency, onOpenRetirement } = useInvest();
@@ -25,15 +25,17 @@ export function DashboardTab() {
 
   if (built === null) return null;
   return (
-    <div className="invest-tab invest-dashboard dash">
+    <div className="invest-tab iv-dash" lang="en">
       {built.view === null ? (
         <p className="form-error" role="alert">
-          แสดงแดชบอร์ดไม่สำเร็จ: {built.failure}
+          Could not show the dashboard: {built.failure}
         </p>
       ) : (
-        <DashboardBody view={built.view} currency={currency} onOpenRetirement={onOpenRetirement} />
+        <>
+          <StatCards view={built.view} currency={currency} onOpenRetirement={onOpenRetirement} />
+          <PortfolioCard view={built.view} currency={currency} />
+        </>
       )}
-      <WealthPanel accounts={accounts} entries={entries} today={today} investments={data} />
     </div>
   );
 }

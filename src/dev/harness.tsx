@@ -1,7 +1,7 @@
 /**
  * ชุดทดสอบหน้าจอบนเครื่องผู้พัฒนาเท่านั้น (เปิดผ่าน `npm run dev` ที่ /harness.html) ไม่ถูกรวมใน build จริง (vite build ใช้ index.html ตัวเดียว)
  * ติดตั้งแอปบนข้อมูลในเครื่อง (Dexie ของเบราว์เซอร์นั้น) ข้ามการล็อกอิน เพื่อถ่ายภาพหน้าจอ 360px ด้วยเบราว์เซอร์แบบไม่มีหน้าต่าง
- * พารามิเตอร์: ?seed=1 ใส่ข้อมูลสมมติ · ?view=<ชื่อเมนู> เปิดหน้านั้น · ?menu=1 เปิดเมนูมือถือ
+ * พารามิเตอร์: ?seed=1 ใส่ข้อมูลสมมติ · ?investDemo=1 ใส่ข้อมูลลงทุนสมมติ (src/dev/investDemo.ts) · ?view=<ชื่อเมนู> เปิดหน้านั้น · ?menu=1 เปิดเมนูมือถือ
  * ห้ามใส่ข้อมูลการเงินจริง ข้อมูลทั้งหมดเป็นตัวเลขสมมติ
  */
 import { StrictMode, useEffect, useState } from 'react';
@@ -10,6 +10,8 @@ import { buildInitialLedger } from '../app/setup';
 import { db } from '../storage/instance';
 import { createDexieRepository } from '../storage/ledgerRepository';
 import { App } from '../ui/App';
+import { RepositoryProvider, localLedgerRepository } from '../ui/RepositoryContext';
+import { demoInvestments } from './investDemo';
 import { AccountContext } from '../ui/AuthContext';
 import { PasswordPromptProvider } from '../ui/PasswordPrompt';
 import '@fontsource/ibm-plex-sans-thai/400.css';
@@ -63,7 +65,13 @@ function Harness() {
   return (
     <AccountContext.Provider value={{ username: 'ผู้ทดสอบ', signOut: async () => undefined, refresh: async () => undefined }}>
       <PasswordPromptProvider>
-        <App />
+        {params.get('investDemo') === '1' ? (
+          <RepositoryProvider repository={{ ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestments()) }}>
+            <App />
+          </RepositoryProvider>
+        ) : (
+          <App />
+        )}
       </PasswordPromptProvider>
     </AccountContext.Provider>
   );

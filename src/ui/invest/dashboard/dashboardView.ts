@@ -56,6 +56,10 @@ export interface DashboardView {
   /** null = แบ่งตามสกุลไม่ได้ (ข้อมูลไม่ครบ) */
   currencySlices: DonutSlice[] | null;
   monthly: MonthlyDividend[];
+  /** พอร์ตหุ้นสหรัฐ (ใช้สร้างตาราง Holdings) */
+  us: UsPortfolio;
+  /** มูลค่ารวมเป็นสตางค์แยกส่วน USD/บาท (ใช้ในมุมมอง Currency) · null = แบ่งไม่ได้ */
+  currencyParts: { usdThb: number; thbThb: number; totalThb: number } | null;
 }
 
 const LABEL_OTHER = 'อื่นๆ';
@@ -94,6 +98,7 @@ export function buildDashboardView(accounts: readonly Account[], entries: readon
   const costUsd = us.rows.reduce((n, r) => safeAdd(n, r.costUsd), 0);
 
   let currencySlices: DonutSlice[] | null = null;
+  let currencyParts: { usdThb: number; thbThb: number; totalThb: number } | null = null;
   if (us.fx !== null && us.totals.complete && us.rows.length > 0) {
     const w = wealthSummary(accounts, entries, data, today);
     if (!w.incomplete) {
@@ -109,6 +114,7 @@ export function buildDashboardView(accounts: readonly Account[], entries: readon
           { key: 'USD', weight: usdPart },
           { key: 'THB', weight: thbPart },
         ]);
+        currencyParts = { usdThb: usdPart, thbThb: thbPart, totalThb: w.investmentThb };
         currencySlices = groupSmallShares(shares, 6).map((s) => ({ key: s.key, label: s.key === 'USD' ? 'ดอลลาร์สหรัฐ (USD)' : 'บาท (THB)', bps: s.bps }));
       }
     }
@@ -131,6 +137,8 @@ export function buildDashboardView(accounts: readonly Account[], entries: readon
     stockSlices: sliceLabels(us),
     currencySlices,
     monthly: monthlyDividends(data, today),
+    us,
+    currencyParts,
   };
 }
 

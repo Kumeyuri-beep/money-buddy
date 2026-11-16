@@ -24,24 +24,27 @@ async function openDashboard(page: Page, mobile: boolean): Promise<void> {
   } else {
     await openDesktopView(page, 'พอร์ตการลงทุน');
   }
-  await expect(page.getByRole('heading', { name: 'พอร์ตการลงทุน', level: 2 }).first()).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'ยังไม่มีหุ้นในพอร์ต', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Main portfolio', level: 2 }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Portfolio', level: 2, exact: true })).toBeVisible();
 }
 
 for (const w of WIDTHS) {
   test.describe(`แดชบอร์ดพอร์ต ${w.width}px`, () => {
     test.use({ viewport: { width: w.width, height: w.height }, locale: 'th-TH', timezoneId: 'Asia/Bangkok' });
 
-    test('ยังไม่มีหุ้น: แสดงการ์ดว่างใบเดียว บอกทางไปแท็บ "รายการ" ไม่มีเลขปลอม ไม่มีปุ่มสลับสัดส่วน · ปุ่ม ฿/USD ไม่ทำให้พัง · ไม่ล้นจอ ไม่มี error', async ({ page }) => {
+    test('ยังไม่มีหุ้น: ทุกการ์ดเป็นสถานะว่าง ไม่มีเลขปลอม ไม่มีปุ่ม Warning · ปุ่มที่ยังไม่เปิดใช้เป็น aria-disabled · ปุ่ม ฿/USD ไม่ทำให้พัง · ไม่ล้นจอ ไม่มี error', async ({ page }) => {
       const seen = watch(page);
       await openHarness(page);
       await openDashboard(page, w.mobile);
-      await expect(page.getByText('แท็บ "รายการ"')).toBeVisible();
-      await expect(page.getByRole('heading', { level: 2, name: 'มูลค่าพอร์ต', exact: true })).toHaveCount(0);
-      await expect(page.getByRole('button', { name: 'สกุลเงิน', exact: true })).toHaveCount(0);
-      await page.getByRole('button', { name: 'USD', exact: true }).click();
-      await expect(page.getByRole('heading', { name: 'ยังไม่มีหุ้นในพอร์ต', level: 2 })).toBeVisible();
-      await page.getByRole('button', { name: 'บาท ฿', exact: true }).click();
+      for (const name of ['Value', 'Total profit', 'IRR', 'Passive income', 'Portfolio']) await expect(page.getByRole('heading', { level: 2, name, exact: true })).toBeVisible();
+      await expect(page.getByText('No holdings yet. Use + Add')).toBeVisible();
+      await expect(page.getByText('Warning', { exact: true })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Holdings', exact: true })).toHaveAttribute('aria-pressed', 'true');
+      await expect(page.getByRole('button', { name: 'Sector', exact: true })).toHaveAttribute('aria-disabled', 'true');
+      for (const name of ['Ask AI', 'Search', 'Watchlist']) await expect(page.getByRole('button', { name, exact: true })).toHaveAttribute('aria-disabled', 'true');
+      await page.getByRole('button', { name: '$ USD', exact: true }).click();
+      await expect(page.getByText('No holdings yet. Use + Add')).toBeVisible();
+      await page.getByRole('button', { name: '฿ THB', exact: true }).click();
 
       const doc = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
       expect(doc.scroll, `หน้าเลื่อนแนวนอนได้ (${doc.scroll} > ${doc.client})`).toBeLessThanOrEqual(doc.client + 1);

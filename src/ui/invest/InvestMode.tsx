@@ -1,15 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { friendlyError } from '../../app/errorText';
-import { thaiDayLabel } from '../../app/dates';
 import { buildInvestBadge } from '../../app/investBadge';
 import type { InvestmentData } from '../../domain/invest/types';
 import type { Account, Entry } from '../../domain/ledger/types';
 import { useRepository } from '../RepositoryContext';
 import { AnalysisTab } from './AnalysisTab';
 import { DashboardTab } from './DashboardTab';
-import { DividendCalendarTab } from './DividendCalendarTab';
-import { InvestContext, type InvestCurrency } from './InvestContext';
+import { DEFAULT_PORTFOLIO_NAME, InvestContext, type InvestCurrency, type PortfolioSettings } from './InvestContext';
+import { InvestTopBar, type InvestTab } from './InvestTopBar';
+import { ToolsTab } from './ToolsTab';
 import { TransactionsTab } from './TransactionsTab';
+import './invest.css';
 
 interface Props {
   today: string;
@@ -20,25 +21,30 @@ interface Props {
   onOpenRetirement?: () => void;
 }
 
-type Tab = 'dashboard' | 'analysis' | 'transactions' | 'calendar';
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'dashboard', label: 'แดชบอร์ด' },
-  { id: 'analysis', label: 'วิเคราะห์' },
-  { id: 'transactions', label: 'รายการ' },
-  { id: 'calendar', label: 'ปฏิทินปันผล' },
-];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** YYYY-MM-DD → "16 Nov" (ข้อความล้วน ไม่ใช้ Date จึงไม่ขึ้นกับเขตเวลา) */
+function shortDate(iso: string): string {
+  const m = MONTHS[Number(iso.slice(5, 7)) - 1] ?? '';
+  return `${Number(iso.slice(8, 10))} ${m}`;
+}
+
+const DEFAULT_PORTFOLIO: PortfolioSettings = { name: DEFAULT_PORTFOLIO_NAME, note: '', currency: 'THB' };
 
 /**
- * โหมดการลงทุน (/invest · ขั้น 1 ปรับโครงเว็บ): หัวข้อ "พอร์ตการลงทุน" + ปุ่มสลับ ฿/USD + ป้ายอัปเดต/อัตรา + 4 แท็บ
- * โหลดข้อมูลลงทุนครั้งเดียวที่นี่แล้วแชร์ทุกแท็บผ่าน InvestContext · เป็นไฟล์ที่โหลดแยก (lazy chunk) ไม่อยู่ในก้อนหลักของหน้าหลัก
+ * โหมดการลงทุน (/invest): แถบบน (แท็บ + ปุ่ม) + ชื่อพอร์ต + แท็บที่เลือก · ข้อความทั้งโหมดเป็นภาษาอังกฤษ
+ * โหลดข้อมูลลงทุนครั้งเดียวที่นี่แล้วแชร์ทุกแท็บผ่าน InvestContext · เป็นไฟล์ที่โหลดแยก (lazy chunk)
+ * ชื่อ/คำอธิบาย/สกุลเริ่มต้นของพอร์ตเก็บในตาราง settings เดิม (portfolioName / portfolioNote / portfolioCurrency) ไม่ต้อง migration
  */
 export default function InvestMode({ today, accounts, entries, wallets, onLedgerChanged, onOpenRetirement }: Props) {
   const repo = useRepository();
-  const [tab, setTab] = useState<Tab>('dashboard');
+  const [tab, setTab] = useState<InvestTab>('dashboard');
+  const [addSignal, setAddSignal] = useState(0);
+  const [portfolio, setPortfolio] = useState<PortfolioSettings>(DEFAULT_PORTFOLIO);
   const [currency, setCurrency] = useState<InvestCurrency>('THB');
   const [data, setData] = useState<InvestmentData | null>(null);
   const [loadError, setLoadError] = useState('');
-  const refs = useRef<Record<Tab, HTMLButtonElement | null>>({ dashboard: null, analysis: null, transactions: null, calendar: null });
+  const refs = useRef<Record<InvestTab, HTMLButtonElement | null>>({ dashboard: null, analysis: null, transactions: null, tools: null });
+  const touchedCurrency = useRef(false);
 
   const reload = useCallback(async () => {
     try {
@@ -52,90 +58,90 @@ export default function InvestMode({ today, accounts, entries, wallets, onLedger
     void reload();
   }, [reload]);
 
-  const badge = useMemo(() => buildInvestBadge(data, today), [data, today]);
-  const ctx = useMemo(
-    () => ({ today, accounts, entries, wallets, data, loadError, reload, onLedgerChanged, onOpenRetirement, currency, setCurrency }),
-    [today, accounts, entries, wallets, data, loadError, reload, onLedgerChanged, onOpenRetirement, currency],
+  // ชื่อ/คำอธิบาย/สกุลเริ่มต้นของพอร์ต: อ่านครั้งเดียว (อ่านไม่ได้ = ใช้ค่าเริ่มต้น ไม่ขัดการใช้งาน)
+  useEffect(() => {
+    let alive = true;
+    void repo
+      .loadSettings()
+      .then((s) => {
+        if (!alive) return;
+        const next: PortfolioSettings = { name: s.portfolioName ?? DEFAULT_PORTFOLIO_NAME, note: s.portfolioNote ?? '', currency: s.portfolioCurrency ?? 'THB' };
+        setPortfolio(next);
+        if (!touchedCurrency.current) setCurrency(next.currency);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [repo]);
+
+  const savePortfolio = useCallback(
+    async (next: PortfolioSettings) => {
+      await repo.updateSettings(['portfolioName', 'portfolioNote', 'portfolioCurrency'], () => ({
+        portfolioName: next.name,
+        portfolioNote: next.note === '' ? null : next.note,
+        portfolioCurrency: next.currency,
+      }));
+      setPortfolio(next);
+      touchedCurrency.current = true;
+      setCurrency(next.currency);
+    },
+    [repo],
   );
 
-  const onKey = (e: KeyboardEvent<HTMLButtonElement>, index: number) => {
-    let next = -1;
-    if (e.key === 'ArrowRight') next = (index + 1) % TABS.length;
-    else if (e.key === 'ArrowLeft') next = (index - 1 + TABS.length) % TABS.length;
-    else if (e.key === 'Home') next = 0;
-    else if (e.key === 'End') next = TABS.length - 1;
-    if (next < 0) return;
-    e.preventDefault();
-    const id = TABS[next]!.id;
-    setTab(id);
-    refs.current[id]?.focus();
-  };
+  const changeCurrency = useCallback((c: InvestCurrency) => {
+    touchedCurrency.current = true;
+    setCurrency(c);
+  }, []);
+
+  const openAdd = useCallback(() => {
+    setTab('transactions');
+    setAddSignal((n) => n + 1);
+  }, []);
+
+  const badge = useMemo(() => buildInvestBadge(data, today), [data, today]);
+  const ctx = useMemo(
+    () => ({ today, accounts, entries, wallets, data, loadError, reload, onLedgerChanged, onOpenRetirement, currency, setCurrency: changeCurrency, portfolio }),
+    [today, accounts, entries, wallets, data, loadError, reload, onLedgerChanged, onOpenRetirement, currency, changeCurrency, portfolio],
+  );
 
   return (
     <InvestContext.Provider value={ctx}>
-      <div className="invest-mode">
-        <header className="invest-head">
-          <h2 className="page-title" id="invest-title">
-            พอร์ตการลงทุน
-          </h2>
-          <div className="invest-head-tools">
-            <div className="invest-currency" role="group" aria-label="สกุลเงินที่แสดง">
-              {(['THB', 'USD'] as const).map((c) => (
-                <button key={c} type="button" aria-label={c === 'THB' ? 'บาท ฿' : undefined} className={`invest-cur${currency === c ? ' is-active' : ''}`} aria-pressed={currency === c} onClick={() => setCurrency(c)}>
-                  {c === 'THB' ? '฿' : 'USD'}
-                </button>
-              ))}
-            </div>
-            {data !== null && (
-              <p className="invest-badge muted small" role="status">
-                {badge.updatedOn ? `อัปเดต ${thaiDayLabel(badge.updatedOn)}` : 'ยังไม่มีราคา/อัตรา'}
-                {badge.rateText ? ` · อัตราแลกเปลี่ยน ${badge.rateText}` : ''}
-              </p>
-            )}
+      <div className="invest-mode iv-mode">
+        <InvestTopBar tab={tab} onTab={setTab} tabRefs={refs} onAdd={openAdd} currency={currency} onCurrency={changeCurrency} portfolio={portfolio} onSavePortfolio={savePortfolio} />
+        <header className="iv-head" lang="en">
+          <div>
+            <h2 className="iv-title" id="invest-title">
+              {portfolio.name}
+            </h2>
+            {portfolio.note !== '' && <p className="iv-note">{portfolio.note}</p>}
           </div>
+          {data !== null && (
+            <p className="iv-badge" role="status">
+              {badge.updatedOn ? `Updated ${shortDate(badge.updatedOn)}` : 'No prices or rates yet'}
+              {badge.rateText ? ` · ${badge.rateText}` : ''}
+            </p>
+          )}
         </header>
         {loadError !== '' && (
           <div role="alert">
-            <p className="form-error">โหลดข้อมูลพอร์ตไม่สำเร็จ: {loadError}</p>
-            <button type="button" className="btn btn-ghost btn-small" onClick={() => void reload()}>
-              ลองโหลดใหม่
+            <p className="form-error">Could not load portfolio data: {loadError}</p>
+            <button type="button" className="iv-btn" onClick={() => void reload()}>
+              Try again
             </button>
           </div>
         )}
-        <div className="pf-tabs invest-tabs" role="tablist" aria-label="หน้าย่อยของโหมดการลงทุน">
-          {TABS.map((t, i) => (
-            <button
-              key={t.id}
-              ref={(el) => {
-                refs.current[t.id] = el;
-              }}
-              type="button"
-              role="tab"
-              id={`inv-tab-${t.id}`}
-              aria-selected={tab === t.id}
-              aria-controls="inv-panel"
-              tabIndex={tab === t.id ? 0 : -1}
-              className={`pf-tab${tab === t.id ? ' is-active' : ''}`}
-              onClick={() => setTab(t.id)}
-              onKeyDown={(e) => onKey(e, i)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
         <div role="tabpanel" id="inv-panel" tabIndex={0} aria-labelledby={`inv-tab-${tab}`}>
           {data === null && loadError === '' ? (
-            <p className="muted">
-              กำลังโหลดข้อมูลพอร์ต…
-            </p>
+            <p className="iv-empty">Loading portfolio…</p>
           ) : tab === 'dashboard' ? (
             <DashboardTab />
           ) : tab === 'analysis' ? (
             <AnalysisTab />
           ) : tab === 'transactions' ? (
-            <TransactionsTab />
+            <TransactionsTab key={addSignal} startTab={addSignal > 0 ? 'us' : undefined} />
           ) : (
-            <DividendCalendarTab />
+            <ToolsTab />
           )}
         </div>
       </div>

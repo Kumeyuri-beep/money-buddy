@@ -1,63 +1,98 @@
-/* แท็บแดชบอร์ดของโหมดพอร์ต · ฐาน (ทุกจอ): เรียงเป็นคอลัมน์เดียว · จัดตารางหลายคอลัมน์เฉพาะคอม (≥1024px) */
-.dash { display: grid; gap: 16px; }
-.dash-row { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
-.dash-card { min-width: 0; display: grid; gap: 8px; align-content: start; }
-.dash-card h2 { margin: 0; font-size: 16px; }
-.dash-card p { margin: 0; }
-.dash-big { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: normal; }
-.dash .is-pos { color: var(--income); }
-.dash .is-neg { color: var(--expense); }
-.dash-hero .dash-big { color: var(--gold); }
+/* แท็บ Dashboard ของโหมด /invest (แบบร่างใหม่ · ภาษาอังกฤษ) · ฐาน = คอลัมน์เดียว · จัดหลายคอลัมน์เฉพาะคอม (≥1024px) */
+.iv-dash { display: grid; gap: 16px; }
+.iv-row { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+.iv-card { min-width: 0; position: relative; display: grid; gap: 8px; align-content: start; padding: 20px; border-radius: 20px; border: 1px solid var(--ov-12); background: var(--glass-lite-under); box-shadow: inset 0 1px 0 var(--hl-top); }
+.iv-card h2 { margin: 0; font-size: 17px; font-weight: 700; }
+.iv-card p { margin: 0; }
+.iv-card-hero { border-color: var(--gold-border); }
+.iv-card-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.iv-card-title { display: flex; align-items: center; gap: 8px; }
+.iv-chip-icon { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--ov-10); color: var(--muted); font-size: 15px; }
+.iv-card .iv-chip { min-height: 44px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--ov-20); background: var(--ov-8); font-size: 13px; font-weight: 600; color: var(--text); }
+.iv-chip:hover { background: var(--ov-14); }
 
-.dash-seg { display: inline-flex; gap: 6px; }
-.dash-seg-btn { min-height: 44px; padding: 6px 14px; font: inherit; font-weight: 600; color: var(--text); background: var(--ov-6); border: 1px solid var(--ov-14); border-radius: 999px; cursor: pointer; }
-.dash-seg-btn.is-active { background: var(--ov-14); border-color: var(--gold); text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 5px; }
-.dash-seg-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.iv-big { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; font-size: clamp(26px, 2.4vw, 34px); font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.iv-gold { color: var(--gold); }
+.iv-pct { font-size: 19px; font-weight: 700; }
+.iv-sub { color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
+.iv-card .iv-eye { display: inline-grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 12px; background: transparent; color: var(--muted); align-self: center; }
+.iv-eye:hover { background: var(--ov-10); color: var(--text); }
+.iv-dash .is-pos, .iv-mode .is-pos { color: var(--income); }
+.iv-dash .is-neg, .iv-mode .is-neg { color: var(--expense); }
+.iv-dash .muted, .iv-mode .muted { color: var(--muted); }
 
-.dash-alloc { display: grid; gap: 12px; justify-items: center; }
-.dash-donut { width: 160px; height: 160px; }
-.dash-donut-bg { stroke: var(--ov-14); }
-.dash-slice.s1 { stroke: var(--chart-slice1); }
-.dash-swatch.s1 { background: var(--chart-slice1); }
-.dash-slice.s2 { stroke: var(--chart-slice2); }
-.dash-swatch.s2 { background: var(--chart-slice2); }
-.dash-slice.s3 { stroke: var(--chart-slice3); }
-.dash-swatch.s3 { background: var(--chart-slice3); }
-.dash-slice.s4 { stroke: var(--chart-slice4); }
-.dash-swatch.s4 { background: var(--chart-slice4); }
-.dash-slice.s5 { stroke: var(--chart-slice5); }
-.dash-swatch.s5 { background: var(--chart-slice5); }
-.dash-slice.s6 { stroke: var(--chart-slice6); }
-.dash-swatch.s6 { background: var(--chart-slice6); }
-.dash-slice.s7 { stroke: var(--chart-slice7); }
-.dash-swatch.s7 { background: var(--chart-slice7); }
-.dash-slice.sother { stroke: var(--chart-slice-other); }
-.dash-swatch.sother { background: var(--chart-slice-other); }
-.dash-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; width: 100%; }
-.dash-legend li { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
-.dash-swatch { width: 12px; height: 12px; border-radius: 3px; }
+/* ---------- การ์ด Portfolio ---------- */
+.iv-portfolio { gap: 14px; }
+.iv-pf-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.iv-seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 14px; border: 1px solid var(--ov-20); background: var(--ov-6); }
+.iv-pf-head .iv-seg-btn { min-height: 40px; padding: 0 14px; border: 0; border-radius: 11px; background: transparent; color: var(--muted); font-size: 14px; font-weight: 600; }
+.iv-pf-head .iv-seg-btn.is-active { background: var(--gold); color: var(--on-gold); }
+.iv-seg .iv-tipwrap .iv-tip { left: 0; transform: none; }
 
-.dash-months { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.dash-months li { display: grid; grid-template-columns: 3.2em minmax(0, 1fr) auto; gap: 10px; align-items: center; }
-.dash-months .dash-hbar { margin-top: 0; }
-.dash-mlabel { font-size: 13px; color: var(--muted); }
-.dash-mval { font-size: 13px; white-space: nowrap; text-align: right; }
+.iv-warn { position: relative; display: inline-flex; }
+.iv-pf-head .iv-warn-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--gold); color: var(--on-gold); font-size: 14px; font-weight: 700; }
+.iv-pop { position: absolute; z-index: 40; top: calc(100% + 8px); left: 0; width: min(440px, calc(100vw - 48px)); display: grid; gap: 10px; padding: 16px 18px; border-radius: 18px; border: 1px solid var(--ov-20); background: var(--surface-fallback); color: var(--text); font-size: 14px; line-height: 1.5; box-shadow: 0 30px 70px -20px var(--shade-85); visibility: hidden; opacity: 0; transition: opacity 0.12s; }
+.iv-pop::before { content: ''; position: absolute; left: 0; right: 0; top: -10px; height: 10px; }
+.iv-warn:hover .iv-pop, .iv-warn:focus-within .iv-pop { visibility: visible; opacity: 1; }
+.iv-warn.is-dismissed .iv-pop { visibility: hidden; opacity: 0; }
+.iv-pop-title { font-size: 17px; }
+.iv-pop-sub { font-size: 15px; margin-top: 2px; }
+.iv-pop-list { display: grid; }
+.iv-pop-item { padding: 6px 0; border-bottom: 1px solid var(--ov-12); }
+.iv-pop-foot { color: var(--muted); font-size: 13px; padding-top: 4px; }
 
-.dash-sources { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.dash-src-head { display: flex; justify-content: space-between; gap: 12px; }
-.dash-hbar { height: 8px; border-radius: 999px; background: var(--ov-14); overflow: hidden; margin-top: 4px; }
-.dash-hbar-fill { display: block; height: 100%; border-radius: 999px; }
-.dash-hbar-fill.is-pos { background: var(--income); }
-.dash-hbar-fill.is-neg { background: var(--expense); }
+.iv-pf-body { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.iv-donut-wrap { display: grid; place-items: center; min-width: 0; }
+.iv-donut { width: 100%; max-width: 420px; height: auto; overflow: visible; }
+.iv-donut-bg { stroke: var(--ov-6); }
+.iv-slice { transform-box: view-box; transform-origin: 200px 180px; transition: transform 0.18s ease, opacity 0.18s ease; cursor: pointer; }
+.iv-slice.is-active { transform: scale(1.07); }
+.iv-slice.is-dim { opacity: 0.35; }
+.iv-slice.s1 { stroke: var(--chart-slice1); } .iv-slice.s2 { stroke: var(--chart-slice2); } .iv-slice.s3 { stroke: var(--chart-slice3); } .iv-slice.s4 { stroke: var(--chart-slice4); }
+.iv-slice.s5 { stroke: var(--chart-slice5); } .iv-slice.s6 { stroke: var(--chart-slice6); } .iv-slice.s7 { stroke: var(--chart-slice7); } .iv-slice.sother { stroke: var(--chart-slice-other); }
+.iv-donut-center, .iv-donut-label { pointer-events: none; }
+.iv-donut-label { fill: var(--text); font-size: 14px; transition: font-size 0.15s; }
+.iv-donut-label.is-active { fill: var(--text); font-size: 16px; font-weight: 700; }
+.iv-c-top { fill: var(--muted); font-size: 14px; }
+.iv-c-main { fill: var(--text); font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.iv-c-bottom { fill: var(--muted); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.iv-c-bottom.is-pos { fill: var(--income); } .iv-c-bottom.is-neg { fill: var(--expense); }
+
+.iv-table-wrap { min-width: 0; overflow-x: auto; }
+.iv-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.iv-table thead th { padding: 8px 10px; color: var(--muted); font-size: 14px; font-weight: 500; text-align: left; border-bottom: 1px solid var(--ov-14); white-space: nowrap; }
+.iv-table .r { text-align: right; }
+.iv-table td, .iv-table tbody th { padding: 10px; border-bottom: 1px solid var(--ov-10); vertical-align: middle; text-align: left; font-weight: 400; }
+.iv-table td.r { text-align: right; }
+.iv-table td strong, .iv-table td small { display: block; }
+.iv-table small { color: var(--muted); font-size: 13px; }
+.iv-table td small.is-pos { color: var(--income); font-weight: 700; } .iv-table td small.is-neg { color: var(--expense); font-weight: 700; }
+.iv-row-tr { transition: background 0.15s; box-shadow: inset 4px 0 0 var(--bar, var(--ov-20)); }
+.iv-row-tr.s1 { --bar: var(--chart-slice1); } .iv-row-tr.s2 { --bar: var(--chart-slice2); } .iv-row-tr.s3 { --bar: var(--chart-slice3); } .iv-row-tr.s4 { --bar: var(--chart-slice4); }
+.iv-row-tr.s5 { --bar: var(--chart-slice5); } .iv-row-tr.s6 { --bar: var(--chart-slice6); } .iv-row-tr.s7 { --bar: var(--chart-slice7); } .iv-row-tr.sother { --bar: var(--chart-slice-other); }
+.iv-row-tr.is-active { background: var(--ov-8); }
+.iv-name { display: flex; align-items: center; gap: 12px; }
+.iv-name strong { font-weight: 700; display: block; }
+.iv-tick { display: inline-grid; place-items: center; min-width: 44px; height: 44px; padding: 0 6px; border-radius: 12px; background: var(--ov-10); font-size: 12px; font-weight: 800; letter-spacing: 0.02em; }
 
 @media (min-width: 1024px) {
-  .dash-top { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .dash-top .dash-hero { grid-column: 1 / -1; }
-  .dash-mid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .dash-bottom { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .dash-big { font-size: clamp(19px, 1.6vw, 22px); }
-  .dash-hero .dash-big { font-size: clamp(28px, 2.6vw, 34px); }
+  .iv-stats { grid-template-columns: 1.15fr 1fr 1fr 1fr; }
+  .iv-card-top, .iv-card-title { min-height: 44px; }
+  .iv-pf-body { grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.6fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .iv-slice, .iv-donut-label, .iv-row-tr, .iv-pop { transition: none; }
+  .iv-slice.is-active { transform: none; }
 }
 
-/* % กำไรรวม (R24.5): ตัวใหญ่หนา (≥18.66px) เพราะใช้สีรายรับ/รายจ่ายบนกระจก */
-.dash-pct { font-size: 19px; font-weight: 700; }
+/* มือถือ/แท็บเล็ต (<1024px): ตารางต้องพอดีจอ ไม่ตัดคอลัมน์ Gain · ซ่อนป้ายชื่อย่อและคอลัมน์ Allocation (ตัวเลข % อยู่รอบโดนัทแล้ว) */
+@media (max-width: 1023px) {
+  .iv-table { font-size: 14px; }
+  .iv-table thead th, .iv-table td, .iv-table tbody th { padding: 8px 5px; }
+  .iv-tick { display: none; }
+  .iv-table td.r span, .iv-table td.r strong, .iv-table td.r small { white-space: nowrap; }
+}
+@media (max-width: 599px) {
+  .iv-table thead th:last-child, .iv-table tbody td:last-child { display: none; }
+  .iv-table thead th { white-space: normal; }
+}

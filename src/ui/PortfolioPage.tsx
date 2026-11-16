@@ -6,6 +6,8 @@ import { UsOverview } from './UsOverview';
 import { UsStocksView } from './UsStocksView';
 
 interface Props {
+  /** แท็บย่อยที่เปิดตอนเริ่ม (ปุ่ม + Add ของโหมด /invest เปิดหุ้นสหรัฐ ที่มีฟอร์มเพิ่มรายการ) */
+  startTab?: 'overview' | 'us';
   today: string;
   accounts: readonly Account[];
   entries: readonly Entry[];
@@ -21,8 +23,8 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 /** หน้า "พอร์ตการลงทุน" แบบแท็บ (A3-2): ภาพรวมพอร์ต (ของเดิมครบ + ส่วนหุ้นสหรัฐเมื่อมีข้อมูล) และหุ้นสหรัฐ */
-export default function PortfolioPage({ today, accounts, entries, wallets, onLedgerChanged }: Props) {
-  const [tab, setTab] = useState<Tab>('overview');
+export default function PortfolioPage({ today, accounts, entries, wallets, onLedgerChanged, startTab }: Props) {
+  const [tab, setTab] = useState<Tab>(startTab ?? 'overview');
   const refs = useRef<Record<Tab, HTMLButtonElement | null>>({ overview: null, us: null });
 
   const onKey = (e: KeyboardEvent<HTMLButtonElement>, index: number) => {
