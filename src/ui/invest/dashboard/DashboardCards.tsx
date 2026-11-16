@@ -78,8 +78,11 @@ function TopRow({ view, currency }: { view: DashboardView; currency: DashCurrenc
         ) : profit !== null ? (
           <>
             <p className={`dash-big num ${tone(profit.total)}`}>{moneySigned(currency, profit.total)}</p>
-            <p className={`num small ${profitPct === null ? 'muted' : tone(profitPct)}`}>{profitPct === null ? <Dash why="ไม่มีต้นทุนที่ยังถืออยู่" /> : bpsText(profitPct, true)}</p>
-            <p className="muted small">เทียบกับต้นทุนที่ยังถืออยู่ · ดูที่ "กำไรมาจากไหน" ด้านล่าง</p>
+            <p className={`dash-pct num ${profitPct === null ? 'muted' : tone(profitPct)}`}>
+              <span className="sr-only">กำไรเป็นเปอร์เซ็นต์ </span>
+              {profitPct === null ? <Dash why="ไม่มีต้นทุนที่ยังถืออยู่" /> : bpsText(profitPct, true)}
+            </p>
+            <p className="muted small">เทียบกับต้นทุนที่ยังถืออยู่</p>
           </>
         ) : (
           <>
@@ -272,7 +275,7 @@ function GoalCard({ onOpenRetirement }: { onOpenRetirement?: () => void }) {
       <p className="muted">ยังไม่ได้ตั้งเป้าหมาย</p>
       {onOpenRetirement && (
         <button type="button" className="card-link" onClick={onOpenRetirement}>
-          ตั้งเป้าในแผนเกษียณ
+          ตั้งเป้าในแผนเกษียณ <span aria-hidden="true">→</span>
         </button>
       )}
     </section>

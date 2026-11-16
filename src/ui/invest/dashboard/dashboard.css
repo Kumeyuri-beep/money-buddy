@@ -55,6 +55,9 @@
   .dash-top .dash-hero { grid-column: 1 / -1; }
   .dash-mid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .dash-bottom { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .dash-big { font-size: clamp(18px, 1.6vw, 22px); }
+  .dash-big { font-size: clamp(19px, 1.6vw, 22px); }
   .dash-hero .dash-big { font-size: clamp(28px, 2.6vw, 34px); }
 }
+
+/* % กำไรรวม (R24.5): ตัวใหญ่หนา (≥18.66px) เพราะใช้สีรายรับ/รายจ่ายบนกระจก */
+.dash-pct { font-size: 19px; font-weight: 700; }

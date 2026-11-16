@@ -147,3 +147,29 @@ describe('R24.5 กำไรรวมเป็น % และการ์ดเ�
     expect(html(MAIN, 'THB')).not.toContain('ตั้งเป้าในแผนเกษียณ');
   });
 });
+
+describe('R24.5 เคสเพิ่มจากผลตรวจ money-auditor', () => {
+  it('ขาดทุน: ราคาต่ำกว่าต้นทุน → แสดง "-x.xx%" ทั้งสองสกุล', () => {
+    const loss: InvestmentData = { ...MAIN, trades: [MAIN.trades[0]!], prices: [{ assetId: 'us1', date: '2026-11-12', priceMicro: 90_000_000 }] };
+    const v = buildDashboardView(accounts, entries, loss, TODAY);
+    expect(v.profitPctUsd!).toBeLessThan(0);
+    expect(html(loss, 'USD')).toMatch(/-\d+(\.\d+)?%/);
+  });
+  it('มีราคาแต่ไม่มีอัตรา: บาทเป็น null แต่ USD ยังคำนวณได้ (สองสกุลแยกกัน)', () => {
+    const noFx: InvestmentData = { ...MAIN, fxRates: [] };
+    const v = buildDashboardView(accounts, entries, noFx, TODAY);
+    expect(v.profitPctThb).toBeNull();
+    expect(v.profitPctUsd).toBe(4_504);
+  });
+  it('ขายหมด: หน้าจอไม่แสดง % (แสดง "—") แต่ยังแสดงยอดกำไร', () => {
+    const sold: InvestmentData = {
+      ...MAIN,
+      trades: [
+        trade({ id: 'b', kind: 'buy', date: '2026-11-03', units: '1000000000', amount: 100_000, fee: 0, fxRateMicro: 35_000_000 }),
+        trade({ id: 's', kind: 'sell', date: '2026-11-10', units: '1000000000', priceMicro: 120_000_000, amount: undefined, fee: 0, fxRateMicro: 33_000_000 }),
+      ],
+    };
+    expect(html(sold, 'THB')).not.toMatch(/\+\d+(\.\d+)?%<\/p>\s*<p class="muted small">เทียบกับต้นทุน/);
+    expect(html(sold, 'THB')).toContain('เทียบกับต้นทุนที่ยังถืออยู่');
+  });
+});
