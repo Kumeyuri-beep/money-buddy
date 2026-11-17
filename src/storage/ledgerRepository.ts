@@ -6,7 +6,7 @@ import { emptyInvestments, type Asset, type AssetKind, type AssetPrice, type FxE
 import type { Account, Entry, NewEntry } from '../domain/ledger/types';
 import type { MoneyDB } from './db';
 import * as dexie from './repository';
-import { StorageError, type Ledger, type PayBillOptions, type PayBillResult, type Snapshot } from './repository';
+import { StorageError, storeError, type Ledger, type PayBillOptions, type PayBillResult, type Snapshot } from './repository';
 
 /**
  * ช่องทางเดียวที่หน้าจอใช้อ่าน/เขียนข้อมูลการเงิน (แผน M2 ข้อ 4.4)
@@ -122,7 +122,7 @@ export interface LedgerRepository {
   saveFxRate(rate: FxRateRecord): Promise<void>;
 }
 
-const localInvestError = (): StorageError => new StorageError('พอร์ตลงทุนใช้ได้เฉพาะบัญชีออนไลน์ (ที่เก็บในเครื่องไม่รองรับ)');
+const localInvestError = (): StorageError => storeError('store.localInvestUnsupported');
 
 /** implementation เดิม (IndexedDB) ห่อฟังก์ชันใน repository.ts ไม่เปลี่ยนพฤติกรรม */
 export function createDexieRepository(db: MoneyDB): LedgerRepository {
