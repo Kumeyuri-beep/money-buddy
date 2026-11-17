@@ -50,7 +50,7 @@ for (const w of WIDTHS) {
       await expect(page.getByText('No prices or rates yet')).toBeVisible();
 
       await tabs.getByRole('tab', { name: 'Analytics', exact: true }).click();
-      await expect(page.getByRole('heading', { name: 'วิเคราะห์พอร์ต', level: 2 })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Analytics', level: 2 })).toBeVisible();
       await tabs.getByRole('tab', { name: 'Tools', exact: true }).click();
       await expect(page.getByRole('heading', { name: 'Tools', level: 2 })).toBeVisible();
 

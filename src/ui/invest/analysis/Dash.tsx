@@ -3,7 +3,7 @@ export function Dash({ why }: { why?: string }) {
   return (
     <>
       <span aria-hidden="true">—</span>
-      <span className="sr-only">{why ?? 'ยังไม่มีข้อมูล'}</span>
+      <span className="sr-only">{why ?? 'No data yet'}</span>
     </>
   );
 }

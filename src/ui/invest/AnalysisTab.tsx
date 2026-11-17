@@ -4,11 +4,12 @@ import { useInvest } from './InvestContext';
 import { buildAnalysisModel } from './analysis/analysisModel';
 import { HoldingsCard } from './analysis/HoldingsCard';
 import { MonthlyReturnsCard } from './analysis/MonthlyReturnsCard';
+import { ProfitSourcesCard } from './analysis/ProfitSourcesCard';
 import { CurrencyCard, DividendCard } from './analysis/SideCards';
 import './analysis/analysis.css';
 
 /**
- * แท็บ "วิเคราะห์" (แบบ A แนว Snowball · ลูกน้อง 2): ตารางหุ้นที่ถือ (ทั่วไป/ปันผล/กำไร) ผลตอบแทนรายเดือน สัดส่วนสกุลเงิน ปันผลเทียบเงินลงทุน
+ * แท็บ "Analytics" (เดิม "วิเคราะห์") (แบบ A แนว Snowball · ลูกน้อง 2): ตารางหุ้นที่ถือ (ทั่วไป/ปันผล/กำไร) ผลตอบแทนรายเดือน สัดส่วนสกุลเงิน ปันผลเทียบเงินลงทุน
  * ตัวเลขทุกตัวมาจากฟังก์ชันใน src/domain (ผ่าน analysis/analysisModel) ไม่มีสูตรเงินในคอมโพเนนต์ · สกุลที่แสดงตามปุ่ม ฿/USD ที่หัวโหมด
  */
 export function AnalysisTab() {
@@ -27,31 +28,32 @@ export function AnalysisTab() {
   return (
     <div className="invest-tab invest-analysis">
       <header className="an-head">
-        <h2 id="inv-analysis-title">วิเคราะห์พอร์ต</h2>
-        <p className="muted">ตัวเลขทุกตัวคำนวณจากรายการที่บันทึกไว้ ไม่เดาราคา</p>
+        <h2 id="inv-analysis-title">Analytics</h2>
+        <p className="muted">Every figure is calculated from your recorded transactions. Prices are never guessed.</p>
       </header>
       {built.failed ? (
         <p className="form-error" role="alert">
-          คำนวณไม่ได้: ตัวเลขใหญ่เกินช่วงที่ระบบรองรับ
+          Cannot calculate: a number is larger than the supported range.
         </p>
       ) : model === null ? (
         <p className="muted" role="status">
-          กำลังโหลดข้อมูลพอร์ต…
+          Loading portfolio data…
         </p>
       ) : !model.hasStocks ? (
         <section className="solid card an-card" aria-labelledby="an-empty-title">
-          <h2 id="an-empty-title">ยังไม่มีหุ้นสหรัฐ</h2>
-          <p className="muted">เพิ่มหุ้นและบันทึกการซื้อได้ที่แท็บ "รายการ" แล้วกลับมาดูตารางหุ้นที่ถือ ผลตอบแทนรายเดือน และปันผลที่นี่</p>
+          <h2 id="an-empty-title">No US stocks yet</h2>
+          <p className="muted">Add a stock and record a purchase in the Transactions tab, then come back to see your holdings, monthly returns and dividends here.</p>
         </section>
       ) : (
         <>
           <HoldingsCard model={model} currency={currency} />
+          <ProfitSourcesCard profit={model.profit} currency={currency} />
           <MonthlyReturnsCard model={model} />
           <div className="an-pair">
             <CurrencyCard model={model} />
             <DividendCard model={model} currency={currency} />
           </div>
-          <CardUnavailable id="inv-analysis-today" title="ขึ้นลงวันนี้" />
+          <CardUnavailable id="inv-analysis-today" title="Today's movers" />
         </>
       )}
     </div>
