@@ -5,7 +5,7 @@ import { nextFocusAfterDelete } from '../../src/app/tradeFocus';
 import { GLOSSARY, glossaryText } from '../../src/domain/invest/glossary';
 import type { TradeRecord } from '../../src/domain/invest/types';
 import { formatBaht, satang } from '../../src/domain/money/satang';
-import { TermHelp } from '../../src/ui/TermHelp';
+import { TERM_EN, TermHelp } from '../../src/ui/TermHelp';
 import { KIND_LABEL, TradeItem, tradeButtonId } from '../../src/ui/TradeItem';
 
 /** ประวัติรายการลงทุนเป็นรายการย่อยกดขยายได้ (13 พ.ย. 2569) · 14 พ.ย.: ปุ่ม disclosure แทน details ซ้อน, โฟกัสหลังลบ, คำอธิบายศัพท์ · ข้อมูลสมมติทั้งหมด */
@@ -32,34 +32,34 @@ describe('TradeItem: ปุ่ม disclosure (ไม่ใช่ <details> ซ�
   });
   it('ปุ่มมีวันที่ ชนิด ค่าหลัก คั่นด้วยช่องว่างจริง (โปรแกรมอ่านจอไม่อ่านติดกัน)', () => {
     const h = html(trade());
-    expect(h).toMatch(/trade-when">[^<]+<\/span> <span class="trade-kind">ซื้อ<\/span> <span class="trade-main num">/);
+    expect(h).toMatch(/trade-when">[^<]+<\/span> <span class="trade-kind">Buy<\/span> <span class="trade-main num">/);
     expect(h).toContain(`<span class="trade-main num">${baht(50_000)}</span>`);
   });
   it('รายละเอียดเป็นแถวป้าย/ค่าทีละบรรทัด (ไม่เป็นบรรทัดยาวคั่นด้วย ·)', () => {
     const h = html(trade({ fee: 5, withholding: 100, memo: 'บันทึกทดสอบ' }));
-    for (const label of ['จำนวนหน่วย', 'ราคาต่อหน่วย', 'ยอดเงิน', 'ค่าธรรมเนียม', 'ภาษีหัก ณ ที่จ่าย', 'บันทึก']) expect(h, label).toContain(`<dt>${label}</dt>`);
-    expect(h).toContain(`<dt>ค่าธรรมเนียม</dt><dd class="num">${baht(5)}</dd>`);
+    for (const label of ['Units', 'Price per unit', 'Amount', 'Fee', 'Withholding tax', 'Note']) expect(h, label).toContain(`<dt>${label}</dt>`);
+    expect(h).toContain(`<dt>Fee</dt><dd class="num">${baht(5)}</dd>`);
     expect(h).toContain('<dd>บันทึกทดสอบ</dd>');
     expect(h).not.toContain(' · ');
   });
   it('ไม่มีค่า = ไม่แสดงแถว · ขาย (ไม่มียอด) ใช้จำนวนหน่วยเป็นค่าหลัก · ยอด 0 ยังแสดง', () => {
     const h = html(trade({ kind: 'sell', amount: undefined, fee: 0, withholding: 0, memo: '' }));
-    for (const label of ['ยอดเงิน', 'ค่าธรรมเนียม', 'ภาษีหัก ณ ที่จ่าย', 'บันทึก']) expect(h, label).not.toContain(`<dt>${label}</dt>`);
-    expect(h).toMatch(/<span class="trade-main num">[^<]* หน่วย<\/span>/);
+    for (const label of ['Amount', 'Fee', 'Withholding tax', 'Note']) expect(h, label).not.toContain(`<dt>${label}</dt>`);
+    expect(h).toMatch(/<span class="trade-main num">[^<]* units<\/span>/);
     expect(html(trade({ amount: 0 }))).toContain(`<span class="trade-main num">${baht(0)}</span>`);
   });
-  it('รอยืนยันลบ = ขยายไว้ (aria-expanded=true ไม่มี hidden) และมีข้อความ "รอการยืนยันลบ" ให้โปรแกรมอ่านจอ', () => {
+  it('รอยืนยันลบ = ขยายไว้ (aria-expanded=true ไม่มี hidden) และมีข้อความ "Awaiting delete confirmation" ให้โปรแกรมอ่านจอ', () => {
     const h = html(trade(), true);
     expect(h).toContain('aria-expanded="true"');
     expect(h).not.toContain('hidden=""');
-    expect(h).toContain('รอการยืนยันลบ');
-    expect(html(trade(), false)).not.toContain('รอการยืนยันลบ');
+    expect(h).toContain('Awaiting delete confirmation');
+    expect(html(trade(), false)).not.toContain('Awaiting delete confirmation');
   });
-  it('ปุ่มลบอยู่ในส่วนที่ขยาย นอกปุ่มสรุป (ไม่มีปุ่มซ้อนปุ่ม) · ชื่ออ่านด้วยวันที่ไทย · ยืนยัน/ปิดตามสถานะ', () => {
+  it('ปุ่มลบอยู่ในส่วนที่ขยาย นอกปุ่มสรุป (ไม่มีปุ่มซ้อนปุ่ม) · ชื่ออ่านด้วยวันที่อังกฤษ · ยืนยัน/ปิดตามสถานะ', () => {
     const h = html(trade());
     const summary = h.slice(h.indexOf('<button'), h.indexOf('</button>'));
     expect(summary.match(/<button/g)?.length).toBe(1);
-    expect(h).toContain('aria-label="ลบรายการ ซื้อ');
+    expect(h).toContain('aria-label="Delete Buy entry 5 Nov 2026"');
     expect(h).not.toMatch(/aria-label="[^"]*2026-11-05/);
     expect(html(trade(), true)).toContain('confirm-delete');
     expect(html(trade(), false, true)).toMatch(/<button[^>]*disabled/);
@@ -71,30 +71,31 @@ describe('TradeItem: ปุ่ม disclosure (ไม่ใช่ <details> ซ�
 });
 
 describe('คำอธิบายศัพท์ (แตะแล้วเห็น ไม่ใช่ hover อย่างเดียว)', () => {
-  it('มีคำอธิบายภาษาคนของ ปันผลเป็นเงินสด / ปันผลลงทุนต่อ / ภาษีหัก ณ ที่จ่าย · คำที่ไม่รู้จักคืน null', () => {
+  it('มีคำอธิบายภาษาอังกฤษของ Cash dividend / Reinvested dividend / Withholding tax (คีย์เดียวกับ GLOSSARY ของ domain) · คำที่ไม่รู้จักคืน null', () => {
     for (const term of ['ปันผลเป็นเงินสด', 'ปันผลลงทุนต่อ', 'ภาษีหัก ณ ที่จ่าย'] as const) {
       expect(glossaryText(term), term).toBe(GLOSSARY[term]);
-      expect(GLOSSARY[term].length).toBeGreaterThan(30);
-      expect(GLOSSARY[term].length).toBeLessThan(200); // สั้นพอบนมือถือ
+      expect(TERM_EN[term].text.length).toBeGreaterThan(30);
+      expect(TERM_EN[term].text.length).toBeLessThan(200); // สั้นพอบนมือถือ
     }
+    expect(Object.keys(TERM_EN).sort()).toEqual(Object.keys(GLOSSARY).sort());
     expect(glossaryText('คำที่ไม่มี')).toBeNull();
   });
   it('TermHelp เป็นปุ่ม (ไม่ใช่ title/hover) aria-expanded=false ซ่อนข้อความไว้ก่อน · ปุ่มมีชื่อที่บอกคำที่อธิบาย', () => {
     const h = renderToString(createElement(TermHelp, { term: 'ภาษีหัก ณ ที่จ่าย' })).replace(/<!-- -->/g, '');
-    expect(h).toMatch(/<button type="button" class="term-help-btn" aria-expanded="false" aria-controls="[^"]+" aria-label="ความหมายของคำว่า ภาษีหัก ณ ที่จ่าย">ความหมาย<\/button>/);
+    expect(h).toMatch(/<button type="button" class="term-help-btn" aria-expanded="false" aria-controls="[^"]+" aria-label="Meaning of Withholding tax">Meaning<\/button>/);
     expect(h).toContain('hidden=""');
-    expect(h).toContain(GLOSSARY['ภาษีหัก ณ ที่จ่าย']);
+    expect(h).toContain(TERM_EN['ภาษีหัก ณ ที่จ่าย'].text);
     expect(h).not.toContain('title=');
   });
   it('ใช้ที่ฟอร์มบันทึกรายการ (ชนิดปันผล + ช่องภาษีหัก ณ ที่จ่าย) และในรายการที่ขยาย (ปันผล / มีภาษีหัก)', () => {
-    expect(view).toContain('<TermHelp term={KIND_LABEL[k]} />');
+    expect(view).toContain('<TermHelp term={KIND_GLOSSARY[k]} />');
     expect(view).toContain('help={<TermHelp term="ภาษีหัก ณ ที่จ่าย" />}');
     const dividend = html(trade({ kind: 'dividend', withholding: 100 }));
-    expect(dividend).toContain('ความหมายของคำว่า ปันผลเป็นเงินสด');
-    expect(dividend).toContain('ความหมายของคำว่า ภาษีหัก ณ ที่จ่าย');
+    expect(dividend).toContain('Meaning of Cash dividend');
+    expect(dividend).toContain('Meaning of Withholding tax');
     const buy = html(trade());
-    expect(buy).not.toContain('ความหมายของคำว่า');
-    expect(html(trade({ kind: 'reinvest', withholding: 0 }))).toContain('ความหมายของคำว่า ปันผลลงทุนต่อ');
+    expect(buy).not.toContain('Meaning of');
+    expect(html(trade({ kind: 'reinvest', withholding: 0 }))).toContain('Meaning of Reinvested dividend');
   });
   it('Esc ปิดคำอธิบายโดยไม่ปิดฟอร์มทั้งใบ (stopPropagation) · CSS: ปุ่มสูง 44px และซ่อนด้วย [hidden]', () => {
     const src = (Object.entries(import.meta.glob('/src/ui/TermHelp.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)[0]?.[1]) ?? '';

@@ -27,10 +27,10 @@ describe('AssetFigures (แถวสินทรัพย์)', () => {
   it('ชื่อยาวอยู่ในองค์ประกอบของตัวเอง ตัวเลขแต่ละอย่างเป็นแถวป้าย/ค่าแยกกัน (ไม่ปนในบรรทัดเดียวกับชื่อ)', () => {
     const h = html(row());
     expect(h).toContain(`<span class="asset-name">${LONG}</span>`);
-    for (const label of ['ถือ', 'ต้นทุน', 'ต้นทุนเฉลี่ย', 'มูลค่า', 'กำไร/ขาดทุน', 'ขายแล้ว', 'ปันผล']) {
+    for (const label of ['Held', 'Cost', 'Average cost', 'Value', 'Unrealized gain/loss', 'Realized gain/loss', 'Dividends']) {
       expect(h, label).toContain(`<dt>${label}</dt>`);
     }
-    expect(h).toContain('<dt>ราคา ณ ');
+    expect(h).toContain('<dt>Price as of ');
     // ตัวเลขทุกค่าอยู่ใน dd.num และไม่มีค่าไหนอยู่ในบรรทัดเดียวกับชื่อ
     expect(h.match(/<dd class="num">/g)?.length).toBe(8);
     expect(h.indexOf(LONG)).toBeLessThan(h.indexOf('<dl'));
@@ -38,33 +38,33 @@ describe('AssetFigures (แถวสินทรัพย์)', () => {
   it('ค่าตรงกับข้อมูลเดิม (จัดรูปแบบอย่างเดียว ไม่คำนวณใหม่)', () => {
     const h = html(row());
     const baht = (n: number) => formatBaht(satang(n));
-    expect(h).toContain(`<dt>ต้นทุน</dt><dd class="num">${baht(2_500_000)}</dd>`);
-    expect(h).toContain(`<dt>มูลค่า</dt><dd class="num">${baht(2_700_000)}</dd>`);
-    expect(h).toContain(`<dt>กำไร/ขาดทุน</dt><dd class="num">+${baht(200_000)}</dd>`);
-    expect(h).toContain(`<dt>ขายแล้ว</dt><dd class="num">${baht(-30_000)}</dd>`);
-    expect(h).toContain(`<dt>ปันผล</dt><dd class="num">${baht(12_300)}</dd>`);
+    expect(h).toContain(`<dt>Cost</dt><dd class="num">${baht(2_500_000)}</dd>`);
+    expect(h).toContain(`<dt>Value</dt><dd class="num">${baht(2_700_000)}</dd>`);
+    expect(h).toContain(`<dt>Unrealized gain/loss</dt><dd class="num">+${baht(200_000)}</dd>`);
+    expect(h).toContain(`<dt>Realized gain/loss</dt><dd class="num">${baht(-30_000)}</dd>`);
+    expect(h).toContain(`<dt>Dividends</dt><dd class="num">${baht(12_300)}</dd>`);
   });
   it('เครื่องหมายกำไร/ขาดทุน: บวกมี + · ลบแสดงตามรูปแบบเงินเดิม · ศูนย์ไม่มีเครื่องหมาย', () => {
     const baht = (n: number) => formatBaht(satang(n));
     const neg = html(row({ market: { value: 2_000_000, unrealized: -500_000 } as AssetRowView['market'], realizedGain: 40_000 }));
-    expect(neg).toContain(`<dt>กำไร/ขาดทุน</dt><dd class="num">${baht(-500_000)}</dd>`);
-    expect(neg).toContain(`<dt>ขายแล้ว</dt><dd class="num">+${baht(40_000)}</dd>`);
+    expect(neg).toContain(`<dt>Unrealized gain/loss</dt><dd class="num">${baht(-500_000)}</dd>`);
+    expect(neg).toContain(`<dt>Realized gain/loss</dt><dd class="num">+${baht(40_000)}</dd>`);
     const zero = html(row({ market: { value: 2_500_000, unrealized: 0 } as AssetRowView['market'] }));
-    expect(zero).toContain(`<dt>กำไร/ขาดทุน</dt><dd class="num">${baht(0)}</dd>`);
+    expect(zero).toContain(`<dt>Unrealized gain/loss</dt><dd class="num">${baht(0)}</dd>`);
   });
   it('ราคาเก่า: บอกจำนวนวันเป็นบรรทัดคำเตือนเต็มความกว้าง · ไม่มีราคา: บอกสาเหตุ', () => {
-    expect(html(row({ priceStale: true }), '2026-11-20')).toContain('ราคาเก่า 10 วัน อัปเดตราคาก่อนดูมูลค่า');
-    expect(html(row({ latestPrice: null, market: null }))).toContain('ยังไม่ได้กรอกราคา (ไม่แสดงมูลค่า)');
-    expect(html(row({ latestPrice: null, market: null, position: { units: 0n, cost: 0 } as AssetRowView['position'] }))).toContain('ไม่มีหน่วยที่ถืออยู่');
+    expect(html(row({ priceStale: true }), '2026-11-20')).toContain('Price is 10 days old. Update the price before relying on the value');
+    expect(html(row({ latestPrice: null, market: null }))).toContain('No price entered yet (value not shown)');
+    expect(html(row({ latestPrice: null, market: null, position: { units: 0n, cost: 0 } as AssetRowView['position'] }))).toContain('No units held');
   });
   it('ไม่มีกำไรที่ขายแล้ว/ปันผล/ต้นทุนเฉลี่ย = ไม่แสดงแถวนั้น', () => {
     const h = html(row({ realizedGain: 0, dividendsNet: 0, avgCostMicro: null }));
-    for (const label of ['ขายแล้ว', 'ปันผล', 'ต้นทุนเฉลี่ย']) expect(h, label).not.toContain(`<dt>${label}</dt>`);
+    for (const label of ['Realized gain/loss', 'Dividends', 'Average cost']) expect(h, label).not.toContain(`<dt>${label}</dt>`);
   });
   it('ข้อมูลผิดพลาด: แสดงข้อความ role=alert แทนตัวเลข', () => {
-    const h = html(row({ error: 'ขายเกินที่ถือ' }));
+    const h = html(row({ error: 'Sold more than held' }));
     expect(h).toContain('role="alert"');
-    expect(h).toContain('ขายเกินที่ถือ');
+    expect(h).toContain('Sold more than held');
     expect(h).not.toContain('<dl');
   });
   it('หน้าพอร์ตใช้ AssetFigures แทนข้อความต่อกันยาว', () => {

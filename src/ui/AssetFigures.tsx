@@ -1,11 +1,13 @@
-import { thaiDayLabel } from '../app/dates';
+import { formatDateEn } from '../app/dateEn';
 import type { AssetRowView } from '../app/portfolio';
 import { daysBetween } from '../domain/bills/calendar';
-import { ASSET_KIND_LABEL } from '../domain/invest/labels';
+import type { AssetKind } from '../domain/invest/types';
 import { formatUnits } from '../domain/invest/units';
 import { formatMicro } from '../domain/money/micro';
 import { baht, signed } from '../app/bahtFormat';
 
+/** ชื่อชนิดสินทรัพย์ภาษาอังกฤษสำหรับโหมด /invest (ของ domain ยังเป็นไทย ไม่แตะ domain) */
+export const ASSET_KIND_LABEL_EN: Record<AssetKind, string> = { fund: 'Fund', stock: 'Stock', other: 'Other' };
 
 /**
  * ชื่อ + ตัวเลขของสินทรัพย์หนึ่งแถวในหน้าพอร์ต (เจ้าของสั่ง 13 พ.ย. 2569: มือถือ 360px อ่านง่ายขึ้น ชื่อยาวไม่ดันตัวเลขตก)
@@ -16,50 +18,52 @@ export function AssetFigures({ row, today }: { row: AssetRowView; today: string 
   return (
     <>
       <div className="tx-title asset-title" role="heading" aria-level={3}>
-        <span className="asset-name">{row.asset.name}</span> <span className="muted small asset-kind">{ASSET_KIND_LABEL[row.asset.kind]}</span>
+        <span className="asset-name">{row.asset.name}</span> <span className="muted small asset-kind">{ASSET_KIND_LABEL_EN[row.asset.kind]}</span>
       </div>
       {row.error ? (
         <p role="alert" className="form-error">
-          ข้อมูลรายการของสินทรัพย์นี้ไม่สอดคล้อง: {row.error}
+          This asset's trade records are inconsistent: {row.error}
         </p>
       ) : (
         <dl className="asset-figures muted small">
           <div className="asset-fig">
-            <dt>ถือ</dt>
-            <dd className="num">{formatUnits(row.position.units)} หน่วย</dd>
+            <dt>Held</dt>
+            <dd className="num">{formatUnits(row.position.units)} units</dd>
           </div>
           <div className="asset-fig">
-            <dt>ต้นทุน</dt>
+            <dt>Cost</dt>
             <dd className="num">{baht(row.position.cost)}</dd>
           </div>
           {row.avgCostMicro !== null && (
             <div className="asset-fig asset-fig-wide">
-              <dt>ต้นทุนเฉลี่ย</dt>
-              <dd className="num">{formatMicro(row.avgCostMicro)} บาท/หน่วย</dd>
+              <dt>Average cost</dt>
+              <dd className="num">{formatMicro(row.avgCostMicro)} THB/unit</dd>
             </div>
           )}
           {row.latestPrice ? (
             <>
               <div className="asset-fig asset-fig-wide">
-                <dt>ราคา ณ {thaiDayLabel(row.latestPrice.date)}</dt>
-                <dd className="num">{formatMicro(row.latestPrice.priceMicro)} บาท</dd>
+                <dt>Price as of {formatDateEn(row.latestPrice.date)}</dt>
+                <dd className="num">{formatMicro(row.latestPrice.priceMicro)} THB</dd>
               </div>
               {row.priceStale && (
                 <div className="asset-fig asset-fig-note">
-                  <dt className="sr-only">คำเตือน</dt>
+                  <dt className="sr-only">Warning</dt>
                   <dd>
-                    <strong className="stale">ราคาเก่า {daysBetween(row.latestPrice.date, today)} วัน อัปเดตราคาก่อนดูมูลค่า</strong>
+                    <strong className="stale">
+                      Price is {daysBetween(row.latestPrice.date, today)} {daysBetween(row.latestPrice.date, today) === 1 ? 'day' : 'days'} old. Update the price before relying on the value
+                    </strong>
                   </dd>
                 </div>
               )}
               {row.market && (
                 <>
                   <div className="asset-fig">
-                    <dt>มูลค่า</dt>
+                    <dt>Value</dt>
                     <dd className="num">{baht(row.market.value)}</dd>
                   </div>
                   <div className="asset-fig">
-                    <dt>กำไร/ขาดทุน</dt>
+                    <dt>Unrealized gain/loss</dt>
                     <dd className="num">{signed(row.market.unrealized)}</dd>
                   </div>
                 </>
@@ -67,19 +71,19 @@ export function AssetFigures({ row, today }: { row: AssetRowView; today: string 
             </>
           ) : (
             <div className="asset-fig asset-fig-note">
-              <dt className="sr-only">ราคา</dt>
-              <dd>{row.position.units > 0n ? 'ยังไม่ได้กรอกราคา (ไม่แสดงมูลค่า)' : 'ไม่มีหน่วยที่ถืออยู่'}</dd>
+              <dt className="sr-only">Price</dt>
+              <dd>{row.position.units > 0n ? 'No price entered yet (value not shown)' : 'No units held'}</dd>
             </div>
           )}
           {row.realizedGain !== 0 && (
             <div className="asset-fig">
-              <dt>ขายแล้ว</dt>
+              <dt>Realized gain/loss</dt>
               <dd className="num">{signed(row.realizedGain)}</dd>
             </div>
           )}
           {row.dividendsNet > 0 && (
             <div className="asset-fig">
-              <dt>ปันผล</dt>
+              <dt>Dividends</dt>
               <dd className="num">{baht(row.dividendsNet)}</dd>
             </div>
           )}

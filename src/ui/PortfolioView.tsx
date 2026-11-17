@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
-import { thaiDayLabel } from '../app/dates';
-import { daysBetween } from '../domain/bills/calendar';
 import { newId } from '../app/ids';
 import { buildPortfolio, type AssetRowView } from '../app/portfolio';
 import { tradeNeedsWallet } from '../domain/invest/ledgerLink';
@@ -12,11 +10,10 @@ import { formatMicro } from '../domain/money/micro';
 import { StorageError, nextCreatedAt } from '../storage/repository';
 import { friendlyError } from '../app/errorText';
 import { baht, signed } from '../app/bahtFormat';
-import { ASSET_KIND_LABEL } from '../domain/invest/labels';
-import { AssetFigures } from './AssetFigures';
+import { AssetFigures, ASSET_KIND_LABEL_EN } from './AssetFigures';
 import { nextFocusAfterDelete } from '../app/tradeFocus';
 import { TermHelp } from './TermHelp';
-import { KIND_LABEL, TradeItem, tradeButtonId } from './TradeItem';
+import { KIND_GLOSSARY, KIND_LABEL, TradeItem, tradeButtonId } from './TradeItem';
 import { DcaPlansCard } from './DcaPlansCard';
 import { ShareCardPanel } from './ShareCardPanel';
 import { useRepository } from './RepositoryContext';
@@ -47,7 +44,7 @@ function Dash() {
   return (
     <>
       <span aria-hidden="true">—</span>
-      <span className="sr-only">ยังไม่มีข้อมูล</span>
+      <span className="sr-only">No data yet</span>
     </>
   );
 }
@@ -64,7 +61,7 @@ function FieldInput(props: {
   placeholder?: string;
   hint?: string;
   type?: string;
-  /** ส่วนช่วยอธิบายใต้ช่อง (เช่น ปุ่ม "ความหมาย" ของศัพท์) */
+  /** ส่วนช่วยอธิบายใต้ช่อง (เช่น ปุ่ม "Meaning" ของศัพท์) */
   help?: ReactNode;
 }) {
   const { id, label, value, onChange, errors, field, placeholder, hint, type, help } = props;
@@ -183,7 +180,7 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
     e.preventDefault();
     const name = assetName.trim();
     if (name === '') {
-      setAssetError('กรอกชื่อกองทุน/หุ้น');
+      setAssetError('Enter a fund or stock name');
       document.getElementById('pf-asset-name')?.focus();
       return;
     }
@@ -191,7 +188,7 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
     const ok = await act(async () => {
       await repo.addAsset({ id: newId('asset'), name, kind: assetKind });
       onLedgerChanged();
-    }, `เพิ่ม "${name}" แล้ว`);
+    }, `Added "${name}"`);
     if (ok) setAssetName('');
   };
 
@@ -219,7 +216,7 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
     setTradeErrors([]);
     const needWallet = tradeNeedsWallet(built.trade.kind);
     if (needWallet && !wallets.some((w) => w.id === walletId)) {
-      setWalletError(wallets.length === 0 ? 'ยังไม่มีกระเป๋าเงินสด สร้างกระเป๋าก่อนจึงจะบันทึกได้' : 'เลือกกระเป๋าเงินที่ใช้จ่ายหรือรับเงิน');
+      setWalletError(wallets.length === 0 ? 'No cash wallet yet. Create a wallet before you can save' : 'Choose the wallet to pay from or receive into');
       document.getElementById(wallets.length === 0 ? 'pf-newwallet' : 'pf-wallet')?.focus();
       return;
     }
@@ -227,14 +224,14 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
     const ok = await act(async () => {
       await repo.recordTrade({ trade: built.trade, walletId: needWallet ? walletId : undefined });
       onLedgerChanged();
-    }, built.trade.kind === 'reinvest' ? 'บันทึกปันผลลงทุนต่อแล้ว (ไม่มีเงินสดเข้า-ออก)' : `บันทึก${KIND_LABEL[built.trade.kind]}แล้ว ปรับยอดกระเป๋า "${wallets.find((w) => w.id === walletId)?.name ?? ''}" ให้แล้ว`);
+    }, built.trade.kind === 'reinvest' ? 'Saved reinvested dividend (no cash moved in or out)' : `Saved ${KIND_LABEL[built.trade.kind].toLowerCase()}. Wallet "${wallets.find((w) => w.id === walletId)?.name ?? ''}" updated.`);
     if (ok) setPanel(null);
   };
 
   const createWallet = async () => {
     const name = newWalletName.trim();
     if (name === '') {
-      setNewWalletError('กรอกชื่อกระเป๋า เช่น "เงินสด" หรือ "บัญชีธนาคาร"');
+      setNewWalletError('Enter a wallet name, e.g. "Cash" or "Bank account"');
       document.getElementById('pf-newwallet')?.focus();
       return;
     }
@@ -243,7 +240,7 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
     const ok = await act(async () => {
       await repo.addWallet({ id, name });
       onLedgerChanged();
-    }, `สร้างกระเป๋า "${name}" แล้ว และเลือกให้เรียบร้อย`);
+    }, `Created wallet "${name}" and selected it`);
     if (ok) {
       setNewWalletName('');
       setWalletId(id);
@@ -258,11 +255,11 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
     if (panel?.type !== 'price') return;
     let priceMicro: number;
     try {
-      if (!isSupportedEntryDate(priceForm.date)) throw new Error('วันที่ไม่ถูกต้อง');
-      if (priceForm.date > today) throw new Error('บันทึกราคาของวันในอนาคตไม่ได้');
+      if (!isSupportedEntryDate(priceForm.date)) throw new Error('Invalid date');
+      if (priceForm.date > today) throw new Error('Cannot save a price for a future date');
       priceMicro = parsePriceMicro(priceForm.price);
     } catch (err) {
-      setPriceError(err instanceof Error ? err.message : 'ข้อมูลไม่ถูกต้อง');
+      setPriceError(err instanceof Error ? err.message : 'Invalid input');
       document.getElementById(priceForm.date > today || !isSupportedEntryDate(priceForm.date) ? 'pf-pdate' : 'pf-pprice')?.focus();
       return;
     }
@@ -270,21 +267,21 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
     const assetId = panel.assetId;
     const ok = await act(async () => {
       await repo.savePrice({ assetId, date: priceForm.date, priceMicro });
-    }, 'บันทึกราคาแล้ว');
+    }, 'Price saved');
     if (ok) setPanel(null);
   };
 
   const removeTrade = async (t: TradeRecord) => {
     if (confirmDelete !== t.id) {
       setConfirmDelete(t.id);
-      setMessage({ text: 'กดปุ่มเดิมอีกครั้งภายใน 5 วินาทีเพื่อยืนยันลบ', kind: 'ok' });
+      setMessage({ text: 'Press the same button again within 5 seconds to confirm deletion', kind: 'ok' });
       return;
     }
     setConfirmDelete('');
     await act(async () => {
       await repo.deleteTrade(t.id);
       onLedgerChanged();
-    }, t.entryId !== undefined ? 'ลบรายการแล้ว และคืนยอดกระเป๋าเงินในสมุดบัญชีให้แล้ว' : 'ลบรายการแล้ว');
+    }, t.entryId !== undefined ? 'Entry deleted and the wallet balance in the ledger was restored' : 'Entry deleted');
   };
 
   const t = portfolio.totals;
@@ -303,14 +300,14 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
   return (
     <>
       <div className="page-header">
-        <h2 className="page-title">พอร์ตการลงทุน</h2>
-        <p className="muted">กองทุนและหุ้นของคุณ ต้นทุนเฉลี่ย และมูลค่าตามราคาที่คุณกรอกเอง</p>
+        <h2 className="page-title">Investment portfolio</h2>
+        <p className="muted">Your funds and stocks, average cost, and value based on the prices you enter yourself</p>
       </div>
 
       <div className="notice" role="note">
-        <p>ซื้อ ขาย และปันผลจะเพิ่มหรือลดเงินในกระเป๋าที่คุณเลือกให้เอง กำไร ขาดทุน และปันผลดูที่หน้านี้ ไม่รวมกับรายรับรายจ่ายประจำวัน</p>
-        <p>รายการเก่าที่บันทึกก่อนหน้านี้ไม่ได้ปรับยอดกระเป๋าย้อนหลัง</p>
-        <p>ราคาเป็นตัวเลขที่คุณกรอกเอง ไม่ใช่ราคาตลาดสด</p>
+        <p>Buys, sells and dividends add to or subtract from the wallet you choose. Gains, losses and dividends are shown on this page and are not mixed into everyday income and expenses.</p>
+        <p>Older entries recorded before this feature did not adjust wallet balances retroactively.</p>
+        <p>Prices are numbers you enter yourself, not live market prices.</p>
       </div>
 
       <div ref={messageRef}>
@@ -322,54 +319,54 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
 
       {data === null && loadError === '' && (
         <p className="muted" role="status">
-          กำลังโหลดพอร์ต…
+          Loading portfolio…
         </p>
       )}
       {loadError !== '' && (
         <div role="alert">
-          <p className="form-error">โหลดข้อมูลพอร์ตไม่สำเร็จ: {loadError}</p>
+          <p className="form-error">Could not load portfolio data: {loadError}</p>
           <button type="button" className="btn btn-ghost btn-small" onClick={() => void load()}>
-            ลองอีกครั้ง
+            Try again
           </button>
         </div>
       )}
 
       {data !== null && loadError === '' && (
       <section className="glass-lite card" aria-labelledby="pf-sum-title">
-        <h2 id="pf-sum-title">สรุปพอร์ต</h2>
+        <h2 id="pf-sum-title">Portfolio summary</h2>
         {!hasAssets ? (
-          <p className="muted">ยังไม่มีสินทรัพย์ เริ่มจากกรอกชื่อกองทุนหรือหุ้นในช่อง "เพิ่มกองทุน/หุ้น" ด้านล่าง</p>
+          <p className="muted">No assets yet. Start by entering a fund or stock name in "Add fund/stock" below.</p>
         ) : (
           <dl className="avg-result">
             <div>
-              <dt>ต้นทุนรวม (ที่ยังถืออยู่)</dt>
+              <dt>Total cost (still held)</dt>
               <dd className="num">{baht(t.cost)}</dd>
             </div>
             <div>
-              <dt>มูลค่าตามราคาที่กรอก{partial && ' (เฉพาะที่มีราคา)'}</dt>
+              <dt>Value at entered prices{partial && ' (priced items only)'}</dt>
               <dd className="num">{noValue ? <Dash /> : baht(t.value)}</dd>
             </div>
             <div>
-              <dt>กำไร/ขาดทุนที่ยังไม่ขาย{partial && ' (เฉพาะที่มีราคา)'}</dt>
+              <dt>Unrealized gain/loss{partial && ' (priced items only)'}</dt>
               <dd className="num">{noValue ? <Dash /> : signed(t.unrealized)}</dd>
             </div>
             <div>
-              <dt>กำไร/ขาดทุนที่ขายแล้ว</dt>
+              <dt>Realized gain/loss</dt>
               <dd className="num">{signed(t.realized)}</dd>
             </div>
             <div>
-              <dt>ปันผลรวม (หลังหักภาษี)</dt>
+              <dt>Total dividends (after tax)</dt>
               <dd className="num">{baht(t.dividends)}</dd>
             </div>
           </dl>
         )}
         {t.unpriced > 0 && (
           <p className="muted small" role="status">
-            มี {t.unpriced} รายการที่ยังไม่ได้กรอกราคา มูลค่าและกำไรรวมเฉพาะรายการที่มีราคา
+            {t.unpriced} {t.unpriced === 1 ? 'item has' : 'items have'} no price entered yet. Value and gain/loss include priced items only.
           </p>
         )}
-        <p className="muted small">กำไร/ขาดทุนจากต้นทุน ไม่ใช่ผลตอบแทนต่อปี</p>
-        <p className="muted small">ต้นทุนเฉลี่ย = ราคาเฉลี่ยที่คุณจ่ายต่อหน่วย รวมค่าธรรมเนียมซื้อ อาจต่างจากแอปโบรกเกอร์เล็กน้อยจากการปัดเศษ</p>
+        <p className="muted small">Gain/loss is measured against cost; it is not an annualized return.</p>
+        <p className="muted small">Average cost = the average price you paid per unit, including purchase fees. It may differ slightly from your broker app because of rounding.</p>
         {hasAssets && (
           <button
             type="button"
@@ -380,7 +377,7 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
             disabled={shareOpen}
             onClick={() => setShareOpen(true)}
           >
-            สร้างการ์ดแชร์สัดส่วนพอร์ต
+            Create portfolio allocation share card
           </button>
         )}
       </section>
@@ -404,11 +401,11 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
       )}
 
       <section className="solid card" aria-labelledby="pf-add-title">
-        <h2 id="pf-add-title">เพิ่มกองทุน/หุ้น</h2>
+        <h2 id="pf-add-title">Add fund/stock</h2>
         <form onSubmit={addAsset} className="settings-form">
           <div className="field-row">
             <div className="field">
-              <label htmlFor="pf-asset-name">ชื่อ</label>
+              <label htmlFor="pf-asset-name">Name</label>
               <input
                 id="pf-asset-name"
                 type="text"
@@ -426,11 +423,11 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
               )}
             </div>
             <div className="field">
-              <label htmlFor="pf-asset-kind">ชนิด</label>
+              <label htmlFor="pf-asset-kind">Type</label>
               <select id="pf-asset-kind" value={assetKind} onChange={(e) => setAssetKind(e.target.value as AssetKind)}>
-                {(Object.keys(ASSET_KIND_LABEL) as AssetKind[]).map((v) => (
+                {(Object.keys(ASSET_KIND_LABEL_EN) as AssetKind[]).map((v) => (
                   <option key={v} value={v}>
-                    {ASSET_KIND_LABEL[v]}
+                    {ASSET_KIND_LABEL_EN[v]}
                   </option>
                 ))}
               </select>
@@ -438,7 +435,7 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
           </div>
           <div className="dialog-actions">
             <button type="submit" className="btn btn-primary btn-small" disabled={busy}>
-              เพิ่ม
+              Add
             </button>
           </div>
         </form>
@@ -447,12 +444,12 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
       {tradePanelAsset && (
         <section className="solid card" aria-labelledby="pf-trade-title">
           <h2 id="pf-trade-title" ref={headingRef} tabIndex={-1}>
-            บันทึกรายการ: {tradePanelAsset.name}
+            Record trade: {tradePanelAsset.name}
           </h2>
           <form onSubmit={submitTrade} onKeyDown={closeOnEscape} className="settings-form" noValidate>
             <div className="field-row">
               <div className="field">
-                <label htmlFor="pf-kind">ชนิดรายการ</label>
+                <label htmlFor="pf-kind">Trade type</label>
                 <select id="pf-kind" value={k} onChange={(e) => setTrade({ kind: e.target.value as TradeKind })}>
                   {(Object.keys(KIND_LABEL) as TradeKind[]).map((v) => (
                     <option key={v} value={v}>
@@ -460,52 +457,52 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
                     </option>
                   ))}
                 </select>
-                {(k === 'dividend' || k === 'reinvest') && <TermHelp term={KIND_LABEL[k]} />}
+                {(k === 'dividend' || k === 'reinvest') && <TermHelp term={KIND_GLOSSARY[k]} />}
               </div>
-              <FieldInput id="pf-date" label="วันที่" type="date" value={tradeForm.date} onChange={(v) => setTrade({ date: v })} errors={tradeErrors} field="date" />
+              <FieldInput id="pf-date" label="Date" type="date" value={tradeForm.date} onChange={(v) => setTrade({ date: v })} errors={tradeErrors} field="date" />
             </div>
             <div className="field-row">
               {k === 'buy' && (
                 <>
-                  <FieldInput id="pf-amount" label="เงินที่ซื้อ (บาท)" value={tradeForm.amount} onChange={(v) => setTrade({ amount: v })} errors={tradeErrors} field="amount" placeholder="1,000.00" />
-                  <FieldInput id="pf-price" label="ราคาต่อหน่วย (บาท)" value={tradeForm.price} onChange={(v) => setTrade({ price: v })} errors={tradeErrors} field="price" placeholder="12.3456" hint="กรอกราคา แล้วระบบคำนวณหน่วยให้ หรือกรอกหน่วยเองจากโบรกเกอร์" />
-                  <FieldInput id="pf-units" label="จำนวนหน่วย (ถ้ามีจากโบรกเกอร์)" value={tradeForm.units} onChange={(v) => setTrade({ units: v })} errors={tradeErrors} field="units" placeholder="0" />
-                  <FieldInput id="pf-fee" label="ค่าธรรมเนียม (บาท)" value={tradeForm.fee} onChange={(v) => setTrade({ fee: v })} errors={tradeErrors} field="fee" placeholder="0.00" hint="นับรวมในต้นทุน" />
+                  <FieldInput id="pf-amount" label="Amount invested (THB)" value={tradeForm.amount} onChange={(v) => setTrade({ amount: v })} errors={tradeErrors} field="amount" placeholder="1,000.00" />
+                  <FieldInput id="pf-price" label="Price per unit (THB)" value={tradeForm.price} onChange={(v) => setTrade({ price: v })} errors={tradeErrors} field="price" placeholder="12.3456" hint="Enter a price and units are calculated for you, or enter the units yourself from your broker" />
+                  <FieldInput id="pf-units" label="Units (if given by your broker)" value={tradeForm.units} onChange={(v) => setTrade({ units: v })} errors={tradeErrors} field="units" placeholder="0" />
+                  <FieldInput id="pf-fee" label="Fee (THB)" value={tradeForm.fee} onChange={(v) => setTrade({ fee: v })} errors={tradeErrors} field="fee" placeholder="0.00" hint="Included in cost" />
                 </>
               )}
               {k === 'sell' && (
                 <>
-                  <FieldInput id="pf-units" label="จำนวนหน่วยที่ขาย" value={tradeForm.units} onChange={(v) => setTrade({ units: v })} errors={tradeErrors} field="units" placeholder="0" />
-                  <FieldInput id="pf-price" label="ราคาต่อหน่วย (บาท)" value={tradeForm.price} onChange={(v) => setTrade({ price: v })} errors={tradeErrors} field="price" placeholder="12.3456" />
-                  <FieldInput id="pf-fee" label="ค่าธรรมเนียม (บาท)" value={tradeForm.fee} onChange={(v) => setTrade({ fee: v })} errors={tradeErrors} field="fee" placeholder="0.00" hint="หักจากเงินที่ได้" />
+                  <FieldInput id="pf-units" label="Units sold" value={tradeForm.units} onChange={(v) => setTrade({ units: v })} errors={tradeErrors} field="units" placeholder="0" />
+                  <FieldInput id="pf-price" label="Price per unit (THB)" value={tradeForm.price} onChange={(v) => setTrade({ price: v })} errors={tradeErrors} field="price" placeholder="12.3456" />
+                  <FieldInput id="pf-fee" label="Fee (THB)" value={tradeForm.fee} onChange={(v) => setTrade({ fee: v })} errors={tradeErrors} field="fee" placeholder="0.00" hint="Deducted from the proceeds" />
                 </>
               )}
               {k === 'dividend' && (
                 <>
-                  <FieldInput id="pf-amount" label="ยอดปันผล (บาท)" value={tradeForm.amount} onChange={(v) => setTrade({ amount: v })} errors={tradeErrors} field="amount" placeholder="0.00" hint="ยอดก่อนหักภาษี" />
-                  <FieldInput id="pf-wht" label="ภาษีหัก ณ ที่จ่าย (บาท)" value={tradeForm.withholding} onChange={(v) => setTrade({ withholding: v })} errors={tradeErrors} field="withholding" placeholder="0.00" help={<TermHelp term="ภาษีหัก ณ ที่จ่าย" />} />
+                  <FieldInput id="pf-amount" label="Dividend amount (THB)" value={tradeForm.amount} onChange={(v) => setTrade({ amount: v })} errors={tradeErrors} field="amount" placeholder="0.00" hint="Amount before tax" />
+                  <FieldInput id="pf-wht" label="Withholding tax (THB)" value={tradeForm.withholding} onChange={(v) => setTrade({ withholding: v })} errors={tradeErrors} field="withholding" placeholder="0.00" help={<TermHelp term="ภาษีหัก ณ ที่จ่าย" />} />
                 </>
               )}
               {k === 'reinvest' && (
                 <>
-                  <FieldInput id="pf-units" label="หน่วยที่ได้เพิ่ม" value={tradeForm.units} onChange={(v) => setTrade({ units: v })} errors={tradeErrors} field="units" placeholder="0" />
-                  <FieldInput id="pf-amount" label="ต้นทุนที่เพิ่ม (บาท)" value={tradeForm.amount} onChange={(v) => setTrade({ amount: v })} errors={tradeErrors} field="amount" placeholder="0.00" hint="ยอดปันผลหลังหักภาษี" />
+                  <FieldInput id="pf-units" label="Units received" value={tradeForm.units} onChange={(v) => setTrade({ units: v })} errors={tradeErrors} field="units" placeholder="0" />
+                  <FieldInput id="pf-amount" label="Cost added (THB)" value={tradeForm.amount} onChange={(v) => setTrade({ amount: v })} errors={tradeErrors} field="amount" placeholder="0.00" hint="Dividend amount after tax" />
                 </>
               )}
             </div>
             {tradeNeedsWallet(k) && wallets.length === 0 && (
               <div className="field notice" role="group" aria-labelledby="pf-nowallet-title">
                 <p id="pf-nowallet-title">
-                  <strong>ยังไม่มีกระเป๋าเงินสด</strong> ต้องมีกระเป๋าก่อนบันทึก เพราะเงินจากการซื้อ ขาย หรือปันผลจะหักหรือเข้ากระเป๋านี้
+                  <strong>No cash wallet yet.</strong> You need a wallet before saving, because the money from buys, sells or dividends is taken from or added to it.
                 </p>
-                <label htmlFor="pf-newwallet">ชื่อกระเป๋าใหม่</label>
+                <label htmlFor="pf-newwallet">New wallet name</label>
                 <input
                   id="pf-newwallet"
                   type="text"
                   autoComplete="off"
                   maxLength={100}
                   value={newWalletName}
-                  placeholder="เช่น เงินสด หรือ บัญชีธนาคาร"
+                  placeholder="e.g. Cash or Bank account"
                   aria-invalid={newWalletError !== '' || walletError !== '' ? true : undefined}
                   aria-describedby={[newWalletError !== '' ? 'pf-newwallet-err' : '', walletError !== '' ? 'pf-newwallet-werr' : ''].filter(Boolean).join(' ') || undefined}
                   onChange={(e) => {
@@ -531,13 +528,13 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
                   </p>
                 )}
                 <button type="button" className="btn btn-small" disabled={busy} onClick={() => void createWallet()}>
-                  สร้างกระเป๋า
+                  Create wallet
                 </button>
               </div>
             )}
             {tradeNeedsWallet(k) && wallets.length > 0 && (
               <div className="field">
-                <label htmlFor="pf-wallet">{k === 'buy' ? 'จ่ายจากกระเป๋า' : 'รับเงินเข้ากระเป๋า'}</label>
+                <label htmlFor="pf-wallet">{k === 'buy' ? 'Pay from wallet' : 'Receive into wallet'}</label>
                 <select
                   id="pf-wallet"
                   value={walletId}
@@ -548,7 +545,7 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
                     setWalletError('');
                   }}
                 >
-                  <option value="">เลือกกระเป๋า</option>
+                  <option value="">Choose wallet</option>
                   {wallets.map((w) => (
                     <option key={w.id} value={w.id}>
                       {w.name}
@@ -563,7 +560,7 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
               </div>
             )}
             <div className="field">
-              <label htmlFor="pf-memo">หมายเหตุ (ไม่บังคับ)</label>
+              <label htmlFor="pf-memo">Note (optional)</label>
               <input
                 id="pf-memo"
                 type="text"
@@ -582,10 +579,10 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
             </div>
             <div className="dialog-actions">
               <button type="button" className="btn btn-ghost btn-small" onClick={() => setPanel(null)}>
-                ยกเลิก
+                Cancel
               </button>
               <button type="submit" className="btn btn-primary btn-small" disabled={busy}>
-                บันทึก
+                Save
               </button>
             </div>
           </form>
@@ -595,16 +592,16 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
       {pricePanelAsset && (
         <section className="solid card" aria-labelledby="pf-price-title">
           <h2 id="pf-price-title" ref={headingRef} tabIndex={-1}>
-            กรอกราคาล่าสุด: {pricePanelAsset.name}
+            Enter latest price: {pricePanelAsset.name}
           </h2>
           <form onSubmit={submitPrice} onKeyDown={closeOnEscape} className="settings-form" noValidate>
             <div className="field-row">
               <div className="field">
-                <label htmlFor="pf-pdate">วันที่ของราคา</label>
+                <label htmlFor="pf-pdate">Price date</label>
                 <input id="pf-pdate" type="date" value={priceForm.date} onChange={(e) => setPriceForm((f) => ({ ...f, date: e.target.value }))} />
               </div>
               <div className="field">
-                <label htmlFor="pf-pprice">ราคาต่อหน่วย (บาท)</label>
+                <label htmlFor="pf-pprice">Price per unit (THB)</label>
                 <input
                   id="pf-pprice"
                   type="text"
@@ -623,13 +620,13 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
                 )}
               </div>
             </div>
-            <p className="muted small">กรอกซ้ำวันเดิมจะแก้ราคาของวันนั้น</p>
+            <p className="muted small">Entering the same date again replaces the price for that day</p>
             <div className="dialog-actions">
               <button type="button" className="btn btn-ghost btn-small" onClick={() => setPanel(null)}>
-                ยกเลิก
+                Cancel
               </button>
               <button type="submit" className="btn btn-primary btn-small" disabled={busy}>
-                บันทึกราคา
+                Save price
               </button>
             </div>
           </form>
@@ -638,7 +635,7 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
 
       {hasAssets && (
         <section className="solid card" aria-labelledby="pf-list-title">
-          <h2 id="pf-list-title">สินทรัพย์</h2>
+          <h2 id="pf-list-title">Assets</h2>
           <ul className="bill-list">
             {portfolio.rows.map((row) => (
               <AssetRow
@@ -707,9 +704,9 @@ function AssetRow(props: {
       <div className="tx-main">
         <AssetFigures row={row} today={today} />
         <details className="archived-details">
-          <summary id={summaryId}>ประวัติรายการ ({trades.length})</summary>
+          <summary id={summaryId}>Trade history ({trades.length})</summary>
           {sorted.length === 0 ? (
-            <p className="muted small">ยังไม่มีรายการ</p>
+            <p className="muted small">No entries yet</p>
           ) : (
             <ul className="bill-list">
               {sorted.map((tr) => (
@@ -721,10 +718,10 @@ function AssetRow(props: {
       </div>
       <div className="bill-figures">
         <button type="button" className="btn btn-primary btn-small" onClick={(e) => props.onTrade(e.currentTarget)}>
-          บันทึกรายการ
+          Record trade
         </button>
         <button type="button" className="btn btn-ghost btn-small" onClick={(e) => props.onPrice(e.currentTarget)}>
-          กรอกราคา
+          Enter price
         </button>
       </div>
     </li>
