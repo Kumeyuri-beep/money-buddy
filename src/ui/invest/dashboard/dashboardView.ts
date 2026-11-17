@@ -62,7 +62,7 @@ export interface DashboardView {
   currencyParts: { usdThb: number; thbThb: number; totalThb: number } | null;
 }
 
-const LABEL_OTHER = 'อื่นๆ';
+const LABEL_OTHER = 'Other';
 
 function sliceLabels(us: UsPortfolio): DonutSlice[] {
   return us.allocation.map((s: AllocationShare) => ({
@@ -115,7 +115,7 @@ export function buildDashboardView(accounts: readonly Account[], entries: readon
           { key: 'THB', weight: thbPart },
         ]);
         currencyParts = { usdThb: usdPart, thbThb: thbPart, totalThb: w.investmentThb };
-        currencySlices = groupSmallShares(shares, 6).map((s) => ({ key: s.key, label: s.key === 'USD' ? 'ดอลลาร์สหรัฐ (USD)' : 'บาท (THB)', bps: s.bps }));
+        currencySlices = groupSmallShares(shares, 6).map((s) => ({ key: s.key, label: s.key === 'USD' ? 'US dollar (USD)' : 'Thai baht (THB)', bps: s.bps }));
       }
     }
   }
@@ -148,23 +148,23 @@ export function profitSourceRows(profit: ProfitResult, currency: DashCurrency): 
     const s = profit.thb;
     if (s === null) return null;
     return [
-      { key: 'priceUnrealized', label: 'ส่วนต่างราคา (ยังไม่ขาย)', value: s.priceUnrealized },
-      { key: 'priceRealized', label: 'ส่วนต่างราคา (ขายแล้ว)', value: s.priceRealized },
-      { key: 'options', label: 'ออปชั่น', value: s.options },
-      { key: 'dividendGross', label: 'ปันผล (ก่อนภาษี)', value: s.dividendGross },
-      { key: 'fx', label: 'ค่าเงิน', value: s.fx },
-      { key: 'feesAndTax', label: 'ค่าธรรมเนียมและภาษีที่ถูกหัก', value: s.feesAndTax },
+      { key: 'priceUnrealized', label: 'Price gain (unsold)', value: s.priceUnrealized },
+      { key: 'priceRealized', label: 'Price gain (sold)', value: s.priceRealized },
+      { key: 'options', label: 'Options', value: s.options },
+      { key: 'dividendGross', label: 'Dividends (before tax)', value: s.dividendGross },
+      { key: 'fx', label: 'Currency effect', value: s.fx },
+      { key: 'feesAndTax', label: 'Fees and tax withheld', value: s.feesAndTax },
     ];
   }
   const s = profit.usd;
   if (s === null) return null;
   return [
-    { key: 'priceUnrealized', label: 'ส่วนต่างราคา (ยังไม่ขาย)', value: s.priceUnrealized },
-    { key: 'priceRealized', label: 'ส่วนต่างราคา (ขายแล้ว)', value: s.priceRealized },
-    { key: 'options', label: 'ออปชั่น', value: s.options },
-    { key: 'dividendGross', label: 'ปันผล (ก่อนภาษี)', value: s.dividendGross },
-    { key: 'fx', label: 'ค่าเงิน', value: null },
-    { key: 'feesAndTax', label: 'ค่าธรรมเนียมและภาษีที่ถูกหัก', value: s.feesAndTax },
+    { key: 'priceUnrealized', label: 'Price gain (unsold)', value: s.priceUnrealized },
+    { key: 'priceRealized', label: 'Price gain (sold)', value: s.priceRealized },
+    { key: 'options', label: 'Options', value: s.options },
+    { key: 'dividendGross', label: 'Dividends (before tax)', value: s.dividendGross },
+    { key: 'fx', label: 'Currency effect', value: null },
+    { key: 'feesAndTax', label: 'Fees and tax withheld', value: s.feesAndTax },
   ];
 }
 

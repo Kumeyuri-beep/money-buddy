@@ -1288,3 +1288,10 @@ money-auditor ตรวจ 5 ตัวที่เกี่ยวกับเง
 **ตรวจสถานะหลังเครื่องดับ:** #198 และ #199 merge แล้ว · repo หลักสะอาด ไม่มี worktree ค้าง · live-contract บน main (6e055b6) ผ่าน 65/65 (`live-2026-11-16T18-36-54-671Z.log`)
 **ทำแล้ว:** ใช้ "−" (U+2212) แบบเดียวกันทั้งเงินและ % (usd, bpsText, format ของแท็บวิเคราะห์) · แถวตาราง Portfolio มี aria-label (ชื่อ มูลค่า ลงทุน กำไร สัดส่วน)
 **ตัดสินใจโดยเจ้าของ:** แปลแท็บ Analytics/Portfolio เป็นอังกฤษใน PR ถัดไป · ย้ายการ์ด "กำไรมาจากไหน 6 แหล่ง" ไปแท็บ Analytics · R24.6 รอเจ้าของอนุมัติข้อความ (แปะในแชทแล้ว ยังไม่แก้ money-rules.md)
+
+## 87. แปลโหมด /invest เป็นอังกฤษทั้งโหมด (17 พ.ย. 2569 · PR #200–#203 + `auto/invest-en-leftovers` · ลูกน้อง 3 ตัว)
+
+**merge แล้ว:** #200 (เครื่องหมาย − + aria-label แถว + `formatDateEn`) · #201 แท็บ Analytics + การ์ด "Where the profit comes from" (6 แหล่ง ย้ายมาจาก Dashboard) · #202 Portfolio → US stocks / Overview tabs / โอนเข้า-ออกพอร์ต · #203 Portfolio → Overview (กองทุน/หุ้นบาท) · แต่ละ PR CI ผ่านครบ, headRefOid ตรง, live-contract บน main = 65/65 ทุกครั้ง (`live-2026-11-17T03-34-16`, `03-42-50`, `03-46-44`, `03-52-23`) ไม่มีรายการล้มแล้วผ่านซ้ำ
+**ข้อความไทยที่ยังเหลือในโหมด /invest (ต้องแตะ domain/storage หรือไฟล์กลาง → PR แยกถ้าเจ้าของสั่ง):** ข้อความ error จาก `src/app/errorText.ts` (friendlyError), `tradeForm.ts`, `portfolio.ts`, `domain/invest/units`, `dcaPlan`, StorageError · ภาพการ์ดแชร์ที่ส่งออก (`shareCardCanvas.ts`, `allocationView.ts`) ยังเป็นไทย · คำอธิบายใน `domain GLOSSARY` / `ASSET_KIND_LABEL` (หน้าจอใช้ฉบับอังกฤษใน UI แทนแล้ว) · memo ของรายการโอนเข้า/ออกพอร์ตที่บันทึกใหม่เป็นอังกฤษ รายการเก่ายังเป็นไทย · `fxRateText` เปลี่ยนเป็น "THB/USD"
+**ข้อสังเกตจากลูกน้อง:** harness (ที่เก็บในเครื่อง) เขียนข้อมูลลงทุนไม่ได้ จึงไม่มี e2e กรอกฟอร์มซื้อ/ขาย/ปันผล/DCA จริง ตรวจด้วยเทสต์ SSR + typecheck/build ควรลองบนคอมกับข้อมูลออนไลน์
+**ยังรอเจ้าของ:** อนุมัติข้อความ R24.6 (ร่างอยู่ในแชท 17 พ.ย. 2569 · ยังไม่ได้แก้ money-rules.md)

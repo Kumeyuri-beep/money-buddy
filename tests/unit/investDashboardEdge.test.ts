@@ -60,7 +60,7 @@ describe('แดชบอร์ดพอร์ต: โดนัทสกุล�
     expect(bps(slicesOf(data, [], []))).toEqual({ USD: 9_961, THB: 39 });
   });
   it('ส่วนบาท = 0: เหลือชิ้นเดียว USD 100%', () => {
-    expect(slicesOf(MAIN, [], [])).toEqual([{ key: 'USD', label: 'ดอลลาร์สหรัฐ (USD)', bps: 10_000 }]);
+    expect(slicesOf(MAIN, [], [])).toEqual([{ key: 'USD', label: 'US dollar (USD)', bps: 10_000 }]);
   });
   it('ส่วน USD ติดลบ (เงินสด USD ติดลบเกินมูลค่าหุ้น): null ไม่เดา ไม่โยน error', () => {
     expect(slicesOf(MAIN, [usdCash], [deposit('usd-cash', -100_000)])).toBeNull();
