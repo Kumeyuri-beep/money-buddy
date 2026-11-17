@@ -1282,3 +1282,9 @@ money-auditor ตรวจ 5 ตัวที่เกี่ยวกับเง
 **ทำแล้ว (PR 2):** Top day gainers/losers (ⓘ + ปุ่ม sort สลับ % ↔ ฿ · empty state) · Recent and upcoming events (empty state + See all) · Future payments (ⓘ · แท่ง Received = ปันผลจริงของปีนี้ก่อนภาษี `monthlyDividends` · Forecast รอข้อมูลอัตโนมัติ) · My goal (Set a target → แผนเกษียณ) · ไม่มีสูตรเงินใหม่ ไม่มี migration
 **backlog:** ปุ่ม See all / Calendar / More ยังปิดอยู่ (รอข้อมูลอัตโนมัติ/ปฏิทินปันผล) · ที่เก็บเป้าหมายเกษียณ (ต้อง migration) · Future payments แสดงปีปฏิทินปัจจุบัน ไม่ใช่ 12 เดือนข้างหน้าแบบแบบร่าง (เพราะ Forecast ยังไม่มี)
 **ต้องลองบนคอม:** ดูรายงานท้าย PR
+
+## 86. เครื่องหมายลบ + ป้ายอ่านแถวตาราง (17 พ.ย. 2569 · PR `auto/invest-minus-aria`)
+
+**ตรวจสถานะหลังเครื่องดับ:** #198 และ #199 merge แล้ว · repo หลักสะอาด ไม่มี worktree ค้าง · live-contract บน main (6e055b6) ผ่าน 65/65 (`live-2026-11-16T18-36-54-671Z.log`)
+**ทำแล้ว:** ใช้ "−" (U+2212) แบบเดียวกันทั้งเงินและ % (usd, bpsText, format ของแท็บวิเคราะห์) · แถวตาราง Portfolio มี aria-label (ชื่อ มูลค่า ลงทุน กำไร สัดส่วน)
+**ตัดสินใจโดยเจ้าของ:** แปลแท็บ Analytics/Portfolio เป็นอังกฤษใน PR ถัดไป · ย้ายการ์ด "กำไรมาจากไหน 6 แหล่ง" ไปแท็บ Analytics · R24.6 รอเจ้าของอนุมัติข้อความ (แปะในแชทแล้ว ยังไม่แก้ money-rules.md)

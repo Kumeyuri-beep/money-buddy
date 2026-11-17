@@ -133,7 +133,7 @@ describe('ตัวช่วยแสดงผล', () => {
   it('bpsText ด้วยจำนวนเต็ม: 355→3.55% · 350→3.5% · -120→-1.2% · 0→0% · +', () => {
     expect(bpsText(355)).toBe('3.55%');
     expect(bpsText(350)).toBe('3.5%');
-    expect(bpsText(-120)).toBe('-1.2%');
+    expect(bpsText(-120)).toBe('−1.2%');
     expect(bpsText(0, true)).toBe('0%');
     expect(bpsText(1234, true)).toBe('+12.34%');
     expect(bpsText(5)).toBe('0.05%');
@@ -179,7 +179,7 @@ describe('R24.5 Total profit percentage', () => {
     const loss: InvestmentData = { ...MAIN, trades: [MAIN.trades[0]!], prices: [{ assetId: 'us1', date: '2026-11-12', priceMicro: 90_000_000 }] };
     const v = buildDashboardView(accounts, entries, loss, TODAY);
     expect(v.profitPctUsd!).toBeLessThan(0);
-    expect(html(loss, 'USD')).toMatch(/-\d+(\.\d+)?%/);
+    expect(html(loss, 'USD')).toMatch(/−\d+(\.\d+)?%/);
   });
   it('price but no exchange rate: THB is null, USD still works (computed separately)', () => {
     const v = buildDashboardView(accounts, entries, { ...MAIN, fxRates: [] }, TODAY);
@@ -211,5 +211,15 @@ describe('Dashboard (PR 2): lower cards', () => {
     expect(lower(MAIN, 'THB', () => undefined)).toContain('How far away is your target?');
     expect(lower(MAIN, 'THB', () => undefined)).toMatch(/<button type="button" class="iv-btn iv-btn-gold">Set a target<\/button>/);
     expect(lower(MAIN, 'THB')).toContain('aria-disabled="true"');
+  });
+});
+
+describe('Portfolio table rows are labelled for screen readers', () => {
+  it('each row names the holding, value, invested, gain (with the real minus sign) and allocation', () => {
+    const h = html(MAIN, 'USD');
+    expect(h).toContain('aria-label="หุ้น US1 (US1), value $750.00, invested $600.60, gain +$149.40 (+24.88%), allocation 100%"');
+    expect(h).toMatch(/gain \+\$[\d,.]+ \(\+[\d.]+%\), allocation 100%/);
+    const loss: InvestmentData = { ...MAIN, trades: [MAIN.trades[0]!], prices: [{ assetId: 'us1', date: '2026-11-12', priceMicro: 90_000_000 }] };
+    expect(html(loss, 'USD')).toMatch(/gain −\$[\d,.]+ \(−[\d.]+%\)/);
   });
 });

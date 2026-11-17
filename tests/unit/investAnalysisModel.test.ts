@@ -31,14 +31,14 @@ const SINGLE: InvestmentData = { ...DIETZ, assets: [asset('us1', 'AAA')], trades
 describe('format ของแท็บวิเคราะห์ (จำนวนเต็มล้วน)', () => {
   it('bps เป็นเปอร์เซ็นต์: 1,069 = 10.69% · -38 = -0.38% · 0 = 0.00% · 5 = 0.05%', () => {
     expect(percentBps(1_069)).toBe('10.69%');
-    expect(percentBps(-38)).toBe('-0.38%');
+    expect(percentBps(-38)).toBe('−0.38%');
     expect(percentBps(0)).toBe('0.00%');
     expect(percentBps(5)).toBe('0.05%');
     expect(percentBps(123_456)).toBe('1,234.56%');
   });
   it('มีเครื่องหมาย +/- เมื่อไม่ใช่ศูนย์ (ไม่พึ่งสีอย่างเดียว)', () => {
     expect(signedPercentBps(2_176)).toBe('+21.76%');
-    expect(signedPercentBps(-1_000)).toBe('-10.00%');
+    expect(signedPercentBps(-1_000)).toBe('−10.00%');
     expect(signedPercentBps(0)).toBe('0.00%');
   });
   it('ค่าไม่ใช่จำนวนเต็ม = RangeError · เหตุผล null อ่านออก', () => {

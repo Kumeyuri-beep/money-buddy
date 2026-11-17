@@ -95,7 +95,7 @@ describe('แดชบอร์ดพอร์ต: ปันผลรายเ�
     expect(sum).toBe(buildDashboardView([], [], d, TODAY).profit.thb!.dividendGross);
   });
   it('bpsText ติดลบเล็ก: -5 → -0.05% · -0 → 0%', () => {
-    expect(bpsText(-5)).toBe('-0.05%');
+    expect(bpsText(-5)).toBe('−0.05%');
     expect(bpsText(-0)).toBe('0%');
     expect(bpsText(-0, true)).toBe('0%');
   });
