@@ -14,4 +14,6 @@ export async function goInvest(page: Page, group: 'Analytics' | 'Portfolio' | 'T
   await expect(trigger).toHaveAttribute('aria-expanded', 'true');
   await nav.getByRole('link', { name: new RegExp(`^${item}( Soon)?$`) }).click();
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  // เมาส์ค้างอยู่ตรงที่กดลิงก์ จะไปชี้ปุ่มด้านล่าง (เช่น ไอคอนค้นหา) แล้วคำอธิบายของปุ่มนั้นขึ้นมาบังปุ่มอื่น · ย้ายเมาส์ออกไปที่ว่าง
+  await page.mouse.move(1, 1);
 }

@@ -187,6 +187,7 @@ function MainNav({ page, onNavigate, hrefFor, onGoal }: Pick<Props, 'page' | 'on
   const [open, setOpen] = useState<InvestMenuGroup['id'] | null>(null);
   const navRef = useRef<HTMLElement>(null);
   const openedByHover = useRef(false);
+  const skipFocusOpen = useRef(false); // ตอนคืนโฟกัสให้ปุ่มหลังกด Esc ห้ามเปิดเมนูซ้ำ
   const activeGroup = groupOfPage(page);
 
   const triggers = (): HTMLElement[] => Array.from(navRef.current?.querySelectorAll<HTMLElement>('[data-iv-trigger]') ?? []);
@@ -195,7 +196,11 @@ function MainNav({ page, onNavigate, hrefFor, onGoal }: Pick<Props, 'page' | 'on
   const close = (returnFocusTo?: string) => {
     setOpen(null);
     openedByHover.current = false;
-    if (returnFocusTo) triggerOf(returnFocusTo)?.focus();
+    if (returnFocusTo) {
+      skipFocusOpen.current = true;
+      triggerOf(returnFocusTo)?.focus();
+      skipFocusOpen.current = false;
+    }
   };
 
   useEffect(() => {
@@ -206,8 +211,18 @@ function MainNav({ page, onNavigate, hrefFor, onGoal }: Pick<Props, 'page' | 'on
         openedByHover.current = false;
       }
     };
+    // Esc ปิดเมนูได้แม้โฟกัสอยู่นอกแถบ (เช่น เปิดด้วยเมาส์ชี้) · กรณีโฟกัสอยู่ในแถบ onKeyDown ของ nav จัดการและคืนโฟกัสให้ปุ่มแล้ว
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setOpen(null);
+      openedByHover.current = false;
+    };
     document.addEventListener('pointerdown', onDown);
-    return () => document.removeEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onEsc);
+    };
   }, [open]);
 
   const onKeyDown = (e: ReactKeyboardEvent<HTMLElement>) => {
@@ -298,7 +313,7 @@ function MainNav({ page, onNavigate, hrefFor, onGoal }: Pick<Props, 'page' | 'on
             onFocus={(e) => {
               // เปิดเมื่อโฟกัสปุ่มหลักด้วยคีย์บอร์ดเท่านั้น (คลิกด้วยเมาส์/แตะ ให้ onClick จัดการเอง)
               const t = e.target as HTMLElement;
-              if (t.hasAttribute('data-iv-trigger') && t.matches(':focus-visible')) setOpen(g.id);
+              if (!skipFocusOpen.current && t.hasAttribute('data-iv-trigger') && t.matches(':focus-visible')) setOpen(g.id);
             }}
             onBlur={(e) => {
               if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen((cur) => (cur === g.id ? null : cur));
@@ -311,8 +326,11 @@ function MainNav({ page, onNavigate, hrefFor, onGoal }: Pick<Props, 'page' | 'on
               className={`iv-tab${active ? ' is-active' : ''}`}
               aria-expanded={isOpen}
               aria-controls={isOpen ? panelId : undefined}
-              onClick={() => {
-                if (isOpen && !openedByHover.current) close();
+              onClick={(e) => {
+                if (isOpen && e.detail === 0) {
+                  // Enter/Space ขณะเมนูเปิดอยู่ (เปิดจากโฟกัส) = เข้าไปเลือกรายการ ไม่ใช่ปิด
+                  itemsOf(g.id)[0]?.focus();
+                } else if (isOpen && !openedByHover.current) close();
                 else {
                   openedByHover.current = false;
                   setOpen(g.id);
@@ -342,7 +360,7 @@ function MainNav({ page, onNavigate, hrefFor, onGoal }: Pick<Props, 'page' | 'on
                             }}
                           >
                             {it.label}
-                            <span className="iv-submenu-hint">Retirement plan</span>
+                            <span className="iv-submenu-hint">{onGoal === undefined ? 'Unavailable' : 'Retirement plan'}</span>
                           </button>
                         ) : (
                           <a

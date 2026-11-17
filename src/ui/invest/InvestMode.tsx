@@ -119,7 +119,7 @@ export default function InvestMode({ today, accounts, entries, wallets, onLedger
   useEffect(() => {
     if (focusPanel.current) {
       focusPanel.current = false;
-      panelRef.current?.focus();
+      panelRef.current?.focus({ preventScroll: true }); // ไม่ให้หน้าเลื่อน (เลื่อนแนวนอนบนมือถือเพราะกล่องคำอธิบายที่ซ่อนอยู่)
     }
   }, [page]);
   const hrefFor = useCallback((id: InvestPageId) => investUrl(id, window.location), []);
