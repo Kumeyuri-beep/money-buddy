@@ -95,3 +95,45 @@ describe('buildHoldingRows edge cases (money-auditor)', () => {
     expect(Object.is(rows[0]!.gainBps, -0)).toBe(false);
   });
 });
+
+describe('R24.6 per-stock profit: the rule example and edge cases', () => {
+  const one = (over: Partial<TradeRecord>, price: number | null, fxMicro = 32_400_000): InvestmentData => ({
+    assets: [mk('a', 'AAA')],
+    trades: [{ ...buy('a'), amount: 100_000, fee: 100, ...over }],
+    prices: price === null ? [] : [{ assetId: 'a', date: '2026-11-12', priceMicro: price }],
+    fxRates: [{ accountId: 'usd-cash', date: '2026-11-12', rateMicro: fxMicro }],
+  });
+  it('rule example: 10 shares at $100.00 + $1.00 fee at 35.00; now $130.00 at 32.40', () => {
+    const d = one({ fxRateMicro: 35_000_000 }, 130_000_000);
+    const [usd] = buildHoldingRows(us(d), 'USD');
+    // 29,900 x 10,000 / 100,100 = 2,987.01 -> 2,987 (remainder 1,300 x 2 < 100,100: round down)
+    expect([usd!.invested, usd!.value, usd!.gain, usd!.gainBps]).toEqual([100_100, 130_000, 29_900, 2_987]);
+    const [thb] = buildHoldingRows(us(d), 'THB');
+    // 708,500 x 10,000 / 3,503,500 = 2,022.26 -> 2,022 (remainder 923,000 x 2 < 3,503,500: round down)
+    expect([thb!.invested, thb!.value, thb!.gain, thb!.gainBps]).toEqual([3_503_500, 4_212_000, 708_500, 2_022]);
+  });
+  it('exact .5 rounds away from zero for gains and losses; .4 and .6 are not truncated', () => {
+    // cost 100,100 cents: gain x 10,000 / 100,100 -> pick gains giving .4 / .5 / .6 is awkward, so use cost 100,000 (fee 0)
+    const bpsFor = (priceMicro: number) => buildHoldingRows(us(one({ fee: 0, fxRateMicro: 35_000_000 }, priceMicro)), 'USD')[0]!.gainBps;
+    expect(bpsFor(110_004_000)).toBe(1_000); // +10,004 / 100,000 = 1,000.4
+    expect(bpsFor(110_005_000)).toBe(1_001); // 1,000.5 exactly -> away from zero
+    expect(bpsFor(110_006_000)).toBe(1_001); // 1,000.6
+    expect(bpsFor(89_996_000)).toBe(-1_000); // -10,004 -> -1,000.4
+    expect(bpsFor(89_995_000)).toBe(-1_001); // -1,000.5 exactly -> away from zero
+    expect(bpsFor(89_994_000)).toBe(-1_001); // -1,000.6
+  });
+  it('a loss is negative in both views', () => {
+    const [usd] = buildHoldingRows(us(one({ fxRateMicro: 35_000_000 }, 80_000_000)), 'USD');
+    expect([usd!.gain, usd!.gainBps]).toEqual([-20_100, -2_008]); // -20,100 x 10,000 / 100,100 = -2,008.0
+  });
+  it('held cost of 0 (e.g. shares received free): the gain exists but the percentage is null, never a number', () => {
+    const base = us(one({ fxRateMicro: 35_000_000 }, 130_000_000));
+    const free = { ...base, rows: base.rows.map((r) => ({ ...r, costUsd: 0, costThb: 0 })) };
+    for (const cur of ['USD', 'THB'] as const) {
+      const [r] = buildHoldingRows(free, cur);
+      expect(r!.invested).toBe(0);
+      expect(r!.gain).toBe(r!.value);
+      expect(r!.gainBps).toBeNull();
+    }
+  });
+});
