@@ -64,19 +64,19 @@ export function ShareCardPanel({ portfolio, today, onClose }: Props) {
   const share = async () => {
     setNote('');
     const blob = await toBlob();
-    if (!blob) return setNote('สร้างรูปไม่สำเร็จ ลองอีกครั้ง');
+    if (!blob) return setNote('Could not create the image. Try again.');
     try {
-      await navigator.share({ files: [new File([blob], FILE_NAME, { type: 'image/png' })], title: 'สัดส่วนพอร์ตของฉัน' });
+      await navigator.share({ files: [new File([blob], FILE_NAME, { type: 'image/png' })], title: 'My portfolio allocation' });
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return; // ผู้ใช้ปิดหน้าต่างแชร์เอง
-      setNote('แชร์ไม่สำเร็จ ลองบันทึกรูปแล้วแชร์จากแอปอื่นแทน');
+      setNote('Sharing failed. Try saving the image and sharing it from another app.');
     }
   };
 
   const save = async () => {
     setNote('');
     const blob = await toBlob();
-    if (!blob) return setNote('สร้างรูปไม่สำเร็จ ลองอีกครั้ง');
+    if (!blob) return setNote('Could not create the image. Try again.');
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -85,42 +85,42 @@ export function ShareCardPanel({ portfolio, today, onClose }: Props) {
     a.click();
     a.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
-    setNote('บันทึกรูปแล้ว (ไฟล์อยู่ในเครื่องของคุณ)');
+    setNote('Image saved (the file is on your device).');
   };
 
   return (
     <section className="solid card" aria-labelledby="share-title" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
       <h2 id="share-title" ref={headingRef} tabIndex={-1}>
-        การ์ดแชร์สัดส่วนพอร์ต
+        Portfolio allocation share card
       </h2>
-      <p className="muted small">รูปนี้มีเฉพาะสัดส่วน (%) ไม่มียอดเงินหรือจำนวนหน่วย สร้างในเครื่องคุณเท่านั้น ไม่ถูกส่งขึ้นเซิร์ฟเวอร์ คุณเป็นคนกดแชร์หรือบันทึกเอง</p>
+      <p className="muted small">The image shows percentages only, with no amounts or unit counts. It is created on your device only and is never sent to a server. You choose whether to share or save it.</p>
       {model === null ? (
-        <p className="muted">ยังไม่มีสินทรัพย์ที่ถืออยู่ให้แสดงสัดส่วน</p>
+        <p className="muted">No held assets to show an allocation for yet.</p>
       ) : (
         <>
           <div className="field">
             <label className="check-row" htmlFor="share-names">
               <input id="share-names" type="checkbox" checked={showNames} onChange={(e) => setShowNames(e.target.checked)} />
-              แสดงชื่อกองทุน/หุ้นในรูป
+              Show fund/stock names in the image
             </label>
-            <p className="muted small">ปิดอยู่ = รูปใช้ “สินทรัพย์ 1, 2, …” ถ้าเปิด ใครเห็นรูปจะรู้ว่าคุณถืออะไรอยู่</p>
+            <p className="muted small">Off = the image uses "Asset 1, 2, …". If on, anyone who sees the image will know what you hold.</p>
           </div>
           {model.basis === 'cost' && (
             <p className="muted small" role="note">
-              สัดส่วนนี้คิดตามต้นทุน เพราะยังกรอกราคาไม่ครบทุกสินทรัพย์ (กรอกราคาครบแล้วจะคิดตามมูลค่า)
+              This allocation is based on cost because not every asset has a price yet (once all prices are entered it is based on value).
             </p>
           )}
           <p className="muted small" role="note">
-            ข้อควรระวัง: ถ้าคุณเคยบอกยอดเงินของสินทรัพย์ใดไว้ที่อื่น คนอื่นอาจคำนวณยอดตัวอื่นจากสัดส่วนได้ · ถ้ามีสินทรัพย์เดียว รูปจะแสดง 100% · แชร์หลายวันคนดูจะเห็นสัดส่วนที่เปลี่ยน
+            Caution: if you have told others the amount of any asset elsewhere, they may be able to work out the other amounts from the percentages · with a single asset the image shows 100% · if you share on several days, viewers will see the allocation change
           </p>
           {model.excluded > 0 && (
             <p className="muted small" role="note">
-              มี {model.excluded} สินทรัพย์ที่ไม่ถูกนับในสัดส่วน (ข้อมูลรายการผิดพลาดหรือมูลค่าเป็น 0) สัดส่วนในรูปจึงรวมเป็น 100% ของส่วนที่นับเท่านั้น
+              {model.excluded} {model.excluded === 1 ? 'asset is' : 'assets are'} not counted in the allocation (inconsistent trade data or a value of 0), so the percentages in the image add up to 100% of the counted part only.
             </p>
           )}
           {model.stalePrices && (
             <p className="muted small" role="note">
-              มีราคาที่กรอกไว้นานกว่า 7 วัน ตัวเลขอาจไม่ทันสมัย อัปเดตราคาก่อนแชร์ได้
+              Some prices were entered more than 7 days ago, so the figures may be out of date. You can update prices before sharing.
             </p>
           )}
           <canvas
@@ -133,14 +133,14 @@ export function ShareCardPanel({ portfolio, today, onClose }: Props) {
           />
           <div className="form-actions">
             <button type="button" className="btn btn-ghost btn-small" onClick={onClose}>
-              ปิด
+              Close
             </button>
             <button type="button" className="btn btn-small" onClick={() => void save()}>
-              บันทึกเป็นรูป
+              Save as image
             </button>
             {canShareFiles && (
               <button type="button" className="btn btn-primary btn-small" onClick={() => void share()}>
-                แชร์รูป
+                Share image
               </button>
             )}
           </div>

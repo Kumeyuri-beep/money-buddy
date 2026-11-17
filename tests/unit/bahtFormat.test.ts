@@ -57,7 +57,7 @@ describe('ไม่มีการประกาศซ้ำอีก', () => {
     imports('/src/ui/PortfolioView.tsx', /import \{ baht, signed \} from '..\/app\/bahtFormat'/);
     imports('/src/ui/RetirementView.tsx', /import \{ baht \} from '..\/app\/bahtFormat'/);
     imports('/src/ui/TradeItem.tsx', /import \{ baht \} from '..\/app\/bahtFormat'/);
-    imports('/src/ui/AssetFigures.tsx', /import \{ ASSET_KIND_LABEL \} from '..\/domain\/invest\/labels'/);
-    imports('/src/ui/PortfolioView.tsx', /import \{ ASSET_KIND_LABEL \} from '..\/domain\/invest\/labels'/);
+    imports('/src/ui/AssetFigures.tsx', /export const ASSET_KIND_LABEL_EN: Record<AssetKind, string>/); // domain ASSET_KIND_LABEL ยังเป็นไทย
+    imports('/src/ui/PortfolioView.tsx', /import [{] AssetFigures, ASSET_KIND_LABEL_EN [}] from '[.]\/AssetFigures'/);
   });
 });

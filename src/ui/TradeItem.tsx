@@ -1,12 +1,16 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { thaiDayLabel } from '../app/dates';
+import { formatDateEn } from '../app/dateEn';
+import type { GlossaryTerm } from '../domain/invest/glossary';
 import type { TradeKind, TradeRecord } from '../domain/invest/types';
 import { formatUnits } from '../domain/invest/units';
 import { formatMicro } from '../domain/money/micro';
 import { baht } from '../app/bahtFormat';
 import { TermHelp } from './TermHelp';
 
-export const KIND_LABEL = { buy: 'ซื้อ', sell: 'ขาย', dividend: 'ปันผลเป็นเงินสด', reinvest: 'ปันผลลงทุนต่อ' } as const satisfies Record<TradeKind, string>;
+export const KIND_LABEL = { buy: 'Buy', sell: 'Sell', dividend: 'Cash dividend', reinvest: 'Reinvested dividend' } as const satisfies Record<TradeKind, string>;
+
+/** ชนิดรายการที่มีคำอธิบายศัพท์ → คีย์ใน GLOSSARY (คีย์ของ domain ยังเป็นคำไทย) */
+export const KIND_GLOSSARY = { dividend: 'ปันผลเป็นเงินสด', reinvest: 'ปันผลลงทุนต่อ' } as const satisfies Partial<Record<TradeKind, GlossaryTerm>>;
 
 /** รหัสองค์ประกอบปุ่มของรายการ (ใช้ย้ายโฟกัสหลังลบ) */
 export const tradeButtonId = (tradeId: string): string => `trade-btn-${tradeId}`;
@@ -29,52 +33,52 @@ export function TradeItem({ tr, confirmDelete, busy, onDelete }: { tr: TradeReco
     wasConfirming.current = confirmDelete;
   }, [confirmDelete]);
   // ค่าหลักที่เห็นตอนพับ: ยอดเงินถ้ามี ไม่มี (เช่น ขาย) ใช้จำนวนหน่วย
-  const headline = tr.amount !== undefined ? baht(tr.amount) : tr.units !== undefined ? `${formatUnits(BigInt(tr.units))} หน่วย` : '';
-  const day = thaiDayLabel(tr.date);
-  const kindHelp = tr.kind === 'dividend' || tr.kind === 'reinvest' ? KIND_LABEL[tr.kind] : null;
+  const headline = tr.amount !== undefined ? baht(tr.amount) : tr.units !== undefined ? `${formatUnits(BigInt(tr.units))} units` : '';
+  const day = formatDateEn(tr.date);
+  const kindHelp = tr.kind === 'dividend' || tr.kind === 'reinvest' ? KIND_GLOSSARY[tr.kind] : null;
   return (
     <li className="trade-item">
       <button type="button" id={tradeButtonId(tr.id)} className="trade-summary" aria-expanded={open} aria-controls={panelId} onClick={() => setOpenByUser((v) => !v)}>
         <span className="trade-when">{day}</span>{' '}
         <span className="trade-kind">{KIND_LABEL[tr.kind]}</span>{' '}
         {headline !== '' && <span className="trade-main num">{headline}</span>}
-        {confirmDelete && <span className="sr-only"> รอการยืนยันลบ</span>}
+        {confirmDelete && <span className="sr-only"> Awaiting delete confirmation</span>}
       </button>
       <div id={panelId} hidden={!open}>
         <dl className="trade-fields muted small">
           {tr.units !== undefined && (
             <div className="asset-fig">
-              <dt>จำนวนหน่วย</dt>
-              <dd className="num">{formatUnits(BigInt(tr.units))} หน่วย</dd>
+              <dt>Units</dt>
+              <dd className="num">{formatUnits(BigInt(tr.units))} units</dd>
             </div>
           )}
           {tr.priceMicro !== undefined && (
             <div className="asset-fig">
-              <dt>ราคาต่อหน่วย</dt>
-              <dd className="num">{formatMicro(tr.priceMicro)} บาท</dd>
+              <dt>Price per unit</dt>
+              <dd className="num">{formatMicro(tr.priceMicro)} THB</dd>
             </div>
           )}
           {tr.amount !== undefined && (
             <div className="asset-fig">
-              <dt>ยอดเงิน</dt>
+              <dt>Amount</dt>
               <dd className="num">{baht(tr.amount)}</dd>
             </div>
           )}
           {tr.fee > 0 && (
             <div className="asset-fig">
-              <dt>ค่าธรรมเนียม</dt>
+              <dt>Fee</dt>
               <dd className="num">{baht(tr.fee)}</dd>
             </div>
           )}
           {tr.withholding > 0 && (
             <div className="asset-fig">
-              <dt>ภาษีหัก ณ ที่จ่าย</dt>
+              <dt>Withholding tax</dt>
               <dd className="num">{baht(tr.withholding)}</dd>
             </div>
           )}
           {tr.memo !== '' && (
             <div className="asset-fig asset-fig-note">
-              <dt>บันทึก</dt>
+              <dt>Note</dt>
               <dd>{tr.memo}</dd>
             </div>
           )}
@@ -90,9 +94,9 @@ export function TradeItem({ tr, confirmDelete, busy, onDelete }: { tr: TradeReco
           className={confirmDelete ? 'btn btn-ghost btn-small confirm-delete trade-delete' : 'btn btn-ghost btn-small trade-delete'}
           disabled={busy}
           onClick={onDelete}
-          aria-label={`${confirmDelete ? 'ยืนยันลบ' : 'ลบ'}รายการ ${KIND_LABEL[tr.kind]} ${day}`}
+          aria-label={`${confirmDelete ? 'Confirm delete' : 'Delete'} ${KIND_LABEL[tr.kind]} entry ${day}`}
         >
-          {confirmDelete ? 'ยืนยันลบ' : 'ลบ'}
+          {confirmDelete ? 'Confirm delete' : 'Delete'}
         </button>
       </div>
     </li>

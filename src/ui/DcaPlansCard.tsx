@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { thaiDayLabel, thaiMonthKeyLabel } from '../app/dates';
+import { formatDateEn, MONTHS_EN } from '../app/dateEn';
 import { friendlyError } from '../app/errorText';
 import { newId } from '../app/ids';
 import type { FinanceSettings } from '../domain/bills/settings';
@@ -9,11 +9,19 @@ import { formatBaht, parseBahtToSatang, satang, toBahtString } from '../domain/m
 import { StorageError } from '../storage/repository';
 import { useRepository } from './RepositoryContext';
 
+/** "2026-11" → "Nov 2026" (ข้อความล้วน ไม่ใช้ Date) */
+const monthKeyLabelEn = (key: string): string => {
+  const m = /^(\d{4})-(\d{2})$/.exec(key);
+  const month = m ? Number(m[2]) : 0;
+  return m && month >= 1 && month <= 12 ? `${MONTHS_EN[month - 1]} ${m[1]}` : key;
+};
+const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
+
 interface Props {
   assets: readonly Asset[];
   trades: readonly TradeRecord[];
   today: string;
-  /** กด "บันทึกซื้อตามแผน": เปิดฟอร์มซื้อของสินทรัพย์นี้ที่กรอกยอดเงินไว้แล้ว ผู้ใช้ตรวจและยืนยันเอง (ไม่ซื้อให้อัตโนมัติ) */
+  /** กด "Record planned buy": เปิดฟอร์มซื้อของสินทรัพย์นี้ที่กรอกยอดเงินไว้แล้ว ผู้ใช้ตรวจและยืนยันเอง (ไม่ซื้อให้อัตโนมัติ) */
   onBuy: (assetId: string, amountText: string, opener: HTMLElement) => void;
 }
 
@@ -99,16 +107,16 @@ export function DcaPlansCard({ assets, trades, today, onBuy }: Props) {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (assetId === '' || !assetById.has(assetId)) {
-      setFormError({ field: 'dca-asset', message: 'เลือกกองทุนหรือหุ้น' });
+      setFormError({ field: 'dca-asset', message: 'Choose a fund or stock' });
       document.getElementById('dca-asset')?.focus();
       return;
     }
     let amount: number;
     try {
       amount = parseBahtToSatang(amountText.replace(/฿/g, ''));
-      if (amount < 1 || /^\s*[+-]/.test(amountText)) throw new Error('จำนวนเงินต้องมากกว่า 0');
+      if (amount < 1 || /^\s*[+-]/.test(amountText)) throw new Error('Amount must be greater than 0');
     } catch {
-      setFormError({ field: 'dca-amount', message: 'จำนวนเงินต่อรอบไม่ถูกต้อง (อย่างน้อย 0.01 บาท)' });
+      setFormError({ field: 'dca-amount', message: 'Invalid amount per period (at least 0.01 THB)' });
       document.getElementById('dca-amount')?.focus();
       return;
     }
@@ -123,13 +131,13 @@ export function DcaPlansCard({ assets, trades, today, onBuy }: Props) {
       return;
     }
     if (plans.length >= MAX_DCA_PLANS) {
-      setFormError({ field: 'dca-asset', message: `มีแผนได้ไม่เกิน ${MAX_DCA_PLANS} แผน` });
+      setFormError({ field: 'dca-asset', message: `You can have at most ${MAX_DCA_PLANS} plans` });
       return;
     }
     setFormError(null);
     const ok = await save(
       (cur) => (cur.length >= MAX_DCA_PLANS ? cur : [...cur, plan]),
-      'เพิ่มแผนแล้ว ระบบจะเตือนเมื่อถึงวันที่กำหนด (ไม่ซื้อให้เอง)',
+      'Plan added. You will be reminded when the date arrives (it does not buy for you).',
     );
     if (ok) {
       setAmountText('');
@@ -145,27 +153,27 @@ export function DcaPlansCard({ assets, trades, today, onBuy }: Props) {
           if (x.paused === true) return { id: x.id, assetId: x.assetId, amount: x.amount, dayOfMonth: x.dayOfMonth, startMonth: x.startMonth };
           return { ...x, paused: true };
         }),
-      p.paused === true ? 'เริ่มแผนต่อแล้ว' : 'พักแผนแล้ว จะไม่เตือนจนกว่าจะเริ่มต่อ',
+      p.paused === true ? 'Plan resumed' : 'Plan paused. No reminders until you resume it.',
     );
 
   const remove = async (p: DcaPlan) => {
     if (confirmDelete !== p.id) {
       setConfirmDelete(p.id);
-      setMessage({ text: 'กดปุ่มลบอีกครั้งภายใน 5 วินาทีเพื่อยืนยัน (ลบเฉพาะแผนเตือน ไม่กระทบรายการซื้อขาย)', kind: 'ok' });
+      setMessage({ text: 'Press delete again within 5 seconds to confirm (only the reminder plan is deleted; your trades are not affected)', kind: 'ok' });
       return;
     }
     setConfirmDelete('');
-    const ok = await save((cur) => cur.filter((x) => x.id !== p.id), 'ลบแผนแล้ว');
+    const ok = await save((cur) => cur.filter((x) => x.id !== p.id), 'Plan deleted');
     if (ok) window.requestAnimationFrame(() => titleRef.current?.focus()); // ปุ่มที่โฟกัสอยู่หายไปแล้ว
   };
 
   return (
     <section className="solid card" aria-labelledby="dca-title">
       <h2 id="dca-title" ref={titleRef} tabIndex={-1}>
-        แผนซื้อประจำ (ตัวเตือน)
+        Recurring buy plans (reminders)
       </h2>
       <p className="muted small">
-        ตั้งวันและเงินที่ตั้งใจซื้อทุกเดือน ถึงวันแล้วระบบเตือนและกรอกยอดในฟอร์มซื้อให้ คุณตรวจแล้วกดบันทึกเอง (ไม่ซื้อให้อัตโนมัติ และไม่ใช่คำแนะนำการลงทุน)
+        Set the day and amount you intend to buy each month. When the day comes you get a reminder and the buy form is pre-filled; you review it and save it yourself (nothing is bought automatically, and this is not investment advice).
       </p>
       <div role="status" aria-live="polite">
         {message?.kind === 'ok' && <p className="muted">{message.text}</p>}
@@ -174,14 +182,14 @@ export function DcaPlansCard({ assets, trades, today, onBuy }: Props) {
 
       {loadError !== '' && (
         <div role="alert">
-          <p className="form-error">โหลดแผนไม่สำเร็จ: {loadError}</p>
+          <p className="form-error">Could not load plans: {loadError}</p>
           <button type="button" className="btn btn-ghost btn-small" onClick={() => void load()}>
-            ลองอีกครั้ง
+            Try again
           </button>
         </div>
       )}
 
-      {settings !== null && plans.length === 0 && !adding && <p className="muted">ยังไม่มีแผน กด "เพิ่มแผน" เพื่อให้ระบบเตือนเมื่อถึงวันซื้อ</p>}
+      {settings !== null && plans.length === 0 && !adding && <p className="muted">No plans yet. Press "Add plan" to be reminded when a buy day arrives.</p>}
 
       {plans.length > 0 && (
         <ul className="list-plain">
@@ -191,35 +199,35 @@ export function DcaPlansCard({ assets, trades, today, onBuy }: Props) {
             return (
               <li key={p.id} className="row-item">
                 <div>
-                  <strong>{asset?.name ?? 'ไม่พบกองทุน/หุ้น'}</strong>
+                  <strong>{asset?.name ?? 'Fund/stock not found'}</strong>
                   <p className="muted small">
-                    ซื้อ {formatBaht(satang(p.amount))} ทุกวันที่ {p.dayOfMonth} ของเดือน
-                    {p.dayOfMonth > 28 && ' (เดือนที่สั้นกว่าจะใช้วันสุดท้ายของเดือน)'}
+                    Buy {formatBaht(satang(p.amount))} on day {p.dayOfMonth} of every month
+                    {p.dayOfMonth > 28 && ' (shorter months use the last day of the month)'}
                   </p>
                   {status.state === 'due' && (
                     <p role="note">
-                      <strong>ถึงกำหนดแล้ว</strong> ของเดือน {thaiMonthKeyLabel(status.cycle)} (กำหนด {thaiDayLabel(status.dueDate)}
-                      {status.daysLate > 0 ? ` เลยมา ${status.daysLate} วัน` : ' วันนี้'})
-                      {status.pendingCycles > 1 && ` · ค้างซื้อ ${status.pendingCycles} เดือน ระบบเตือนทีละเดือน`}
+                      <strong>Due</strong> for {monthKeyLabelEn(status.cycle)} (due {formatDateEn(status.dueDate)}
+                      {status.daysLate > 0 ? `, ${plural(status.daysLate, 'day', 'days')} late` : ', today'})
+                      {status.pendingCycles > 1 && ` · ${status.pendingCycles} months behind; reminders come one month at a time`}
                     </p>
                   )}
                   {status.state === 'upcoming' && (
                     <p className="muted small">
-                      ครั้งถัดไป {thaiDayLabel(status.dueDate)} (อีก {status.daysUntil} วัน)
+                      Next: {formatDateEn(status.dueDate)} (in {plural(status.daysUntil, 'day', 'days')})
                     </p>
                   )}
-                  {status.state === 'paused' && <p className="muted small">พักแผนอยู่ (ไม่เตือน)</p>}
-                  {status.state === 'unknown-asset' && <p className="form-error">ไม่พบกองทุน/หุ้นของแผนนี้ ลบแผนนี้ได้</p>}
+                  {status.state === 'paused' && <p className="muted small">Plan paused (no reminders)</p>}
+                  {status.state === 'unknown-asset' && <p className="form-error">The fund/stock for this plan was not found. You can delete this plan.</p>}
                 </div>
                 <div className="row-actions">
                   {status.state === 'due' && asset && (
                     <button
                       type="button"
                       className="btn btn-primary btn-small"
-                      aria-label={`บันทึกซื้อตามแผน ${asset.name}`}
+                      aria-label={`Record planned buy ${asset.name}`}
                       onClick={(e) => onBuy(p.assetId, toBahtString(satang(p.amount)), e.currentTarget)}
                     >
-                      บันทึกซื้อตามแผน
+                      Record planned buy
                     </button>
                   )}
                   {status.state !== 'unknown-asset' && (
@@ -227,20 +235,20 @@ export function DcaPlansCard({ assets, trades, today, onBuy }: Props) {
                       type="button"
                       className="btn btn-ghost btn-small"
                       disabled={busy}
-                      aria-label={`${p.paused === true ? 'เริ่มแผนต่อ' : 'พักแผน (หยุดเตือนชั่วคราว)'} ${asset?.name ?? ''}`}
+                      aria-label={`${p.paused === true ? 'Resume plan' : 'Pause plan (stop reminders for now)'} ${asset?.name ?? ''}`}
                       onClick={() => void toggle(p)}
                     >
-                      {p.paused === true ? 'เริ่มต่อ' : 'พักแผน'}
+                      {p.paused === true ? 'Resume' : 'Pause'}
                     </button>
                   )}
                   <button
                     type="button"
                     className={confirmDelete === p.id ? 'btn btn-ghost btn-small confirm-delete' : 'btn btn-ghost btn-small'}
                     disabled={busy}
-                    aria-label={`${confirmDelete === p.id ? 'กดอีกครั้งเพื่อลบแผน' : 'ลบแผน'} ${asset?.name ?? ''}`}
+                    aria-label={`${confirmDelete === p.id ? 'Press again to delete plan' : 'Delete plan'} ${asset?.name ?? ''}`}
                     onClick={() => void remove(p)}
                   >
-                    {confirmDelete === p.id ? 'กดอีกครั้งเพื่อลบ' : 'ลบแผน'}
+                    {confirmDelete === p.id ? 'Press again to delete' : 'Delete plan'}
                   </button>
                 </div>
               </li>
@@ -261,16 +269,16 @@ export function DcaPlansCard({ assets, trades, today, onBuy }: Props) {
             setFormError(null);
           }}
         >
-          เพิ่มแผน
+          Add plan
         </button>
       )}
-      {activeAssets.length === 0 && settings !== null && <p className="muted small">เพิ่มกองทุนหรือหุ้นก่อน จึงตั้งแผนได้</p>}
+      {activeAssets.length === 0 && settings !== null && <p className="muted small">Add a fund or stock first, then you can set up a plan.</p>}
 
       {adding && (
         <form onSubmit={submit} onKeyDown={onFormKey} className="settings-form" noValidate>
           <div className="field-row">
             <div className="field">
-              <label htmlFor="dca-asset">กองทุน/หุ้น</label>
+              <label htmlFor="dca-asset">Fund/stock</label>
               <select
                 id="dca-asset"
                 value={assetId}
@@ -278,7 +286,7 @@ export function DcaPlansCard({ assets, trades, today, onBuy }: Props) {
                 aria-describedby={formError?.field === 'dca-asset' ? 'dca-form-err' : undefined}
                 onChange={(e) => setAssetId(e.target.value)}
               >
-                <option value="">เลือกกองทุน/หุ้น</option>
+                <option value="">Choose fund/stock</option>
                 {activeAssets.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name}
@@ -287,7 +295,7 @@ export function DcaPlansCard({ assets, trades, today, onBuy }: Props) {
               </select>
             </div>
             <div className="field">
-              <label htmlFor="dca-amount">เงินที่ซื้อต่อรอบ (บาท)</label>
+              <label htmlFor="dca-amount">Amount per period (THB)</label>
               <input
                 id="dca-amount"
                 className="num"
@@ -301,7 +309,7 @@ export function DcaPlansCard({ assets, trades, today, onBuy }: Props) {
               />
             </div>
             <div className="field">
-              <label htmlFor="dca-day">ซื้อทุกวันที่ (1-31)</label>
+              <label htmlFor="dca-day">Buy on day (1-31)</label>
               <input
                 id="dca-day"
                 className="num"
@@ -321,10 +329,10 @@ export function DcaPlansCard({ assets, trades, today, onBuy }: Props) {
           )}
           <div className="form-actions">
             <button type="button" className="btn btn-ghost btn-small" onClick={closeForm}>
-              ยกเลิก
+              Cancel
             </button>
             <button type="submit" className="btn btn-primary btn-small" disabled={busy}>
-              บันทึกแผน
+              Save plan
             </button>
           </div>
         </form>
