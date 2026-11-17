@@ -183,7 +183,7 @@ export function bpsText(bps: number, showPlus = false): string {
   const whole = (abs - (abs % 100)) / 100;
   const frac = abs % 100;
   const fracText = frac === 0 ? '' : `.${String(frac).padStart(2, '0').replace(/0$/, '')}`;
-  return `${neg ? '-' : showPlus && abs > 0 ? '+' : ''}${whole}${fracText}%`;
+  return `${neg ? '−' : showPlus && abs > 0 ? '+' : ''}${whole}${fracText}%`;
 }
 
 export const THAI_MONTH_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'] as const;

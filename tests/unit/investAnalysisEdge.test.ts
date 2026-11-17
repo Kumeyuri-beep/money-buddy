@@ -93,9 +93,9 @@ describe('กรณีขอบ', () => {
     const d = { ...SINGLE, prices: [SINGLE.prices[0]!, { assetId: 'us1', date: TODAY, priceMicro: 99_000_000 }] };
     const y = buildAnalysisModel([], [], d, TODAY).monthly[0]!;
     expect(y.cells[1]).toEqual({ kind: 'ok', bps: -1_000 });
-    expect(signedPercentBps(-1_000)).toBe('-10.00%');
-    expect(percentBps(y.total as number)).toBe('-0.38%');
-    expect(render(d)).toContain('-10.00%');
+    expect(signedPercentBps(-1_000)).toBe('−10.00%');
+    expect(percentBps(y.total as number)).toBe('−0.38%');
+    expect(render(d)).toContain('−10.00%');
   });
   it('ขายหมด (มูลค่า 0): หน้าจอไม่ล้ม ไม่มีสัดส่วนปลอม', () => {
     const d: InvestmentData = { ...SINGLE, trades: [...SINGLE.trades, trade({ id: 's', kind: 'sell', date: '2026-02-10', priceMicro: 110_000_000, amount: undefined })] };

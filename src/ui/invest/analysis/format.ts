@@ -9,7 +9,7 @@ export function percentBps(bps: number): string {
   const abs = Math.abs(bps);
   const whole = Math.floor(abs / 100);
   const frac = String(abs % 100).padStart(2, '0');
-  return `${bps < 0 ? '-' : ''}${whole.toLocaleString('en-US')}.${frac}%`;
+  return `${bps < 0 ? '−' : ''}${whole.toLocaleString('en-US')}.${frac}%`;
 }
 
 /** เหมือน percentBps แต่ค่าบวกมี "+" (ศูนย์ไม่มีเครื่องหมาย) · ใช้ในตารางผลตอบแทนเพื่อไม่พึ่งสีอย่างเดียว */

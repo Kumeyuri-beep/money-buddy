@@ -15,7 +15,7 @@ import { bpsText, type DashboardView, type DashCurrency } from './dashboardView'
 
 type Mode = 'holdings' | 'currency';
 
-interface Row {
+export interface Row {
   key: string;
   name: string;
   sub: string;
@@ -39,6 +39,15 @@ const tone = (v: number): string => (v > 0 ? 'is-pos' : v < 0 ? 'is-neg' : '');
 
 function holdingToRow(h: HoldingRow, unit: DashCurrency): Row {
   return { key: h.assetId, name: h.name, sub: h.ticker, badge: h.ticker, value: h.value, invested: h.invested, gain: h.gain, gainBps: h.gainBps, bps: h.bps, unit };
+}
+
+/** ข้อความอ่านของแถว (โปรแกรมอ่านหน้าจอ): ชื่อ มูลค่า ลงทุน กำไร สัดส่วน · ประกอบจากข้อความที่จัดรูปแล้ว ไม่มีการคำนวณ */
+export function rowLabel(r: Row): string {
+  const parts = [`${r.name} (${r.sub})`, r.value !== null ? `value ${fmt(r.unit, r.value)}` : 'value not available'];
+  if (r.invested !== null) parts.push(`invested ${fmt(r.unit, r.invested)}`);
+  if (r.gain !== null) parts.push(`gain ${fmtSigned(r.unit, r.gain)}${r.gainBps !== null ? ` (${bpsText(r.gainBps, true)})` : ''}`);
+  parts.push(r.bps !== null ? `allocation ${formatBps(r.bps)}` : 'allocation not available');
+  return parts.join(', ');
 }
 
 function colorClass(index: number): string {
@@ -225,7 +234,7 @@ export function PortfolioCard({ view, currency }: { view: DashboardView; currenc
               </thead>
               <tbody onMouseLeave={() => setActive(null)}>
                 {rows.map((r) => (
-                  <tr key={r.key} className={`iv-row-tr ${colorOf(r.key)}${active === r.key ? ' is-active' : ''}`} tabIndex={0} onMouseEnter={() => setActive(r.key)} onFocus={() => setActive(r.key)} onBlur={() => setActive(null)}>
+                  <tr key={r.key} aria-label={rowLabel(r)} className={`iv-row-tr ${colorOf(r.key)}${active === r.key ? ' is-active' : ''}`} tabIndex={0} onMouseEnter={() => setActive(r.key)} onFocus={() => setActive(r.key)} onBlur={() => setActive(null)}>
                     <th scope="row">
                       <span className="iv-name">
                         <span className="iv-tick" aria-hidden="true">
