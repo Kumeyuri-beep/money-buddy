@@ -5,11 +5,13 @@
  * ข้อผิดพลาดคืนเป็นรายช่อง (ไม่โยน) เพื่อให้หน้าจอชี้ช่องที่ผิดได้
  */
 
+import { hasCode, type ErrorParams } from '../domain/errors/coded';
 import { dcaUnits } from '../domain/invest/dca';
 import type { TradeKind, TradeRecord } from '../domain/invest/types';
 import { parsePriceMicro, parseUnits } from '../domain/invest/units';
 import { isSupportedEntryDate, lengthWithin, MAX_MEMO_LENGTH } from '../domain/ledger/limits';
 import { parseBahtToSatang } from '../domain/money/satang';
+import { formMsg } from './formMessages';
 
 export interface TradeForm {
   assetId: string;
@@ -30,7 +32,11 @@ export type TradeField = keyof TradeForm;
 
 export interface TradeFormError {
   field: TradeField;
+  /** ข้อความไทย (เดิม) */
   message: string;
+  /** รหัส + พารามิเตอร์ให้ UI แปลเป็นภาษาอื่น (ไม่มี = error ต้นทางยังไม่มีรหัส) */
+  code?: string;
+  params?: ErrorParams;
 }
 
 export type TradeFormResult = { ok: true; trade: TradeRecord } | { ok: false; errors: TradeFormError[] };
@@ -44,77 +50,83 @@ export const emptyTradeForm = (assetId: string, kind: TradeKind, date: string): 
 
 export function buildTradeRecord(form: TradeForm, id: string, createdAt: string, today: string): TradeFormResult {
   const errors: TradeFormError[] = [];
-  const err = (field: TradeField, message: string): void => void errors.push({ field, message });
+  const err = (field: TradeField, code: Parameters<typeof formMsg>[0], params: ErrorParams = {}): void => void errors.push({ field, message: formMsg(code, params), code, params });
+  /** error จากตัวอ่านหน่วย/ราคา/สูตร: มีรหัสให้ส่งต่อรหัสและพารามิเตอร์ · ไม่ใช่ Error = ข้อความสำรองของฟอร์ม */
+  const errFrom = (field: TradeField, e: unknown, fallback: Parameters<typeof formMsg>[0]): void => {
+    if (hasCode(e)) errors.push({ field, message: e.message, code: e.code, params: e.params });
+    else if (e instanceof Error) errors.push({ field, message: e.message });
+    else err(field, fallback);
+  };
 
-  if (!isSupportedEntryDate(form.date)) err('date', 'วันที่ไม่ถูกต้อง (YYYY-MM-DD ปี 1900-2999)');
-  else if (form.date > today) err('date', 'บันทึกวันที่ในอนาคตไม่ได้');
+  if (!isSupportedEntryDate(form.date)) err('date', 'form.dateInvalid');
+  else if (form.date > today) err('date', 'form.dateFuture');
   if (!lengthWithin(form.memo, 0, MAX_MEMO_LENGTH) || UNSAFE.test(form.memo.replace(/[\r\n\t]/g, ''))) {
-    err('memo', `หมายเหตุยาวไม่เกิน ${MAX_MEMO_LENGTH} ตัวอักษร และห้ามมีอักขระควบคุม`);
+    err('memo', 'form.memoInvalid', { max: MAX_MEMO_LENGTH });
   }
 
-  const money = (field: TradeField, text: string, label: string, required: boolean, min: number): number | undefined => {
+  const money = (field: TradeField, text: string, what: string, required: boolean, min: number): number | undefined => {
     if (blank(text)) {
-      if (required) err(field, `กรอก${label}`);
+      if (required) err(field, 'form.moneyRequired', { what });
       return undefined;
     }
     try {
       const v = parseBahtToSatang(text.replace(/฿/g, ''));
       if (v < min || /^\s*[+-]/.test(text)) {
-        err(field, min >= 1 ? `${label}ต้องมากกว่า 0 (อย่างน้อย 0.01 บาท)` : `${label}ต้องไม่ติดลบ`);
+        err(field, min >= 1 ? 'form.moneyPositive' : 'form.moneyNonNegative', { what });
         return undefined;
       }
       return v;
     } catch {
-      err(field, `${label}ไม่ถูกต้อง`);
+      err(field, 'form.moneyInvalid', { what });
       return undefined;
     }
   };
   const unitsOf = (text: string, required: boolean): bigint | undefined => {
     if (blank(text)) {
-      if (required) err('units', 'กรอกจำนวนหน่วย');
+      if (required) err('units', 'form.unitsRequired');
       return undefined;
     }
     try {
       return parseUnits(text);
     } catch (e) {
-      err('units', e instanceof Error ? e.message : 'จำนวนหน่วยไม่ถูกต้อง');
+      errFrom('units', e, 'form.unitsInvalid');
       return undefined;
     }
   };
   const priceOf = (required: boolean): number | undefined => {
     if (blank(form.price)) {
-      if (required) err('price', 'กรอกราคาต่อหน่วย');
+      if (required) err('price', 'form.priceRequired');
       return undefined;
     }
     try {
       return parsePriceMicro(form.price);
     } catch (e) {
-      err('price', e instanceof Error ? e.message : 'ราคาไม่ถูกต้อง');
+      errFrom('price', e, 'form.priceInvalid');
       return undefined;
     }
   };
-  const mustBeBlank = (field: TradeField, label: string): void => {
-    if (!blank(form[field])) err(field, `${label}ใช้กับรายการชนิดนี้ไม่ได้ (เว้นว่าง)`);
+  const mustBeBlank = (field: TradeField, what: string): void => {
+    if (!blank(form[field])) err(field, 'form.mustBeBlank', { what });
   };
 
   const base = { id, assetId: form.assetId, kind: form.kind, date: form.date, createdAt, memo: form.memo };
   let trade: TradeRecord | null = null;
 
   if (form.kind === 'buy') {
-    const amount = money('amount', form.amount, 'เงินที่ซื้อ', true, 1);
-    const fee = money('fee', form.fee, 'ค่าธรรมเนียม', false, 0) ?? 0;
-    mustBeBlank('withholding', 'ภาษีหัก ณ ที่จ่าย');
+    const amount = money('amount', form.amount, 'buyAmount', true, 1);
+    const fee = money('fee', form.fee, 'fee', false, 0) ?? 0;
+    mustBeBlank('withholding', 'withholding');
     const enteredUnits = unitsOf(form.units, false);
     const price = priceOf(false);
     if (enteredUnits === undefined && price === undefined && blank(form.units) && blank(form.price)) {
-      err('units', 'กรอกจำนวนหน่วย หรือกรอกราคาต่อหน่วยให้ระบบคำนวณหน่วยให้');
+      err('units', 'form.unitsOrPriceRequired');
     }
     let units = enteredUnits;
     if (units === undefined && price !== undefined && amount !== undefined) {
       try {
         units = dcaUnits(amount, price);
       } catch (e) {
-        err('amount', e instanceof Error ? e.message : 'คำนวณหน่วยไม่ได้');
+        errFrom('amount', e, 'form.unitsCalcFailed');
       }
     }
     if (errors.length === 0 && amount !== undefined && units !== undefined) {
@@ -124,27 +136,27 @@ export function buildTradeRecord(form: TradeForm, id: string, createdAt: string,
   } else if (form.kind === 'sell') {
     const units = unitsOf(form.units, true);
     const price = priceOf(true);
-    const fee = money('fee', form.fee, 'ค่าธรรมเนียม', false, 0) ?? 0;
-    mustBeBlank('amount', 'จำนวนเงิน');
-    mustBeBlank('withholding', 'ภาษีหัก ณ ที่จ่าย');
+    const fee = money('fee', form.fee, 'fee', false, 0) ?? 0;
+    mustBeBlank('amount', 'amount');
+    mustBeBlank('withholding', 'withholding');
     if (errors.length === 0 && units !== undefined && price !== undefined) {
       trade = { ...base, units: units.toString(), priceMicro: price, fee, withholding: 0 };
     }
   } else if (form.kind === 'dividend') {
-    const amount = money('amount', form.amount, 'ยอดปันผล', true, 1);
-    const withholding = money('withholding', form.withholding, 'ภาษีหัก ณ ที่จ่าย', false, 0) ?? 0;
-    mustBeBlank('units', 'จำนวนหน่วย');
-    mustBeBlank('price', 'ราคา');
-    mustBeBlank('fee', 'ค่าธรรมเนียม');
-    if (amount !== undefined && withholding >= amount) err('withholding', 'ภาษีหัก ณ ที่จ่ายต้องน้อยกว่ายอดปันผล');
+    const amount = money('amount', form.amount, 'dividendAmount', true, 1);
+    const withholding = money('withholding', form.withholding, 'withholding', false, 0) ?? 0;
+    mustBeBlank('units', 'units');
+    mustBeBlank('price', 'price');
+    mustBeBlank('fee', 'fee');
+    if (amount !== undefined && withholding >= amount) err('withholding', 'form.whtTooHigh');
     if (errors.length === 0 && amount !== undefined) trade = { ...base, amount, fee: 0, withholding };
   } else {
     // reinvest: หน่วยที่ได้เพิ่ม + ต้นทุนที่เพิ่ม (ยอดปันผลหลังหักภาษี) ไม่มีเงินสดเข้า-ออก
     const units = unitsOf(form.units, true);
-    const amount = money('amount', form.amount, 'ต้นทุนที่เพิ่ม (ปันผลหลังหักภาษี)', true, 1);
-    mustBeBlank('fee', 'ค่าธรรมเนียม');
-    mustBeBlank('withholding', 'ภาษีหัก ณ ที่จ่าย');
-    mustBeBlank('price', 'ราคา');
+    const amount = money('amount', form.amount, 'costAdded', true, 1);
+    mustBeBlank('fee', 'fee');
+    mustBeBlank('withholding', 'withholding');
+    mustBeBlank('price', 'price');
     if (errors.length === 0 && units !== undefined && amount !== undefined) {
       trade = { ...base, units: units.toString(), amount, fee: 0, withholding: 0 };
     }
