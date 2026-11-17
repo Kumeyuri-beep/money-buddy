@@ -35,8 +35,8 @@ describe('แดชบอร์ดพอร์ต: view ตรงตัวอย
     const rows = profitSourceRows(v.profit, 'THB')!;
     expect(rows.map((r) => r.value)).toEqual([510_000, 264_000, 0, 172_839, -140_000, -32_726]);
     expect(rows.reduce((n, r) => n + (r.value ?? 0), 0)).toBe(774_113);
-    expect(rows[3]!.label).toBe('ปันผล (ก่อนภาษี)');
-    expect(rows[5]!.label).toBe('ค่าธรรมเนียมและภาษีที่ถูกหัก');
+    expect(rows[3]!.label).toBe('Dividends (before tax)');
+    expect(rows[5]!.label).toBe('Fees and tax withheld');
   });
   it('มุมมอง USD: ค่าเงินเป็น null (แสดง "—") และรวม 27,050 เซนต์', () => {
     const rows = profitSourceRows(v.profit, 'USD')!;
