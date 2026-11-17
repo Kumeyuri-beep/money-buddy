@@ -10,6 +10,7 @@
 import { roundHalfUpBig } from '../money/round';
 import { safeAdd, safeSub } from '../money/safe';
 import { convertMinor, assertFxRateMicro } from './fx';
+import { rangeError } from './errorCodes';
 import { assertPriceMicro, assertUnitsInRange, toSafeSatang, valueInSatang } from './units';
 
 export interface PositionFx {
@@ -57,9 +58,9 @@ export interface SellFxResult {
   fxGainThb: number;
 }
 
-function assertInt(value: number, name: string, min: number): void {
+function assertInt(value: number, name: 'buyValue' | 'fee', min: number): void {
   if (!Number.isSafeInteger(value) || value < min) {
-    throw new RangeError(`${name} ต้องเป็นจำนวนเต็มที่ไม่ต่ำกว่า ${min} (ได้รับ ${String(value)})`);
+    throw rangeError('trade.minorInt', { name, min, got: String(value) });
   }
 }
 
@@ -68,18 +69,18 @@ function assertPositionValid(p: PositionFx): void {
     p.units < 0n || !Number.isSafeInteger(p.costUsd) || p.costUsd < 0 || !Number.isSafeInteger(p.costThb) || p.costThb < 0 ||
     (p.units > 0n && (p.costUsd < 1 || p.costThb < 1)) || (p.units === 0n && (p.costUsd !== 0 || p.costThb !== 0))
   ) {
-    throw new RangeError('ตำแหน่งการลงทุนไม่ถูกต้อง');
+    throw rangeError('trade.positionInvalid');
   }
 }
 
 export function applyBuyFx(position: PositionFx, input: BuyFxInput): PositionFx {
-  if (input.units <= 0n) throw new RangeError('จำนวนหน่วยที่ซื้อต้องมากกว่า 0');
-  assertInt(input.amount, 'มูลค่าซื้อ', 1);
-  assertInt(input.fee, 'ค่าธรรมเนียม', 0);
+  if (input.units <= 0n) throw rangeError('trade.buyUnitsPositive');
+  assertInt(input.amount, 'buyValue', 1);
+  assertInt(input.fee, 'fee', 0);
   assertFxRateMicro(input.fxRateMicro);
   const outlay = safeAdd(input.amount, input.fee);
   const outlayThb = convertMinor(outlay, input.fxRateMicro);
-  if (outlayThb < 1) throw new RangeError('ต้นทุนบาทของรายการซื้อปัดเป็น 0 สตางค์ (อัตราต่ำหรือจำนวนเงินน้อยเกินไป) บันทึกไม่ได้');
+  if (outlayThb < 1) throw rangeError('trade.buyBahtCostZero');
   const units = position.units + input.units;
   assertUnitsInRange(units);
   return { units, costUsd: safeAdd(position.costUsd, outlay), costThb: safeAdd(position.costThb, outlayThb) };
@@ -94,14 +95,14 @@ function costOutOf(cost: number, units: bigint, held: bigint): number {
 
 export function applySellFx(position: PositionFx, input: SellFxInput): SellFxResult {
   assertPositionValid(position);
-  if (input.units <= 0n) throw new RangeError('จำนวนหน่วยที่ขายต้องมากกว่า 0');
-  if (input.units > position.units) throw new RangeError('ขายเกินจำนวนหน่วยที่ถืออยู่');
-  assertInt(input.fee, 'ค่าธรรมเนียม', 0);
+  if (input.units <= 0n) throw rangeError('trade.sellUnitsPositive');
+  if (input.units > position.units) throw rangeError('trade.sellExceedsHeld');
+  assertInt(input.fee, 'fee', 0);
   assertPriceMicro(input.priceMicro);
   assertFxRateMicro(input.fxRateMicro);
   const grossUsd = valueInSatang(input.units, input.priceMicro); // หน่วยเป็นเซนต์ (ตัวหารเดียวกับสตางค์)
-  if (grossUsd < 1) throw new RangeError('ขายแล้วได้เงิน 0 เซนต์ (หน่วยน้อยหรือราคาต่ำเกินไป) บันทึกไม่ได้');
-  if (input.fee > grossUsd) throw new RangeError('ค่าธรรมเนียมขายเกินเงินที่ขายได้');
+  if (grossUsd < 1) throw rangeError('trade.sellUsdZero');
+  if (input.fee > grossUsd) throw rangeError('trade.sellFeeExceedsGross');
   const netUsd = safeSub(grossUsd, input.fee);
 
   const costOutUsd = costOutOf(position.costUsd, input.units, position.units);
@@ -184,7 +185,7 @@ export function replayTradesFx(trades: readonly TradeFx[]): ReplayFxResult {
     (position.units === 0n) !== (position.costUsd === 0) || (position.units === 0n) !== (position.costThb === 0) ||
     realizedGainThb !== realizedPriceGainThb + realizedFxGainThb
   ) {
-    throw new RangeError('ต้นทุนไม่สมดุลหลังเล่นซ้ำรายการ');
+    throw rangeError('trade.costImbalance');
   }
   return { position, totalCostUsd, totalCostOutUsd, totalCostThb, totalCostOutThb, realizedGainThb, realizedPriceGainThb, realizedFxGainThb, sells };
 }

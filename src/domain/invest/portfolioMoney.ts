@@ -7,9 +7,11 @@
 
 import { naturalBalance } from '../ledger/balance';
 import type { Account, Entry } from '../ledger/types';
+import type { CodedProblem } from '../errors/problem';
 import { safeAdd } from '../money/safe';
 import { replayTrades } from './costBasis';
 import { replayTradesFx, type TradeFx } from './costBasisFx';
+import { problem } from './errorCodes';
 import { convertMinor } from './fx';
 import { toReplayTrades } from './rules';
 import { assetCurrency, type Asset, type FxRateRecord, type InvestmentData } from './types';
@@ -52,15 +54,20 @@ export interface AccountKindChangeContext {
 }
 
 /** ตรวจก่อนเปลี่ยนป้าย (ฐานข้อมูลตรวจซ้ำใน set_account_kind) · null = เปลี่ยนได้ · ข้อความ = เหตุผลที่เปลี่ยนไม่ได้ */
-export function checkAccountKindChange(ctx: AccountKindChangeContext, accountId: string, next: 'normal' | 'investment'): string | null {
+export function checkAccountKindChangeCoded(ctx: AccountKindChangeContext, accountId: string, next: 'normal' | 'investment'): CodedProblem | null {
   const account = ctx.accounts.find((a) => a.id === accountId);
-  if (!account) return 'ไม่พบบัญชีนี้';
-  if (account.type !== 'asset' || account.currency !== 'THB') return 'เปลี่ยนป้ายได้เฉพาะบัญชีเงินสดสกุลบาท · บัญชี USD เป็นเงินลงทุนเสมอ';
-  if ((ctx.investments?.assets ?? []).some((a) => a.accountId === accountId)) return 'บัญชีที่ผูกกับสินทรัพย์ต้องเป็นเงินลงทุนเสมอ เปลี่ยนป้ายไม่ได้';
+  if (!account) return problem('acct.notFound');
+  if (account.type !== 'asset' || account.currency !== 'THB') return problem('acct.thbCashOnly');
+  if ((ctx.investments?.assets ?? []).some((a) => a.accountId === accountId)) return problem('acct.linkedToAsset');
   if (next === 'investment' && (ctx.bills ?? []).some((b) => b.walletId === accountId && b.archived !== true)) {
-    return 'มีบิลที่จ่ายจากกระเป๋านี้อยู่ เปลี่ยนเป็นเงินลงทุนไม่ได้ (เปลี่ยนกระเป๋าของบิลก่อน)';
+    return problem('acct.hasBills');
   }
   return null;
+}
+
+/** เหมือน checkAccountKindChangeCoded แต่คืนเฉพาะข้อความไทยเดิม (สัญญาเดิม) */
+export function checkAccountKindChange(ctx: AccountKindChangeContext, accountId: string, next: 'normal' | 'investment'): string | null {
+  return checkAccountKindChangeCoded(ctx, accountId, next)?.message ?? null;
 }
 
 /** ราคา/อัตราเก่ากว่า 30 วัน (นับวันตามปฏิทินระหว่างวันที่ของข้อมูลกับ asOf) ต้องเตือน (R18/R20.7/R23) */
