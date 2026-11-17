@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { goInvest } from './helpers/investNav';
 import { openDesktopView } from './helpers/nav';
 import { obscured, openHarness, overflowing, watch } from './helpers/layoutChecks';
 
@@ -25,7 +26,7 @@ async function openAnalysis(page: Page, mobile: boolean): Promise<void> {
     await openDesktopView(page, 'พอร์ตการลงทุน');
   }
   await expect(page.getByRole('heading', { name: 'Main portfolio', level: 2 }).first()).toBeVisible();
-  await page.getByRole('tab', { name: 'Analytics', exact: true }).click();
+  await goInvest(page, 'Analytics', 'Common');
   await expect(page.getByRole('heading', { name: 'Analytics', level: 2 })).toBeVisible();
 }
 

@@ -94,7 +94,8 @@ describe('การ์ด Where the profit comes from (ProfitSourcesCard)', () =
 });
 
 const ctx = (data: InvestmentData, currency: 'THB' | 'USD' = 'THB'): InvestContextValue => ({ today: TODAY, accounts: [], entries: [], wallets: [], data, loadError: '', reload: async () => undefined, onLedgerChanged: () => undefined, currency, setCurrency: () => undefined });
-const render = (data: InvestmentData, currency: 'THB' | 'USD' = 'THB'): string => renderToStaticMarkup(createElement(InvestContext.Provider, { value: ctx(data, currency) }, createElement(AnalysisTab)));
+// หน้า Analytics แยกเป็น Common + Growth: เรนเดอร์ทั้งสองส่วนรวมกัน เพื่อคงการตรวจเดิมทุกข้อ
+const render = (data: InvestmentData, currency: 'THB' | 'USD' = 'THB'): string => renderToStaticMarkup(createElement(InvestContext.Provider, { value: ctx(data, currency) }, createElement('div', null, createElement(AnalysisTab, { part: 'common' }), createElement(AnalysisTab, { part: 'growth' }))));
 
 describe('กรณีขอบ', () => {
   it('ผลตอบแทนติดลบผ่านโมเดล: ราคาปลาย ก.พ. $99 → -10.00% และทั้งปี -0.38%', () => {

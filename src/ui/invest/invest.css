@@ -3,7 +3,31 @@
 
 /* ---------- แถบบน ---------- */
 .iv-topbar { z-index: 1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 10px 14px; border-radius: 20px; }
-.iv-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+/* กฎกลาง styles.css ตั้ง nav เป็นแนวตั้ง (ใช้กับ dock) จึงต้องระบุแนวนอนเอง */
+.iv-nav { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px; }
+.iv-nav-item { position: relative; }
+a.iv-tab { text-decoration: none; }
+.iv-tab { display: inline-flex; align-items: center; gap: 6px; }
+.iv-caret { display: inline-block; text-decoration: none; font-size: 12px; opacity: 0.8; transition: transform 0.15s ease; }
+.iv-nav-item.is-open .iv-caret { transform: rotate(180deg); }
+.iv-nav-item.is-open > .iv-tab { color: var(--text); background: var(--ov-6); }
+/* เมนูเลื่อนลง: พื้นทึบ (ตัวหนังสืออ่านชัด) · ชิดปุ่มโดยไม่มีช่องว่าง เมาส์เลื่อนจากปุ่มลงเมนูไม่หลุด */
+.iv-submenu { position: absolute; left: 0; top: 100%; z-index: 30; min-width: 240px; padding: 8px; border-radius: 16px; background: var(--surface-dialog); border: 1px solid var(--ov-14); box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45); animation: iv-drop 0.14s ease-out; }
+.iv-submenu-sec { list-style: none; margin: 0; padding: 0; }
+.iv-submenu-sec + .iv-submenu-sec { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--ov-14); }
+.iv-submenu-link { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: var(--text); font: inherit; font-size: 15px; font-weight: 500; text-align: left; text-decoration: none; cursor: pointer; box-sizing: border-box; }
+.iv-submenu-link:hover { background: var(--ov-10); }
+.iv-submenu-link[aria-current="page"] { background: var(--ov-12); font-weight: 700; }
+.iv-submenu-link:disabled { color: var(--muted); cursor: not-allowed; }
+.iv-submenu-link:focus-visible, a.iv-tab:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.iv-submenu-hint { font-size: 12px; color: var(--muted); white-space: nowrap; }
+@keyframes iv-drop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .iv-submenu { animation: none; } .iv-caret { transition: none; } }
+.iv-soon-card { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; max-width: 640px; }
+.iv-soon-tag { margin: 0; padding: 4px 12px; border-radius: 99px; border: 1px solid var(--ov-14); font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.iv-soon-card h2, .iv-soon-card p { margin: 0; }
+.iv-soon-needs { color: var(--muted); }
+#inv-panel:focus { outline: none; }
 .iv-tab { min-height: 44px; padding: 0 18px; border: 0; border-radius: 14px; background: transparent; color: var(--muted); font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; }
 .iv-tab:hover { color: var(--text); background: var(--ov-6); }
 .iv-tab.is-active { color: var(--text); background: var(--ov-12); text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 6px; }
@@ -65,8 +89,13 @@
 .iv-empty { margin: 0; padding: 12px 0; color: var(--muted); }
 
 @media (max-width: 1023px) {
-  .iv-tabs { width: 100%; }
-  .iv-tab { flex: 1 1 auto; padding: 0 10px; font-size: 15px; }
+  .iv-nav { width: 100%; position: relative; }
+  /* มือถือ/แท็บเล็ต: เมนูเลื่อนลงกว้างเต็มแถวเมนูหลัก ชิดใต้แถวปุ่มเมนู (ไม่ล้นจอ ไม่ไปอยู่ใต้แถวปุ่มด้านขวา) */
+  .iv-nav-item { position: static; flex: 1 1 auto; }
+  .iv-submenu { left: 0; right: 0; min-width: 0; }
+  .iv-nav-item > .iv-tab { width: 100%; justify-content: center; padding: 0 10px; font-size: 15px; }
+  /* กล่องคำอธิบายที่ซ่อนอยู่ยื่นเกินจอ ทำให้เบราว์เซอร์เลื่อนหน้าแนวนอนเองเมื่อโฟกัส/กดปุ่ม: ตัดส่วนที่เกินทิ้งเฉพาะมือถือ */
+  .invest-mode { overflow-x: clip; }
   .iv-title { font-size: 22px; }
 }
 @media (prefers-reduced-motion: reduce) {

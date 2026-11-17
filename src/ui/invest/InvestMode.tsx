@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { investError } from './investError';
+import { INVEST_HOME, investPage, investPageFromLocation, investUrl, type InvestPageId } from '../../app/investRoute';
 import { buildInvestBadge } from '../../app/investBadge';
 import type { InvestmentData } from '../../domain/invest/types';
 import type { Account, Entry } from '../../domain/ledger/types';
@@ -7,8 +8,8 @@ import { useRepository } from '../RepositoryContext';
 import { AnalysisTab } from './AnalysisTab';
 import { DashboardTab } from './DashboardTab';
 import { DEFAULT_PORTFOLIO_NAME, InvestContext, type InvestCurrency, type PortfolioSettings } from './InvestContext';
-import { InvestTopBar, type InvestTab } from './InvestTopBar';
-import { ToolsTab } from './ToolsTab';
+import { ComingSoonPage } from './ComingSoonPage';
+import { InvestTopBar } from './InvestTopBar';
 import { TransactionsTab } from './TransactionsTab';
 import './invest.css';
 
@@ -37,13 +38,14 @@ const DEFAULT_PORTFOLIO: PortfolioSettings = { name: DEFAULT_PORTFOLIO_NAME, not
  */
 export default function InvestMode({ today, accounts, entries, wallets, onLedgerChanged, onOpenRetirement }: Props) {
   const repo = useRepository();
-  const [tab, setTab] = useState<InvestTab>('dashboard');
+  const [page, setPage] = useState<InvestPageId>(() => investPageFromLocation(window.location) ?? INVEST_HOME);
   const [addSignal, setAddSignal] = useState(0);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const focusPanel = useRef(false);
   const [portfolio, setPortfolio] = useState<PortfolioSettings>(DEFAULT_PORTFOLIO);
   const [currency, setCurrency] = useState<InvestCurrency>('THB');
   const [data, setData] = useState<InvestmentData | null>(null);
   const [loadError, setLoadError] = useState('');
-  const refs = useRef<Record<InvestTab, HTMLButtonElement | null>>({ dashboard: null, analysis: null, transactions: null, tools: null });
   const touchedCurrency = useRef(false);
 
   const reload = useCallback(async () => {
@@ -94,10 +96,38 @@ export default function InvestMode({ today, accounts, entries, wallets, onLedger
     setCurrency(c);
   }, []);
 
-  const openAdd = useCallback(() => {
-    setTab('transactions');
-    setAddSignal((n) => n + 1);
+  // เมนูย่อย: ทุกหน้ามี URL ของตัวเอง (pushState → ปุ่ม back/forward ทำงาน) · back/forward = อ่านหน้าจาก URL
+  const pageRef = useRef(page);
+  pageRef.current = page;
+  const navigate = useCallback((id: InvestPageId) => {
+    if (pageRef.current !== id) {
+      pageRef.current = id;
+      window.history.pushState({ view: 'portfolio', invest: id }, '', investUrl(id, window.location));
+      setPage(id);
+      focusPanel.current = true;
+    }
   }, []);
+  useEffect(() => {
+    const onPop = () => {
+      const p = investPageFromLocation(window.location);
+      if (p !== null) setPage(p); // /invest = dashboard
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+  // ย้ายโฟกัสมาที่เนื้อหาหลังผู้ใช้เลือกหน้าจากเมนู (ลิงก์ในเมนูหายไปแล้ว โฟกัสจะไม่ตกค้าง)
+  useEffect(() => {
+    if (focusPanel.current) {
+      focusPanel.current = false;
+      panelRef.current?.focus({ preventScroll: true }); // ไม่ให้หน้าเลื่อน (เลื่อนแนวนอนบนมือถือเพราะกล่องคำอธิบายที่ซ่อนอยู่)
+    }
+  }, [page]);
+  const hrefFor = useCallback((id: InvestPageId) => investUrl(id, window.location), []);
+
+  const openAdd = useCallback(() => {
+    navigate('portfolio/holdings'); // ฟอร์มเพิ่มรายการหุ้นสหรัฐอยู่ที่ Portfolio → Holdings
+    setAddSignal((n) => n + 1);
+  }, [navigate]);
 
   const badge = useMemo(() => buildInvestBadge(data, today), [data, today]);
   const ctx = useMemo(
@@ -108,7 +138,7 @@ export default function InvestMode({ today, accounts, entries, wallets, onLedger
   return (
     <InvestContext.Provider value={ctx}>
       <div className="invest-mode iv-mode">
-        <InvestTopBar tab={tab} onTab={setTab} tabRefs={refs} onAdd={openAdd} currency={currency} onCurrency={changeCurrency} portfolio={portfolio} onSavePortfolio={savePortfolio} />
+        <InvestTopBar page={page} onNavigate={navigate} hrefFor={hrefFor} onGoal={onOpenRetirement} onAdd={openAdd} currency={currency} onCurrency={changeCurrency} portfolio={portfolio} onSavePortfolio={savePortfolio} />
         <header className="iv-head" lang="en">
           <div>
             <h2 className="iv-title" id="invest-title">
@@ -131,17 +161,21 @@ export default function InvestMode({ today, accounts, entries, wallets, onLedger
             </button>
           </div>
         )}
-        <div role="tabpanel" id="inv-panel" tabIndex={0} aria-labelledby={`inv-tab-${tab}`}>
+        <div role="region" id="inv-panel" ref={panelRef} tabIndex={-1} aria-label={investPage(page).title}>
           {data === null && loadError === '' ? (
             <p className="iv-empty">Loading portfolio…</p>
-          ) : tab === 'dashboard' ? (
+          ) : page === 'dashboard' ? (
             <DashboardTab />
-          ) : tab === 'analysis' ? (
-            <AnalysisTab />
-          ) : tab === 'transactions' ? (
-            <TransactionsTab key={addSignal} startTab={addSignal > 0 ? 'us' : undefined} />
+          ) : page === 'analytics/common' ? (
+            <AnalysisTab part="common" />
+          ) : page === 'analytics/growth' ? (
+            <AnalysisTab part="growth" />
+          ) : page === 'portfolio/holdings' ? (
+            <TransactionsTab key={addSignal} section="us" />
+          ) : page === 'portfolio/transactions' ? (
+            <TransactionsTab section="overview" />
           ) : (
-            <ToolsTab />
+            <ComingSoonPage page={page} onHome={() => navigate(INVEST_HOME)} />
           )}
         </div>
       </div>
