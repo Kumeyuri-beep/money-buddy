@@ -18,8 +18,13 @@ export interface AllocationSlice {
   isOther: boolean;
 }
 
+/** ภาษาของป้ายในโมเดล/รูปแชร์ (ค่าเริ่มต้น th · โหมด /invest ใช้ en) */
+export type AllocationLang = 'th' | 'en';
+
 export interface AllocationModel {
   basis: AllocationBasis;
+  /** ภาษาของป้ายชื่อและข้อความในรูป (ไม่ระบุ = th) */
+  lang?: AllocationLang;
   slices: AllocationSlice[];
   /** จำนวนสินทรัพย์ที่ถืออยู่ */
   holdings: number;
@@ -34,6 +39,8 @@ export interface AllocationOptions {
   showNames?: boolean;
   /** จำนวนชิ้นสูงสุดที่แสดง (ที่เกินรวมเป็น "อื่นๆ") */
   maxVisible?: number;
+  /** ภาษาของป้าย (ค่าเริ่มต้น th เหมือนเดิม) */
+  lang?: AllocationLang;
 }
 
 export const OTHER_KEY = '__other__';
@@ -41,6 +48,7 @@ export const OTHER_KEY = '__other__';
 export function buildAllocationModel(portfolio: Portfolio, options: AllocationOptions = {}): AllocationModel | null {
   const showNames = options.showNames === true;
   const maxVisible = options.maxVisible ?? 6;
+  const en = options.lang === 'en';
   const errored = portfolio.rows.filter((r) => r.error !== undefined).length;
   const holdings = portfolio.rows.filter((r) => r.error === undefined && r.position.units > 0n);
   if (holdings.length === 0) return null;
@@ -54,15 +62,16 @@ export function buildAllocationModel(portfolio: Portfolio, options: AllocationOp
   const slices = shares.map((s, i): AllocationSlice => {
     const isOther = s.key === OTHER_KEY;
     // ชื่อที่ผู้ใช้ตั้ง: ตัดอักขระควบคุมและอักขระทิศทาง (เช่น U+202E) ก่อนวาด ไม่ให้ข้อความในรูปกลับด้านหรือหลอกตา
-    const label = isOther ? 'อื่นๆ' : showNames ? String(nameOf.get(s.key) ?? '').replace(/[\p{Cc}\p{Cf}]/gu, '') : `สินทรัพย์ ${i + 1}`;
+    const label = isOther ? (en ? 'Other' : 'อื่นๆ') : showNames ? String(nameOf.get(s.key) ?? '').replace(/[\p{Cc}\p{Cf}]/gu, '') : en ? `Asset ${i + 1}` : `สินทรัพย์ ${i + 1}`;
     return { key: s.key, label, bps: s.bps, isOther };
   });
   const stalePrices = basis === 'value' && holdings.some((r) => r.priceStale);
-  return { basis, slices, holdings: holdings.length, excluded: errored + zeroWeight, stalePrices };
+  return { basis, ...(en ? { lang: 'en' as const } : {}), slices, holdings: holdings.length, excluded: errored + zeroWeight, stalePrices };
 }
 
 /** ข้อความสรุปสั้นสำหรับโปรแกรมอ่านหน้าจอ (ใช้ป้ายชื่อตามที่เลือกเท่านั้น) */
 export function describeAllocation(model: AllocationModel, formatBps: (bps: number) => string): string {
+  if (model.lang === 'en') return `Allocation by ${model.basis === 'value' ? 'value' : 'cost'}: ${model.slices.map((s) => `${s.label} ${formatBps(s.bps)}`).join(' · ')}`;
   const basisText = model.basis === 'value' ? 'ตามมูลค่า' : 'ตามต้นทุน';
   return `สัดส่วนพอร์ต${basisText}: ${model.slices.map((s) => `${s.label} ${formatBps(s.bps)}`).join(' · ')}`;
 }

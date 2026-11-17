@@ -13,6 +13,7 @@
 import { isInvestResultAccount } from '../ledger/accountKind';
 import type { Entry, Line } from '../ledger/types';
 import type { SellResult } from './costBasis';
+import { coded, type InvestCode } from './errorCodes';
 import type { TradeKind, TradeRecord } from './types';
 
 export const INVEST_ACCOUNT_IDS = {
@@ -54,6 +55,8 @@ export class TradeLinkError extends Error {
   }
 }
 
+const codedLink = (code: InvestCode) => coded((m) => new TradeLinkError(m), code);
+
 function memoOf(trade: TradeRecord, assetName: string): string {
   const head = `${TRADE_KIND_LABEL[trade.kind]} ${assetName}`;
   const extra = trade.memo.trim();
@@ -68,7 +71,7 @@ export function buildTradeEntry(input: TradeEntryInput): TradeEntryResult {
     if (amount !== 0) lines.push({ accountId, amount });
   };
   const needWallet = (): string => {
-    if (walletId === undefined || walletId === '') throw new TradeLinkError('เลือกกระเป๋าเงินที่ใช้จ่ายหรือรับเงิน');
+    if (walletId === undefined || walletId === '') throw codedLink('link.pickWallet');
     return walletId;
   };
 
@@ -92,7 +95,7 @@ export function buildTradeEntry(input: TradeEntryInput): TradeEntryResult {
     if (trade.withholding > 0) used.push(INVEST_ACCOUNT_IDS.withholding);
   } else {
     const wallet = needWallet();
-    if (sell === undefined) throw new TradeLinkError('ไม่มีผลคำนวณต้นทุนของรายการขาย');
+    if (sell === undefined) throw codedLink('link.noSellResult');
     add(wallet, sell.net);
     add(assetAccountId, -sell.costOut);
     if (sell.gain > 0) {
@@ -104,7 +107,7 @@ export function buildTradeEntry(input: TradeEntryInput): TradeEntryResult {
     }
   }
 
-  if (lines.length < 2) throw new TradeLinkError('รายการนี้ไม่เปลี่ยนยอดเงินใดเลย บันทึกไม่ได้');
+  if (lines.length < 2) throw codedLink('link.noChange');
   return {
     entry: { id: entryId, date: trade.date, memo: memoOf(trade, input.assetName), source: 'manual', createdAt: trade.createdAt, lines },
     resultAccountIds: used,

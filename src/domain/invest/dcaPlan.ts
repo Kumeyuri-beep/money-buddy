@@ -7,6 +7,8 @@
  *   - เก็บในค่าตั้งค่าของผู้ใช้ (settings.dcaPlans) จึงรวมในไฟล์สำรองและถูกลบพร้อมข้อมูลของผู้ใช้โดยอัตโนมัติ
  */
 
+import type { CodedProblem } from '../errors/problem';
+import { problem, rangeError } from './errorCodes';
 import type { TradeRecord } from './types';
 import { isValidIsoDate } from '../ledger/entry';
 import { isSupportedEntryDate, lengthWithin, MAX_ID_LENGTH } from '../ledger/limits';
@@ -33,14 +35,19 @@ const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 export const isMonthKey = (v: unknown): v is string => typeof v === 'string' && MONTH.test(v) && isSupportedEntryDate(`${v}-01`);
 
 /** เหตุผลที่แผนผิดรูป (null = ใช้ได้) */
-export function dcaPlanProblem(p: DcaPlan): string | null {
-  if (!lengthWithin(p.id, 1, MAX_ID_LENGTH)) return 'รหัสแผนไม่ถูกต้อง';
-  if (!lengthWithin(p.assetId, 1, MAX_ID_LENGTH)) return 'รหัสสินทรัพย์ไม่ถูกต้อง';
-  if (!Number.isSafeInteger(p.amount) || p.amount < 1 || p.amount > MAX_SAFE) return 'เงินซื้อต่อรอบต้องเป็นสตางค์จำนวนเต็มอย่างน้อย 1';
-  if (!Number.isInteger(p.dayOfMonth) || p.dayOfMonth < 1 || p.dayOfMonth > 31) return 'วันที่ของเดือนต้องเป็น 1-31';
-  if (!isMonthKey(p.startMonth)) return 'เดือนเริ่มต้องเป็น YYYY-MM';
-  if (p.paused !== undefined && typeof p.paused !== 'boolean') return 'สถานะพักแผนไม่ถูกต้อง';
+export function dcaPlanProblemCoded(p: DcaPlan): CodedProblem | null {
+  if (!lengthWithin(p.id, 1, MAX_ID_LENGTH)) return problem('dcaplan.id');
+  if (!lengthWithin(p.assetId, 1, MAX_ID_LENGTH)) return problem('dcaplan.assetId');
+  if (!Number.isSafeInteger(p.amount) || p.amount < 1 || p.amount > MAX_SAFE) return problem('dcaplan.amount');
+  if (!Number.isInteger(p.dayOfMonth) || p.dayOfMonth < 1 || p.dayOfMonth > 31) return problem('dcaplan.day');
+  if (!isMonthKey(p.startMonth)) return problem('dcaplan.startMonth');
+  if (p.paused !== undefined && typeof p.paused !== 'boolean') return problem('dcaplan.paused');
   return null;
+}
+
+/** เหมือน dcaPlanProblemCoded แต่คืนเฉพาะข้อความไทยเดิม (สัญญาเดิม) */
+export function dcaPlanProblem(p: DcaPlan): string | null {
+  return dcaPlanProblemCoded(p)?.message ?? null;
 }
 
 /** อ่านค่าจากภายนอก (ฐานข้อมูล/ไฟล์) แบบไม่เชื่อ: เก็บเฉพาะแผนที่ถูกต้อง ไม่ซ้ำรหัส ไม่เกินเพดาน */
@@ -80,7 +87,7 @@ export function dcaDueDate(month: string, dayOfMonth: number): string {
   const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
   const day = Math.min(dayOfMonth, last);
   const iso = `${month}-${String(day).padStart(2, '0')}`;
-  if (!isValidIsoDate(iso)) throw new RangeError(`วันที่ไม่ถูกต้อง: ${iso}`);
+  if (!isValidIsoDate(iso)) throw rangeError('dcaplan.dateInvalid', { iso });
   return iso;
 }
 

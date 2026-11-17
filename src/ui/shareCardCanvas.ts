@@ -23,15 +23,16 @@ function rrect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h
 }
 
 /** ตัดข้อความที่ยาวเกินด้วย … โดยตัดทีละ "กลุ่มอักษร" (ไม่ตัดกลางสระ/วรรณยุกต์ภาษาไทย) */
-function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, locale: string): string {
   if (ctx.measureText(text).width <= maxWidth) return text;
-  const seg = typeof Intl !== 'undefined' && 'Segmenter' in Intl ? new Intl.Segmenter('th', { granularity: 'grapheme' }) : null;
+  const seg = typeof Intl !== 'undefined' && 'Segmenter' in Intl ? new Intl.Segmenter(locale, { granularity: 'grapheme' }) : null;
   const parts = seg ? Array.from(seg.segment(text), (x) => x.segment) : Array.from(text);
   while (parts.length > 1 && ctx.measureText(`${parts.join('')}…`).width > maxWidth) parts.pop();
   return `${parts.join('')}…`;
 }
 
 export function drawShareCard(ctx: CanvasRenderingContext2D, model: AllocationModel, asOfLabel: string): void {
+  const en = model.lang === 'en';
   const W = SHARE_CARD_WIDTH;
   const H = SHARE_CARD_HEIGHT;
   const bg = ctx.createLinearGradient(0, 0, W, H);
@@ -44,10 +45,11 @@ export function drawShareCard(ctx: CanvasRenderingContext2D, model: AllocationMo
   ctx.textAlign = 'left';
   ctx.fillStyle = cardColor('title');
   ctx.font = `700 60px ${FONT}`;
-  ctx.fillText('สัดส่วนพอร์ตการลงทุน', 72, 130);
+  ctx.fillText(en ? 'Investment allocation' : 'สัดส่วนพอร์ตการลงทุน', 72, 130);
   ctx.fillStyle = cardColor('subtitle');
   ctx.font = `400 32px ${FONT}`;
-  ctx.fillText(`${model.basis === 'value' ? 'ตามมูลค่า (ราคาที่ผู้ใช้กรอก)' : 'ตามต้นทุน (ราคาที่ซื้อ)'} · ${asOfLabel}`, 72, 184);
+  const basisText = en ? (model.basis === 'value' ? 'By value (prices you entered)' : 'By cost (purchase price)') : model.basis === 'value' ? 'ตามมูลค่า (ราคาที่ผู้ใช้กรอก)' : 'ตามต้นทุน (ราคาที่ซื้อ)';
+  ctx.fillText(`${basisText} · ${asOfLabel}`, 72, 184);
 
   // แถบสัดส่วน (ความกว้างเป็นพิกเซลเพื่อวาดเท่านั้น ไม่ใช่ยอดเงิน)
   const barX = 72;
@@ -84,7 +86,7 @@ export function drawShareCard(ctx: CanvasRenderingContext2D, model: AllocationMo
     ctx.fillStyle = cardColor('label');
     ctx.font = `400 42px ${FONT}`;
     ctx.textAlign = 'left';
-    ctx.fillText(fitText(ctx, s.label, 600), 136, y);
+    ctx.fillText(fitText(ctx, s.label, 600, en ? 'en' : 'th'), 136, y);
     ctx.font = `700 46px ${FONT}`;
     ctx.textAlign = 'right';
     ctx.fillText(formatBps(s.bps), W - 72, y);
@@ -93,7 +95,7 @@ export function drawShareCard(ctx: CanvasRenderingContext2D, model: AllocationMo
   ctx.textAlign = 'left';
   ctx.fillStyle = cardColor('note');
   ctx.font = `400 34px ${FONT}`;
-  ctx.fillText('แสดงเฉพาะสัดส่วน ไม่แสดงยอดเงิน', 72, H - 110);
+  ctx.fillText(en ? 'Shows allocation only, no amounts' : 'แสดงเฉพาะสัดส่วน ไม่แสดงยอดเงิน', 72, H - 110);
   ctx.fillStyle = cardColor('brand');
   ctx.font = `700 34px ${FONT}`;
   ctx.fillText('Money Buddy', 72, H - 60);

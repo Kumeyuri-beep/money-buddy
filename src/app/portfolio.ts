@@ -7,8 +7,10 @@
  */
 
 import { daysBetween } from '../domain/bills/calendar';
+import { hasCode, type ErrorParams } from '../domain/errors/coded';
 import { averageCostMicro, type Position } from '../domain/invest/costBasis';
 import { marketSummary, type MarketSummary } from '../domain/invest/dca';
+import { investMsg } from '../domain/invest/errorCodes';
 import { replayRecords } from '../domain/invest/rules';
 import type { Asset, InvestmentData } from '../domain/invest/types';
 import { safeAdd } from '../domain/money/safe';
@@ -29,6 +31,9 @@ export interface AssetRowView {
   /** ปันผลเงินสดสุทธิหลังหักภาษี (สตางค์) */
   dividendsNet: number;
   error?: string;
+  /** รหัส error + พารามิเตอร์ (ถ้ามี) ให้หน้า /invest แสดงข้อความอังกฤษ · message ไทยเดิมอยู่ใน error */
+  errorCode?: string;
+  errorParams?: ErrorParams;
 }
 
 export interface PortfolioTotals {
@@ -101,7 +106,8 @@ export function buildPortfolio(data: InvestmentData, today: string): Portfolio {
         market: null,
         realizedGain: 0,
         dividendsNet: 0,
-        error: e instanceof Error ? e.message : 'ข้อมูลรายการไม่สอดคล้อง',
+        error: e instanceof Error ? e.message : investMsg('portfolio.inconsistent'),
+        ...(hasCode(e) ? { errorCode: e.code, errorParams: e.params } : e instanceof Error ? {} : { errorCode: 'portfolio.inconsistent' }),
       };
     }
     rows.push(row);

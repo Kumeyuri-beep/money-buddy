@@ -7,6 +7,7 @@
  */
 
 import { roundHalfUpBig } from '../money/round';
+import { rangeError, syntaxError } from './errorCodes';
 
 export const UNIT_SCALE = 100_000_000n;
 const UNIT_DECIMALS = 8;
@@ -25,12 +26,12 @@ interface Decimal {
 }
 
 /** อ่านเลขทศนิยมล้วน: ไม่รับเครื่องหมาย, scientific, ข้อความว่าง · ตัด "," และช่องว่าง */
-function readDecimal(input: string, label: string): Decimal {
+function readDecimal(input: string, kind: 'units' | 'price'): Decimal {
   const cleaned = input.trim();
   const m = PLAIN_DECIMAL.exec(cleaned);
   const int = (m?.[1] ?? '').replace(/,/g, '');
   const frac = m?.[2] ?? '';
-  if (!m || (int === '' && frac === '')) throw new SyntaxError(`อ่าน${label}ไม่ได้: "${input}"`);
+  if (!m || (int === '' && frac === '')) throw syntaxError('units.unreadable', { kind, input });
   return { int: int === '' ? '0' : int, frac };
 }
 
@@ -43,29 +44,29 @@ function scaleUp(d: Decimal, decimals: number): bigint {
 
 /** "1,000.5" -> 100_050_000_000n · ลบ/ศูนย์/ปัดแล้วเป็นศูนย์ ปฏิเสธ (SyntaxError) · เกิน 10^12 หน่วย RangeError */
 export function parseUnits(input: string): bigint {
-  const d = readDecimal(input, 'จำนวนหน่วย');
+  const d = readDecimal(input, 'units');
   const value = scaleUp(d, UNIT_DECIMALS);
-  if (value === 0n) throw new SyntaxError('จำนวนหน่วยต้องมากกว่า 0 (ละเอียดสุด 8 ตำแหน่ง)');
+  if (value === 0n) throw syntaxError('units.zero');
   assertUnitsInRange(value);
   return value;
 }
 
 export function assertUnitsInRange(units: bigint): void {
-  if (units > MAX_UNITS) throw new RangeError('จำนวนหน่วยมากเกินช่วงที่รองรับ');
+  if (units > MAX_UNITS) throw rangeError('units.tooMany');
 }
 
 /** "12.3456" -> 12_345_600 micro-baht · ต่ำกว่า 0.000001 บาท/ลบ/ศูนย์ ปฏิเสธ (ไม่ปัดเป็น 0 เงียบๆ) */
 export function parsePriceMicro(input: string): number {
-  const d = readDecimal(input, 'ราคา');
+  const d = readDecimal(input, 'price');
   const value = scaleUp(d, PRICE_DECIMALS);
-  if (value === 0n) throw new SyntaxError('ราคาต้องมากกว่า 0 (ละเอียดสุด 0.000001 บาท)');
-  if (value > BigInt(Number.MAX_SAFE_INTEGER)) throw new RangeError('ราคาสูงเกินช่วงที่รองรับ');
+  if (value === 0n) throw syntaxError('units.priceZero');
+  if (value > BigInt(Number.MAX_SAFE_INTEGER)) throw rangeError('units.priceTooHigh');
   return Number(value);
 }
 
 /** 150_000_000n -> "1.5" (ตัดศูนย์ท้าย) */
 export function formatUnits(units: bigint): string {
-  if (units < 0n) throw new RangeError('จำนวนหน่วยติดลบไม่ได้');
+  if (units < 0n) throw rangeError('units.negative');
   const whole = units / UNIT_SCALE;
   const frac = (units % UNIT_SCALE).toString().padStart(UNIT_DECIMALS, '0').replace(/0+$/, '');
   return `${whole}${frac ? `.${frac}` : ''}`;
@@ -73,20 +74,20 @@ export function formatUnits(units: bigint): string {
 
 export function assertPriceMicro(priceMicro: number): void {
   if (!Number.isSafeInteger(priceMicro) || priceMicro <= 0) {
-    throw new RangeError(`ราคาต่อหน่วยต้องเป็นจำนวนเต็ม micro-baht ที่มากกว่า 0 (ได้รับ ${String(priceMicro)})`);
+    throw rangeError('units.priceMicroInvalid', { got: String(priceMicro) });
   }
 }
 
 export function toSafeSatang(value: bigint): number {
   if (value > BigInt(Number.MAX_SAFE_INTEGER) || value < BigInt(Number.MIN_SAFE_INTEGER)) {
-    throw new RangeError('ผลลัพธ์เกินช่วงจำนวนเต็มปลอดภัย');
+    throw rangeError('units.resultOutOfRange');
   }
   return Number(value) || 0; // กัน -0
 }
 
 /** มูลค่า = units x ราคา เป็นสตางค์ ปัดครั้งเดียว (ค่า 0 สตางค์เป็นไปได้ ผู้เรียกระดับรายการต้องปฏิเสธเอง) */
 export function valueInSatang(units: bigint, priceMicro: number): number {
-  if (units < 0n) throw new RangeError('จำนวนหน่วยติดลบไม่ได้');
+  if (units < 0n) throw rangeError('units.negative');
   assertPriceMicro(priceMicro);
   return toSafeSatang(roundHalfUpBig(units * BigInt(priceMicro), SATANG_DIVISOR));
 }

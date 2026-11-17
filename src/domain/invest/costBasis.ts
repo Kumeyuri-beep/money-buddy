@@ -9,6 +9,7 @@
 
 import { roundHalfUpBig } from '../money/round';
 import { safeAdd, safeSub } from '../money/safe';
+import { rangeError } from './errorCodes';
 import { assertPriceMicro, assertUnitsInRange, SATANG_DIVISOR, toSafeSatang, valueInSatang } from './units';
 
 export interface Position {
@@ -42,16 +43,16 @@ export interface SellResult {
   gain: number;
 }
 
-function assertSatangInt(value: number, name: string, min: number): void {
+function assertSatangInt(value: number, name: 'buyValue' | 'fee', min: number): void {
   if (!Number.isSafeInteger(value) || value < min) {
-    throw new RangeError(`${name} ต้องเป็นจำนวนเต็มสตางค์ที่ไม่ต่ำกว่า ${min} (ได้รับ ${String(value)})`);
+    throw rangeError('trade.satangInt', { name, min, got: String(value) });
   }
 }
 
 export function applyBuy(position: Position, input: BuyInput): Position {
-  if (input.units <= 0n) throw new RangeError('จำนวนหน่วยที่ซื้อต้องมากกว่า 0');
-  assertSatangInt(input.amount, 'มูลค่าซื้อ', 1);
-  assertSatangInt(input.fee, 'ค่าธรรมเนียม', 0);
+  if (input.units <= 0n) throw rangeError('trade.buyUnitsPositive');
+  assertSatangInt(input.amount, 'buyValue', 1);
+  assertSatangInt(input.fee, 'fee', 0);
   const cost = safeAdd(position.cost, safeAdd(input.amount, input.fee));
   const units = position.units + input.units;
   assertUnitsInRange(units);
@@ -60,13 +61,13 @@ export function applyBuy(position: Position, input: BuyInput): Position {
 
 export function applySell(position: Position, input: SellInput): SellResult {
   if (position.units < 0n || !Number.isSafeInteger(position.cost) || position.cost < 0 || (position.units > 0n && position.cost < 1)) {
-    throw new RangeError('ตำแหน่งการลงทุนไม่ถูกต้อง');
+    throw rangeError('trade.positionInvalid');
   }
-  if (input.units <= 0n) throw new RangeError('จำนวนหน่วยที่ขายต้องมากกว่า 0');
-  if (input.units > position.units) throw new RangeError('ขายเกินจำนวนหน่วยที่ถืออยู่');
-  assertSatangInt(input.fee, 'ค่าธรรมเนียม', 0);
+  if (input.units <= 0n) throw rangeError('trade.sellUnitsPositive');
+  if (input.units > position.units) throw rangeError('trade.sellExceedsHeld');
+  assertSatangInt(input.fee, 'fee', 0);
   const gross = valueInSatang(input.units, input.priceMicro);
-  if (input.fee > gross) throw new RangeError('ค่าธรรมเนียมขายเกินเงินที่ขายได้');
+  if (input.fee > gross) throw rangeError('trade.sellFeeExceedsGross');
   const net = safeSub(gross, input.fee);
 
   let costOut: number;
@@ -90,7 +91,7 @@ export function applySell(position: Position, input: SellInput): SellResult {
 export function averageCostMicro(position: Position): number | null {
   if (position.units === 0n) return null;
   if (position.units < 0n || !Number.isSafeInteger(position.cost) || position.cost < 0) {
-    throw new RangeError('ตำแหน่งการลงทุนไม่ถูกต้อง');
+    throw rangeError('trade.positionInvalid');
   }
   return toSafeSatang(roundHalfUpBig(BigInt(position.cost) * SATANG_DIVISOR, position.units));
 }
@@ -134,7 +135,7 @@ export function replayTrades(trades: readonly Trade[]): ReplayResult {
     }
   }
   if (totalCost !== totalCostOut + position.cost || (position.units === 0n) !== (position.cost === 0)) {
-    throw new RangeError('ต้นทุนไม่สมดุลหลังเล่นซ้ำรายการ');
+    throw rangeError('trade.costImbalance');
   }
   return { position, totalCost, totalCostOut, realizedGain, sells };
 }

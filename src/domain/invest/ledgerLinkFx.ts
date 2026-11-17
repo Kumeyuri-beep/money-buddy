@@ -13,6 +13,7 @@
 
 import type { Entry, Line } from '../ledger/types';
 import type { SellFxResult } from './costBasisFx';
+import { coded, type InvestCode } from './errorCodes';
 import type { FxExchangeRecord, TradeRecord } from './types';
 
 export const USD_RESULT_ACCOUNT_IDS = {
@@ -49,6 +50,8 @@ export interface UsdTradeEntryResult {
   resultAccountIds: string[];
 }
 
+const codedLink = (code: InvestCode) => coded((m) => new UsdLinkError(m), code);
+
 const KIND_LABEL: Partial<Record<TradeRecord['kind'], string>> = { buy: 'ซื้อ', sell: 'ขาย', dividend: 'ปันผล' };
 
 function tradeMemo(trade: TradeRecord, assetName: string): string {
@@ -59,7 +62,7 @@ function tradeMemo(trade: TradeRecord, assetName: string): string {
 
 export function buildUsdTradeEntry(input: UsdTradeEntryInput): UsdTradeEntryResult {
   const { trade, assetAccountId, cashAccountId, entryId, sell } = input;
-  if (cashAccountId === '') throw new UsdLinkError('เลือกบัญชีเงินสด USD ที่ใช้จ่ายหรือรับเงิน');
+  if (cashAccountId === '') throw codedLink('link.pickUsdCash');
   const lines: Line[] = [];
   const used: string[] = [];
   const add = (accountId: string, amount: number): void => {
@@ -78,7 +81,7 @@ export function buildUsdTradeEntry(input: UsdTradeEntryInput): UsdTradeEntryResu
     used.push(USD_RESULT_ACCOUNT_IDS.dividend);
     if (trade.withholding > 0) used.push(USD_RESULT_ACCOUNT_IDS.withholding);
   } else if (trade.kind === 'sell') {
-    if (sell === undefined) throw new UsdLinkError('ไม่มีผลคำนวณต้นทุนของรายการขาย');
+    if (sell === undefined) throw codedLink('link.noSellResult');
     add(cashAccountId, sell.netUsd);
     add(assetAccountId, -sell.costOutUsd);
     if (sell.priceGainUsd > 0) {
@@ -89,10 +92,10 @@ export function buildUsdTradeEntry(input: UsdTradeEntryInput): UsdTradeEntryResu
       used.push(USD_RESULT_ACCOUNT_IDS.loss);
     }
   } else {
-    throw new UsdLinkError('หุ้นสหรัฐยังไม่รองรับปันผลลงทุนต่อ');
+    throw codedLink('link.usdNoReinvest');
   }
 
-  if (lines.length < 2) throw new UsdLinkError('รายการนี้ไม่เปลี่ยนยอดเงินใดเลย บันทึกไม่ได้');
+  if (lines.length < 2) throw codedLink('link.noChange');
   return {
     entry: { id: entryId, date: trade.date, memo: tradeMemo(trade, input.assetName), source: 'manual', createdAt: trade.createdAt, lines },
     resultAccountIds: used,
@@ -116,8 +119,8 @@ export interface FxExchangeEntryResult {
 
 export function buildFxExchangeEntry(input: FxExchangeEntryInput): FxExchangeEntryResult {
   const { exchange: x, walletId, cashAccountId, entryId } = input;
-  if (walletId === '') throw new UsdLinkError('เลือกกระเป๋าเงินบาท');
-  if (cashAccountId === '') throw new UsdLinkError('เลือกบัญชีเงินสด USD');
+  if (walletId === '') throw codedLink('link.pickThbWallet');
+  if (cashAccountId === '') throw codedLink('link.pickUsdCashShort');
   const sign = x.direction === 'thb_to_usd' ? 1 : -1;
   const lines: Line[] = [
     { accountId: walletId, amount: -sign * x.thbSatang },

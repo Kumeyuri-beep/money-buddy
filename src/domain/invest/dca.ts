@@ -6,16 +6,17 @@
 
 import { roundHalfUpBig } from '../money/round';
 import { safeAdd, safeSub } from '../money/safe';
+import { rangeError } from './errorCodes';
 import { applyBuy, type Position } from './costBasis';
 import { assertPriceMicro, assertUnitsInRange, SATANG_DIVISOR, valueInSatang } from './units';
 
 export function dcaUnits(amountSatang: number, priceMicro: number): bigint {
   if (!Number.isSafeInteger(amountSatang) || amountSatang <= 0) {
-    throw new RangeError(`จำนวนเงินซื้อต้องเป็นสตางค์จำนวนเต็มที่มากกว่า 0 (ได้รับ ${String(amountSatang)})`);
+    throw rangeError('dca.amountInvalid', { got: String(amountSatang) });
   }
   assertPriceMicro(priceMicro);
   const units = roundHalfUpBig(BigInt(amountSatang) * SATANG_DIVISOR, BigInt(priceMicro));
-  if (units <= 0n) throw new RangeError('จำนวนเงินน้อยเกินไปจนได้หน่วยเป็น 0');
+  if (units <= 0n) throw rangeError('dca.unitsZero');
   assertUnitsInRange(units);
   return units;
 }
