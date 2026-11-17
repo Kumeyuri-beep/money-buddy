@@ -1,15 +1,8 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
+import { groupOfPage, INVEST_GROUPS, investPage, type InvestMenuGroup, type InvestPageId } from '../../app/investRoute';
 import { PORTFOLIO_NAME_MAX, PORTFOLIO_NOTE_MAX } from '../../domain/bills/settings';
 import { TipButton } from './Tip';
 import type { InvestCurrency, PortfolioSettings } from './InvestContext';
-
-export type InvestTab = 'dashboard' | 'analysis' | 'transactions' | 'tools';
-export const INVEST_TABS: { id: InvestTab; label: string }[] = [
-  { id: 'dashboard', label: 'Dashboard' },
-  { id: 'analysis', label: 'Analytics' },
-  { id: 'transactions', label: 'Portfolio' },
-  { id: 'tools', label: 'Tools' },
-];
 
 const initials = (name: string): string => {
   const words = name.trim().split(/\s+/).filter(Boolean);
@@ -169,9 +162,13 @@ function PortfolioMenu({ portfolio, onSave }: MenuProps) {
 }
 
 interface Props {
-  tab: InvestTab;
-  onTab: (t: InvestTab) => void;
-  tabRefs: RefObject<Record<InvestTab, HTMLButtonElement | null>>;
+  page: InvestPageId;
+  /** ไปหน้าที่เลือก (ผู้ใช้กดเมนู: InvestMode ผูก history และย้ายโฟกัสมาที่เนื้อหา) */
+  onNavigate: (id: InvestPageId) => void;
+  /** URL จริงของแต่ละหน้า (ใส่ใน href เพื่อเปิดแท็บใหม่/คัดลอกลิงก์ได้) */
+  hrefFor: (id: InvestPageId) => string;
+  /** My goal → ไปหน้าแผนเกษียณ (ไม่มี = ปุ่มปิดอยู่) */
+  onGoal?: () => void;
   onAdd: () => void;
   currency: InvestCurrency;
   onCurrency: (c: InvestCurrency) => void;
@@ -179,44 +176,209 @@ interface Props {
   onSavePortfolio: (next: PortfolioSettings) => Promise<void>;
 }
 
-/** แถบบนของโหมด /invest (ภาษาอังกฤษ): แท็บซ้าย · ปุ่มขวา (AI, Add, Search, Watchlist, สกุล, เมนูพอร์ต) */
-export function InvestTopBar({ tab, onTab, tabRefs, onAdd, currency, onCurrency, portfolio, onSavePortfolio }: Props) {
-  const onKey = (e: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
-    let next = -1;
-    if (e.key === 'ArrowRight') next = (index + 1) % INVEST_TABS.length;
-    else if (e.key === 'ArrowLeft') next = (index - 1 + INVEST_TABS.length) % INVEST_TABS.length;
-    else if (e.key === 'Home') next = 0;
-    else if (e.key === 'End') next = INVEST_TABS.length - 1;
-    if (next < 0) return;
-    e.preventDefault();
-    const id = INVEST_TABS[next]!.id;
-    onTab(id);
-    tabRefs.current?.[id]?.focus();
+const isPlainClick = (e: ReactMouseEvent): boolean => e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
+
+/**
+ * เมนูหลักของโหมด /invest: Dashboard เป็นลิงก์ · Analytics / Portfolio / Tools เป็นปุ่มที่เปิดเมนูเลื่อนลง
+ * เปิดด้วย: ชี้เมาส์ · โฟกัสด้วยคีย์บอร์ด · กด/แตะ (มือถือ) · ลูกศรลง · ปิดด้วย Esc / คลิกที่อื่น / โฟกัสออก
+ * คีย์บอร์ด: ลูกศรลง/ขึ้น เลื่อนระหว่างรายการ · ซ้าย/ขวา ข้ามไปเมนูหลักข้างเคียง · Home/End ไปรายการแรก/สุดท้าย
+ */
+function MainNav({ page, onNavigate, hrefFor, onGoal }: Pick<Props, 'page' | 'onNavigate' | 'hrefFor' | 'onGoal'>) {
+  const [open, setOpen] = useState<InvestMenuGroup['id'] | null>(null);
+  const navRef = useRef<HTMLElement>(null);
+  const openedByHover = useRef(false);
+  const activeGroup = groupOfPage(page);
+
+  const triggers = (): HTMLElement[] => Array.from(navRef.current?.querySelectorAll<HTMLElement>('[data-iv-trigger]') ?? []);
+  const itemsOf = (id: string): HTMLElement[] => Array.from(navRef.current?.querySelectorAll<HTMLElement>(`[data-iv-panel="${id}"] [data-iv-item]:not(:disabled)`) ?? []);
+  const triggerOf = (id: string): HTMLElement | null => navRef.current?.querySelector<HTMLElement>(`[data-iv-trigger="${id}"]`) ?? null;
+  const close = (returnFocusTo?: string) => {
+    setOpen(null);
+    openedByHover.current = false;
+    if (returnFocusTo) triggerOf(returnFocusTo)?.focus();
+  };
+
+  useEffect(() => {
+    if (open === null) return;
+    const onDown = (e: Event) => {
+      if (navRef.current && !navRef.current.contains(e.target as Node)) {
+        setOpen(null);
+        openedByHover.current = false;
+      }
+    };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [open]);
+
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLElement>) => {
+    const el = e.target as HTMLElement;
+    const trigger = el.closest<HTMLElement>('[data-iv-trigger]');
+    const panel = el.closest<HTMLElement>('[data-iv-panel]');
+    const groupId = (trigger?.getAttribute('data-iv-trigger') ?? panel?.getAttribute('data-iv-panel')) as InvestMenuGroup['id'] | null;
+    if (e.key === 'Escape' && open !== null) {
+      e.preventDefault();
+      e.stopPropagation();
+      close(open);
+      return;
+    }
+    if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && groupId) {
+      const list = triggers();
+      const from = triggerOf(groupId);
+      if (!from) return;
+      e.preventDefault();
+      const next = list[(list.indexOf(from) + (e.key === 'ArrowRight' ? 1 : -1) + list.length) % list.length];
+      next?.focus();
+      const nextId = next?.getAttribute('data-iv-trigger') ?? null;
+      // ถ้าเมนูเปิดอยู่ ให้เมนูข้างเคียงเปิดตาม (ยกเว้น Dashboard ที่ไม่มีเมนูย่อย)
+      if (open !== null) setOpen(next?.tagName === 'BUTTON' && nextId ? (nextId as InvestMenuGroup['id']) : null);
+      return;
+    }
+    if (trigger && trigger.tagName === 'BUTTON' && (e.key === 'ArrowDown' || e.key === 'ArrowUp') && groupId) {
+      e.preventDefault();
+      setOpen(groupId);
+      const focusEnd = () => {
+        const items = itemsOf(groupId);
+        (e.key === 'ArrowDown' ? items[0] : items[items.length - 1])?.focus();
+      };
+      if (open === groupId) focusEnd();
+      else requestAnimationFrame(focusEnd);
+      return;
+    }
+    if (panel && groupId && ['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
+      e.preventDefault();
+      const items = itemsOf(groupId);
+      const i = items.indexOf(el);
+      if (e.key === 'Home') items[0]?.focus();
+      else if (e.key === 'End') items[items.length - 1]?.focus();
+      else if (e.key === 'ArrowDown') items[(i + 1) % items.length]?.focus();
+      else if (i <= 0) triggerOf(groupId)?.focus();
+      else items[i - 1]?.focus();
+    }
   };
 
   return (
-    <div className="iv-topbar glass-lite" lang="en">
-      <div className="iv-tabs" role="tablist" aria-label="Portfolio sections">
-        {INVEST_TABS.map((t, i) => (
-          <button
-            key={t.id}
-            ref={(el) => {
-              if (tabRefs.current) tabRefs.current[t.id] = el;
+    <nav className="iv-nav" aria-label="Portfolio sections" ref={navRef} onKeyDown={onKeyDown}>
+      {INVEST_GROUPS.map((g) => {
+        const active = activeGroup === g.id;
+        if (g.page) {
+          const target = g.page;
+          return (
+            <div className="iv-nav-item" key={g.id}>
+              <a
+                href={hrefFor(target)}
+                data-iv-trigger={g.id}
+                className={`iv-tab${active ? ' is-active' : ''}`}
+                aria-current={page === target ? 'page' : undefined}
+                onClick={(e) => {
+                  if (!isPlainClick(e)) return;
+                  e.preventDefault();
+                  close();
+                  onNavigate(target);
+                }}
+              >
+                {g.label}
+              </a>
+            </div>
+          );
+        }
+        const isOpen = open === g.id;
+        const panelId = `iv-menu-${g.id}`;
+        return (
+          <div
+            className={`iv-nav-item${isOpen ? ' is-open' : ''}`}
+            key={g.id}
+            onPointerEnter={(e) => {
+              if (e.pointerType !== 'mouse') return;
+              if (open !== g.id) openedByHover.current = true;
+              setOpen(g.id);
             }}
-            type="button"
-            role="tab"
-            id={`inv-tab-${t.id}`}
-            aria-selected={tab === t.id}
-            aria-controls="inv-panel"
-            tabIndex={tab === t.id ? 0 : -1}
-            className={`iv-tab${tab === t.id ? ' is-active' : ''}`}
-            onClick={() => onTab(t.id)}
-            onKeyDown={(e) => onKey(e, i)}
+            onPointerLeave={(e) => {
+              if (e.pointerType === 'mouse' && open === g.id) close();
+            }}
+            onFocus={(e) => {
+              // เปิดเมื่อโฟกัสปุ่มหลักด้วยคีย์บอร์ดเท่านั้น (คลิกด้วยเมาส์/แตะ ให้ onClick จัดการเอง)
+              const t = e.target as HTMLElement;
+              if (t.hasAttribute('data-iv-trigger') && t.matches(':focus-visible')) setOpen(g.id);
+            }}
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen((cur) => (cur === g.id ? null : cur));
+            }}
           >
-            {t.label}
-          </button>
-        ))}
-      </div>
+            <button
+              type="button"
+              data-iv-trigger={g.id}
+              id={`iv-trigger-${g.id}`}
+              className={`iv-tab${active ? ' is-active' : ''}`}
+              aria-expanded={isOpen}
+              aria-controls={isOpen ? panelId : undefined}
+              onClick={() => {
+                if (isOpen && !openedByHover.current) close();
+                else {
+                  openedByHover.current = false;
+                  setOpen(g.id);
+                }
+              }}
+            >
+              {g.label}
+              <span className="iv-caret" aria-hidden="true">
+                ▾
+              </span>
+            </button>
+            {isOpen && (
+              <div className="iv-submenu" id={panelId} data-iv-panel={g.id} role="group" aria-labelledby={`iv-trigger-${g.id}`}>
+                {g.sections.map((s, si) => (
+                  <ul className="iv-submenu-sec" key={si}>
+                    {s.items.map((it) => (
+                      <li key={it.label}>
+                        {it.kind === 'goal' ? (
+                          <button
+                            type="button"
+                            data-iv-item
+                            className="iv-submenu-link"
+                            disabled={onGoal === undefined}
+                            onClick={() => {
+                              close();
+                              onGoal?.();
+                            }}
+                          >
+                            {it.label}
+                            <span className="iv-submenu-hint">Retirement plan</span>
+                          </button>
+                        ) : (
+                          <a
+                            data-iv-item
+                            className="iv-submenu-link"
+                            href={hrefFor(it.page!)}
+                            aria-current={page === it.page ? 'page' : undefined}
+                            onClick={(e) => {
+                              if (!isPlainClick(e)) return;
+                              e.preventDefault();
+                              close();
+                              onNavigate(it.page!);
+                            }}
+                          >
+                            {it.label}
+                            {investPage(it.page!).status === 'soon' && <span className="iv-submenu-hint">Soon</span>}
+                          </a>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </nav>
+  );
+}
+
+/** แถบบนของโหมด /invest (ภาษาอังกฤษ): เมนูหลักซ้าย (มีเมนูเลื่อนลง) · ปุ่มขวา (AI, Add, Search, Watchlist, สกุล, เมนูพอร์ต) */
+export function InvestTopBar({ page, onNavigate, hrefFor, onGoal, onAdd, currency, onCurrency, portfolio, onSavePortfolio }: Props) {
+  return (
+    <div className="iv-topbar glass-lite" lang="en">
+      <MainNav page={page} onNavigate={onNavigate} hrefFor={hrefFor} onGoal={onGoal} />
       <div className="iv-actions">
         <TipButton className="iv-icon-btn iv-ai" tip="Ask AI — coming soon" ariaLabel="Ask AI">
           <Icon d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8z" />

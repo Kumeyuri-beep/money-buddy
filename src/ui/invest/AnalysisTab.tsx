@@ -9,10 +9,10 @@ import { CurrencyCard, DividendCard } from './analysis/SideCards';
 import './analysis/analysis.css';
 
 /**
- * แท็บ "Analytics" (เดิม "วิเคราะห์") (แบบ A แนว Snowball · ลูกน้อง 2): ตารางหุ้นที่ถือ (ทั่วไป/ปันผล/กำไร) ผลตอบแทนรายเดือน สัดส่วนสกุลเงิน ปันผลเทียบเงินลงทุน
+ * แท็บ "Analytics" (เมนู Analytics → Common และ Growth · Growth = ตารางผลตอบแทนรายเดือน) (แบบ A แนว Snowball · ลูกน้อง 2): ตารางหุ้นที่ถือ (ทั่วไป/ปันผล/กำไร) ผลตอบแทนรายเดือน สัดส่วนสกุลเงิน ปันผลเทียบเงินลงทุน
  * ตัวเลขทุกตัวมาจากฟังก์ชันใน src/domain (ผ่าน analysis/analysisModel) ไม่มีสูตรเงินในคอมโพเนนต์ · สกุลที่แสดงตามปุ่ม ฿/USD ที่หัวโหมด
  */
-export function AnalysisTab() {
+export function AnalysisTab({ part }: { part: 'common' | 'growth' }) {
   const { today, accounts, entries, data, currency } = useInvest();
   const built = useMemo(() => {
     if (data === null) return { model: null, failed: false };
@@ -28,7 +28,7 @@ export function AnalysisTab() {
   return (
     <div className="invest-tab invest-analysis">
       <header className="an-head">
-        <h2 id="inv-analysis-title">Analytics</h2>
+        <h2 id="inv-analysis-title">{part === 'growth' ? 'Analytics · Growth' : 'Analytics'}</h2>
         <p className="muted">Every figure is calculated from your recorded transactions. Prices are never guessed.</p>
       </header>
       {built.failed ? (
@@ -42,19 +42,22 @@ export function AnalysisTab() {
       ) : !model.hasStocks ? (
         <section className="solid card an-card" aria-labelledby="an-empty-title">
           <h2 id="an-empty-title">No US stocks yet</h2>
-          <p className="muted">Add a stock and record a purchase in the Transactions tab, then come back to see your holdings, monthly returns and dividends here.</p>
+          <p className="muted">Add a stock and record a purchase under Portfolio → Holdings, then come back to see your holdings, monthly returns and dividends here.</p>
         </section>
       ) : (
-        <>
-          <HoldingsCard model={model} currency={currency} />
-          <ProfitSourcesCard profit={model.profit} currency={currency} />
+        part === 'growth' ? (
           <MonthlyReturnsCard model={model} />
-          <div className="an-pair">
-            <CurrencyCard model={model} />
-            <DividendCard model={model} currency={currency} />
-          </div>
-          <CardUnavailable id="inv-analysis-today" title="Today's movers" />
-        </>
+        ) : (
+          <>
+            <HoldingsCard model={model} currency={currency} />
+            <ProfitSourcesCard profit={model.profit} currency={currency} />
+            <div className="an-pair">
+              <CurrencyCard model={model} />
+              <DividendCard model={model} currency={currency} />
+            </div>
+            <CardUnavailable id="inv-analysis-today" title="Today's movers" />
+          </>
+        )
       )}
     </div>
   );

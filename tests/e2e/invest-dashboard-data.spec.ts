@@ -157,8 +157,8 @@ for (const w of WIDTHS) {
         await expect(page.getByRole('tooltip').filter({ hasText: tip }).first()).toBeVisible();
       }
       await page.getByRole('button', { name: 'Add', exact: true }).click();
-      await expect(page.getByRole('tab', { name: 'Portfolio', exact: true })).toHaveAttribute('aria-selected', 'true');
-      await expect(page.getByRole('tab', { name: 'US stocks', exact: true })).toHaveAttribute('aria-selected', 'true');
+      expect(new URL(page.url()).hash).toBe('#/invest/portfolio/holdings'); // Add → Portfolio → Holdings (ฟอร์มเพิ่มรายการหุ้นสหรัฐ)
+      await expect(page.getByRole('heading', { name: 'US stock portfolio', level: 2 })).toBeVisible();
     });
 
     test('ชี้แถว/โฟกัสแถว: ชิ้นนั้นพองออก ชิ้นอื่นจางลง แถวไฮไลต์ กลางวงแสดงรายการ', async ({ page }) => {

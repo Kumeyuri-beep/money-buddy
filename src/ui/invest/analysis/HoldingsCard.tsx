@@ -51,7 +51,7 @@ export function HoldingsCard({ model, currency }: { model: AnalysisModel; curren
     return (
       <section className="solid card an-card" aria-labelledby="an-hold-title">
         <h2 id="an-hold-title">Holdings</h2>
-        <p className="muted">No US stocks yet. Add a stock and record a purchase in the Transactions tab.</p>
+        <p className="muted">No US stocks yet. Add a stock and record a purchase under Portfolio → Holdings.</p>
       </section>
     );
   }
@@ -90,7 +90,7 @@ export function HoldingsCard({ model, currency }: { model: AnalysisModel; curren
       </div>
       {!complete && (
         <p className="muted small" role="status">
-          ⚠ Incomplete: some stocks have no price or exchange rate. Cost is never used in place of value. Enter them in the Transactions tab.
+          ⚠ Incomplete: some stocks have no price or exchange rate. Cost is never used in place of value. Enter them under Portfolio → Holdings.
         </p>
       )}
       <div id="an-sub-panel" role="tabpanel" aria-labelledby={`an-sub-${sub}`}>
