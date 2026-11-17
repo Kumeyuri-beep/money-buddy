@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { friendlyError } from '../../app/errorText';
+import { investError } from './investError';
 import { buildInvestBadge } from '../../app/investBadge';
 import type { InvestmentData } from '../../domain/invest/types';
 import type { Account, Entry } from '../../domain/ledger/types';
@@ -51,7 +51,7 @@ export default function InvestMode({ today, accounts, entries, wallets, onLedger
       setData(await repo.loadInvestments());
       setLoadError('');
     } catch (e) {
-      setLoadError(friendlyError(e));
+      setLoadError(investError(e));
     }
   }, [repo]);
   useEffect(() => {

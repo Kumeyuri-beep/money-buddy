@@ -1,5 +1,6 @@
 import { formatDateEn } from '../app/dateEn';
 import type { AssetRowView } from '../app/portfolio';
+import { investProblem } from './invest/investError';
 import { daysBetween } from '../domain/bills/calendar';
 import type { AssetKind } from '../domain/invest/types';
 import { formatUnits } from '../domain/invest/units';
@@ -22,7 +23,7 @@ export function AssetFigures({ row, today }: { row: AssetRowView; today: string 
       </div>
       {row.error ? (
         <p role="alert" className="form-error">
-          This asset's trade records are inconsistent: {row.error}
+          This asset's trade records are inconsistent: {investProblem({ message: row.error, code: row.errorCode, params: row.errorParams })}
         </p>
       ) : (
         <dl className="asset-figures muted small">

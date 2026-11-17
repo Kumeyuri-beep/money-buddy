@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { friendlyError } from '../app/errorText';
+import { investError, investProblem } from './invest/investError';
 import { baht, signed } from '../app/bahtFormat';
 import { formatDateEn } from '../app/dateEn';
 import { newId } from '../app/ids';
@@ -87,7 +87,7 @@ function Field(props: {
   );
 }
 
-const errOf = <F extends string>(errors: UsFormError<F>[], field: F): string | undefined => errors.find((e) => e.field === field)?.message;
+const errOf = <F extends string>(errors: UsFormError<F>[], field: F): string | undefined => (() => { const f = errors.find((e) => e.field === field); return f ? investProblem(f) : undefined; })();
 
 /** แท็บ "หุ้นสหรัฐ": หุ้นสกุล USD (หุ้นเศษส่วนได้) แลกเงินบาท↔USD ราคา/อัตรากรอกเอง (A3-2 · R20) */
 export function UsStocksView({ today, accounts, entries, wallets, onLedgerChanged }: Props) {
@@ -119,7 +119,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
       setData(await repo.loadInvestments());
       setLoadError('');
     } catch (e) {
-      setLoadError(friendlyError(e));
+      setLoadError(investError(e));
     }
   }, [repo]);
   useEffect(() => {
@@ -163,7 +163,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
     setMessage({ text, kind: 'ok' });
     close();
   };
-  const fail = (e: unknown) => setMessage({ text: friendlyError(e), kind: 'error' });
+  const fail = (e: unknown) => setMessage({ text: investError(e), kind: 'error' });
 
   const submitExchange = async (e: FormEvent) => {
     e.preventDefault();
@@ -250,11 +250,11 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
     try {
       if (hasPrice) priceMicro = parsePriceMicro(priceForm.price);
     } catch (err) {
-      return setPriceError(err instanceof Error ? err.message : 'Invalid price');
+      return setPriceError(investError(err, 'Invalid price'));
     }
     if (hasFx) {
       const fx = parseFxRate(priceForm.fxRate);
-      if (!fx.ok) return setPriceError(fx.message);
+      if (!fx.ok) return setPriceError(investProblem(fx));
       rateMicro = fx.rateMicro;
     }
     if (priceForm.date > today) return setPriceError('Cannot record a future date');
@@ -647,7 +647,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
                             Price
                           </button>
                         </span>
-                        {r.error && <p className="form-error small">Cannot calculate: {r.error}</p>}
+                        {r.error && <p className="form-error small">Cannot calculate: {investProblem({ message: r.error, code: r.errorCode, params: r.errorParams })}</p>}
                       </td>
                     </tr>
                   ))}

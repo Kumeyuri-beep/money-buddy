@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { baht } from '../app/bahtFormat';
-import { friendlyError } from '../app/errorText';
+import { investError } from './invest/investError';
 import { newId } from '../app/ids';
 import { classifyPortfolioTransfer } from '../domain/invest/portfolioMoney';
 import { emptyInvestments, type InvestmentData } from '../domain/invest/types';
@@ -80,7 +80,7 @@ export function PortfolioTransfer({ today, accounts, wallets, onLedgerChanged }:
     try {
       createEntry(accounts, input); // ตรวจกติกาสมุดก่อนส่ง (สมดุล วันที่ บัญชีมีจริง)
     } catch (err) {
-      return setError(friendlyError(err));
+      return setError(investError(err));
     }
     // ตรวจซ้ำว่าเป็นการโอนเข้า/ออกพอร์ตจริงตามนิยาม R23 (กันบัญชีที่ผูกสินทรัพย์หรือสกุลผิด)
     const byId = new Map(accounts.map((a) => [a.id, a]));
@@ -95,7 +95,7 @@ export function PortfolioTransfer({ today, accounts, wallets, onLedgerChanged }:
       setMessage(`${label}: ${baht(satang)} recorded`);
       onLedgerChanged();
     } catch (err) {
-      setError(friendlyError(err));
+      setError(investError(err));
     } finally {
       setBusy(false);
     }
