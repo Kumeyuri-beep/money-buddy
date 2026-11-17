@@ -79,8 +79,8 @@ for (const w of WIDTHS) {
       await openHarness(page);
       await openInvest(page, w.mobile);
       await page.getByRole('tab', { name: 'Portfolio', exact: true }).click();
-      await page.getByRole('tab', { name: 'หุ้นสหรัฐ', exact: true }).click();
-      await expect(page.getByRole('button', { name: 'สร้างบัญชีเงินสด USD' })).toBeVisible();
+      await page.getByRole('tab', { name: 'US stocks', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'Create USD cash account' })).toBeVisible();
     });
   });
 }

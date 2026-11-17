@@ -158,7 +158,7 @@ for (const w of WIDTHS) {
       }
       await page.getByRole('button', { name: 'Add', exact: true }).click();
       await expect(page.getByRole('tab', { name: 'Portfolio', exact: true })).toHaveAttribute('aria-selected', 'true');
-      await expect(page.getByRole('tab', { name: 'หุ้นสหรัฐ', exact: true })).toHaveAttribute('aria-selected', 'true');
+      await expect(page.getByRole('tab', { name: 'US stocks', exact: true })).toHaveAttribute('aria-selected', 'true');
     });
 
     test('ชี้แถว/โฟกัสแถว: ชิ้นนั้นพองออก ชิ้นอื่นจางลง แถวไฮไลต์ กลางวงแสดงรายการ', async ({ page }) => {

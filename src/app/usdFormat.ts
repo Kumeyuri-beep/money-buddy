@@ -19,7 +19,7 @@ export const usdSigned = (cents: number): string => (cents > 0 ? `+${usd(cents)}
 export function fxRateText(rateMicro: number): string {
   const t = formatMicro(rateMicro);
   const [whole = '0', frac = ''] = t.split('.');
-  return `${whole}.${frac.padEnd(2, '0')} บาท/USD`;
+  return `${whole}.${frac.padEnd(2, '0')} THB/USD`;
 }
 
 /** ราคาต่อหุ้น micro-USD → "$100.10" (อย่างน้อย 2 ตำแหน่ง · ราคาละเอียดเกิน 2 ตำแหน่งแสดงตามจริงถึง 6) */
