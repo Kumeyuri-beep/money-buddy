@@ -26,24 +26,24 @@ async function openAnalysis(page: Page, mobile: boolean): Promise<void> {
   }
   await expect(page.getByRole('heading', { name: 'Main portfolio', level: 2 }).first()).toBeVisible();
   await page.getByRole('tab', { name: 'Analytics', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'วิเคราะห์พอร์ต', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Analytics', level: 2 })).toBeVisible();
 }
 
 for (const w of WIDTHS) {
   test.describe(`ความกว้าง ${w.width}px`, () => {
     test.use({ viewport: { width: w.width, height: w.height } });
 
-    test('แท็บวิเคราะห์ ยังไม่มีหุ้นสหรัฐ: ทุกการ์ดมีสถานะว่าง ไม่มีตัวเลขปลอม · สลับ ฿/USD ได้ · ไม่ล้นจอ ไม่มี error', async ({ page }) => {
+    test('แท็บ Analytics ยังไม่มีหุ้นสหรัฐ: ทุกการ์ดมีสถานะว่าง ไม่มีตัวเลขปลอม · สลับ ฿/USD ได้ · ไม่ล้นจอ ไม่มี error', async ({ page }) => {
       const seen = watch(page);
       await openHarness(page);
       await openAnalysis(page, w.mobile);
 
-      await expect(page.getByRole('heading', { name: 'ยังไม่มีหุ้นสหรัฐ', level: 2 })).toBeVisible();
-      await expect(page.getByRole('heading', { name: 'ผลตอบแทนรายเดือน' })).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: 'No US stocks yet', level: 2 })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Monthly returns' })).toHaveCount(0);
       await expect(page.locator('.invest-analysis').getByText(/฿\d|\$\d/)).toHaveCount(0);
 
       await page.getByRole('button', { name: '$ USD', exact: true }).click();
-      await expect(page.getByRole('heading', { name: 'ยังไม่มีหุ้นสหรัฐ', level: 2 })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'No US stocks yet', level: 2 })).toBeVisible();
       await page.getByRole('button', { name: '฿ THB', exact: true }).click();
 
       const doc = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));

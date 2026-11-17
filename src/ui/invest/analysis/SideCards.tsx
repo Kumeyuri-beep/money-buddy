@@ -1,5 +1,5 @@
 import { baht } from '../../../app/bahtFormat';
-import { thaiFullDate } from '../../../app/dates';
+import { formatDateEn } from '../../../app/dateEn';
 import { usd } from '../../../app/usdFormat';
 import { formatBps } from '../../../domain/invest/allocation';
 import { Dash } from './Dash';
@@ -11,12 +11,12 @@ export function CurrencyCard({ model }: { model: AnalysisModel }) {
   const cs = model.currencyShares;
   return (
     <section className="solid card an-card" aria-labelledby="an-cur-title">
-      <h2 id="an-cur-title">สัดส่วนสกุลเงิน</h2>
+      <h2 id="an-cur-title">Currency mix</h2>
       {cs.kind === 'none' ? (
-        <p className="muted">ยังไม่มีหุ้นสหรัฐ จึงยังไม่มีสัดส่วนให้แสดง</p>
+        <p className="muted">No US stocks yet, so there is no mix to show.</p>
       ) : cs.kind === 'incomplete' ? (
         <p className="muted" role="status">
-          ข้อมูลไม่ครบหรือเงินสด USD ติดลบ: ต้องมีราคาหุ้นและอัตราแลกเปลี่ยนครบ (ระบบไม่ใช้ต้นทุนแทนมูลค่า) จึงยังไม่แสดงสัดส่วน
+          Incomplete data or negative USD cash: stock prices and the exchange rate are both needed (cost is never used in place of value), so the mix is not shown.
         </p>
       ) : (
         <>
@@ -24,7 +24,7 @@ export function CurrencyCard({ model }: { model: AnalysisModel }) {
             {cs.shares.map((s) => (
               <li key={s.key}>
                 <div className="an-bar-head">
-                  <span>{s.label}</span>
+                  <span>{s.key === 'USD' ? 'US dollar (USD)' : s.key === 'THB' ? 'Thai baht (THB)' : s.label}</span>
                   <span className="num">{formatBps(s.bps)}</span>
                 </div>
                 <div className="an-bar" aria-hidden="true">
@@ -33,7 +33,7 @@ export function CurrencyCard({ model }: { model: AnalysisModel }) {
               </li>
             ))}
           </ul>
-          <p className="muted small">แปลงเป็นบาทที่อัตราล่าสุดที่กรอก ใช้ดูสัดส่วนเท่านั้น</p>
+          <p className="muted small">Converted to THB at the latest exchange rate you entered. For the mix only.</p>
         </>
       )}
     </section>
@@ -45,26 +45,26 @@ export function DividendCard({ model, currency }: { model: AnalysisModel; curren
   const d = model.dividend;
   return (
     <section className="solid card an-card" aria-labelledby="an-div-title">
-      <h2 id="an-div-title">ปันผลเทียบเงินลงทุน</h2>
+      <h2 id="an-div-title">Dividends vs. invested money</h2>
       <dl className="avg-result">
         <div>
-          <dt>ปันผล (ก่อนภาษี) 12 เดือน</dt>
+          <dt>Dividends (before tax), last 12 months</dt>
           <dd className="num">{currency === 'THB' ? baht(d.grossThb) : usd(d.grossUsd)}</dd>
         </div>
         <div>
-          <dt>หลังหักภาษี 12 เดือน</dt>
+          <dt>After withholding tax, last 12 months</dt>
           <dd className="num">{currency === 'THB' ? baht(d.netThb) : usd(d.netUsd)}</dd>
         </div>
         <div>
-          <dt>ปันผลต่อปี เทียบมูลค่าตลาด (%)</dt>
-          <dd className="num">{d.yieldBps === null ? <Dash why="ต้องมีราคาและอัตราแลกเปลี่ยน" /> : percentBps(d.yieldBps)}</dd>
+          <dt>Dividend yield on market value (%)</dt>
+          <dd className="num">{d.yieldBps === null ? <Dash why="Needs a price and an exchange rate" /> : percentBps(d.yieldBps)}</dd>
         </div>
         <div>
-          <dt>ปันผลต่อปี เทียบต้นทุน (%)</dt>
-          <dd className="num">{d.yieldOnCostBps === null ? <Dash why="ต้องมีราคาและอัตราแลกเปลี่ยน" /> : percentBps(d.yieldOnCostBps)}</dd>
+          <dt>Dividend yield on cost (%)</dt>
+          <dd className="num">{d.yieldOnCostBps === null ? <Dash why="Needs a price and an exchange rate" /> : percentBps(d.yieldOnCostBps)}</dd>
         </div>
       </dl>
-      <p className="muted small">นับหลัง {thaiFullDate(d.fromExclusive)} ถึง {thaiFullDate(d.toInclusive)} · ไม่มีราคาหรืออัตราจะแสดง "—"</p>
+      <p className="muted small">Counted after {formatDateEn(d.fromExclusive)} through {formatDateEn(d.toInclusive)} · Shows "—" when a price or rate is missing</p>
     </section>
   );
 }
