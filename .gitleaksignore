@@ -1,0 +1,11 @@
+# ค่าที่ gitleaks เตือนทั้งหมดเป็นข้อมูลปลอมในเทสต์ (JWT/token ปลอม รหัสผ่านผิดที่ตั้งใจ) ตรวจแล้วเมื่อ 17 พ.ย. 2569
+# รูปแบบ: <commit>:<ไฟล์>:<กฎ>:<บรรทัด>
+a05a9ef06a827ecc841d69f4ffbedc68c614fa80:tests/unit/liveLog.test.ts:generic-api-key:14
+ba5b98705f7ad04bc834303ae8d3510c5b728113:tests/unit/liveLog.test.ts:jwt:10
+a05a9ef06a827ecc841d69f4ffbedc68c614fa80:tests/unit/liveLog.test.ts:generic-api-key:29
+ba5b98705f7ad04bc834303ae8d3510c5b728113:tests/unit/liveLog.test.ts:generic-api-key:14
+a05a9ef06a827ecc841d69f4ffbedc68c614fa80:tests/unit/liveLog.test.ts:jwt:10
+ba5b98705f7ad04bc834303ae8d3510c5b728113:tests/unit/liveLog.test.ts:generic-api-key:29
+0df0de3aaf76e77cf5ad1bdc098d510770f0edd3:tests/live/supabaseRepository.live.ts:generic-api-key:88
+52aa98b50285ef301fd65eabd4820188f9a788c3:tests/live/supabaseRepository.live.ts:generic-api-key:77
+31b2934cacc9570a8500478086d17850585d4c98:tests/unit/adminScripts.test.ts:generic-api-key:29

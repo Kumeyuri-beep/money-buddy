@@ -18,7 +18,7 @@
 | อีเมลภายใน | แปลง username → `<username>@users.money-buddy.internal` ผู้ใช้ไม่เห็น (ดู 4.5 ว่าตรวจอย่างไรและโดเมนสำรอง) |
 | การสมัคร | ปิดสมัครเอง · ปิดยืนยันอีเมล · รหัสขั้นต่ำ 10 ตัว · เจ้าของสร้างบัญชีเองใน Dashboard |
 | ล็อกอินครั้งแรก | บังคับเปลี่ยนรหัส · มีหน้าเปลี่ยนรหัสในตั้งค่า |
-| ลืมรหัส | สคริปต์ reset รันในเครื่องเจ้าของเท่านั้น อ่าน service_role key จากไฟล์ **นอกโปรเจกต์** `C:\Users\owenn\.money-buddy-admin\admin.env` (เจ้าของสั่ง 4 พ.ย. 2569) ห้ามมีไฟล์ secret ในโฟลเดอร์โปรเจกต์ ห้ามอ่าน/แสดงค่า key ห้ามอยู่ในโค้ดเว็บ |
+| ลืมรหัส | สคริปต์ reset รันในเครื่องเจ้าของเท่านั้น อ่าน service_role key จากไฟล์ **นอกโปรเจกต์** `<admin-env-path>` (เจ้าของสั่ง 4 พ.ย. 2569) ห้ามมีไฟล์ secret ในโฟลเดอร์โปรเจกต์ ห้ามอ่าน/แสดงค่า key ห้ามอยู่ในโค้ดเว็บ |
 | PDPA | คงหน้ายินยอม, ส่งออกข้อมูล, ลบบัญชี (M2-E) |
 | ก่อน M2-C | ตรวจช่วงปลอดภัยของสูตรรวมยอด (`periodTotals`, `cashBalance`/`netWorthAt`, `incomeChannels`, `runwayTenths`) เป็น Ticket **M2-pre** |
 
@@ -30,7 +30,7 @@
    - `VITE_SUPABASE_URL` = Project URL
    - `VITE_SUPABASE_ANON_KEY` = publishable key (ขึ้นต้น `sb_publishable_` หรือ anon JWT)
    - ผมจะไม่ขอ service_role / secret key
-4. **service_role / secret key ใส่เองในไฟล์ `C:\Users\owenn\.money-buddy-admin\admin.env`** (อยู่นอกโปรเจกต์ ไม่ถูก Vite โหลด ไม่ถูก `vercel env pull` เขียนทับ) บรรทัดละตัวแปร: `SUPABASE_URL=…` และ `SUPABASE_SERVICE_ROLE_KEY=…` (ถ้าโปรเจกต์ออก key แบบใหม่ ใช้ชื่อ `SUPABASE_SECRET_KEY` แทนได้) · ห้ามมี prefix `VITE_` · ใช้กับสคริปต์ `scripts/` เท่านั้น · ห้ามวางในแชท · ห้ามใส่ใน Vercel env หรือ GitHub Actions secrets
+4. **service_role / secret key ใส่เองในไฟล์ `<admin-env-path>`** (อยู่นอกโปรเจกต์ ไม่ถูก Vite โหลด ไม่ถูก `vercel env pull` เขียนทับ) บรรทัดละตัวแปร: `SUPABASE_URL=…` และ `SUPABASE_SERVICE_ROLE_KEY=…` (ถ้าโปรเจกต์ออก key แบบใหม่ ใช้ชื่อ `SUPABASE_SECRET_KEY` แทนได้) · ห้ามมี prefix `VITE_` · ใช้กับสคริปต์ `scripts/` เท่านั้น · ห้ามวางในแชท · ห้ามใส่ใน Vercel env หรือ GitHub Actions secrets
 5. สร้างบัญชีผู้ใช้: แนะนำใช้สคริปต์ `scripts/create-user.mjs` (ทำใน M2-B) ซึ่งตั้งธงบังคับเปลี่ยนรหัสให้อัตโนมัติ · หรือทำมือใน Dashboard → Authentication → Users → Add user: email = `<username>@users.money-buddy.internal`, รหัสชั่วคราว ≥ 10 ตัว, ติ๊ก Auto Confirm User (ปลอดภัยเช่นกัน: trigger สร้าง profiles ให้อัตโนมัติโดยธงบังคับเปลี่ยนรหัสเป็น true — ดู 4.6 ข้อ 1)
 
 เมื่อได้ URL + publishable key แล้ว ผมเริ่ม M2-A · ระหว่างนั้นทำ M2-0 และ M2-pre ได้โดยไม่ต้องใช้ key
@@ -140,7 +140,7 @@
 
 **key และ secret**
 15. key โปรเจกต์ใหม่เป็นรูป `sb_publishable_…` / `sb_secret_…` ไม่ใช่ JWT `anon`/`service_role` เสมอไป · เทสต์ค้น `service_role|SERVICE_ROLE|sb_secret_|c2VydmljZV9yb2xl` (base64 ของ `service_role`) ใน `src/`, `dist/`, `scripts/` และ `git diff --cached` · สคริปต์รองรับทั้งสองชื่อ (`SUPABASE_SECRET_KEY` หรือ `SUPABASE_SERVICE_ROLE_KEY`)
-16. **ที่เก็บ secret (เจ้าของตัดสิน 4 พ.ย. 2569):** ไฟล์นอกโปรเจกต์ `C:\Users\owenn\.money-buddy-admin\admin.env` เท่านั้น ห้ามมีไฟล์ secret ในโปรเจกต์ (Vite โหลด `.env.local` เอง และ `vercel env pull` เขียนทับได้ จึงไม่ใช้) → เทสต์ว่า `vite.config.ts` ไม่มี `envPrefix`, `loadEnv(`, หรือ `process.env` ใน `define` (กันไว้เผื่อมีคนเพิ่มภายหลัง) · **ห้ามใส่ secret ใน Vercel env หรือ GitHub Actions secrets เด็ดขาด** · `.claude/settings.json` deny การอ่านพาธนี้และ `.env*` แล้ว (ดูข้อ 19)
+16. **ที่เก็บ secret (เจ้าของตัดสิน 4 พ.ย. 2569):** ไฟล์นอกโปรเจกต์ `<admin-env-path>` เท่านั้น ห้ามมีไฟล์ secret ในโปรเจกต์ (Vite โหลด `.env.local` เอง และ `vercel env pull` เขียนทับได้ จึงไม่ใช้) → เทสต์ว่า `vite.config.ts` ไม่มี `envPrefix`, `loadEnv(`, หรือ `process.env` ใน `define` (กันไว้เผื่อมีคนเพิ่มภายหลัง) · **ห้ามใส่ secret ใน Vercel env หรือ GitHub Actions secrets เด็ดขาด** · `.claude/settings.json` deny การอ่านพาธนี้และ `.env*` แล้ว (ดูข้อ 19)
 19. **กฎ deny ของ Claude Code (เจ้าของอนุญาต 4 พ.ย. 2569):** `Read(./.env*)`, `Read(**/.env*)`, `Read` / `Edit` / `Write` ของ `~/.money-buddy-admin/**`, และคำสั่ง Bash/PowerShell ที่อ่านหรือคัดลอกไฟล์เหล่านี้ (cat, type, Get-Content, grep, Select-String, cp, node ฯลฯ) · ข้อจำกัด: กฎจับจากข้อความคำสั่ง จึงกันไม่ครบทุกรูปแบบ (alias, สคริปต์ที่เปิดไฟล์ข้างใน, ตัวแปรประกอบพาธ) กติกา "ห้ามอ่านค่า key" ยังต้องถือตามเสมอ · ผลข้างเคียง: คำสั่ง `grep`/`cat` ที่มี `.env` อยู่ในอาร์กิวเมนต์ถูกบล็อกด้วย (ใช้เครื่องมือ Grep/Read แทน)
 17. สคริปต์: พิมพ์เฉพาะ `err.message`/`err.status` ห้าม `console.error(err)` ทั้งก้อน · ห้ามรับรหัสหรือ key ทางอาร์กิวเมนต์ (ค้างใน history) · เตือนให้ส่งรหัสชั่วคราวให้ผู้ใช้ทางช่องส่วนตัว
 18. เทสต์ M2-F ที่ต้องใช้ฐานข้อมูลจริงรันในเครื่องหรือบน branch DB เท่านั้น ไม่ใส่ secret ใน CI
