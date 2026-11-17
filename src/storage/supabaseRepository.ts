@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { chunkEntries } from '../domain/backup/chunk';
 import { buildTradeEntry, TradeLinkError } from '../domain/invest/ledgerLink';
-import { checkTradeAdd, checkTradeDelete, replayRecords } from '../domain/invest/rules';
+import { checkTradeAddCoded, checkTradeDeleteCoded, replayRecords } from '../domain/invest/rules';
+import { withCode } from '../domain/errors/coded';
 import { replayTradesFx } from '../domain/invest/costBasisFx';
 import { fxRateFromExchange } from '../domain/invest/fx';
 import { buildFxExchangeEntry, buildUsdTradeEntry, UsdLinkError } from '../domain/invest/ledgerLinkFx';
@@ -913,8 +914,8 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
         { column: 'asset_id', value: trade.assetId },
       );
       const existing = siblings.map(rowToTrade);
-      const problem = checkTradeAdd(existing, trade);
-      if (problem) throw new StorageError(problem);
+      const problem = checkTradeAddCoded(existing, trade);
+      if (problem) throw problem.code ? withCode(new StorageError(problem.message), problem.code, problem.params ?? {}) : new StorageError(problem.message);
       let entryId = '';
       let built;
       try {
@@ -985,8 +986,8 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
         { column: 'asset_id', value: trade.assetId },
       );
       const existing = siblings.map(rowToTrade);
-      const problem = checkTradeAdd(existing, trade);
-      if (problem) throw new StorageError(problem);
+      const problem = checkTradeAddCoded(existing, trade);
+      if (problem) throw problem.code ? withCode(new StorageError(problem.message), problem.code, problem.params ?? {}) : new StorageError(problem.message);
       const entryId = `${trade.id}-entry`;
       let built;
       try {
@@ -1067,8 +1068,8 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
         'id',
         { column: 'asset_id', value: target.assetId },
       );
-      const problem = checkTradeDelete(siblings.map(rowToTrade), id);
-      if (problem) throw new StorageError(problem);
+      const problem = checkTradeDeleteCoded(siblings.map(rowToTrade), id);
+      if (problem) throw problem.code ? withCode(new StorageError(problem.message), problem.code, problem.params ?? {}) : new StorageError(problem.message);
       if (target.entryId !== undefined) {
         // ผูกสมุด: ลบรายการในสมุด (ฐานข้อมูลลบรายการลงทุนตาม และตรวจลำดับซ้ำ) ห้ามลบรายการลงทุนตรงๆ ไม่งั้นยอดในสมุดค้าง
         await deleteEntryRow(target.entryId);
