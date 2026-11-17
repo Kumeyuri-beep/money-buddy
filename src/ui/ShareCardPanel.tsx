@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { buildAllocationModel, describeAllocation } from '../app/allocationView';
-import { thaiDayLabel } from '../app/dates';
+import { formatDateEn } from '../app/dateEn';
 import type { Portfolio } from '../app/portfolio';
 import { formatBps } from '../domain/invest/allocation';
 import { drawShareCard, SHARE_CARD_HEIGHT, SHARE_CARD_WIDTH } from './shareCardCanvas';
@@ -22,13 +22,13 @@ export function ShareCardPanel({ portfolio, today, onClose }: Props) {
   const [note, setNote] = useState('');
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const model = useMemo(() => buildAllocationModel(portfolio, { showNames, maxVisible: 7 }), [portfolio, showNames]);
+  const model = useMemo(() => buildAllocationModel(portfolio, { showNames, maxVisible: 7, lang: 'en' }), [portfolio, showNames]);
 
   useEffect(() => {
     headingRef.current?.focus();
   }, []);
 
-  // วาดใหม่ทุกครั้งที่ตัวเลือกเปลี่ยน (รอฟอนต์เว็บโหลดก่อน ไม่งั้นอักษรไทยในรูปเป็นฟอนต์สำรอง)
+  // วาดใหม่ทุกครั้งที่ตัวเลือกเปลี่ยน (รอฟอนต์เว็บโหลดก่อน ไม่งั้นฟอนต์ในรูปเป็นฟอนต์สำรอง) · รูปแชร์ของโหมด /invest เป็นอังกฤษ
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !model) return;
@@ -36,7 +36,7 @@ export function ShareCardPanel({ portfolio, today, onClose }: Props) {
     const paint = () => {
       if (cancelled) return;
       const ctx = canvas.getContext('2d');
-      if (ctx) drawShareCard(ctx, model, `ณ ${thaiDayLabel(today)}`);
+      if (ctx) drawShareCard(ctx, model, `As of ${formatDateEn(today)}`);
     };
     paint();
     void document.fonts?.ready.then(paint);

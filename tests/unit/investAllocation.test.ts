@@ -235,3 +235,28 @@ describe('การ์ดสัดส่วนในหน้าภาพรว�
     expect(panel).toContain('buildAllocationModel');
   });
 });
+
+describe('share card language option (the /invest mode uses English, other pages stay Thai)', () => {
+  const p = buildPortfolio(data(), TODAY);
+  it('English: every drawn line has no Thai, no money, only percentages as numbers', () => {
+    const m = buildAllocationModel(p, { lang: 'en' })!;
+    const texts = recordDraw(m, 'As of 10 Nov 2026');
+    const all = texts.join('\n');
+    expect(all).not.toMatch(/[\u0E00-\u0E7F]/);
+    expect(texts).toContain('Investment allocation');
+    expect(texts).toContain('Shows allocation only, no amounts');
+    expect(texts).toContain('75%');
+    expect(m.slices.map((s) => s.label)).toEqual(['Asset 1', 'Asset 2']);
+    expect(describeAllocation(m, (b) => `${b / 100}%`)).toBe('Allocation by cost: Asset 1 75% · Asset 2 25%');
+  });
+  it('English with names on and the Other slice', () => {
+    const m = buildAllocationModel(p, { lang: 'en', showNames: true, maxVisible: 1 })!;
+    expect(m.slices.at(-1)!.label).toBe('Other');
+  });
+  it('default stays Thai, identical to before (no lang field on the model)', () => {
+    const m = buildAllocationModel(p)!;
+    expect('lang' in m).toBe(false);
+    expect(m.slices.map((s) => s.label)).toEqual(['สินทรัพย์ 1', 'สินทรัพย์ 2']);
+    expect(describeAllocation(m, (b) => `${b / 100}%`)).toBe('สัดส่วนพอร์ตตามต้นทุน: สินทรัพย์ 1 75% · สินทรัพย์ 2 25%');
+  });
+});

@@ -9,7 +9,6 @@ import { daysBetween } from '../domain/bills/calendar';
 import { hasCode, type ErrorParams } from '../domain/errors/coded';
 import { allocateBps, groupSmallShares, type AllocationShare } from '../domain/invest/allocation';
 import { replayTradesFx } from '../domain/invest/costBasisFx';
-import { investMsg } from '../domain/invest/errorCodes';
 import { convertMinor, dividendInThb } from '../domain/invest/fx';
 import { WEALTH_STALE_DAYS, latestFxRate } from '../domain/invest/portfolioMoney';
 import { toTradesFx } from '../domain/invest/tradesFx';
@@ -19,6 +18,7 @@ import { usdCashBalances, type UsdCashBalance } from '../domain/invest/usdIntegr
 import type { Account, Entry } from '../domain/ledger/types';
 import { roundHalfUpBig } from '../domain/money/round';
 import { safeAdd, safeSub } from '../domain/money/safe';
+import { formMsg } from './formMessages';
 
 export interface UsStockRow {
   assetId: string;
@@ -45,7 +45,7 @@ export interface UsStockRow {
   dividendNetThb: number;
   realizedGainThb: number;
   error?: string;
-  /** รหัส error + พารามิเตอร์ (ถ้ามี) ให้หน้า /invest แสดงข้อความอังกฤษ */
+  /** รหัส + พารามิเตอร์ของ error (ให้ UI แปลเป็นภาษาอื่น · ไม่มี = error ต้นทางยังไม่มีรหัส) */
   errorCode?: string;
   errorParams?: ErrorParams;
 }
@@ -144,8 +144,8 @@ export function buildUsPortfolio(accounts: readonly Account[], entries: readonly
     } catch (e) {
       rows.push({
         ...base, units: 0n, costUsd: 0, costThb: 0, avgCostMicro: null, price: null, valueUsd: null, valueThb: null, unrealizedThb: null, priceGainThb: null, fxGainThb: null,
-        dividendNetUsd: divUsd, dividendNetThb: divThb, realizedGainThb: 0, error: e instanceof Error ? e.message : investMsg('portfolio.calcFailed'),
-        ...(hasCode(e) ? { errorCode: e.code, errorParams: e.params } : e instanceof Error ? {} : { errorCode: 'portfolio.calcFailed' }),
+        dividendNetUsd: divUsd, dividendNetThb: divThb, realizedGainThb: 0, error: e instanceof Error ? e.message : formMsg('usp.calcFailed'),
+        ...(hasCode(e) ? { errorCode: e.code, errorParams: e.params } : e instanceof Error ? {} : { errorCode: 'usp.calcFailed', errorParams: {} }),
       });
       complete = false;
       continue;
@@ -161,7 +161,6 @@ export function buildUsPortfolio(accounts: readonly Account[], entries: readonly
     let priceGain: number | null = null;
     let fxGain: number | null = null;
     let rowError: string | undefined;
-    let rowErrorCode: string | undefined;
     if (pos.units > 0n) {
       if (price === null || fx === null) complete = false;
       try {
@@ -180,15 +179,14 @@ export function buildUsPortfolio(accounts: readonly Account[], entries: readonly
         if (!(e instanceof RangeError)) throw e;
         // ตัวเลขใหญ่เกินช่วงปลอดภัย: แถวนี้ไม่แสดงมูลค่า/กำไร (ไม่ทำให้ทั้งหน้าล้ม) และรวมไม่ครบ
         valueUsd = valueThb = unrealized = priceGain = fxGain = null;
-        rowError = investMsg('portfolio.valueOverflow');
-        rowErrorCode = 'portfolio.valueOverflow';
+        rowError = formMsg('usp.valueTooLarge');
         complete = false;
       }
     }
     rows.push({
       ...base, units: pos.units, costUsd: pos.costUsd, costThb: pos.costThb, avgCostMicro: avgCostMicroOf(pos.costUsd, pos.units), price,
       valueUsd, valueThb, unrealizedThb: unrealized, priceGainThb: priceGain, fxGainThb: fxGain,
-      dividendNetUsd: divUsd, dividendNetThb: divThb, realizedGainThb: replay.realizedGainThb, ...(rowError ? { error: rowError, ...(rowErrorCode ? { errorCode: rowErrorCode } : {}) } : {}),
+      dividendNetUsd: divUsd, dividendNetThb: divThb, realizedGainThb: replay.realizedGainThb, ...(rowError ? { error: rowError, errorCode: 'usp.valueTooLarge', errorParams: {} } : {}),
     });
     totals.costThb = safeAdd(totals.costThb, pos.costThb);
     totals.dividendNetThb = safeAdd(totals.dividendNetThb, divThb);
