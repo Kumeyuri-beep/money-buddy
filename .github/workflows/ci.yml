@@ -5,24 +5,81 @@ on:
     branches: [main]
   pull_request:
 
+# สิทธิ์ของ GITHUB_TOKEN ให้น้อยที่สุด: อ่านโค้ดอย่างเดียว (งานนี้ไม่เขียน PR/issue/แพ็กเกจ) · repo นี้ไม่มี secrets และไม่ใช้ pull_request_target
+# ห้ามเพิ่ม secrets หรือสิทธิ์เขียนในไฟล์นี้ (PR จาก fork ต้องรันได้แบบไม่มีสิทธิ์พิเศษ) · งานที่ต้องใช้ key (live-contract) รันในเครื่องเจ้าของเท่านั้น ไม่รันใน CI
+permissions:
+  contents: read
+
+# PR เดิมที่ push ซ้ำ: ยกเลิกรอบเก่าที่ยังรันอยู่ (ผลที่ใช้ตัดสิน merge คือรอบล่าสุดที่ตรง headRefOid เสมอ) · push เข้า main ไม่ยกเลิกกัน (กลุ่มแยกตาม commit)
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  test:
+  # ตรวจว่าการเปลี่ยนครั้งนี้แก้แค่เอกสารไหม (docs/ · ไฟล์ .md ที่รากโปรเจกต์ · .gitleaksignore) · แก้เฉพาะเอกสาร = ข้ามขั้นตอนหนัก
+  # ไม่ใช้ paths-ignore ระดับ workflow เพราะทำให้ check "test"/"e2e" หายไป (กติกา merge ใน CLAUDE.md ต้องเห็น pass) · ที่นี่ job test/e2e ยังรายงาน pass เสมอ
+  # ไม่แน่ใจ (หา commit ฐานไม่เจอ / รายการไฟล์ว่าง / งานนี้ล้ม) = ถือว่าเป็นโค้ดและรันเต็ม
+  changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: diff
+        run: |
+          # เทียบกับ commit แม่ตัวแรกของ HEAD (PR = merge commit ของ GitHub แม่แรกคือปลาย main ล่าสุด · push = squash commit แม่คือ main ก่อนหน้า)
+          # --no-renames: การย้ายไฟล์โค้ดเข้า docs/ ต้องเห็นทั้งชื่อเก่าและชื่อใหม่ (ไม่งั้นถูกนับเป็นเอกสารและข้ามเทสต์)
+          code=true
+          BASE=$(git rev-parse --verify -q "HEAD^1" || true)
+          if [ -n "$BASE" ]; then
+            files=$(git diff --name-only --no-renames "$BASE" HEAD || true)
+            if [ -n "$files" ] && ! echo "$files" | grep -qvE '^(docs/|[^/]+\.md$|\.gitleaksignore$)'; then
+              code=false
+            fi
+          fi
+          echo "แก้โค้ด: $code"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: changes
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      # งานตรวจไฟล์ที่เปลี่ยนล้ม = test ต้องล้มจริง (ไม่ปล่อยให้เป็น skipped ซึ่งระบบ required checks ของ GitHub นับว่าผ่าน)
+      - name: ตรวจว่างานตรวจไฟล์ที่เปลี่ยนสำเร็จ
+        if: ${{ needs.changes.result != 'success' }}
+        run: |
+          echo "งาน changes ไม่สำเร็จ (${{ needs.changes.result }})"
+          exit 1
+      - name: แก้เฉพาะเอกสาร ข้ามเทสต์
+        if: ${{ needs.changes.outputs.code == 'false' }}
+        run: echo "แก้เฉพาะเอกสาร ไม่ต้องรัน typecheck/test/build"
+      - uses: actions/checkout@v4
+        if: ${{ needs.changes.outputs.code == 'true' }}
       - uses: actions/setup-node@v4
+        if: ${{ needs.changes.outputs.code == 'true' }}
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+        if: ${{ needs.changes.outputs.code == 'true' }}
       - run: npm run typecheck
+        if: ${{ needs.changes.outputs.code == 'true' }}
       - run: npm test
+        if: ${{ needs.changes.outputs.code == 'true' }}
       - run: npm run build
+        if: ${{ needs.changes.outputs.code == 'true' }}
 
   # เทสต์หน้าจอด้วย Playwright (ข้อมูลสมมติจาก harness ไม่ต่อฐานข้อมูลจริง ไม่ใช้ secrets)
   # แบ่งเป็น 5 shard รันขนานกัน (เดิมงานเดียว 4+ นาที เกินเพดาน 3 นาทีที่ตั้งไว้ · เพิ่มจาก 4 เป็น 5 เมื่อ 15 พ.ย. 2569 เพราะ shard ที่ช้าสุดเกือบ 3 นาทีหลังเพิ่มเทสต์ dock) · เทสต์ครบทุกตัว ไม่ลดจำนวน (Playwright แบ่งชุดเดียวกันเป็น 5 ส่วนไม่ซ้ำไม่ตก)
+  # รอ test (typecheck/เทสต์หน่วย/build) ผ่านก่อน: ถ้าล้มตั้งแต่ขั้นแรกจะไม่เปลืองนาทีรัน 5 shard · แก้เฉพาะเอกสารจะไม่รัน
   e2e-shard:
     name: e2e-shard (${{ matrix.shard }}/5)
+    needs: [changes, test]
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 6
     strategy:
@@ -55,14 +112,18 @@ jobs:
           path: test-results/
           retention-days: 3
 
-  # งานรวมชื่อ "e2e": ผ่านก็ต่อเมื่อทุก shard ผ่าน · คงชื่อเดิมไว้เพราะกติกา merge ใน CLAUDE.md ตรวจ job ชื่อ e2e (ใน gh pr checks จะเห็น e2e-shard (n/5) เพิ่มอีก 5 แถว)
+  # งานรวมชื่อ "e2e": ผ่านก็ต่อเมื่อทุก shard ผ่าน (แก้เฉพาะเอกสาร = ผ่านทันทีเพราะไม่มี shard ให้รัน) · คงชื่อเดิมไว้เพราะกติกา merge ใน CLAUDE.md ตรวจ job ชื่อ e2e (ใน gh pr checks จะเห็น e2e-shard (n/5) เพิ่มอีก 5 แถว)
   e2e:
-    needs: e2e-shard
+    needs: [changes, e2e-shard]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - name: ตรวจว่าทุก shard ผ่าน
         run: |
+          if [ "${{ needs.changes.result }}" = "success" ] && [ "${{ needs.changes.outputs.code }}" = "false" ]; then
+            echo "แก้เฉพาะเอกสาร ไม่มี e2e ให้รัน"
+            exit 0
+          fi
           echo "ผล shard: ${{ needs.e2e-shard.result }}"
           test "${{ needs.e2e-shard.result }}" = "success"
