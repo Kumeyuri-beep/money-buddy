@@ -1307,3 +1307,12 @@ money-auditor ตรวจ 5 ตัวที่เกี่ยวกับเง
 **merge แล้ว:** #206 โครง `src/domain/errors/coded.ts` (defineMessages/withCode) + `investError` · #207 ภาพการ์ดแชร์อังกฤษ (`lang` ในโมเดลสัดส่วน ค่าเริ่มต้นไทย) · #208 ฟอร์ม (25 รหัส `form.*`/`usp.*`) · #210 domain/invest (72 รหัส) · #209 storage (33 แม่แบบ `store.*`) · PR นี้ ต่อรหัสเข้าหน้าจอ /invest (`investError`/`investProblem`) · money-auditor ตรวจ diff #208/#209/#210 ผ่าน ไม่มีการเปลี่ยนตรรกะเงิน · live-contract: บน branch #209 และบน main หลังแต่ละ merge ผ่าน 65/65
 **ที่ยังเป็นไทย (ตั้งใจเว้น):** ข้อความที่ฐานข้อมูลส่งมาเอง (OWN_CODES · ต้องแก้ฝั่ง supabase/) · ปัญหาตั้งค่า `settingsProblem`/`planOutsideKeysProblem` (ต่อท้ายด้วยข้อความไทยจาก domain/settings) · `usdIntegrity.ts` (Integrity Check มี code ของตัวเอง) · `src/domain/money/safe.ts` (ตัวเลขล้น) · error ของบิล/สมุดบัญชี · memo เก่า → ใน /invest error ที่ไม่มีรหัสแสดงข้อความสำรองอังกฤษ ("Could not save. Please try again." / "Invalid input") ไม่แสดงไทยดิบ
 **หมายเหตุ:** บาง error ยังพกเลขเต็ม (เช่น จำนวนที่ขายเกิน) เป็น params · ถ้าจะทำส่วนที่เว้นไว้ต้องให้เจ้าของอนุมัติแตะ `supabase/` และ `settings.ts`
+
+**backlog: ข้อความไทยที่ยังเหลือหลัง #208–#211 (จดไว้ 17 พ.ย. 2569 · ยังไม่ทำจนกว่าเจ้าของสั่ง · PR แยก):**
+- `supabase/` — ข้อความ error ที่ฐานข้อมูลส่ง (RAISE EXCEPTION ใน migration/ฟังก์ชัน) ยังเป็นไทย · แก้ต้องเพิ่ม migration ใหม่ (`create or replace function`) หรือแมปที่ฝั่งเว็บด้วยรหัส/ข้อความเดิม → GM ทำเอง + dry-run rollback + เทสต์ SQL + live-contract
+- `src/domain/bills/settings.ts` (settings) — ข้อความตรวจค่าตั้งค่ายังเป็นไทย
+- `src/domain/invest/usdIntegrity.ts` — ข้อความผลตรวจความถูกต้อง USD ยังเป็นไทย
+- `src/domain/money/safe.ts` — ข้อความ error ของ safe-integer (ฟังก์ชันกลางของเงิน → money-auditor ตรวจ + เทสต์ขอบ 0/−0/2^53−1 ต้องไม่เปลี่ยน)
+- แนวทาง: ใช้โครง `defineMessages/withCode` ใน `src/domain/errors/coded.ts` เหมือน #206–#210 (รหัสที่ต้นทาง · ข้อความไทยเดิมต้องไม่เปลี่ยน)
+
+**live-contract บน main หลัง #208/#210/#209/#211:** 65/65 ทั้ง 4 รอบ (`live-2026-11-17T06-13-51`, `06-21-21`, `06-24-43`, `07-49-33`) ไม่มีข้อที่ล้ม · `.claude/worktrees` อยู่ใน `.gitignore` แล้ว
