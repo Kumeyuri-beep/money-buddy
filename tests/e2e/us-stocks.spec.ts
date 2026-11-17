@@ -26,7 +26,7 @@ async function openPortfolio(page: Page, mobile: boolean): Promise<void> {
     await openDesktopView(page, 'พอร์ตการลงทุน');
   }
   // ขั้น 1: ฟังก์ชันหุ้นสหรัฐอยู่ในโหมดการลงทุน → แท็บ "รายการ"
-  await expect(page.getByRole('heading', { name: 'Main portfolio', level: 2 }).first()).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Portfolio sections' }).first()).toBeVisible();
   await goInvest(page, 'Portfolio', 'Holdings'); // หุ้นสหรัฐเดิม = Portfolio → Holdings
   await expect(page.getByRole('heading', { name: 'US stock portfolio', level: 2 })).toBeVisible();
 }
@@ -55,7 +55,7 @@ for (const w of WIDTHS) {
       await goInvest(page, 'Portfolio', 'Transactions');
       await expect(page.locator('#pf-panel-overview')).toBeVisible();
       await expect(page.locator('#pf-panel-us')).toHaveCount(0);
-      await expect(page.getByRole('heading', { name: 'Main portfolio', level: 2 }).first()).toBeVisible(); // หน้าเดิมยังอยู่
+      await expect(page.getByRole('navigation', { name: 'Portfolio sections' }).first()).toBeVisible(); // หน้าเดิมยังอยู่
       await expectClean(page, seen);
 
       await goInvest(page, 'Portfolio', 'Holdings');

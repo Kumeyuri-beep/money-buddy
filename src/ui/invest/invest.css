@@ -21,6 +21,7 @@ a.iv-tab { text-decoration: none; }
 .iv-submenu-link:disabled { color: var(--muted); cursor: not-allowed; }
 .iv-submenu-link:focus-visible, a.iv-tab:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .iv-submenu-hint { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.iv-ext { font-size: 13px; color: var(--muted); margin-left: auto; padding-left: 10px; }
 @keyframes iv-drop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .iv-submenu { animation: none; } .iv-caret { transition: none; } }
 .iv-soon-card { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; max-width: 640px; }
@@ -83,6 +84,7 @@ a.iv-tab { text-decoration: none; }
 
 /* ---------- หัวชื่อพอร์ต ---------- */
 .iv-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 16px; }
+@media (min-width: 1024px) { .iv-head-end { justify-content: flex-end; } }
 .iv-title { margin: 0; font-size: 28px; font-weight: 700; }
 .iv-note { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
 .iv-badge { margin: 0; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--ov-20); color: var(--muted); font-size: 13px; }

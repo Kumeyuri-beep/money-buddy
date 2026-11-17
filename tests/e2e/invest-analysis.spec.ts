@@ -25,7 +25,7 @@ async function openAnalysis(page: Page, mobile: boolean): Promise<void> {
   } else {
     await openDesktopView(page, 'พอร์ตการลงทุน');
   }
-  await expect(page.getByRole('heading', { name: 'Main portfolio', level: 2 }).first()).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Portfolio sections' }).first()).toBeVisible();
   await goInvest(page, 'Analytics', 'Common');
   await expect(page.getByRole('heading', { name: 'Analytics', level: 2 })).toBeVisible();
 }
