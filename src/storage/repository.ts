@@ -1,3 +1,5 @@
+import { withCode, type CodedFields, type ErrorParams } from '../domain/errors/coded';
+import { storeMsg, type StoreCode } from './storageMessages';
 import { monthOf } from '../domain/bills/calendar';
 import { payAmountProblem } from '../domain/bills/payAmount';
 import { billProblem, markBillPaid, payableCycle } from '../domain/bills/schedule';
@@ -52,6 +54,11 @@ export function compareEntries(a: Entry, b: Entry): number {
 /** รายการจ่ายบิลผูกกับสถานะ "จ่ายแล้ว" ของบิล แก้/ลบจากสมุดบัญชีตรงๆ ไม่ได้ (กันบิลค้างสถานะจ่ายทั้งที่รายจ่ายหาย) */
 const RECURRING_LOCKED = 'รายการนี้เกิดจากการจ่ายบิล แก้หรือลบจากสมุดบัญชีไม่ได้ (เลิกทำได้ทันทีหลังจ่ายจากปุ่ม "เลิกทำ")';
 
+/** StorageError ที่มีรหัส+params (ข้อความไทยจากแม่แบบเหมือนเดิม) */
+export function storeError(code: StoreCode, params: ErrorParams = {}): StorageError & CodedFields {
+  return withCode(new StorageError(storeMsg(code, params)), code, params);
+}
+
 export class StorageError extends Error {
   constructor(message: string) {
     super(message);
@@ -62,8 +69,9 @@ export class StorageError extends Error {
 /** ค่าตั้งค่าถูกแก้จากแท็บ/อุปกรณ์อื่นระหว่างที่หน้านี้กำลังบันทึก (ไม่เขียนทับ) */
 export class SettingsConflictError extends StorageError {
   constructor() {
-    super('ค่าตั้งค่าถูกแก้จากแท็บหรืออุปกรณ์อื่นแล้ว โหลดค่าล่าสุดแล้ว ลองบันทึกอีกครั้ง');
+    super(storeMsg('store.settingsConflict'));
     this.name = 'SettingsConflictError';
+    withCode(this, 'store.settingsConflict');
   }
 }
 
