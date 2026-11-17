@@ -6,6 +6,8 @@
  */
 
 import { replayTrades, type ReplayResult, type Trade } from './costBasis';
+import { problemOfError, type CodedProblem } from '../errors/problem';
+import { problem } from './errorCodes';
 import type { TradeRecord } from './types';
 import { valueInSatang } from './units';
 
@@ -40,47 +42,57 @@ function latestSell(trades: readonly TradeRecord[]): TradeRecord | undefined {
   return trades.filter((t) => t.kind === 'sell').sort(cmpKey).at(-1);
 }
 
-function replayProblem(trades: readonly TradeRecord[]): string | null {
+function replayProblem(trades: readonly TradeRecord[]): CodedProblem | null {
   try {
     replayRecords(trades);
     return null;
   } catch (e) {
-    return e instanceof Error ? e.message : 'รายการซื้อขายไม่สอดคล้อง';
+    return problemOfError(e, problem('rules.replayFallback'));
   }
 }
 
 /** ตรวจก่อนเพิ่มรายการของสินทรัพย์เดียวกัน (existing = รายการเดิมของสินทรัพย์นั้น) · null = เพิ่มได้ */
-export function checkTradeAdd(existing: readonly TradeRecord[], added: TradeRecord): string | null {
-  if (existing.some((t) => t.id === added.id)) return 'รหัสรายการซ้ำ';
+export function checkTradeAddCoded(existing: readonly TradeRecord[], added: TradeRecord): CodedProblem | null {
+  if (existing.some((t) => t.id === added.id)) return problem('rules.duplicateId');
   if (added.kind === 'sell') {
     let gross: number;
     try {
       gross = valueInSatang(BigInt(added.units as string), added.priceMicro as number);
     } catch {
-      return 'มูลค่าที่ขายเกินช่วงที่คำนวณได้';
+      return problem('rules.sellValueOverflow');
     }
-    if (gross === 0) return 'ขายแล้วได้เงิน 0 สตางค์ (หน่วยน้อยหรือราคาต่ำเกินไป) บันทึกไม่ได้';
-    if (added.fee > gross) return 'ค่าธรรมเนียมขายเกินเงินที่ขายได้';
+    if (gross === 0) return problem('trade.sellSatangZero');
+    if (added.fee > gross) return problem('trade.sellFeeExceedsGross');
   }
   if (affectsPosition(added)) {
     const last = latestSell(existing);
     if (last && added.date <= last.date) {
-      return `ต้องลงวันที่หลังรายการขายล่าสุด (${last.date}) เพราะต้นทุนเฉลี่ยขึ้นกับลำดับ ถ้าต้องการบันทึกย้อนหลัง ให้ลบรายการขายก่อน`;
+      return problem('rules.dateAfterLastSell', { date: last.date });
     }
   }
   return replayProblem([...existing, added]);
 }
 
+/** เหมือน checkTradeAddCoded แต่คืนเฉพาะข้อความไทยเดิม (สัญญาเดิม) */
+export function checkTradeAdd(existing: readonly TradeRecord[], added: TradeRecord): string | null {
+  return checkTradeAddCoded(existing, added)?.message ?? null;
+}
+
 /** ตรวจก่อนลบรายการ · null = ลบได้ */
-export function checkTradeDelete(existing: readonly TradeRecord[], id: string): string | null {
+export function checkTradeDeleteCoded(existing: readonly TradeRecord[], id: string): CodedProblem | null {
   const target = existing.find((t) => t.id === id);
-  if (!target) return 'ไม่พบรายการ';
+  if (!target) return problem('rules.notFound');
   if (!affectsPosition(target)) return null; // ปันผลเงินสด
   const last = latestSell(existing);
   if (target.kind === 'sell') {
-    if (last && last.id !== target.id) return 'ลบได้เฉพาะรายการขายล่าสุด (ลบจากล่าสุดย้อนกลับ)';
+    if (last && last.id !== target.id) return problem('rules.deleteOnlyLastSell');
   } else if (last && target.date <= last.date) {
-    return `ลบรายการที่ลงวันที่ ณ หรือก่อนรายการขายล่าสุด (${last.date}) ไม่ได้ ให้ลบรายการขายก่อน`;
+    return problem('rules.deleteBeforeLastSell', { date: last.date });
   }
   return replayProblem(existing.filter((t) => t.id !== id));
+}
+
+/** เหมือน checkTradeDeleteCoded แต่คืนเฉพาะข้อความไทยเดิม (สัญญาเดิม) */
+export function checkTradeDelete(existing: readonly TradeRecord[], id: string): string | null {
+  return checkTradeDeleteCoded(existing, id)?.message ?? null;
 }
