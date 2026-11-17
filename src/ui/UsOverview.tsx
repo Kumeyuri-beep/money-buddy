@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { baht, signed } from '../app/bahtFormat';
-import { friendlyError } from '../app/errorText';
+import { investError } from './invest/investError';
 import { fxRateText, usd } from '../app/usdFormat';
 import { buildUsPortfolio } from '../app/usPortfolio';
 import { formatBps } from '../domain/invest/allocation';
@@ -32,7 +32,7 @@ export function UsOverview({ today, accounts, entries, investments }: { today: s
     repo
       .loadInvestments()
       .then((d) => !cancelled && setData(d))
-      .catch((e) => !cancelled && setError(friendlyError(e)));
+      .catch((e) => !cancelled && setError(investError(e)));
     return () => {
       cancelled = true;
     };

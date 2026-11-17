@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { friendlyError } from '../../app/errorText';
+import { investError } from './investError';
 import { useInvest } from './InvestContext';
 import { LowerCards } from './dashboard/LowerCards';
 import { PortfolioCard } from './dashboard/PortfolioCard';
@@ -20,7 +20,7 @@ export function DashboardTab() {
     try {
       return { view: buildDashboardView(accounts, entries, data, today), failure: '' };
     } catch (e) {
-      return { view: null, failure: friendlyError(e) };
+      return { view: null, failure: investError(e) };
     }
   }, [accounts, entries, data, today]);
 

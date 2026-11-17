@@ -8,7 +8,7 @@ import { formatUnits, parsePriceMicro } from '../domain/invest/units';
 import { isSupportedEntryDate } from '../domain/ledger/limits';
 import { formatMicro } from '../domain/money/micro';
 import { StorageError, nextCreatedAt } from '../storage/repository';
-import { friendlyError } from '../app/errorText';
+import { investError, investProblem } from './invest/investError';
 import { baht, signed } from '../app/bahtFormat';
 import { AssetFigures, ASSET_KIND_LABEL_EN } from './AssetFigures';
 import { nextFocusAfterDelete } from '../app/tradeFocus';
@@ -88,7 +88,7 @@ function FieldInput(props: {
       )}
       {error && (
         <p id={`${id}-err`} className="avg-err">
-          {error.message}
+          {investProblem(error)}
         </p>
       )}
       {help}
@@ -127,7 +127,7 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
       setData(await repo.loadInvestments());
       setLoadError('');
     } catch (e) {
-      setLoadError(friendlyError(e));
+      setLoadError(investError(e));
     }
   }, [repo]);
 
@@ -169,7 +169,7 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
       setMessage({ text: okText, kind: 'ok' });
       return true;
     } catch (e) {
-      setMessage({ text: e instanceof StorageError ? e.message : friendlyError(e), kind: 'error' });
+      setMessage({ text: investError(e), kind: 'error' });
       return false;
     } finally {
       setBusy(false);
@@ -259,7 +259,7 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
       if (priceForm.date > today) throw new Error('Cannot save a price for a future date');
       priceMicro = parsePriceMicro(priceForm.price);
     } catch (err) {
-      setPriceError(err instanceof Error ? err.message : 'Invalid input');
+      setPriceError(investError(err, 'Invalid input'));
       document.getElementById(priceForm.date > today || !isSupportedEntryDate(priceForm.date) ? 'pf-pdate' : 'pf-pprice')?.focus();
       return;
     }
@@ -573,7 +573,7 @@ export function PortfolioView({ today, wallets, onLedgerChanged }: Props) {
               />
               {tradeErrors.find((x) => x.field === 'memo') && (
                 <p id="pf-memo-err" className="avg-err">
-                  {tradeErrors.find((x) => x.field === 'memo')?.message}
+                  {investProblem(tradeErrors.find((x) => x.field === 'memo')!)}
                 </p>
               )}
             </div>

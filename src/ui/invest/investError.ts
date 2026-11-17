@@ -1,4 +1,4 @@
-import { codedMessage, hasCode } from '../../domain/errors/coded';
+import { codedMessage, hasCode, messageFor } from '../../domain/errors/coded';
 
 const DEFAULT_EN = 'Could not save. Please try again.';
 
@@ -13,4 +13,13 @@ export function investError(e: unknown, fallback: string = DEFAULT_EN): string {
   if (e instanceof RangeError) return 'The number is too large or invalid. Check the amount and try again.';
   if (e instanceof TypeError && /fetch|network|load failed/i.test(e.message)) return 'Cannot connect. Check your internet connection and try again.';
   return fallback;
+}
+
+/** ปัญหาที่มี message ไทย + รหัส (จากฟอร์ม/แถวพอร์ต/ตัวตรวจ) → ข้อความอังกฤษ · ไม่มีรหัสหรือไม่รู้จัก = ข้อความสำรอง (ไม่แสดงไทยดิบ) */
+export function investProblem(p: { message: string; code?: string; params?: Readonly<Record<string, string | number>> }, fallback = 'Invalid input'): string {
+  if (p.code) {
+    const en = messageFor(p.code, p.params ?? {}, 'en');
+    if (en !== null) return en;
+  }
+  return /[\u0E00-\u0E7F]/.test(p.message) ? fallback : p.message;
 }

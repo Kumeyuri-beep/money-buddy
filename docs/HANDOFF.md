@@ -1300,3 +1300,10 @@ money-auditor ตรวจ 5 ตัวที่เกี่ยวกับเง
 
 เจ้าของอนุมัติแบบมีเงื่อนไข: money-auditor คำนวณมือตัวอย่าง 2,987 bps (USD) และ 2,022 bps (บาท) ตรงกับฟังก์ชันจริงทุกตัว → เพิ่ม R24.6 ใน `docs/money-rules.md` (commit แยก) + เทสต์ใน `tests/unit/investPortfolioView.test.ts` (ตัวอย่างกฎ, .4/.5/.6 บวกลบ, ขาดทุน, ต้นทุน 0 → ไม่แสดง %)
 **รอเจ้าของ (ขั้น 3):** การแปลข้อความ error/ภาพการ์ดแชร์ใน /invest ที่ชั้นหน้าจอ ต้องรายงานจำนวนจุดต้นทางที่ไม่มีรหัส error ก่อน (ดูแชท 17 พ.ย. 2569)
+
+## 89. รหัส error + แปล error/ภาพแชร์ใน /invest (17 พ.ย. 2569 · #205–#211)
+
+เจ้าของอนุมัติทางเลือก 2 (รหัส error ที่ต้นทาง · ห้ามเปลี่ยนตรรกะ · ข้อความไทยหน้าอื่นเหมือนเดิมทุกตัวอักษร)
+**merge แล้ว:** #206 โครง `src/domain/errors/coded.ts` (defineMessages/withCode) + `investError` · #207 ภาพการ์ดแชร์อังกฤษ (`lang` ในโมเดลสัดส่วน ค่าเริ่มต้นไทย) · #208 ฟอร์ม (25 รหัส `form.*`/`usp.*`) · #210 domain/invest (72 รหัส) · #209 storage (33 แม่แบบ `store.*`) · PR นี้ ต่อรหัสเข้าหน้าจอ /invest (`investError`/`investProblem`) · money-auditor ตรวจ diff #208/#209/#210 ผ่าน ไม่มีการเปลี่ยนตรรกะเงิน · live-contract: บน branch #209 และบน main หลังแต่ละ merge ผ่าน 65/65
+**ที่ยังเป็นไทย (ตั้งใจเว้น):** ข้อความที่ฐานข้อมูลส่งมาเอง (OWN_CODES · ต้องแก้ฝั่ง supabase/) · ปัญหาตั้งค่า `settingsProblem`/`planOutsideKeysProblem` (ต่อท้ายด้วยข้อความไทยจาก domain/settings) · `usdIntegrity.ts` (Integrity Check มี code ของตัวเอง) · `src/domain/money/safe.ts` (ตัวเลขล้น) · error ของบิล/สมุดบัญชี · memo เก่า → ใน /invest error ที่ไม่มีรหัสแสดงข้อความสำรองอังกฤษ ("Could not save. Please try again." / "Invalid input") ไม่แสดงไทยดิบ
+**หมายเหตุ:** บาง error ยังพกเลขเต็ม (เช่น จำนวนที่ขายเกิน) เป็น params · ถ้าจะทำส่วนที่เว้นไว้ต้องให้เจ้าของอนุมัติแตะ `supabase/` และ `settings.ts`

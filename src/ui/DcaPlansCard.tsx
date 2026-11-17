@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { formatDateEn, MONTHS_EN } from '../app/dateEn';
-import { friendlyError } from '../app/errorText';
+import { investError, investProblem } from './invest/investError';
 import { newId } from '../app/ids';
 import type { FinanceSettings } from '../domain/bills/settings';
-import { dcaPlanProblem, dcaStartMonth, dcaStatus, MAX_DCA_PLANS, type DcaPlan } from '../domain/invest/dcaPlan';
+import { dcaPlanProblemCoded, dcaStartMonth, dcaStatus, MAX_DCA_PLANS, type DcaPlan } from '../domain/invest/dcaPlan';
 import type { Asset, TradeRecord } from '../domain/invest/types';
 import { formatBaht, parseBahtToSatang, satang, toBahtString } from '../domain/money/satang';
 import { StorageError } from '../storage/repository';
@@ -49,7 +49,7 @@ export function DcaPlansCard({ assets, trades, today, onBuy }: Props) {
       setSettings(await repo.loadSettings());
       setLoadError('');
     } catch (e) {
-      setLoadError(friendlyError(e));
+      setLoadError(investError(e));
     }
   }, [repo]);
 
@@ -97,7 +97,7 @@ export function DcaPlansCard({ assets, trades, today, onBuy }: Props) {
       setMessage({ text: okText, kind: 'ok' });
       return true;
     } catch (e) {
-      setMessage({ text: e instanceof StorageError ? e.message : friendlyError(e), kind: 'error' });
+      setMessage({ text: investError(e), kind: 'error' });
       return false;
     } finally {
       setBusy(false);
@@ -124,9 +124,9 @@ export function DcaPlansCard({ assets, trades, today, onBuy }: Props) {
     const validDay = Number.isInteger(dayOfMonth) && dayOfMonth >= 1 && dayOfMonth <= 31;
     const startMonth = validDay ? dcaStartMonth(today, dayOfMonth) : today.slice(0, 7);
     const plan: DcaPlan = { id: newId('dca'), assetId, amount, dayOfMonth, startMonth };
-    const problem = dcaPlanProblem(plan);
+    const problem = dcaPlanProblemCoded(plan);
     if (problem) {
-      setFormError({ field: 'dca-day', message: problem });
+      setFormError({ field: 'dca-day', message: investProblem(problem) });
       document.getElementById('dca-day')?.focus();
       return;
     }
