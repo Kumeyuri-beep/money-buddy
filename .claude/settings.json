@@ -27,7 +27,7 @@
       "Read(./.env*)",
       "Read(**/.env*)",
       "Read(~/.money-buddy-admin/**)",
-      "Read(//c/Users/owenn/.money-buddy-admin/**)",
+      "Read(//c/Users/*/.money-buddy-admin/**)",
       "Edit(~/.money-buddy-admin/**)",
       "Write(~/.money-buddy-admin/**)",
       "Bash(cat *.env*)",

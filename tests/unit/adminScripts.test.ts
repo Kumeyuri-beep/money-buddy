@@ -5,22 +5,22 @@ import { findSecretKeys } from '../../scripts/lib/distScan.mjs';
 
 describe('adminEnvPath / isInsideDir (ไฟล์ key ต้องอยู่นอกโปรเจกต์)', () => {
   it('ต่อพาธไฟล์ key จากโฟลเดอร์บ้าน', () => {
-    expect(adminEnvPath('C:\\Users\\owenn')).toBe('C:\\Users\\owenn/.money-buddy-admin/admin.env');
+    expect(adminEnvPath('C:\\Users\\tester')).toBe('C:\\Users\\tester/.money-buddy-admin/admin.env');
     expect(adminEnvPath('/home/x/', '/')).toBe('/home/x/.money-buddy-admin/admin.env');
   });
-  const project = 'C:\\Users\\owenn\\Documents\\money-buddy';
+  const project = 'C:\\Users\\tester\\Documents\\money-buddy';
   it('ไฟล์ key นอกโปรเจกต์ = ไม่อยู่ข้างใน', () => {
-    expect(isInsideDir('C:\\Users\\owenn\\.money-buddy-admin\\admin.env', project)).toBe(false);
+    expect(isInsideDir('C:\\Users\\tester\\.money-buddy-admin\\admin.env', project)).toBe(false);
   });
   it('ไฟล์ในโปรเจกต์ (รวมโฟลเดอร์ย่อย ตัวพิมพ์/ทิศทางทับต่างกัน) = อยู่ข้างใน', () => {
-    expect(isInsideDir('C:\\Users\\owenn\\Documents\\money-buddy\\.env', project)).toBe(true);
-    expect(isInsideDir('c:/users/OWEN/documents/money-buddy/a/b/admin.env'.replace('OWEN', 'owenn'), project)).toBe(true);
+    expect(isInsideDir('C:\\Users\\tester\\Documents\\money-buddy\\.env', project)).toBe(true);
+    expect(isInsideDir('c:/users/TESTER/documents/money-buddy/a/b/admin.env'.replace('TESTER', 'tester'), project)).toBe(true);
     expect(isInsideDir(project, project)).toBe(true);
     expect(isInsideDir(`${project}\\`, project)).toBe(true);
   });
   it('โฟลเดอร์พี่น้องที่ชื่อขึ้นต้นเหมือนกันไม่ใช่ข้างใน', () => {
-    expect(isInsideDir('C:\\Users\\owenn\\Documents\\money-buddy-2\\x', project)).toBe(false);
-    expect(isInsideDir('C:\\Users\\owenn\\Documents', project)).toBe(false);
+    expect(isInsideDir('C:\\Users\\tester\\Documents\\money-buddy-2\\x', project)).toBe(false);
+    expect(isInsideDir('C:\\Users\\tester\\Documents', project)).toBe(false);
   });
 });
 

@@ -6,8 +6,8 @@
 
 ## 1. เจ้าของและสภาพแวดล้อม
 
-- เจ้าของ: Kumeyuri (Hisoka) · มือใหม่ด้านเขียนโปรแกรม · คุยภาษาไทย ต้องการคำอธิบายทีละขั้นแบบง่าย
-- เครื่อง: Windows · PowerShell · โปรเจกต์อยู่ที่ `C:\Users\owenn\Documents\money-buddy`
+- เจ้าของ: Kumeyuri · มือใหม่ด้านเขียนโปรแกรม · คุยภาษาไทย ต้องการคำอธิบายทีละขั้นแบบง่าย
+- เครื่อง: Windows · PowerShell · โปรเจกต์อยู่ที่ `<project-path>`
   (เคยอยู่ไดรฟ์ `Z:` แต่ย้ายเพราะ Vite ขึ้น EBUSY)
 - GitHub: `Kumeyuri-beep/money-buddy` (private) · Vercel: ทีม `kumeyuri` → https://money-buddy-phi.vercel.app
   (Hobby ฟรี, เปิด Vercel Authentication, push ขึ้น main แล้ว deploy อัตโนมัติ)
@@ -1307,3 +1307,8 @@ money-auditor ตรวจ 5 ตัวที่เกี่ยวกับเง
 **merge แล้ว:** #206 โครง `src/domain/errors/coded.ts` (defineMessages/withCode) + `investError` · #207 ภาพการ์ดแชร์อังกฤษ (`lang` ในโมเดลสัดส่วน ค่าเริ่มต้นไทย) · #208 ฟอร์ม (25 รหัส `form.*`/`usp.*`) · #210 domain/invest (72 รหัส) · #209 storage (33 แม่แบบ `store.*`) · PR นี้ ต่อรหัสเข้าหน้าจอ /invest (`investError`/`investProblem`) · money-auditor ตรวจ diff #208/#209/#210 ผ่าน ไม่มีการเปลี่ยนตรรกะเงิน · live-contract: บน branch #209 และบน main หลังแต่ละ merge ผ่าน 65/65
 **ที่ยังเป็นไทย (ตั้งใจเว้น):** ข้อความที่ฐานข้อมูลส่งมาเอง (OWN_CODES · ต้องแก้ฝั่ง supabase/) · ปัญหาตั้งค่า `settingsProblem`/`planOutsideKeysProblem` (ต่อท้ายด้วยข้อความไทยจาก domain/settings) · `usdIntegrity.ts` (Integrity Check มี code ของตัวเอง) · `src/domain/money/safe.ts` (ตัวเลขล้น) · error ของบิล/สมุดบัญชี · memo เก่า → ใน /invest error ที่ไม่มีรหัสแสดงข้อความสำรองอังกฤษ ("Could not save. Please try again." / "Invalid input") ไม่แสดงไทยดิบ
 **หมายเหตุ:** บาง error ยังพกเลขเต็ม (เช่น จำนวนที่ขายเกิน) เป็น params · ถ้าจะทำส่วนที่เว้นไว้ต้องให้เจ้าของอนุมัติแตะ `supabase/` และ `settings.ts`
+
+## 90. ตัดข้อมูลส่วนตัวก่อนเปิด public (17 พ.ย. 2569 · PR `auto/redact-personal-info`)
+- เจ้าของสั่งหลังผลตรวจก่อนเปิด public: ตั้งอีเมล author ของ repo เป็น noreply ของ GitHub (ตั้งแล้ว) · ตัดชื่อเล่น/ชื่อผู้ใช้ Windows/path ไฟล์ key ออกจากเอกสาร · เพิ่ม `.gitleaksignore` (9 รายการปลอมในเทสต์) · ห้ามแก้ประวัติเก่า
+- ยังค้าง (เจ้าของตัดสิน): อีเมลส่วนตัวใน commit เก่าทั้งหมด (556 commit) ไม่ได้แก้ · ถ้าเปิด public ควรสร้าง repo ใหม่แบบ squash หรือยอม rewrite ประวัติ · เปิด leaked password protection ใน Supabase · ยืนยันว่าปิดสมัครเอง
+- ไม่แตะเงิน/DB/migration จึงไม่ใช้ money/security-auditor และไม่ต้อง live-contract
