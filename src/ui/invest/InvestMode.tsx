@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { investError } from './investError';
 import { INVEST_HOME, investPage, investPageFromLocation, investUrl, type InvestPageId } from '../../app/investRoute';
+import { DEFAULT_DISPLAY_CURRENCY, resolveDisplayCurrency } from '../../domain/invest/displayCurrency';
 import { buildInvestBadge } from '../../app/investBadge';
 import type { InvestmentData } from '../../domain/invest/types';
 import type { Account, Entry } from '../../domain/ledger/types';
@@ -10,7 +11,11 @@ import { DashboardTab } from './DashboardTab';
 import { DEFAULT_PORTFOLIO_NAME, InvestContext, type InvestCurrency, type PortfolioSettings } from './InvestContext';
 import { ComingSoonPage } from './ComingSoonPage';
 import { InvestTopBar } from './InvestTopBar';
-import { TransactionsTab } from './TransactionsTab';
+import { CashPage } from './pages/CashPage';
+import { GoalPage } from './pages/GoalPage';
+import { HoldingsPage } from './pages/HoldingsPage';
+import { ReportPage } from './pages/ReportPage';
+import { TransactionsPage } from './pages/TransactionsPage';
 import './invest.css';
 
 interface Props {
@@ -29,7 +34,7 @@ function shortDate(iso: string): string {
   return `${Number(iso.slice(8, 10))} ${m}`;
 }
 
-const DEFAULT_PORTFOLIO: PortfolioSettings = { name: DEFAULT_PORTFOLIO_NAME, note: '', currency: 'THB' };
+const DEFAULT_PORTFOLIO: PortfolioSettings = { name: DEFAULT_PORTFOLIO_NAME, note: '', currency: DEFAULT_DISPLAY_CURRENCY };
 
 /**
  * โหมดการลงทุน (/invest): แถบบน (แท็บ + ปุ่ม) + ชื่อพอร์ต + แท็บที่เลือก · ข้อความทั้งโหมดเป็นภาษาอังกฤษ
@@ -43,7 +48,7 @@ export default function InvestMode({ today, accounts, entries, wallets, onLedger
   const panelRef = useRef<HTMLDivElement>(null);
   const focusPanel = useRef(false);
   const [portfolio, setPortfolio] = useState<PortfolioSettings>(DEFAULT_PORTFOLIO);
-  const [currency, setCurrency] = useState<InvestCurrency>('THB');
+  const [currency, setCurrency] = useState<InvestCurrency>(DEFAULT_DISPLAY_CURRENCY);
   const [data, setData] = useState<InvestmentData | null>(null);
   const [loadError, setLoadError] = useState('');
   const touchedCurrency = useRef(false);
@@ -67,7 +72,7 @@ export default function InvestMode({ today, accounts, entries, wallets, onLedger
       .loadSettings()
       .then((s) => {
         if (!alive) return;
-        const next: PortfolioSettings = { name: s.portfolioName ?? DEFAULT_PORTFOLIO_NAME, note: s.portfolioNote ?? '', currency: s.portfolioCurrency ?? 'THB' };
+        const next: PortfolioSettings = { name: s.portfolioName ?? DEFAULT_PORTFOLIO_NAME, note: s.portfolioNote ?? '', currency: resolveDisplayCurrency(s.portfolioCurrency) };
         setPortfolio(next);
         if (!touchedCurrency.current) setCurrency(next.currency);
       })
@@ -91,10 +96,16 @@ export default function InvestMode({ today, accounts, entries, wallets, onLedger
     [repo],
   );
 
-  const changeCurrency = useCallback((c: InvestCurrency) => {
-    touchedCurrency.current = true;
-    setCurrency(c);
-  }, []);
+  // ปุ่ม $ USD / ฿ THB บนแถบบน: จำค่าต่อผู้ใช้ (R26.1 · เก็บใน portfolioCurrency เดิม) · บันทึกไม่สำเร็จไม่ขัดการใช้งาน (ค่าในหน้ายังเปลี่ยน)
+  const changeCurrency = useCallback(
+    (c: InvestCurrency) => {
+      touchedCurrency.current = true;
+      setCurrency(c);
+      setPortfolio((p) => ({ ...p, currency: c }));
+      void repo.updateSettings(['portfolioCurrency'], () => ({ portfolioCurrency: c })).catch(() => undefined);
+    },
+    [repo],
+  );
 
   // เมนูย่อย: ทุกหน้ามี URL ของตัวเอง (pushState → ปุ่ม back/forward ทำงาน) · back/forward = อ่านหน้าจาก URL
   const pageRef = useRef(page);
@@ -138,21 +149,17 @@ export default function InvestMode({ today, accounts, entries, wallets, onLedger
   return (
     <InvestContext.Provider value={ctx}>
       <div className="invest-mode iv-mode">
-        <InvestTopBar page={page} onNavigate={navigate} hrefFor={hrefFor} onGoal={onOpenRetirement} onAdd={openAdd} currency={currency} onCurrency={changeCurrency} portfolio={portfolio} onSavePortfolio={savePortfolio} />
-        <header className="iv-head" lang="en">
-          <div>
-            <h2 className="iv-title" id="invest-title">
-              {portfolio.name}
-            </h2>
-            {portfolio.note !== '' && <p className="iv-note">{portfolio.note}</p>}
-          </div>
-          {data !== null && (
+        <InvestTopBar page={page} onNavigate={navigate} hrefFor={hrefFor} onAdd={openAdd} currency={currency} onCurrency={changeCurrency} portfolio={portfolio} onSavePortfolio={savePortfolio} />
+        {/* ไม่มีชื่อพอร์ตหรือข้อความ Sample data ใต้แถบบน (แบบร่าง v2) · ชื่อของแต่ละหน้าอยู่ในเนื้อหาของหน้านั้น */}
+        {data !== null && (
+          <header className="iv-head iv-head-end" lang="en">
             <p className="iv-badge" role="status">
               {badge.updatedOn ? `Updated ${shortDate(badge.updatedOn)}` : 'No prices or rates yet'}
               {badge.rateText ? ` · ${badge.rateText}` : ''}
             </p>
-          )}
-        </header>
+          </header>
+        )}
+        <h1 className="sr-only">{investPage(page).title}</h1>
         {loadError !== '' && (
           <div role="alert">
             <p className="form-error">Could not load portfolio data: {loadError}</p>
@@ -171,9 +178,15 @@ export default function InvestMode({ today, accounts, entries, wallets, onLedger
           ) : page === 'analytics/growth' ? (
             <AnalysisTab part="growth" />
           ) : page === 'portfolio/holdings' ? (
-            <TransactionsTab key={addSignal} section="us" />
+            <HoldingsPage addSignal={addSignal} />
           ) : page === 'portfolio/transactions' ? (
-            <TransactionsTab section="overview" />
+            <TransactionsPage />
+          ) : page === 'analytics/report' ? (
+            <ReportPage onHome={() => navigate(INVEST_HOME)} />
+          ) : page === 'portfolio/goal' ? (
+            <GoalPage onHome={() => navigate(INVEST_HOME)} />
+          ) : page === 'portfolio/cash' ? (
+            <CashPage onHome={() => navigate(INVEST_HOME)} />
           ) : (
             <ComingSoonPage page={page} onHome={() => navigate(INVEST_HOME)} />
           )}

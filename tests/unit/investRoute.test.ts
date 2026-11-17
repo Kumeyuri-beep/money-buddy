@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INVEST_GROUPS, INVEST_PAGES, investPageFromPath, investPath, investUrl, type InvestPageId } from '../../src/app/investRoute';
+import { DIVIDEND_PAYOUT_CALENDAR_URL, INVEST_GROUPS, INVEST_PAGES, investPageFromPath, investPath, investUrl, type InvestPageId } from '../../src/app/investRoute';
 import { urlForView, viewFromLocation } from '../../src/app/route';
 
 describe('investRoute (เมนูย่อยของโหมด /invest)', () => {
@@ -31,12 +31,25 @@ describe('investRoute (เมนูย่อยของโหมด /invest)', 
     expect(INVEST_GROUPS.map((g) => g.label)).toEqual(['Dashboard', 'Analytics', 'Portfolio', 'Tools']);
     expect(labels('analytics')).toEqual([['Common', 'Diversification', 'Dividends', 'Growth'], ['Metrics', 'Report']]);
     expect(labels('portfolio')).toEqual([['Holdings', 'Transactions', 'Dividend calendar', 'My goal'], ['Cash', 'Categories', 'Corporate actions']]);
-    expect(labels('tools')).toEqual([['Portfolio rebalancing', 'Top dividend stocks', 'Dividend payout calendar', 'Portfolio Lab', 'Find the Dip']]);
+    expect(labels('tools')).toEqual([['Portfolio rebalancing', 'Top dividend stocks', 'Dividend payout calendar', 'Find the Dip']]);
     expect(JSON.stringify(INVEST_GROUPS)).not.toContain('Community');
   });
-  it('My goal เป็นปุ่มไปแผนเกษียณ ไม่ใช่หน้า · หน้าที่ยังไม่มีบอกว่ารออะไร', () => {
-    const goal = INVEST_GROUPS.flatMap((g) => g.sections.flatMap((s) => s.items)).find((i) => i.label === 'My goal')!;
-    expect(goal.kind).toBe('goal');
+  it('Dividend payout calendar เป็นลิงก์ภายนอก (ไม่มี route) · My goal เป็นหน้าของโหมดนี้ · Portfolio Lab ถูกเอาออก · หน้าที่ยังไม่มีบอกว่ารออะไร', () => {
+    const items = INVEST_GROUPS.flatMap((g) => g.sections.flatMap((s) => s.items));
+    const goal = items.find((i) => i.label === 'My goal')!;
+    expect(goal).toMatchObject({ kind: 'page', page: 'portfolio/goal' });
+    const cal = items.find((i) => i.label === 'Dividend payout calendar')!;
+    expect(cal).toMatchObject({ kind: 'external', href: 'https://snowball-analytics.com/calendars/dividend-calendar' });
+    expect(cal.page).toBeUndefined();
+    expect(DIVIDEND_PAYOUT_CALENDAR_URL).toBe(cal.href);
+    // ไม่มีลิงก์เสีย: ทุกรายการที่เป็นหน้ามี route จริง · ทุกลิงก์ภายนอกเป็น https
+    for (const i of items) {
+      if (i.kind === 'page') expect(investPageFromPath(investPath(i.page!))).toBe(i.page);
+      else expect(i.href).toMatch(/^https:\/\//);
+    }
+    expect(investPageFromPath('/invest/tools/portfolio-lab')).toBeNull();
+    expect(investPageFromPath('/invest/tools/dividend-payout-calendar')).toBeNull();
+    expect(JSON.stringify(INVEST_GROUPS)).not.toContain('Portfolio Lab');
     for (const p of INVEST_PAGES) {
       if (p.status === 'soon') {
         expect(p.about.length).toBeGreaterThan(10);

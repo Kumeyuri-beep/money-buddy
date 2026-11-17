@@ -167,8 +167,7 @@ interface Props {
   onNavigate: (id: InvestPageId) => void;
   /** URL จริงของแต่ละหน้า (ใส่ใน href เพื่อเปิดแท็บใหม่/คัดลอกลิงก์ได้) */
   hrefFor: (id: InvestPageId) => string;
-  /** My goal → ไปหน้าแผนเกษียณ (ไม่มี = ปุ่มปิดอยู่) */
-  onGoal?: () => void;
+  /** ปุ่ม Add: ไปหน้า Holdings (ฟอร์มเพิ่มรายการ) */
   onAdd: () => void;
   currency: InvestCurrency;
   onCurrency: (c: InvestCurrency) => void;
@@ -183,7 +182,7 @@ const isPlainClick = (e: ReactMouseEvent): boolean => e.button === 0 && !e.metaK
  * เปิดด้วย: ชี้เมาส์ · โฟกัสด้วยคีย์บอร์ด · กด/แตะ (มือถือ) · ลูกศรลง · ปิดด้วย Esc / คลิกที่อื่น / โฟกัสออก
  * คีย์บอร์ด: ลูกศรลง/ขึ้น เลื่อนระหว่างรายการ · ซ้าย/ขวา ข้ามไปเมนูหลักข้างเคียง · Home/End ไปรายการแรก/สุดท้าย
  */
-function MainNav({ page, onNavigate, hrefFor, onGoal }: Pick<Props, 'page' | 'onNavigate' | 'hrefFor' | 'onGoal'>) {
+function MainNav({ page, onNavigate, hrefFor }: Pick<Props, 'page' | 'onNavigate' | 'hrefFor'>) {
   const [open, setOpen] = useState<InvestMenuGroup['id'] | null>(null);
   const navRef = useRef<HTMLElement>(null);
   const openedByHover = useRef(false);
@@ -348,20 +347,14 @@ function MainNav({ page, onNavigate, hrefFor, onGoal }: Pick<Props, 'page' | 'on
                   <ul className="iv-submenu-sec" key={si}>
                     {s.items.map((it) => (
                       <li key={it.label}>
-                        {it.kind === 'goal' ? (
-                          <button
-                            type="button"
-                            data-iv-item
-                            className="iv-submenu-link"
-                            disabled={onGoal === undefined}
-                            onClick={() => {
-                              close();
-                              onGoal?.();
-                            }}
-                          >
+                        {it.kind === 'external' ? (
+                          <a data-iv-item className="iv-submenu-link" href={it.href} target="_blank" rel="noopener noreferrer" onClick={() => close(g.id)}>
                             {it.label}
-                            <span className="iv-submenu-hint">{onGoal === undefined ? 'Unavailable' : 'Retirement plan'}</span>
-                          </button>
+                            <span className="iv-ext" aria-hidden="true">
+                              ↗
+                            </span>
+                            <span className="sr-only">(opens in a new tab)</span>
+                          </a>
                         ) : (
                           <a
                             data-iv-item
@@ -393,10 +386,10 @@ function MainNav({ page, onNavigate, hrefFor, onGoal }: Pick<Props, 'page' | 'on
 }
 
 /** แถบบนของโหมด /invest (ภาษาอังกฤษ): เมนูหลักซ้าย (มีเมนูเลื่อนลง) · ปุ่มขวา (AI, Add, Search, Watchlist, สกุล, เมนูพอร์ต) */
-export function InvestTopBar({ page, onNavigate, hrefFor, onGoal, onAdd, currency, onCurrency, portfolio, onSavePortfolio }: Props) {
+export function InvestTopBar({ page, onNavigate, hrefFor, onAdd, currency, onCurrency, portfolio, onSavePortfolio }: Props) {
   return (
     <div className="iv-topbar glass-lite" lang="en">
-      <MainNav page={page} onNavigate={onNavigate} hrefFor={hrefFor} onGoal={onGoal} />
+      <MainNav page={page} onNavigate={onNavigate} hrefFor={hrefFor} />
       <div className="iv-actions">
         <TipButton className="iv-icon-btn iv-ai" tip="Ask AI — coming soon" ariaLabel="Ask AI">
           <Icon d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8z" />

@@ -24,13 +24,12 @@ export type InvestPageId =
   | 'portfolio/holdings'
   | 'portfolio/transactions'
   | 'portfolio/dividend-calendar'
+  | 'portfolio/goal'
   | 'portfolio/cash'
   | 'portfolio/categories'
   | 'portfolio/corporate-actions'
   | 'tools/rebalancing'
   | 'tools/top-dividend-stocks'
-  | 'tools/dividend-payout-calendar'
-  | 'tools/portfolio-lab'
   | 'tools/find-the-dip';
 
 export interface InvestPage {
@@ -59,13 +58,12 @@ export const INVEST_PAGES: readonly InvestPage[] = [
   live('portfolio/holdings', 'Holdings'),
   live('portfolio/transactions', 'Transactions'),
   soon('portfolio/dividend-calendar', 'Dividend calendar', 'Upcoming dividend dates for the stocks you hold.', 'Needs automatic market data (dividend schedules).', 'market'),
+  soon('portfolio/goal', 'My goal', 'Set a target for portfolio value or yearly dividend income and see how long it may take.', 'Built from your own records — not built yet.', 'own'),
   soon('portfolio/cash', 'Cash', 'Cash balances in THB and USD, and money moved in and out of the portfolio.', 'Built from your own records — not built yet.', 'own'),
   soon('portfolio/categories', 'Categories', 'Group holdings with your own labels, such as "Retirement" or "Income".', 'Needs a place to store your labels — not built yet.', 'own'),
   soon('portfolio/corporate-actions', 'Corporate actions', 'Stock splits and similar events applied to your holdings.', 'Entering them by hand is not built yet; automatic detection needs market data.', 'own'),
   soon('tools/rebalancing', 'Portfolio rebalancing', 'Compare your mix with a target mix and see what to buy or sell.', 'Needs current prices to suggest amounts.', 'market'),
   soon('tools/top-dividend-stocks', 'Top dividend stocks', 'Browse stocks ranked by dividend yield.', 'Needs automatic market data.', 'market'),
-  soon('tools/dividend-payout-calendar', 'Dividend payout calendar', 'A calendar of dividend payments across the market.', 'Needs automatic market data (dividend schedules).', 'market'),
-  soon('tools/portfolio-lab', 'Portfolio Lab', 'Try "what if" portfolios against past performance.', 'Needs historical price data.', 'market'),
   soon('tools/find-the-dip', 'Find the Dip', 'Spot stocks that have fallen well below their recent highs.', 'Needs automatic market data.', 'market'),
 ];
 
@@ -74,10 +72,11 @@ const PAGE_BY_ID = new Map<string, InvestPage>(INVEST_PAGES.map((p) => [p.id, p]
 export const investPage = (id: InvestPageId): InvestPage => PAGE_BY_ID.get(id)!;
 
 export interface InvestMenuItem {
-  /** page = ไปหน้า · goal = ปุ่มไปแผนเกษียณ (ไม่ใช่หน้าของโหมดนี้) */
-  kind: 'page' | 'goal';
+  /** page = ไปหน้าในโหมดนี้ · external = เปิดเว็บภายนอกในแท็บใหม่ (rel="noopener" · แสดงไอคอน ↗) */
+  kind: 'page' | 'external';
   label: string;
   page?: InvestPageId;
+  href?: string;
 }
 export interface InvestMenuGroup {
   id: 'dashboard' | 'analytics' | 'portfolio' | 'tools';
@@ -89,6 +88,10 @@ export interface InvestMenuGroup {
 }
 
 const pg = (label: string, page: InvestPageId): InvestMenuItem => ({ kind: 'page', label, page });
+
+/** ปฏิทินปันผลภายนอก (เปิดแท็บใหม่ · ไม่ใช่หน้าของโหมดนี้ จึงไม่มี route และไม่ส่งข้อมูลของผู้ใช้ไปด้วย) */
+export const DIVIDEND_PAYOUT_CALENDAR_URL = 'https://snowball-analytics.com/calendars/dividend-calendar';
+const ext = (label: string, href: string): InvestMenuItem => ({ kind: 'external', label, href });
 
 export const INVEST_GROUPS: readonly InvestMenuGroup[] = [
   { id: 'dashboard', label: 'Dashboard', page: 'dashboard', sections: [] },
@@ -104,7 +107,7 @@ export const INVEST_GROUPS: readonly InvestMenuGroup[] = [
     id: 'portfolio',
     label: 'Portfolio',
     sections: [
-      { items: [pg('Holdings', 'portfolio/holdings'), pg('Transactions', 'portfolio/transactions'), pg('Dividend calendar', 'portfolio/dividend-calendar'), { kind: 'goal', label: 'My goal' }] },
+      { items: [pg('Holdings', 'portfolio/holdings'), pg('Transactions', 'portfolio/transactions'), pg('Dividend calendar', 'portfolio/dividend-calendar'), pg('My goal', 'portfolio/goal')] },
       { items: [pg('Cash', 'portfolio/cash'), pg('Categories', 'portfolio/categories'), pg('Corporate actions', 'portfolio/corporate-actions')] },
     ],
   },
@@ -116,8 +119,7 @@ export const INVEST_GROUPS: readonly InvestMenuGroup[] = [
         items: [
           pg('Portfolio rebalancing', 'tools/rebalancing'),
           pg('Top dividend stocks', 'tools/top-dividend-stocks'),
-          pg('Dividend payout calendar', 'tools/dividend-payout-calendar'),
-          pg('Portfolio Lab', 'tools/portfolio-lab'),
+          ext('Dividend payout calendar', DIVIDEND_PAYOUT_CALENDAR_URL),
           pg('Find the Dip', 'tools/find-the-dip'),
         ],
       },
