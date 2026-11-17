@@ -8,7 +8,8 @@ import { AnalysisTab } from '../../src/ui/invest/AnalysisTab';
 import { InvestContext, type InvestContextValue } from '../../src/ui/invest/InvestContext';
 import { buildAnalysisModel } from '../../src/ui/invest/analysis/analysisModel';
 import { percentBps, signedPercentBps } from '../../src/ui/invest/analysis/format';
-import { ProfitSources } from '../../src/ui/invest/analysis/HoldingsCard';
+import { profitSourceRows } from '../../src/ui/invest/dashboard/dashboardView';
+import { ProfitSourcesCard } from '../../src/ui/invest/analysis/ProfitSourcesCard';
 
 const asset = (id: string, ticker: string): Asset => ({ id, name: `หุ้น ${ticker}`, kind: 'stock', accountId: `inv-${id}`, currency: 'USD', ticker, exchange: 'NASDAQ' });
 let seq = 0;
@@ -63,24 +64,31 @@ const MAIN: InvestmentData = {
   prices: [{ assetId: 'us1', date: '2026-11-12', priceMicro: 125_000_000 }],
   fxRates: [{ accountId: 'usd-cash', date: '2026-11-12', rateMicro: 34_000_000 }],
 };
-describe('กำไรรวมแยกตามแหล่ง (ProfitSources)', () => {
+describe('การ์ด Where the profit comes from (ProfitSourcesCard)', () => {
   const profit = computeProfitSources(MAIN, '2026-11-13');
-  const html = (c: 'THB' | 'USD', p = profit) => renderToStaticMarkup(createElement(ProfitSources, { profit: p, currency: c }));
+  const html = (c: 'THB' | 'USD', p = profit) => renderToStaticMarkup(createElement(ProfitSourcesCard, { profit: p, currency: c }));
   it('บาท: กำไรรวม 774,113 สตางค์ = +฿7,741.13 · มีป้ายแหล่งที่ถูกต้องและบรรทัดค่าเงิน', () => {
     const h = html('THB');
     expect(h).toContain('+฿7,741.13');
-    expect(h).toContain('ปันผล (ก่อนภาษี)');
-    expect(h).toContain('ค่าธรรมเนียมและภาษีที่ถูกหัก');
-    expect(h).toContain('ค่าเงิน');
+    expect(h).toContain('Where the profit comes from');
+    for (const l of ['Price gain (unsold)', 'Price gain (sold)', 'Options', 'Dividends (before tax)', 'Currency effect', 'Fees and tax withheld']) expect(h).toContain(l);
+    expect(h).toContain('Total profit (THB)');
   });
   it('USD: ไม่มีบรรทัดค่าเงิน และกำไรรวม +$270.50', () => {
     const h = html('USD');
-    expect(h).not.toContain('ค่าเงิน');
+    expect(h).toContain('Currency effect'); // แถวยังอยู่ แต่เป็น "—" (ไม่ใช้ในมุมมอง USD)
+    expect(h).toContain('Not applicable in the USD view');
     expect(h).toContain('+$270.50');
+    expect(h).toContain('Total profit (USD)');
+  });
+  it('ผลรวม 6 แหล่งเท่ากำไรรวม: 774,113 สตางค์ / 27,050 เซนต์ (ค่าเงินในมุมมอง USD = null ไม่นับ)', () => {
+    const sum = (c: 'THB' | 'USD') => profitSourceRows(profit, c)!.reduce((n, r) => n + (r.value ?? 0), 0);
+    expect(sum('THB')).toBe(774_113);
+    expect(sum('USD')).toBe(27_050);
   });
   it('ข้อมูลไม่ครบ (src เป็น null) = ข้อความไม่แสดง ไม่มีตัวเลข', () => {
     const h = html('THB', { ...profit, thb: null, usd: null });
-    expect(h).toContain('ยังไม่แสดง');
+    expect(h).toContain('Not shown yet');
     expect(h).not.toContain('฿');
   });
 });
@@ -117,13 +125,14 @@ describe('กรณีขอบ', () => {
   });
   it('ไม่มีหุ้น: การ์ดว่างใบเดียว ไม่มีการ์ดอื่นและไม่มี "ขึ้นลงวันนี้"', () => {
     const h = render({ assets: [], trades: [], prices: [] });
-    expect(h).toContain('ยังไม่มีหุ้นสหรัฐ');
+    expect(h).toContain('No US stocks yet');
     expect(h).not.toContain('an-mon-title');
-    expect(h).not.toContain('ขึ้นลงวันนี้');
+    expect(h).not.toContain('an-src-title');
+    expect(h).not.toContain('Today&#x27;s movers');
   });
   it('มีหุ้น: ไม่มีคอลัมน์ "วันนี้" ในตาราง แต่มีการ์ด "ขึ้นลงวันนี้"', () => {
     const h = render(SINGLE);
-    expect(h).not.toContain('<th scope="col" class="num">วันนี้</th>');
-    expect(h).toContain('ขึ้นลงวันนี้');
+    expect(h).not.toContain('<th scope="col" class="num">Today</th>');
+    expect(h).toContain('Today&#x27;s movers');
   });
 });

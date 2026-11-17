@@ -50,7 +50,7 @@ for (const w of WIDTHS) {
       await expect(page.getByText('No prices or rates yet')).toBeVisible();
 
       await tabs.getByRole('tab', { name: 'Analytics', exact: true }).click();
-      await expect(page.getByRole('heading', { name: 'วิเคราะห์พอร์ต', level: 2 })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Analytics', level: 2 })).toBeVisible();
       await tabs.getByRole('tab', { name: 'Tools', exact: true }).click();
       await expect(page.getByRole('heading', { name: 'Tools', level: 2 })).toBeVisible();
 
@@ -79,8 +79,8 @@ for (const w of WIDTHS) {
       await openHarness(page);
       await openInvest(page, w.mobile);
       await page.getByRole('tab', { name: 'Portfolio', exact: true }).click();
-      await page.getByRole('tab', { name: 'หุ้นสหรัฐ', exact: true }).click();
-      await expect(page.getByRole('button', { name: 'สร้างบัญชีเงินสด USD' })).toBeVisible();
+      await page.getByRole('tab', { name: 'US stocks', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'Create USD cash account' })).toBeVisible();
     });
   });
 }

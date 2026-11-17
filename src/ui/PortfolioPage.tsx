@@ -18,8 +18,8 @@ interface Props {
 
 type Tab = 'overview' | 'us';
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'overview', label: 'ภาพรวมพอร์ต' },
-  { id: 'us', label: 'หุ้นสหรัฐ' },
+  { id: 'overview', label: 'Overview' },
+  { id: 'us', label: 'US stocks' },
 ];
 
 /** หน้า "พอร์ตการลงทุน" แบบแท็บ (A3-2): ภาพรวมพอร์ต (ของเดิมครบ + ส่วนหุ้นสหรัฐเมื่อมีข้อมูล) และหุ้นสหรัฐ */
@@ -42,7 +42,7 @@ export default function PortfolioPage({ today, accounts, entries, wallets, onLed
 
   return (
     <div className="pf-page">
-      <div className="pf-tabs" role="tablist" aria-label="หน้าย่อยของพอร์ตการลงทุน">
+      <div className="pf-tabs" role="tablist" aria-label="Portfolio views">
         {TABS.map((t, i) => (
           <button
             key={t.id}

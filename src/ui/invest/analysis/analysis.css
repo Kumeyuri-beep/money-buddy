@@ -42,3 +42,7 @@ dl.avg-result .an-pos, dl.avg-result .an-neg { font-weight: 600; }
 @media (prefers-reduced-transparency: reduce) {
   .an-cell-pos, .an-cell-neg { background: transparent; }
 }
+
+.an-srcbars li .an-bar > span { background: var(--income); }
+.an-srcbars li .an-bar > span.an-bar-neg { background: var(--expense); }
+.an-src-total { margin-top: 12px; }

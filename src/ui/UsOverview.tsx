@@ -12,13 +12,13 @@ function Dash() {
   return (
     <>
       <span aria-hidden="true">—</span>
-      <span className="sr-only">ยังไม่มีข้อมูล</span>
+      <span className="sr-only">No data</span>
     </>
   );
 }
 
 /**
- * ภาพรวมพอร์ตหุ้นสหรัฐ (A3-2 · แท็บ "ภาพรวมพอร์ต"): มูลค่ารวมบาท/USD ต้นทุนบาท กำไรยังไม่ขาย การ์ด "กำไรมาจากไหน" และสัดส่วน
+ * ภาพรวมพอร์ตหุ้นสหรัฐ (A3-2 · แท็บ "ภาพรวมพอร์ต"): มูลค่ารวมบาท/USD ต้นทุนบาท กำไรยังไม่ขาย การ์ด "Where the gain comes from" และสัดส่วน
  * แสดงเมื่อมีข้อมูล USD เท่านั้น (ไม่มี = ไม่แสดงอะไร ภาพรวมเดิมไม่เปลี่ยน) · ไม่มีราคา/อัตรา = "—" ไม่ใช้ต้นทุนแทน (R20.7)
  */
 export function UsOverview({ today, accounts, entries, investments }: { today: string; accounts: readonly Account[]; entries: readonly Entry[]; investments?: InvestmentData | null }) {
@@ -42,7 +42,7 @@ export function UsOverview({ today, accounts, entries, investments }: { today: s
   if (error !== '') {
     return (
       <p className="form-error" role="alert">
-        โหลดข้อมูลหุ้นสหรัฐไม่สำเร็จ: {error}
+        Could not load US stock data: {error}
       </p>
     );
   }
@@ -56,80 +56,80 @@ export function UsOverview({ today, accounts, entries, investments }: { today: s
   return (
     <div className="us-overview">
       <section className="glass-lite card" aria-labelledby="uso-sum-title">
-        <h2 id="uso-sum-title">พอร์ตหุ้นสหรัฐ (ดอลลาร์)</h2>
+        <h2 id="uso-sum-title">US stock portfolio (USD)</h2>
         <dl className="avg-result">
           <div>
-            <dt>มูลค่ารวม (บาท){t.complete ? '' : ' · ⚠ ไม่ครบ'}</dt>
+            <dt>Total value (THB){t.complete ? '' : ' · ⚠ incomplete'}</dt>
             <dd className="num">{!holding || hasValue ? baht(t.valueThb) : <Dash />}</dd>
           </div>
           <div>
-            <dt>มูลค่ารวม (ดอลลาร์){t.complete ? '' : ' · ⚠ ไม่ครบ'}</dt>
+            <dt>Total value (USD){t.complete ? '' : ' · ⚠ incomplete'}</dt>
             <dd className="num">{!holding || hasValueUsd ? usd(t.valueUsd) : <Dash />}</dd>
           </div>
           <div>
-            <dt>ต้นทุนรวม (บาท)</dt>
+            <dt>Total cost basis (THB)</dt>
             <dd className="num">{baht(t.costThb)}</dd>
           </div>
           <div>
-            <dt>กำไรยังไม่ขาย (บาท){t.complete ? '' : ' · ⚠ ไม่ครบ'}</dt>
+            <dt>Unrealized gain (THB){t.complete ? '' : ' · ⚠ incomplete'}</dt>
             <dd className="num">{!holding || whyReady ? signed(t.unrealizedThb) : <Dash />}</dd>
           </div>
           <div>
-            <dt>เงินสด USD</dt>
+            <dt>USD cash</dt>
             <dd className="num">{usd(view.cashUsd)}</dd>
           </div>
         </dl>
         {!t.complete && (
           <p className="muted small" role="status">
-            มูลค่านี้ไม่ครบ: มีหุ้นที่ยังไม่มีราคาหรืออัตราแลกเปลี่ยน (ระบบไม่ใช้ต้นทุนแทน) กรอกได้ที่แท็บ "หุ้นสหรัฐ"
+            This value is incomplete: some stocks have no price or exchange rate yet (cost basis is not used as a substitute). Enter them in the "US stocks" tab.
           </p>
         )}
         {view.fx && (
           <p className="muted small">
-            แปลงเป็นบาทที่อัตราล่าสุดที่กรอก {fxRateText(view.fx.rateMicro)}
-            {view.fx.stale ? ` (เก่า ${view.fx.days} วัน)` : ''}
+            Converted to THB at the latest rate entered: {fxRateText(view.fx.rateMicro)}
+            {view.fx.stale ? ` (${view.fx.days} days old)` : ''}
           </p>
         )}
       </section>
 
       <section className="glass-lite card" aria-labelledby="uso-why-title">
-        <h2 id="uso-why-title">กำไรมาจากไหน</h2>
+        <h2 id="uso-why-title">Where the gain comes from</h2>
         {holding && whyReady ? (
           <>
             <dl className="avg-result">
               <div>
-                <dt>จากราคาหุ้น</dt>
+                <dt>From stock price</dt>
                 <dd className="num">{signed(t.priceGainThb)}</dd>
               </div>
               <div>
-                <dt>จากค่าเงิน</dt>
+                <dt>From exchange rate</dt>
                 <dd className="num">{signed(t.fxGainThb)}</dd>
               </div>
               <div>
-                <dt>รวม (กำไรยังไม่ขาย)</dt>
+                <dt>Total (unrealized gain)</dt>
                 <dd className="num">{signed(t.unrealizedThb)}</dd>
               </div>
             </dl>
             {!t.complete && (
               <p className="muted small" role="status">
-                ⚠ ไม่ครบ: นับเฉพาะหุ้นที่มีทั้งราคาและอัตราแลกเปลี่ยน
+                ⚠ Incomplete: only stocks with both a price and an exchange rate are counted
               </p>
             )}
-            <p className="muted small">จากราคาหุ้น = กำไรเป็นดอลลาร์แปลงเป็นบาทที่อัตราล่าสุด · จากค่าเงิน = ผลต่างจากบาทแข็ง/อ่อนเทียบดอลลาร์ (ตัวเลขช่วยดู ไม่ใช่ตัวเลขสำหรับยื่นภาษี)</p>
+            <p className="muted small">From stock price = the USD gain converted to THB at the latest rate · From exchange rate = the difference caused by the baht strengthening or weakening against the dollar (for reference only, not a figure for tax filing)</p>
           </>
         ) : (
-          <p className="muted">ยังแยกไม่ได้ เพราะยังไม่มีหุ้นที่ถืออยู่พร้อมราคาและอัตราแลกเปลี่ยน</p>
+          <p className="muted">Cannot be split yet because there are no holdings with both a price and an exchange rate</p>
         )}
       </section>
 
       {view.allocation.length > 0 && (
         <section className="solid card" aria-labelledby="uso-alloc-title">
-          <h2 id="uso-alloc-title">สัดส่วนพอร์ตหุ้นสหรัฐ</h2>
+          <h2 id="uso-alloc-title">US stock allocation</h2>
           <ul className="bill-list">
             {view.allocation.map((s) => (
               <li key={s.key} className="tx bill-row">
                 <div className="tx-main">
-                  <strong>{s.key === 'other' ? 'อื่นๆ' : (view.rows.find((r) => r.assetId === s.key)?.ticker ?? s.key)}</strong>
+                  <strong>{s.key === 'other' ? 'Other' : (view.rows.find((r) => r.assetId === s.key)?.ticker ?? s.key)}</strong>
                 </div>
                 <div className="bill-figures">
                   <span className="num">{formatBps(s.bps)}</span>

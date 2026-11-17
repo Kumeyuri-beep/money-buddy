@@ -43,8 +43,8 @@ describe('format ของแท็บวิเคราะห์ (จำนว�
   });
   it('ค่าไม่ใช่จำนวนเต็ม = RangeError · เหตุผล null อ่านออก', () => {
     expect(() => percentBps(1.5)).toThrow(RangeError);
-    expect(naReasonText('missing')).toContain('ราคา');
-    expect(naReasonText('zero-base')).toContain('ตั้งต้น');
+    expect(naReasonText('missing')).toContain('price');
+    expect(naReasonText('zero-base')).toContain('starting balance');
   });
 });
 
@@ -99,8 +99,8 @@ const render = (data: InvestmentData | null, currency: 'THB' | 'USD' = 'THB'): s
 describe('หน้าจอแท็บวิเคราะห์ (เรนเดอร์ฝั่งเซิร์ฟเวอร์ ไม่แตะเครือข่าย)', () => {
   it('ไม่มีหุ้น: ทุกการ์ดมี empty state ไม่มีตัวเลขปลอม', () => {
     const html = render({ assets: [], trades: [], prices: [] });
-    expect(html).toContain('วิเคราะห์พอร์ต');
-    expect(html).toContain('ยังไม่มีหุ้นสหรัฐ');
+    expect(html).toContain('Analytics');
+    expect(html).toContain('No US stocks yet');
     expect(html).not.toMatch(/฿\d/);
   });
   it('มีหุ้น: ตารางถือครอง + ผลตอบแทนรายเดือน 10.69% / 10.00% / 21.76% + คอลัมน์ "วันนี้"', () => {
@@ -109,8 +109,10 @@ describe('หน้าจอแท็บวิเคราะห์ (เรน�
     expect(html).toContain('+10.69%');
     expect(html).toContain('+10.00%');
     expect(html).toContain('+21.76%');
-    expect(html).toContain('ขึ้นลงวันนี้');
-    expect(html).toContain('สัดส่วนสกุลเงิน');
+    expect(html).toContain("Today&#x27;s movers");
+    expect(html).toContain('Currency mix');
+    expect(html).toContain('Where the profit comes from');
+    expect(html).toContain('Monthly returns');
   });
   it('แสดงตามสกุลที่เลือก (USD $1,210.00 · THB ฿42,350.00 ที่ 35.00)', () => {
     expect(render(SINGLE, 'USD')).toContain('$1,210.00');
@@ -118,10 +120,10 @@ describe('หน้าจอแท็บวิเคราะห์ (เรน�
   });
   it('ไม่มีราคา: ไม่ใช้ต้นทุนแทนมูลค่า และมีคำเตือนไม่ครบ', () => {
     const html = render({ ...SINGLE, prices: [] });
-    expect(html).toContain('ไม่ครบ');
+    expect(html).toContain('Incomplete');
     expect(html).not.toContain('฿42,350.00');
   });
   it('ข้อมูลยังโหลดไม่เสร็จ (null) ไม่พัง', () => {
-    expect(render(null)).toContain('กำลังโหลด');
+    expect(render(null)).toContain('Loading portfolio data');
   });
 });

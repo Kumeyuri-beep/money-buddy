@@ -27,7 +27,7 @@ async function openPortfolio(page: Page, mobile: boolean): Promise<void> {
   // ขั้น 1: ฟังก์ชันหุ้นสหรัฐอยู่ในโหมดการลงทุน → แท็บ "รายการ"
   await expect(page.getByRole('heading', { name: 'Main portfolio', level: 2 }).first()).toBeVisible();
   await page.getByRole('tab', { name: 'Portfolio', exact: true }).click();
-  await expect(page.getByRole('tablist', { name: 'หน้าย่อยของพอร์ตการลงทุน' })).toBeVisible();
+  await expect(page.getByRole('tablist', { name: 'Portfolio views' })).toBeVisible();
 }
 
 async function expectClean(page: Page, seen: ReturnType<typeof watch>): Promise<void> {
@@ -47,8 +47,8 @@ for (const w of WIDTHS) {
       const seen = watch(page);
       await openHarness(page);
       await openPortfolio(page, w.mobile);
-      const overview = page.getByRole('tab', { name: 'ภาพรวมพอร์ต' });
-      const us = page.getByRole('tab', { name: 'หุ้นสหรัฐ' });
+      const overview = page.getByRole('tab', { name: 'Overview', exact: true });
+      const us = page.getByRole('tab', { name: 'US stocks', exact: true });
       await expect(overview).toHaveAttribute('aria-selected', 'true');
       await expect(page.getByRole('heading', { name: 'Main portfolio', level: 2 }).first()).toBeVisible(); // หน้าเดิมยังอยู่
       await expectClean(page, seen);
@@ -56,8 +56,8 @@ for (const w of WIDTHS) {
       await us.click();
       await expect(us).toHaveAttribute('aria-selected', 'true');
       await expect(page.locator('#pf-panel-us')).toHaveAttribute('aria-labelledby', 'pf-tab-us');
-      await expect(page.getByRole('heading', { name: 'หุ้นสหรัฐ', level: 2 })).toBeVisible();
-      await expect(page.getByText('ยังไม่มีหุ้นสหรัฐ')).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'US stock portfolio', level: 2 })).toBeVisible();
+      await expect(page.getByText('No US stocks yet')).toBeVisible();
       await expectClean(page, seen);
 
       await us.focus();
@@ -73,27 +73,27 @@ for (const w of WIDTHS) {
       const seen = watch(page);
       await openHarness(page);
       await openPortfolio(page, w.mobile);
-      await page.getByRole('tab', { name: 'หุ้นสหรัฐ' }).click();
-      await expect(page.getByText('ยังไม่มีบัญชีเงินสด USD')).toBeVisible();
+      await page.getByRole('tab', { name: 'US stocks', exact: true }).click();
+      await expect(page.getByText('No USD cash account yet')).toBeVisible();
 
-      const create = page.getByRole('button', { name: 'สร้างบัญชีเงินสด USD' });
+      const create = page.getByRole('button', { name: 'Create USD cash account' });
       await create.click();
-      const heading = page.getByRole('heading', { name: 'สร้างบัญชีเงินสด USD', level: 2 });
+      const heading = page.getByRole('heading', { name: 'Create USD cash account', level: 2 });
       await expect(heading).toBeFocused();
       await expectClean(page, seen);
-      const name = page.getByLabel('ชื่อบัญชี');
+      const name = page.getByLabel('Account name');
       await name.fill('');
-      await page.getByRole('button', { name: 'สร้างบัญชี', exact: true }).click();
-      await expect(page.getByText('กรอกชื่อบัญชีเงินสด USD')).toBeVisible();
+      await page.getByRole('button', { name: 'Create account', exact: true }).click();
+      await expect(page.getByText('Enter a name for the USD cash account')).toBeVisible();
       await page.keyboard.press('Escape');
       await expect(heading).toBeHidden();
       await expect(create).toBeFocused();
 
-      await page.getByRole('button', { name: 'เพิ่มหุ้น', exact: true }).click();
-      await expect(page.getByRole('heading', { name: 'เพิ่มหุ้นสหรัฐ', level: 2 })).toBeFocused();
-      await page.getByRole('button', { name: 'เพิ่มหุ้น', exact: true }).last().click();
-      await expect(page.getByText('กรอกชื่อหุ้นและ ticker')).toBeVisible();
-      const exchange = page.getByLabel('ตลาด');
+      await page.getByRole('button', { name: 'Add stock', exact: true }).click();
+      await expect(page.getByRole('heading', { name: 'Add US stock', level: 2 })).toBeFocused();
+      await page.getByRole('button', { name: 'Add stock', exact: true }).last().click();
+      await expect(page.getByText('Enter the stock name and ticker')).toBeVisible();
+      const exchange = page.getByLabel('Exchange', { exact: true });
       await expect(exchange).toHaveValue('NASDAQ');
       await expectClean(page, seen);
     });

@@ -21,8 +21,8 @@ describe('usdFormat (A3-2)', () => {
     expect(usdSigned(-5)).toBe('−$0.05');
   });
   it('fxRateText / usdPrice: ตัดศูนย์ท้ายแต่เหลืออย่างน้อย 2 ตำแหน่ง', () => {
-    expect(fxRateText(35_000_000)).toBe('35.00 บาท/USD');
-    expect(fxRateText(34_567_891)).toBe('34.567891 บาท/USD');
+    expect(fxRateText(35_000_000)).toBe('35.00 THB/USD');
+    expect(fxRateText(34_567_891)).toBe('34.567891 THB/USD');
     expect(usdPrice(100_100_000)).toBe('$100.10');
     expect(usdPrice(1)).toBe('$0.000001');
     expect(usdPrice(1_234_500_000)).toBe('$1,234.50');
