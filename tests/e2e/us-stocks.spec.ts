@@ -28,7 +28,7 @@ async function openPortfolio(page: Page, mobile: boolean): Promise<void> {
   // ขั้น 1: ฟังก์ชันหุ้นสหรัฐอยู่ในโหมดการลงทุน → แท็บ "รายการ"
   await expect(page.getByRole('navigation', { name: 'Portfolio sections' }).first()).toBeVisible();
   await goInvest(page, 'Portfolio', 'Holdings'); // หุ้นสหรัฐเดิม = Portfolio → Holdings
-  await expect(page.getByRole('heading', { name: 'US stock portfolio', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Holdings', level: 2, exact: true })).toBeVisible();
 }
 
 async function expectClean(page: Page, seen: ReturnType<typeof watch>): Promise<void> {
