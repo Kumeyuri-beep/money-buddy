@@ -1,0 +1,60 @@
+/* หน้า My goal ของโหมด /invest · ฐาน = คอลัมน์เดียว · สองคอลัมน์เฉพาะคอม (≥1024px) · ใช้ตัวแปรสีกลางเท่านั้น (ผ่านทั้ง dark/light) */
+.iv-goal-page { display: grid; gap: 16px; }
+.iv-goal-title { margin: 0; font-size: 28px; font-weight: 700; }
+.iv-goal-layout { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 1024px) { .iv-goal-layout { grid-template-columns: minmax(320px, 400px) minmax(0, 1fr); align-items: start; } }
+
+.iv-goal-form { gap: 16px; grid-template-columns: minmax(0, 1fr); }
+.iv-goal-form > *, .iv-goal-form .iv-field, .iv-goal-by-row > * { min-width: 0; }
+.iv-goal-form .iv-field { grid-template-columns: minmax(0, 1fr); }
+.iv-goal-form .iv-field input, .iv-goal-form .iv-field select { width: 100%; min-width: 0; box-sizing: border-box; }
+.iv-goal-form fieldset { margin: 0; padding: 0; border: 0; min-width: 0; display: grid; gap: 8px; }
+.iv-goal-form legend { padding: 0; display: flex; align-items: center; gap: 4px; font-size: 14px; color: var(--muted); }
+.iv-goal-form .iv-field label { display: flex; align-items: center; gap: 4px; }
+.iv-goal-kind .iv-seg { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.iv-goal-kind .iv-seg-btn { min-height: 44px; padding: 0 14px; border: 0; border-radius: 11px; background: transparent; color: var(--muted); font-size: 15px; font-weight: 600; cursor: pointer; }
+.iv-goal-kind .iv-seg-btn.is-active { background: var(--gold); color: var(--on-gold); }
+.iv-goal-kind .iv-seg-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.iv-goal-money { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--ov-20); background: var(--shade-30, rgba(0, 0, 0, 0.3)); }
+.iv-goal-money:focus-within { outline: 2px solid var(--gold); outline-offset: 2px; }
+.iv-goal-money input, .iv-goal-money input:focus-visible { flex: 1; min-width: 0; min-height: 40px; padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; outline: none; }
+.iv-goal-unit { color: var(--muted); font-size: 14px; white-space: nowrap; }
+.iv-goal-by-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.iv-goal-hint { font-size: 13px; color: var(--muted); }
+.iv-goal-err { font-size: 13px; color: var(--expense); }
+.iv-goal-expand { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--ov-12); }
+.iv-goal-expand-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.iv-goal-expand-head h4 { margin: 0; font-size: 16px; }
+.iv-goal-expand-head .iv-link { min-height: 44px; padding: 0 4px; border: 0; background: transparent; color: var(--gold); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.iv-goal-expand-head .iv-link:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.iv-goal-expand-body { display: grid; gap: 12px; }
+.iv-goal-save { width: 100%; }
+
+.iv-goal-results { gap: 12px; }
+.iv-goal-results h3 { margin: 0; font-size: 20px; font-weight: 700; }
+.iv-goal-status-row { display: flex; }
+.iv-goal-status { margin: 0; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--ov-20); background: var(--ov-6); font-size: 14px; font-weight: 700; }
+.iv-goal-stats { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 640px) { .iv-goal-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.iv-goal-stat { display: grid; gap: 4px; padding: 14px 16px; border-radius: 16px; border: 1px solid var(--ov-12); background: var(--ov-4); }
+.iv-goal-stat-label { color: var(--muted); font-size: 14px; }
+.iv-goal-stat-value { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.iv-goal-needs { margin: 0; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--ov-20); background: var(--ov-4); color: var(--text); font-size: 15px; line-height: 1.5; }
+.iv-goal-disclaimer { color: var(--muted); font-size: 14px; }
+
+.iv-goal-chart { width: 100%; height: auto; }
+.iv-goal-grid { stroke: var(--ov-12); stroke-dasharray: 3 4; }
+.iv-goal-axis { fill: var(--muted); font-size: 12px; }
+.iv-goal-area { fill: var(--income); fill-opacity: 0.14; }
+.iv-goal-line { stroke: var(--income); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.iv-goal-target { stroke: var(--gold); stroke-width: 1.5; stroke-dasharray: 6 5; }
+.iv-goal-target-label { fill: var(--gold); font-size: 12px; font-weight: 700; }
+.iv-goal-deadline { stroke: var(--ov-40); stroke-width: 1; stroke-dasharray: 3 4; }
+.iv-goal-reach { fill: var(--income); stroke: var(--text); stroke-width: 2; }
+
+/* ลดความโปร่งใส: การ์ดของหน้านี้ต้องทึบ (ข้อกำหนดของแบบ Aurora Glass) */
+@media (prefers-reduced-transparency: reduce) { .iv-goal-layout .iv-card { background: var(--surface-fallback); box-shadow: none; } }
+
+.iv-goal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.iv-goal-head h3 { margin: 0; min-width: 0; }
+.iv-goal-badge { flex: none; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--ov-20); color: var(--muted); font-size: 12px; font-weight: 600; }

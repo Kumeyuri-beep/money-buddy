@@ -66,7 +66,7 @@ function Harness() {
     <AccountContext.Provider value={{ username: 'ผู้ทดสอบ', signOut: async () => undefined, refresh: async () => undefined }}>
       <PasswordPromptProvider>
         {params.get('investDemo') === '1' || params.get('investDemo') === 'report' ? (
-          <RepositoryProvider repository={{ ...localLedgerRepository(), loadInvestments: () => Promise.resolve(params.get('investDemo') === 'report' ? demoInvestmentsWithHistory() : demoInvestments()) }}>
+          <RepositoryProvider repository={params.get('investDemo') === 'report' ? { ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestmentsWithHistory()) } : demoRepository()}>
             <App />
           </RepositoryProvider>
         ) : (
@@ -75,6 +75,21 @@ function Harness() {
       </PasswordPromptProvider>
     </AccountContext.Provider>
   );
+}
+
+/** ที่เก็บข้อมูลลงทุนสมมติที่ลบรายการได้ (เฉพาะ ?investDemo=1 · ใช้ทดสอบปุ่ม Delete ของหน้า Holdings) */
+let demoRepo: ReturnType<typeof makeDemoRepository> | null = null;
+const demoRepository = () => (demoRepo ??= makeDemoRepository());
+function makeDemoRepository() {
+  const demo = demoInvestments();
+  return {
+    ...localLedgerRepository(),
+    loadInvestments: () => Promise.resolve({ ...demo, trades: [...demo.trades] }),
+    deleteTrade: (id: string) => {
+      demo.trades = demo.trades.filter((t) => t.id !== id);
+      return Promise.resolve();
+    },
+  };
 }
 
 const root = document.getElementById('root');
