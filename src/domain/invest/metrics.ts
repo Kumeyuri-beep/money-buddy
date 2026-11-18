@@ -10,7 +10,7 @@ import { safeAdd, safeSub } from '../money/safe';
 import { applyBuyFx, applySellFx, emptyPositionFx, replayTradesFx, type PositionFx, type TradeFx } from './costBasisFx';
 import { convertMinor } from './fx';
 import { latestFxRate } from './portfolioMoney';
-import { toTradesFx } from './tradesFx';
+import { splitTradesByRate, toTradesFx, type MissingRateTrade } from './tradesFx';
 import { assetCurrency, type Asset, type InvestmentData, type TradeRecord } from './types';
 import { toSafeSatang, valueInSatang } from './units';
 
@@ -147,6 +147,12 @@ function usdAssets(data: InvestmentData, asOf: string): UsdAssetData[] {
     .map((asset) => ({ asset, trades: data.trades.filter((t) => t.assetId === asset.id && t.date <= asOf && t.fxRateMicro !== undefined) }));
 }
 
+/** รายการ USD ที่ไม่มีเรต ณ asOf (ซื้อ/ขาย/ปันผล) · ไม่นับเป็น 0 ไม่เดาเรต (R26) */
+export function usdMissingRate(data: InvestmentData, asOf: string): MissingRateTrade[] {
+  const ids = new Set(data.assets.filter((a) => assetCurrency(a) === 'USD').map((a) => a.id));
+  return splitTradesByRate(data.trades.filter((t) => ids.has(t.assetId) && t.date <= asOf)).missingRate;
+}
+
 function latestPriceMicro(data: InvestmentData, assetId: string, asOf: string): number | null {
   let best: { date: string; priceMicro: number } | null = null;
   for (const p of data.prices) if (p.assetId === assetId && p.date <= asOf && (best === null || p.date > best.date)) best = p;
@@ -199,7 +205,7 @@ export interface ProfitSourcesUsd {
   total: number;
 }
 
-export type MissingInput = { kind: 'price'; assetId: string } | { kind: 'fx' };
+export type MissingInput = { kind: 'price'; assetId: string } | { kind: 'fx' } | { kind: 'rate'; tradeIds: string[] };
 
 export interface ProfitResult {
   /** false = มีหุ้นที่ยังถืออยู่แต่ไม่มีราคาหรือไม่มีอัตรา · มุมมองที่ต้องใช้ข้อมูลนั้นเป็น null */
@@ -256,12 +262,19 @@ function valueHoldings(
 }
 
 /** กำไรรวมและ 6 แหล่งของพอร์ตหุ้นสหรัฐ ณ วัน asOf (R24) · ใช้เฉพาะรายการ/ราคา/อัตราที่มีวันที่ไม่เกิน asOf */
-export function computeProfitSources(data: InvestmentData, asOf: string): ProfitResult {
+/**
+ * strictRate: true = ถ้ามีรายการที่ไม่มีเรต ผลเป็น incomplete และไม่คืนตัวเลข (ใช้กับหน้าจอที่แสดงยอดรวม)
+ * ไม่ใส่ = พฤติกรรมเดิม (reportSeries จัดการ needs-rate รายเดือนเอง ไม่แก้)
+ */
+export function computeProfitSources(data: InvestmentData, asOf: string, opts: { strictRate?: boolean } = {}): ProfitResult {
   const per = usdAssets(data, asOf).map(({ asset, trades }) => ({ asset, trades, replay: replayWithFees(toTradesFx(trades)) }));
   const { holdings, thbOk, missing } = valueHoldings(data, per, asOf);
   const fx = latestFxRate(data.fxRates ?? [], asOf);
 
   // ส่วนที่ไม่ขึ้นกับมูลค่าปัจจุบัน
+  // มีรายการที่ไม่มีเรต: หน่วย/ต้นทุน/ปันผลขาด ยอดรวมจึงไม่ครบ ไม่แสดงตัวเลข ไม่นับเป็น 0 (R26)
+  const noRate = usdMissingRate(data, asOf);
+  if (opts.strictRate && noRate.length > 0) return { complete: false, missing: [...missing, { kind: 'rate', tradeIds: noRate.map((t) => t.id) }], thb: null, usd: null, parts: null };
   let priceRealizedThb = 0;
   let priceRealizedUsd = 0;
   let realizedThb = 0;
@@ -330,6 +343,10 @@ export interface DividendMetrics {
   yieldBps: number | null;
   /** yield on cost (bps) = ปันผลก่อนภาษี 12 เดือน ÷ ต้นทุนบาทของที่ถืออยู่ */
   yieldOnCostBps: number | null;
+  /** true = มีรายการ USD ที่ไม่มีเรต (ปันผลที่ขาดไม่ถูกนับ และ yield ไม่คำนวณ) · ไม่นับเป็น 0 (R26) */
+  incomplete: boolean;
+  /** true = คำนวณปันผลไม่สำเร็จ (ตัวเลขไม่ใช่ 0 จริง) หน้าจอแสดง Couldn't load (R26) · ไม่ตั้ง = ปกติ */
+  loadError?: boolean;
 }
 
 export function computeDividendMetrics(data: InvestmentData, asOf: string): DividendMetrics {
@@ -352,12 +369,13 @@ export function computeDividendMetrics(data: InvestmentData, asOf: string): Divi
   const holding = per.some((p) => p.replay.position.units > 0n);
   let yieldBps: number | null = null;
   let yieldOnCostBps: number | null = null;
-  if (holding && holdings !== null && thbOk) {
+  const incomplete = usdMissingRate(data, asOf).length > 0;
+  if (!incomplete && holding && holdings !== null && thbOk) {
     const value = holdings.valueThb ?? 0;
     if (value > 0) yieldBps = toSafeSatang(roundHalfUpBig(BigInt(grossThb) * 10_000n, BigInt(value)));
     if (holdings.costThb > 0) yieldOnCostBps = toSafeSatang(roundHalfUpBig(BigInt(grossThb) * 10_000n, BigInt(holdings.costThb)));
   }
-  return { fromExclusive: from, toInclusive: asOf, grossThb, netThb, grossUsd, netUsd, yieldBps, yieldOnCostBps };
+  return { fromExclusive: from, toInclusive: asOf, grossThb, netThb, grossUsd, netUsd, yieldBps, yieldOnCostBps, incomplete };
 }
 
 // ───────────────────────── R25.3 IRR (XIRR ด้วยจำนวนเต็มล้วน) ─────────────────────────
@@ -440,6 +458,7 @@ function annualBps(dailyFactor: bigint): number {
 /** IRR ของพอร์ตหุ้นสหรัฐ (R25.3): กระแสเงินบาทตามรายการจริง + มูลค่าตลาดที่ถืออยู่ ณ วันนี้เป็นกระแสสุดท้าย */
 export function computeIrr(data: InvestmentData, asOf: string): IrrResult {
   const per = usdAssets(data, asOf).map(({ asset, trades }) => ({ asset, trades, replay: replayWithFees(toTradesFx(trades)) }));
+  if (usdMissingRate(data, asOf).length > 0) return { kind: 'na', reason: 'missing' };
   const { holdings, thbOk } = valueHoldings(data, per, asOf);
   const holding = per.some((p) => p.replay.position.units > 0n);
   if (holding && (holdings === null || !thbOk)) return { kind: 'na', reason: 'missing' };
@@ -484,8 +503,11 @@ function unitsAt(per: { replay: (date: string) => FeeReplay }[], date: string): 
 export function computeMonthlyReturns(data: InvestmentData, asOf: string): MonthlyReturns {
   const assets = usdAssets(data, asOf);
   const allTrades = assets.flatMap((a) => a.trades);
-  if (allTrades.length === 0) return { months: [], years: {} };
-  const firstDate = allTrades.reduce((m, t) => (t.date < m ? t.date : m), allTrades[0]!.date);
+  // รายการที่ไม่มีเรตไม่ถูกเล่นซ้ำ: เดือนที่ถูกกระทบ = missing (ไม่นับเป็น 0 · R26) ซื้อ/ขายกระทบทุกเดือนหลังจากนั้น ปันผลกระทบเฉพาะเดือนของมัน
+  const noRate = usdMissingRate(data, asOf);
+  const dated = [...allTrades.map((t) => t.date), ...noRate.map((t) => t.date)];
+  if (dated.length === 0) return { months: [], years: {} };
+  const firstDate = dated.reduce((m, d) => (d < m ? d : m), dated[0]!);
 
   const replayAt = (a: UsdAssetData, date: string): FeeReplay => replayWithFees(toTradesFx(a.trades.filter((t) => t.date <= date)));
   const per = assets.map((a) => ({ a, replay: (date: string) => replayAt(a, date) }));
@@ -522,10 +544,11 @@ export function computeMonthlyReturns(data: InvestmentData, asOf: string): Month
     const startUnits = unitsAt(per, prevEnd);
     const endUnits = unitsAt(per, end);
     const monthTrades = allTrades.filter((t) => inMonth(t.date));
-    const active = startUnits > 0n || endUnits > 0n || monthTrades.length > 0;
+    const noRateHit = noRate.some((t) => (t.kind === 'dividend' ? inMonth(t.date) : t.date <= end));
+    const active = startUnits > 0n || endUnits > 0n || monthTrades.length > 0 || noRate.some((t) => inMonth(t.date));
     if (active) {
-      const v0 = valueOn(prevEnd);
-      const v1 = valueOn(end);
+      const v0 = noRateHit ? null : valueOn(prevEnd);
+      const v1 = noRateHit ? null : valueOn(end);
       let entry: MonthReturn;
       if (v0 === null || v1 === null) entry = { month: monthKey, bps: null, na: 'missing' };
       else {

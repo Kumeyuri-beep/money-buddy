@@ -17,3 +17,22 @@ export function toTradesFx(records: readonly TradeRecord[]): TradeFx[] {
   }
   return out;
 }
+
+/** รายการซื้อ/ขาย/ปันผลที่ไม่มี fxRateMicro (ไม่ถูกเล่นซ้ำ) · ข้อมูลสำหรับแสดง "Needs rate" ห้ามนับเป็น 0 หรือเดาเรต (R26, R20.7) */
+export interface MissingRateTrade {
+  id: string;
+  assetId: string;
+  kind: 'buy' | 'sell' | 'dividend';
+  date: string;
+}
+
+/** แยกรายการเป็น "มีเรต" (ใช้เล่นซ้ำได้) กับ "ขาดเรต" · ไม่เปลี่ยนผลของ toTradesFx (ตัวบันทึกยังใช้ตัวเดิม) */
+export function splitTradesByRate(records: readonly TradeRecord[]): { withRate: TradeRecord[]; missingRate: MissingRateTrade[] } {
+  const withRate: TradeRecord[] = [];
+  const missingRate: MissingRateTrade[] = [];
+  for (const t of records) {
+    if (t.fxRateMicro !== undefined) withRate.push(t);
+    else if (t.kind === 'buy' || t.kind === 'sell' || t.kind === 'dividend') missingRate.push({ id: t.id, assetId: t.assetId, kind: t.kind, date: t.date });
+  }
+  return { withRate, missingRate };
+}

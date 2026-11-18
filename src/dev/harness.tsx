@@ -11,7 +11,7 @@ import { db } from '../storage/instance';
 import { createDexieRepository } from '../storage/ledgerRepository';
 import { App } from '../ui/App';
 import { RepositoryProvider, localLedgerRepository } from '../ui/RepositoryContext';
-import { demoInvestments } from './investDemo';
+import { demoInvestments, demoInvestmentsNoRate, demoInvestmentsWithHistory } from './investDemo';
 import { AccountContext } from '../ui/AuthContext';
 import { PasswordPromptProvider } from '../ui/PasswordPrompt';
 import '@fontsource/ibm-plex-sans-thai/400.css';
@@ -65,8 +65,8 @@ function Harness() {
   return (
     <AccountContext.Provider value={{ username: 'ผู้ทดสอบ', signOut: async () => undefined, refresh: async () => undefined }}>
       <PasswordPromptProvider>
-        {params.get('investDemo') === '1' ? (
-          <RepositoryProvider repository={{ ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestments()) }}>
+        {params.get('investDemo') === '1' || params.get('investDemo') === 'report' || params.get('investDemo') === 'norate' ? (
+          <RepositoryProvider repository={params.get('investDemo') === 'report' ? { ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestmentsWithHistory()) } : params.get('investDemo') === 'norate' ? { ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestmentsNoRate()) } : demoRepository()}>
             <App />
           </RepositoryProvider>
         ) : (
@@ -75,6 +75,21 @@ function Harness() {
       </PasswordPromptProvider>
     </AccountContext.Provider>
   );
+}
+
+/** ที่เก็บข้อมูลลงทุนสมมติที่ลบรายการได้ (เฉพาะ ?investDemo=1 · ใช้ทดสอบปุ่ม Delete ของหน้า Holdings) */
+let demoRepo: ReturnType<typeof makeDemoRepository> | null = null;
+const demoRepository = () => (demoRepo ??= makeDemoRepository());
+function makeDemoRepository() {
+  const demo = demoInvestments();
+  return {
+    ...localLedgerRepository(),
+    loadInvestments: () => Promise.resolve({ ...demo, trades: [...demo.trades] }),
+    deleteTrade: (id: string) => {
+      demo.trades = demo.trades.filter((t) => t.id !== id);
+      return Promise.resolve();
+    },
+  };
 }
 
 const root = document.getElementById('root');

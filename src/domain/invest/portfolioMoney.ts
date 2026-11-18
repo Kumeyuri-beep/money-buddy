@@ -11,6 +11,7 @@ import type { CodedProblem } from '../errors/problem';
 import { safeAdd } from '../money/safe';
 import { replayTrades } from './costBasis';
 import { replayTradesFx, type TradeFx } from './costBasisFx';
+import { splitTradesByRate } from './tradesFx';
 import { problem } from './errorCodes';
 import { convertMinor } from './fx';
 import { toReplayTrades } from './rules';
@@ -92,7 +93,7 @@ export function latestFxRate(rates: readonly FxRateRecord[], asOf: string): { da
   return best ? { date: best.date, rateMicro: best.rateMicro } : null;
 }
 
-export type WealthMissing = { kind: 'price'; assetId: string } | { kind: 'fx' };
+export type WealthMissing = { kind: 'price'; assetId: string } | { kind: 'fx' } | { kind: 'rate'; tradeIds: string[] };
 export type WealthStale = { kind: 'price'; assetId: string; date: string; days: number } | { kind: 'fx'; date: string; days: number };
 
 export interface WealthSummary {
@@ -150,6 +151,12 @@ export function wealthSummary(accounts: readonly Account[], entries: readonly En
     const own = inv.trades.filter((t) => t.assetId === asset.id && t.date <= asOf);
     let units: bigint;
     if (assetCurrency(asset) === 'USD') {
+      // รายการที่ไม่มีเรตไม่ถูกเล่นซ้ำ หน่วยที่ถืออาจผิด: ไม่นับมูลค่าสินทรัพย์นี้ และแจ้งว่าไม่ครบ ไม่ข้ามเงียบ (R26)
+      const noRate = splitTradesByRate(own).missingRate;
+      if (noRate.length > 0) {
+        missing.push({ kind: 'rate', tradeIds: noRate.map((t) => t.id) });
+        continue;
+      }
       const fxTrades: TradeFx[] = [];
       for (const t of own) {
         if (t.fxRateMicro === undefined) continue;

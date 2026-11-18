@@ -30,3 +30,23 @@ export function demoInvestments(): InvestmentData {
     fxRates: [{ accountId: 'usd-cash', date: '2026-11-12', rateMicro: 32_400_000 }],
   } as InvestmentData;
 }
+
+/**
+ * ข้อมูลสมมติแบบมีประวัติราคารายเดือน (สำหรับทดสอบหน้า Report · เปิดด้วย ?investDemo=report) · ราคาสิ้นเดือนม.ค.-ต.ค. เป็นค่าสมมติที่แกว่งเล็กน้อย
+ * มีการขายหนึ่งครั้งเดือนมิ.ย. และเรตแลกเปลี่ยนรายเดือน · ข้อมูลสมมติทั้งหมด ห้ามใช้ข้อมูลจริง
+ */
+export function demoInvestmentsWithHistory(): InvestmentData {
+  const base = demoInvestments();
+  const monthEnds = ['2026-01-31', '2026-02-28', '2026-03-31', '2026-04-30', '2026-05-31', '2026-06-30', '2026-07-31', '2026-08-31', '2026-09-30', '2026-10-31'];
+  const wiggle = [0, 3, -2, 5, 1, 4, -1, 6, 2, 7];
+  const prices = monthEnds.flatMap((date, i) => STOCKS.map((s, j) => ({ assetId: s.id, date, priceMicro: (s.cost + wiggle[i]! + j) * 1_000_000 })));
+  const fxRates = monthEnds.map((date, i) => ({ accountId: 'usd-cash', date, rateMicro: 34_000_000 - i * 150_000 }));
+  const sell = { id: 'sell-d1', assetId: 'd1', kind: 'sell', date: '2026-06-10', createdAt: '2026-06-10T03:00:00.000Z', units: String(5 * 100_000_000), priceMicro: 104_000_000, fee: 100, withholding: 0, memo: '', fxRateMicro: 33_600_000 } as TradeRecord;
+  return { ...base, trades: [...base.trades, sell], prices: [...prices, ...base.prices], fxRates: [...fxRates, ...(base.fxRates ?? [])] } as InvestmentData;
+}
+
+/** ข้อมูลสมมติที่ปันผลหนึ่งรายการไม่มีเรต (?investDemo=norate · ทดสอบธง Needs rate / Incomplete · R26) */
+export function demoInvestmentsNoRate(): InvestmentData {
+  const d = demoInvestments();
+  return { ...d, trades: d.trades.map((t) => { if (t.id !== 'div-d1') return t; const { fxRateMicro: _drop, ...rest } = t; return rest as TradeRecord; }) };
+}

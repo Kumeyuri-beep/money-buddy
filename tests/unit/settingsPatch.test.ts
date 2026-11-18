@@ -39,7 +39,7 @@ describe('planSettingsPatch (เปลี่ยนเฉพาะคีย์ท
     expect(plan(planSettingsPatch({}))).toEqual({ set: {}, remove: [] });
   });
   it('คีย์ทั้งหมดของ FinanceSettings อยู่ใน SETTINGS_KEYS', () => {
-    expect([...SETTINGS_KEYS]).toEqual(['payDay', 'monthlySavingsGoal', 'monthlyBudget', 'nextPaydayOverride', 'dcaPlans', 'retirementAssetIds', 'taxRmfAssetIds', 'taxThaiEsgAssetIds', 'lastBackupAt', 'backupSnoozeUntil', 'theme', 'cashFlowView', 'portfolioName', 'portfolioNote', 'portfolioCurrency']);
+    expect([...SETTINGS_KEYS]).toEqual(['payDay', 'monthlySavingsGoal', 'monthlyBudget', 'nextPaydayOverride', 'dcaPlans', 'retirementAssetIds', 'taxRmfAssetIds', 'taxThaiEsgAssetIds', 'lastBackupAt', 'backupSnoozeUntil', 'theme', 'cashFlowView', 'portfolioName', 'portfolioNote', 'portfolioCurrency', 'investGoal']);
   });
 });
 
@@ -57,7 +57,7 @@ describe('planSettingsReplace (saveSettings แบบเดิม: ไม่ส�
     expect(p.remove).toContain('retirementAssetIds');
   });
   it('ส่งทุกคีย์: ไม่ลบอะไร', () => {
-    const p = plan(planSettingsReplace({ payDay: 1, monthlySavingsGoal: 0, monthlyBudget: 0, nextPaydayOverride: '2026-12-01', dcaPlans: [dca], retirementAssetIds: ['a1'], taxRmfAssetIds: ['r1'], taxThaiEsgAssetIds: ['e1'], lastBackupAt: '2026-11-13', backupSnoozeUntil: '2026-11-16', theme: 'light', cashFlowView: 'list', portfolioName: 'Main portfolio', portfolioNote: 'Long-term US stocks', portfolioCurrency: 'USD' }));
+    const p = plan(planSettingsReplace({ payDay: 1, monthlySavingsGoal: 0, monthlyBudget: 0, nextPaydayOverride: '2026-12-01', dcaPlans: [dca], retirementAssetIds: ['a1'], taxRmfAssetIds: ['r1'], taxThaiEsgAssetIds: ['e1'], lastBackupAt: '2026-11-13', backupSnoozeUntil: '2026-11-16', theme: 'light', cashFlowView: 'list', portfolioName: 'Main portfolio', portfolioNote: 'Long-term US stocks', portfolioCurrency: 'USD', investGoal: { kind: 'value', targetMinor: 1, contributionMinor: 0, achieveBy: '2040-06', returnBps: 0, inflationBps: 0, currency: 'USD' } }));
     expect(p.remove).toEqual([]);
     expect(Object.keys(p.set).sort()).toEqual([...SETTINGS_KEYS].sort());
   });

@@ -1,0 +1,45 @@
+/* หน้า Portfolio → Holdings ของ /invest (invest-v2) · ใช้สีจากตัวแปรกลางเท่านั้น · ตารางพื้นทึบ (CLAUDE.md: ตารางใช้พื้นทึบ) */
+.hd-page, .hd-page > div { min-width: 0; max-width: 100%; }
+.hd-page .hd-card { display: grid; gap: 14px; margin-bottom: 16px; min-width: 0; }
+.hd-card > * { min-width: 0; }
+.hd-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+.hd-head h2 { margin: 0; }
+.hd-fx { margin: 0; font-size: 14px; }
+.hd-empty-title { margin: 0 0 6px; font-size: 18px; }
+.hd-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.hd-tools { display: flex; flex-wrap: wrap; align-items: end; gap: 12px 16px; }
+.hd-tools .iv-field { min-width: 180px; }
+.hd-check { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-size: 14px; color: var(--text); }
+.hd-check input { width: 20px; height: 20px; }
+.hd-wrap { border-radius: 16px; background: var(--surface-fallback) linear-gradient(to left, var(--ov-10), transparent 16px) right / 16px 100% no-repeat scroll; border: 1px solid var(--ov-10); }
+.hd-table { min-width: 640px; }
+.hd-table th, .hd-table td { vertical-align: middle; }
+.hd-table tbody th, .hd-table tfoot th { white-space: nowrap; background: var(--surface-fallback); }
+.hd-ticker { display: block; font-weight: 700; }
+.hd-name { display: block; font-size: 12px; color: var(--muted); font-weight: 400; }
+.hd-badge { display: inline-block; margin-top: 2px; padding: 1px 8px; border-radius: 99px; border: 1px solid var(--ov-20); font-size: 12px; font-weight: 600; color: var(--muted); }
+.hd-sold { opacity: 0.9; }
+.hd-table tfoot th, .hd-table tfoot td { border-top: 2px solid var(--ov-20); font-weight: 700; }
+.hd-sub { font-size: 12px; font-weight: 500; }
+.hd-flag-text { font-size: 12px; color: var(--warn); margin-left: 6px; }
+.hd-actions { width: 56px; text-align: right; }
+.hd-more { width: 44px; height: 44px; border: 0; border-radius: 12px; background: transparent; color: var(--text); font: inherit; font-size: 20px; cursor: pointer; }
+.hd-more:hover { background: var(--ov-10); }
+.hd-more:focus-visible, .hd-menuitem:focus-visible, .hd-wrap:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.hd-menu { position: fixed; z-index: 40; display: grid; min-width: 200px; padding: 6px; border-radius: 14px; background: var(--surface-fallback); border: 1px solid var(--ov-20); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35); }
+.hd-menuitem { min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: var(--text); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+.hd-menuitem:hover { background: var(--ov-10); }
+.hd-menuitem.is-danger { color: var(--expense); margin-top: 6px; border-top: 1px solid var(--ov-20); border-radius: 0 0 10px 10px; padding-top: 6px; box-sizing: content-box; }
+.iv-btn-danger { color: var(--expense); border-color: var(--expense); }
+.iv-btn-danger:hover { background: var(--ov-12); }
+.hd-page h2:focus { outline: none; }
+.hd-confirm { border: 1px solid var(--expense); }
+.hd-detail td { background: var(--ov-6); }
+.hd-dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px 16px; margin: 0; }
+.hd-dl dt { font-size: 12px; color: var(--muted); }
+.hd-dl dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.hd-confirm { display: grid; gap: 10px; margin-bottom: 16px; }
+
+@media (max-width: 1023px) {
+  .hd-tools .iv-field { flex: 1 1 100%; }
+}

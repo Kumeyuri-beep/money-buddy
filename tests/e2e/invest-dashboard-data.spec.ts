@@ -156,7 +156,7 @@ for (const w of WIDTHS) {
       }
       await page.getByRole('button', { name: 'Add', exact: true }).click();
       expect(new URL(page.url()).hash).toBe('#/invest/portfolio/holdings'); // Add → Portfolio → Holdings (ฟอร์มเพิ่มรายการหุ้นสหรัฐ)
-      await expect(page.getByRole('heading', { name: 'US stock portfolio', level: 2 })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Holdings', level: 2, exact: true })).toBeVisible();
     });
 
     test('ชี้แถว/โฟกัสแถว: ชิ้นนั้นพองออก ชิ้นอื่นจางลง แถวไฮไลต์ กลางวงแสดงรายการ', async ({ page }) => {
