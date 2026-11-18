@@ -8,11 +8,11 @@ import { taxTagsProblem } from '../invest/taxTags';
 import { sanitizeSettings, settingsProblem, type FinanceSettings } from './settings';
 
 /** คีย์ทั้งหมดของ FinanceSettings (ลำดับคงที่) */
-export const SETTINGS_KEYS = ['payDay', 'monthlySavingsGoal', 'monthlyBudget', 'nextPaydayOverride', 'dcaPlans', 'retirementAssetIds', 'taxRmfAssetIds', 'taxThaiEsgAssetIds', 'lastBackupAt', 'backupSnoozeUntil', 'theme', 'cashFlowView', 'portfolioName', 'portfolioNote', 'portfolioCurrency'] as const;
+export const SETTINGS_KEYS = ['payDay', 'monthlySavingsGoal', 'monthlyBudget', 'nextPaydayOverride', 'dcaPlans', 'retirementAssetIds', 'taxRmfAssetIds', 'taxThaiEsgAssetIds', 'lastBackupAt', 'backupSnoozeUntil', 'theme', 'cashFlowView', 'portfolioName', 'portfolioNote', 'portfolioCurrency', 'investGoal'] as const;
 export type SettingsKey = (typeof SETTINGS_KEYS)[number];
 
 /** คีย์ที่ผู้เรียกบางรายไม่รู้จัก (หน้าบิลสร้างค่าตั้งค่าใหม่ทั้งก้อน): ไม่ส่ง = คงของเดิม ส่งอาร์เรย์ว่าง = ลบ */
-const CARRIED_KEYS: readonly SettingsKey[] = ['dcaPlans', 'retirementAssetIds', 'taxRmfAssetIds', 'taxThaiEsgAssetIds', 'lastBackupAt', 'backupSnoozeUntil', 'theme', 'cashFlowView', 'portfolioName', 'portfolioNote', 'portfolioCurrency'];
+const CARRIED_KEYS: readonly SettingsKey[] = ['dcaPlans', 'retirementAssetIds', 'taxRmfAssetIds', 'taxThaiEsgAssetIds', 'lastBackupAt', 'backupSnoozeUntil', 'theme', 'cashFlowView', 'portfolioName', 'portfolioNote', 'portfolioCurrency', 'investGoal'];
 
 /** ค่าที่จะเปลี่ยน: ค่า = ตั้ง/แทน · null หรืออาร์เรย์ว่าง = ลบคีย์ · undefined = ไม่แตะ */
 export type SettingsPatch = { [K in SettingsKey]?: FinanceSettings[K] | null };
