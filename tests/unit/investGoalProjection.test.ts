@@ -187,3 +187,64 @@ describe('progressBps (ความคืบหน้าสู่เป้า)',
     expect(progressBps(-1, 10)).toBeNull();
   });
 });
+
+describe('ขอบเพิ่มเติม (รอบตรวจ #219)', () => {
+  it('-0 ถูกปฏิเสธเหมือนค่าผิดรูป (กัน -0 หลุดเข้า settings · R18/R19)', () => {
+    expect(projectGoal({ ...base, targetMinor: -0 })).toEqual({ kind: 'na', reason: 'invalid' });
+    expect(projectGoal({ ...base, contributionMinor: -0 })).toEqual({ kind: 'na', reason: 'invalid' });
+    expect(projectGoal({ ...base, returnBps: -0 })).toEqual({ kind: 'na', reason: 'invalid' });
+    expect(projectGoal({ ...base, inflationBps: -0 })).toEqual({ kind: 'na', reason: 'invalid' });
+    expect(investGoalProblem({ kind: 'value', targetMinor: -0, contributionMinor: 0, achieveBy: '2030-01', returnBps: 0, inflationBps: 0, currency: 'USD' })).not.toBeNull();
+  });
+
+  it('ผลตอบแทนติดลบ r=-1200 (−1%/เดือน) ค่าเป๊ะ: V0=100,000 ไม่มีเงินเพิ่ม → V1=99,000 (ตรวจผ่านรายได้ y=12,000 bps = V/10 ต่อเดือน: เป้า 9,900 ถึงที่เดือน 1)', () => {
+    // เป้ารายได้ลดตามมูลค่า จึงถึงเป้า "≥" ตั้งแต่เดือน 0; ใช้ตัวคุมด้วยเงินเพิ่มแทน: V0=98,000, C=1,000 → V1 = roundHalfUp(98,000 x 118,800 / 120,000) + 1,000 = 97,020 + 1,000 = 98,020
+    const at = (target: number) => ok(projectGoal({ ...base, startMinor: 98_000, contributionMinor: 1_000, returnBps: -1_200, kind: 'value', targetMinor: target })).months;
+    expect(at(98_020)).toBe(1);
+    expect(at(98_021)).toBe(2); // V2 = roundHalfUp(98,020 x 0.99) + 1,000 = 97,039.8 → 97,040 + 1,000 = 98,040
+    expect(at(98_040)).toBe(2);
+    expect(at(98_041)).toBe(3);
+    // ไม่มีเงินเพิ่ม: มูลค่าลดลงจริง (เดือน 12 < V0) และเป้าสูงกว่า V0 ไม่ถึง
+    const down = ok(projectGoal({ ...base, returnBps: -1_200, contributionMinor: 0, targetMinor: 100_001 }, { horizonMonths: 12 }));
+    expect(down.months).toBeNull();
+    expect(down.path.find((p) => p.month === 12)?.valueMinor).toBeLessThan(100_000);
+  });
+
+  it('realReturnBps ติดลบ: ผลหารลงตัวและ .5 พอดี (ปัดออกจากศูนย์)', () => {
+    expect(realReturnBps(-5_000, 10_000)).toBe(-7_500); // 5,000 x 10,000 / 20,000 = 2,500 ... ตรวจด้านล่าง
+    // (10,000 + r) x 10,000 / 20,000 = (10,000 + r) / 2 : r = -4,999 → 2,500.5 → 2,501 → 2,501 - 10,000 = -7,499
+    expect(realReturnBps(-4_999, 10_000)).toBe(-7_499);
+    // r = -5,001 ไม่อยู่ในช่วงของ projectGoal แต่ฟังก์ชันล้วนต้องปัดออกจากศูนย์ตามขนาด: (4,999 / 2 = 2,499.5 → 2,500) - 10,000
+    expect(realReturnBps(-5_001, 10_000)).toBe(-7_500);
+  });
+
+  it('startMinor = MAX_SAFE_INTEGER เทียบเป้าต่ำกว่า → ถึงแล้ว months=0', () => {
+    const r = ok(projectGoal({ ...base, startMinor: Number.MAX_SAFE_INTEGER, targetMinor: 1_000 }));
+    expect(r.months).toBe(0);
+  });
+
+  it('horizonMonths ผิดค่า (-1, 1.5) = invalid', () => {
+    for (const h of [-1, 1.5]) expect(projectGoal(base, { horizonMonths: h })).toEqual({ kind: 'na', reason: 'invalid' });
+  });
+});
+
+describe('averageMonthlyBuysUsd สิ้นเดือน', () => {
+  const one = (date: string): InvestmentData => ({
+    ...emptyInvestments(),
+    assets: [{ id: 'us1', name: 'US1', kind: 'stock', accountId: 'a', currency: 'USD' }],
+    trades: [{ id: 't1', assetId: 'us1', kind: 'buy', date, createdAt: `${date}T03:00:00.000Z`, units: '100000000', priceMicro: 1_000_000, amount: 12_000, fee: 0, withholding: 0, memo: '', fxRateMicro: 35_000_000 }],
+  });
+  it('วันนี้ 2026-03-31: ซื้อวันนี้นับ · ขอบเริ่ม 2025-03-31 ไม่นับ · 2025-04-01 นับ', () => {
+    expect(averageMonthlyBuysUsd(one('2026-03-31'), '2026-03-31')).toBe(1_000);
+    expect(averageMonthlyBuysUsd(one('2025-03-31'), '2026-03-31')).toBeNull();
+    expect(averageMonthlyBuysUsd(one('2025-04-01'), '2026-03-31')).toBe(1_000);
+  });
+  it('วันนี้ 2026-02-28: ขอบเริ่ม 2025-02-28 ไม่นับ · 2025-03-01 นับ', () => {
+    expect(averageMonthlyBuysUsd(one('2025-02-28'), '2026-02-28')).toBeNull();
+    expect(averageMonthlyBuysUsd(one('2025-03-01'), '2026-02-28')).toBe(1_000);
+  });
+  it('วันนี้ 2024-02-29 (อธิกสุรทิน): ขอบเริ่ม 2023-02-28 ไม่นับ · 2023-03-01 นับ', () => {
+    expect(averageMonthlyBuysUsd(one('2023-02-28'), '2024-02-29')).toBeNull();
+    expect(averageMonthlyBuysUsd(one('2023-03-01'), '2024-02-29')).toBe(1_000);
+  });
+});

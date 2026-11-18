@@ -34,19 +34,35 @@ export interface GoalContext {
 export function buildGoalContext(view: DashboardView, data: InvestmentData, today: string, currency: DisplayCurrency): GoalContext {
   const rateMicro = view.fxText?.rateMicro ?? null;
   const avgUsd = averageMonthlyBuysUsd(data, today);
+  let suggested: number | null = null;
+  try {
+    suggested = avgUsd === null ? null : toDisplayMinor('USD', avgUsd, currency, rateMicro);
+  } catch (e) {
+    if (!(e instanceof RangeError)) throw e; // เกินช่วงปลอดภัย = ไม่เสนอค่า
+  }
   return {
     startMinor: currency === 'THB' ? view.valueThb : view.valueUsd,
     yieldBps: view.dividend.yieldBps,
     rateMicro,
-    suggestedContributionMinor: avgUsd === null ? null : toDisplayMinor('USD', avgUsd, currency, rateMicro),
+    suggestedContributionMinor: suggested,
   };
 }
 
-/** จำนวนเงินที่ผู้ใช้ตั้งไว้ (สกุลที่กรอก) → สกุลที่แสดงตอนนี้ (R26 · ปัดครั้งเดียวต่อค่า) · ไม่มีเรต = null (Needs rate) */
-export function goalAmountsForDisplay(goal: InvestGoal, currency: DisplayCurrency, rateMicro: number | null): { targetMinor: number; contributionMinor: number } | null {
-  const target = toDisplayMinor(goal.currency, goal.targetMinor, currency, rateMicro);
-  const contribution = toDisplayMinor(goal.currency, goal.contributionMinor, currency, rateMicro);
-  return target === null || contribution === null ? null : { targetMinor: target, contributionMinor: contribution };
+export type GoalAmounts = { kind: 'ok'; targetMinor: number; contributionMinor: number } | { kind: 'needs-rate' } | { kind: 'too-large' };
+
+/**
+ * จำนวนเงินที่ผู้ใช้ตั้งไว้ (สกุลที่กรอก) → สกุลที่แสดงตอนนี้ (R26 · ปัดครั้งเดียวต่อค่า)
+ * ไม่มีเรต = needs-rate (Needs rate) · เกินช่วงปลอดภัยหลังแปลง = too-large (ไม่ปัดเงียบ ไม่ใช้เรตเก่า)
+ */
+export function goalAmountsForDisplay(goal: InvestGoal, currency: DisplayCurrency, rateMicro: number | null): GoalAmounts {
+  try {
+    const target = toDisplayMinor(goal.currency, goal.targetMinor, currency, rateMicro);
+    const contribution = toDisplayMinor(goal.currency, goal.contributionMinor, currency, rateMicro);
+    return target === null || contribution === null ? { kind: 'needs-rate' } : { kind: 'ok', targetMinor: target, contributionMinor: contribution };
+  } catch (e) {
+    if (e instanceof RangeError) return { kind: 'too-large' };
+    throw e;
+  }
 }
 
 export type GoalNeeds = 'rate' | 'value' | 'yield';
@@ -73,7 +89,8 @@ export type GoalOutcome =
 /** ประมาณการจากเป้าที่บันทึกไว้ ในสกุลที่แสดงตอนนี้ */
 export function runGoal(goal: InvestGoal, ctx: GoalContext, currency: DisplayCurrency, today: string): GoalOutcome {
   const amounts = goalAmountsForDisplay(goal, currency, ctx.rateMicro);
-  if (amounts === null) return { state: 'needs', needs: 'rate' };
+  if (amounts.kind === 'needs-rate') return { state: 'needs', needs: 'rate' };
+  if (amounts.kind === 'too-large') return { state: 'invalid', reason: 'too-large' };
   const deadlineMonths = monthsUntil(today, goal.achieveBy);
   const horizon = Math.max(deadlineMonths, 12);
   const r = projectGoal(

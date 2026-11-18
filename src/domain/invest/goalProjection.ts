@@ -20,8 +20,8 @@ export const GOAL_YEAR_MIN = 2_000;
 export const GOAL_YEAR_MAX = 2_200;
 
 const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
-const isMinor = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
-const isBpsIn = (v: unknown, min: number, max: number): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= min && v <= max;
+const isMinor = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 && !Object.is(v, -0);
+const isBpsIn = (v: unknown, min: number, max: number): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= min && v <= max && !Object.is(v, -0);
 
 export type GoalKind = 'value' | 'income';
 export type GoalCurrency = 'THB' | 'USD';

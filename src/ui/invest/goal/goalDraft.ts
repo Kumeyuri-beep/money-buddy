@@ -35,6 +35,7 @@ export const minorToInput = (minor: number): string => toBahtString(satang(minor
 
 /** bps → ข้อความ % ในช่อง ("7" / "7.5" / "-2.25") ด้วยจำนวนเต็มล้วน */
 export function bpsToInput(bps: number): string {
+  if (bps === 0) return '0'; // กัน "-0"
   const abs = Math.abs(bps);
   const whole = (abs - (abs % 100)) / 100;
   const frac = abs % 100;
@@ -42,7 +43,8 @@ export function bpsToInput(bps: number): string {
   return `${bps < 0 ? '-' : ''}${whole}${fracText}`;
 }
 
-const MONEY_TEXT = /^[\d,]*\.?\d*$/;
+/** ตัวเลขไม่เกิน 2 ทศนิยม (ไม่ปัดเศษที่ผู้ใช้พิมพ์เกินให้เงียบๆ · R2) */
+const MONEY_TEXT = /^[\d,]*\.?\d{0,2}$/;
 
 function amount(text: string): number | null {
   const t = text.trim();

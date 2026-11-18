@@ -14,7 +14,7 @@
 .iv-goal-kind .iv-seg-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .iv-goal-money { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--ov-20); background: var(--shade-30, rgba(0, 0, 0, 0.3)); }
 .iv-goal-money:focus-within { outline: 2px solid var(--gold); outline-offset: 2px; }
-.iv-goal-money input { flex: 1; min-width: 0; min-height: 40px; padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; outline: none; }
+.iv-goal-money input, .iv-goal-money input:focus-visible { flex: 1; min-width: 0; min-height: 40px; padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; outline: none; }
 .iv-goal-unit { color: var(--muted); font-size: 14px; white-space: nowrap; }
 .iv-goal-by-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .iv-goal-hint { font-size: 13px; color: var(--muted); }
@@ -48,3 +48,6 @@
 .iv-goal-target-label { fill: var(--gold); font-size: 12px; font-weight: 700; }
 .iv-goal-deadline { stroke: var(--ov-40); stroke-width: 1; stroke-dasharray: 3 4; }
 .iv-goal-reach { fill: var(--income); stroke: var(--text); stroke-width: 2; }
+
+/* ลดความโปร่งใส: การ์ดของหน้านี้ต้องทึบ (ข้อกำหนดของแบบ Aurora Glass) */
+@media (prefers-reduced-transparency: reduce) { .iv-goal-layout .iv-card { background: var(--surface-fallback); box-shadow: none; } }

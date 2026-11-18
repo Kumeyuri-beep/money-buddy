@@ -64,7 +64,7 @@ export function GoalPage(_props: { onHome: () => void }) {
     if (!ready) return;
     if (saved !== null) {
       const amounts = goalAmountsForDisplay(saved, currency, rateMicro);
-      if (amounts !== null) {
+      if (amounts.kind === 'ok') {
         setDraft(draftFromGoal(saved, amounts));
         setErrors({});
         return;
