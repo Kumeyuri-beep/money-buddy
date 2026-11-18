@@ -45,6 +45,7 @@ import { createEntry } from '../domain/ledger/entry';
 import { runIntegrityCheck } from '../domain/ledger/integrity';
 import type { Account, AccountType, Entry, EntrySource, NewEntry } from '../domain/ledger/types';
 import { SCHEMA_VERSION } from './db';
+import { buildCashAdjustmentEntry, CashAdjustmentError } from '../domain/invest/cashAdjustment';
 import { carryCode, type NumberField } from './storageMessages';
 import type { ImportProgress, LedgerRepository } from './ledgerRepository';
 import {
@@ -1038,6 +1039,17 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
         p_accounts: built.suspenseAccountIds.map((id) => ({ id })),
       });
       return { ...exchange, rateMicro, entryId };
+    },
+
+    async recordCashAdjustment(input) {
+      let built;
+      try {
+        built = buildCashAdjustmentEntry(input);
+      } catch (e) {
+        if (e instanceof CashAdjustmentError) throw carryCode(new StorageError(e.message), e);
+        throw e;
+      }
+      await rpc('record_cash_adjustment', { p_entry: entryToJson(built.entry), p_accounts: built.adjustAccountIds.map((id) => ({ id })) });
     },
 
     async deleteFxExchange(id) {

@@ -138,6 +138,9 @@ export const investMsg = defineMessages({
   'link.usdNoReinvest': { th: () => 'หุ้นสหรัฐยังไม่รองรับปันผลลงทุนต่อ', en: () => 'US stocks do not support reinvested dividends yet' },
   'link.pickThbWallet': { th: () => 'เลือกกระเป๋าเงินบาท', en: () => 'Choose a baht wallet' },
   'link.pickUsdCashShort': { th: () => 'เลือกบัญชีเงินสด USD', en: () => 'Choose a USD cash account' },
+  'link.pickCashAccount': { th: () => 'เลือกบัญชีเงินสดของพอร์ต', en: () => 'Choose a portfolio cash account' },
+  'link.cashAmountInvalid': { th: () => 'จำนวนเงินต้องเป็นจำนวนเต็มหน่วยย่อย (สตางค์/เซนต์) ตั้งแต่ 1', en: () => 'The amount must be a whole number of minor units (satang/cents), at least 1' },
+  'link.cashDateInvalid': { th: () => 'วันที่ไม่ถูกต้อง', en: () => 'The date is not valid' },
 
   // app/portfolio.ts, app/usPortfolio.ts (ข้อความของแถวพอร์ต)
   'portfolio.inconsistent': { th: () => 'ข้อมูลรายการไม่สอดคล้อง', en: () => 'The trade records are inconsistent' },
