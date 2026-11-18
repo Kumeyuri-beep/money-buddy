@@ -171,7 +171,7 @@ begin
     '{"id":"s1-e","date":"2026-11-10","memo":"sell","source":"manual","lines":[{"accountId":"usd-cash","amount":47900},{"accountId":"inv-us","amount":-40040},{"accountId":"inv-gain-usd","amount":-7860}]}'::jsonb,
     '[{"id":"inv-gain-usd"}]');
   perform pg_temp.settle();
-  if pg_temp.ac(ua, $q$ select count(*)::bigint from public.accounts where id = 'inv-gain-usd' and type = 'income' and currency = 'USD' and kind = 'normal' $q$) <> 1 then raise exception 'FAIL: T8 ไม่ได้สร้างบัญชีกำไร USD'; end if;
+  if pg_temp.ac(ua, format($q$ select count(*)::bigint from public.accounts where id = 'inv-gain-usd' and type = 'income' and currency = 'USD' and kind = 'normal' and user_id = %L $q$, ua)) <> 1 then raise exception 'FAIL: T8 ไม่ได้สร้างบัญชีกำไร USD'; end if;
   -- ขายที่ผิด: ขายเกิน · เงินเข้าไม่ตรง · พลิกด้านกำไรเป็นขาดทุนโดยยอดผิด · ค่าธรรมเนียมเกินเงินขาย
   r := pg_temp.fails($q$ select public.record_trade_fx(
     '{"id":"s-over","assetId":"us1","kind":"sell","date":"2026-11-11","units":"700000000","priceMicro":120000000,"fee":0,"fxRateMicro":33000000}'::jsonb,
@@ -201,10 +201,10 @@ begin
     '{"id":"d-re-e","date":"2026-11-13","source":"manual","lines":[{"accountId":"inv-us","amount":100},{"accountId":"inv-dividend-usd","amount":-100}]}'::jsonb, '[]') $q$);
   if r is null or r not like '22023|%' then raise exception 'FAIL: T9 reinvest USD ผ่าน (%)', r; end if;
   -- ยอดเงินสด USD ในสมุด = 100,000 (แลก) − 100,100 (ซื้อ) + 47,900 (ขาย) + 4,250 (ปันผล) = 52,050
-  if pg_temp.ac(ua, $q$ select coalesce(sum(amount), 0)::bigint from public.lines where account_id = 'usd-cash' $q$) <> 52050 then raise exception 'FAIL: T9 ยอดเงินสด USD ไม่ถูก'; end if;
+  if pg_temp.ac(ua, format($q$ select coalesce(sum(amount), 0)::bigint from public.lines where account_id = 'usd-cash' and user_id = %L $q$, ua)) <> 52050 then raise exception 'FAIL: T9 ยอดเงินสด USD ไม่ถูก'; end if;
   -- ผลรวมทุก Line สกุล USD ของผู้ใช้ = 0 และสกุลบาท = 0 (สมดุลต่อสกุลทั้งสมุด)
-  if pg_temp.ac(ua, $q$ select coalesce(sum(l.amount), 0)::bigint from public.lines l join public.accounts a on a.user_id = l.user_id and a.id = l.account_id where a.currency = 'USD' $q$) <> 0 then raise exception 'FAIL: T9 สมุด USD ไม่สมดุล'; end if;
-  if pg_temp.ac(ua, $q$ select coalesce(sum(l.amount), 0)::bigint from public.lines l join public.accounts a on a.user_id = l.user_id and a.id = l.account_id where a.currency = 'THB' $q$) <> 0 then raise exception 'FAIL: T9 สมุดบาทไม่สมดุล'; end if;
+  if pg_temp.ac(ua, format($q$ select coalesce(sum(l.amount), 0)::bigint from public.lines l join public.accounts a on a.user_id = l.user_id and a.id = l.account_id where a.currency = 'USD' and l.user_id = %L $q$, ua)) <> 0 then raise exception 'FAIL: T9 สมุด USD ไม่สมดุล'; end if;
+  if pg_temp.ac(ua, format($q$ select coalesce(sum(l.amount), 0)::bigint from public.lines l join public.accounts a on a.user_id = l.user_id and a.id = l.account_id where a.currency = 'THB' and l.user_id = %L $q$, ua)) <> 0 then raise exception 'FAIL: T9 สมุดบาทไม่สมดุล'; end if;
 
   -- T10 ลบรายการ: ลบ Entry ขายล่าสุดได้ (ตามลำดับ) · ลบ Entry แลกเงินลบแถว fx_exchanges ตาม · ลบ Entry ซื้อที่อยู่ก่อนขายไม่ได้
   r := pg_temp.fails($q$ delete from public.entries where id = 'b1-e' $q$);
@@ -215,7 +215,7 @@ begin
   perform pg_temp.settle();
   delete from public.entries where id = 'fx1-e';
   perform pg_temp.settle();
-  if pg_temp.ac(ua, $q$ select (select count(*) from public.trades where asset_id = 'us1') + (select count(*) from public.fx_exchanges) $q$) <> 0 then raise exception 'FAIL: T10 ลบ Entry แล้วแถวรายการ USD/แลกเงินไม่ตาม'; end if;
+  if pg_temp.ac(ua, format($q$ select (select count(*) from public.trades where asset_id = 'us1' and user_id = %L) + (select count(*) from public.fx_exchanges where user_id = %L) $q$, ua, ua)) <> 0 then raise exception 'FAIL: T10 ลบ Entry แล้วแถวรายการ USD/แลกเงินไม่ตาม'; end if;
 
   -- T11 fx_rates: ผูกบัญชี USD เท่านั้น · หนึ่งอัตราต่อวัน · อัตรา ≤ 0 ปฏิเสธ · cascade ตามบัญชี
   insert into public.fx_rates (account_id, date, rate_micro) values ('usd-cash', '2026-11-05', 35100000), ('usd-cash', '2026-11-06', 35200000);
