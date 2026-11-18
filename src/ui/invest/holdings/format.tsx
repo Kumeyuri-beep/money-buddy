@@ -18,7 +18,7 @@ export const COLUMN_LABEL: Record<ColumnId, string> = {
   srcUnrealized: 'Price (unrealized)', srcRealized: 'Price (realized)', srcOptions: 'Options', srcDividends: 'Dividends', srcFx: 'Currency', srcFees: 'Fees & tax', srcTotal: 'Total profit',
 };
 
-const missingText = (m: MissingKind | null): string => (m === 'rate' ? 'Needs rate' : m === 'price' ? 'No price' : '—');
+const missingText = (m: MissingKind | null): string => (m === 'rate' ? 'Needs rate' : m === 'price' ? 'No price' : m === 'error' ? "Couldn't load" : '—');
 
 /** ข้อมูลไม่มี: ขีด + ข้อความสำหรับโปรแกรมอ่านหน้าจอ */
 export function NoData({ kind }: { kind: MissingKind | null }): ReactNode {
@@ -64,7 +64,7 @@ export function cellOf(col: ColumnId, r: HoldingRow, c: DisplayCurrency): ReactN
     case 'avgCost': return r.costPerShare === null ? <NoData kind={null} /> : money(c, r.costPerShare);
     case 'lastPrice': return r.pricePerShare === null ? flagged(r.priceMicro === null ? 'price' : 'rate') : money(c, r.pricePerShare);
     case 'unrealized': return r.unrealized === null || r.units === 0n ? (r.units === 0n ? <NoData kind={null} /> : flagged(r.missing)) : withPct(moneySigned(c, r.unrealized), r.unrealizedBps, signClass(r.unrealized));
-    case 'div12m': return r.dividends12m === null ? <NoData kind={null} /> : money(c, r.dividends12m);
+    case 'div12m': return r.dividends12m === null ? flagged(r.missing ?? 'error') : money(c, r.dividends12m);
     case 'yieldCurrent': return r.yieldBps === null ? <NoData kind={null} /> : bpsText(r.yieldBps);
     case 'yieldOnCost': return r.yieldOnCostBps === null ? <NoData kind={null} /> : bpsText(r.yieldOnCostBps);
     case 'srcUnrealized': return srcCell(c, r.sources, (s) => s.priceUnrealized, r.missing);

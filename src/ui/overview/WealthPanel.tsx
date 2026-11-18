@@ -62,7 +62,10 @@ export function WealthPanel({ accounts, entries, today, investments }: { account
           <div className="summary-value">{baht(w.totalThb)}</div>
           {w.incomplete && (
             <p className="slip-warn" role="status">
-              ⚠ ไม่ครบ: มีหุ้น/กองทุนที่ยังไม่มีราคา หรือมีเงินดอลลาร์แต่ยังไม่มีอัตราแลกเปลี่ยน จึงยังไม่นับส่วนนั้น (ระบบไม่ใช้ต้นทุนแทน)
+              ⚠ ไม่ครบ:{' '}
+              {w.missing.some((m) => m.kind !== 'rate') && 'มีหุ้น/กองทุนที่ยังไม่มีราคา หรือมีเงินดอลลาร์แต่ยังไม่มีอัตราแลกเปลี่ยน จึงยังไม่นับส่วนนั้น (ระบบไม่ใช้ต้นทุนแทน)'}
+              {w.missing.some((m) => m.kind !== 'rate') && w.missing.some((m) => m.kind === 'rate') && ' '}
+              {w.missing.some((m) => m.kind === 'rate') && 'มีรายการหุ้นดอลลาร์ที่ยังไม่ได้ใส่อัตราแลกเปลี่ยน จึงยังไม่นับหุ้นนั้น ไปใส่ได้ที่พอร์ต > รายการ'}
             </p>
           )}
           {w.stale.length > 0 && (

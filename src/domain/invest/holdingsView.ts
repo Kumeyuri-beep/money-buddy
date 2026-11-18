@@ -14,7 +14,7 @@ import { sumDisplayed, toDisplayMinor, type DisplayCurrency } from './displayCur
 import { dividendInThb } from './fx';
 import { computeDividendMetrics, computeProfitSources, profitPercentBps, replayWithFees } from './metrics';
 import { latestFxRate, WEALTH_STALE_DAYS } from './portfolioMoney';
-import { toTradesFx } from './tradesFx';
+import { splitTradesByRate, toTradesFx } from './tradesFx';
 import { checkTradeDeleteCoded } from './rules';
 import type { CodedProblem } from '../errors/problem';
 import { assetCurrency, type Asset, type InvestmentData, type TradeRecord } from './types';
@@ -162,6 +162,8 @@ interface Base {
   dividendNetUsd: number;
   dividendNetThb: number;
   error: boolean;
+  /** มีรายการที่ไม่มีเรต (R26) */
+  needsRate: boolean;
 }
 
 /** หน่วย/ต้นทุนจากการเล่นซ้ำ + ราคาล่าสุด + ปันผลสะสมสุทธิ ของหุ้นหนึ่งตัว ณ วัน today · เล่นซ้ำไม่ผ่านหรือตัวเลขเกินช่วง = error (ไม่ทำให้ทั้งหน้าล้ม) */
@@ -179,14 +181,15 @@ function baseOf(asset: Asset, data: InvestmentData, today: string): Base {
       divUsd = safeAdd(divUsd, gross - t.withholding);
       divThb = safeAdd(divThb, dividendInThb(gross, t.withholding, t.fxRateMicro).netThb);
     }
+    const needsRate = splitTradesByRate(own).missingRate.length > 0;
     const pos = replayWithFees(toTradesFx(own)).position;
     return {
       asset, units: pos.units, costUsd: pos.costUsd, costThb: pos.costThb, priceMicro,
-      valueUsd: pos.units > 0n && priceMicro !== null ? valueInSatang(pos.units, priceMicro) : null, dividendNetUsd: divUsd, dividendNetThb: divThb, error: false,
+      valueUsd: pos.units > 0n && priceMicro !== null ? valueInSatang(pos.units, priceMicro) : null, dividendNetUsd: divUsd, dividendNetThb: divThb, error: false, needsRate,
     };
   } catch (e) {
     if (!(e instanceof Error)) throw e; // ข้อผิดพลาดจากกติกาซื้อขาย/ตัวเลขเกินช่วง = แถวนี้คำนวณไม่ได้
-    return { asset, units: 0n, costUsd: 0, costThb: 0, priceMicro, valueUsd: null, dividendNetUsd: divUsd, dividendNetThb: divThb, error: true };
+    return { asset, units: 0n, costUsd: 0, costThb: 0, priceMicro, valueUsd: null, dividendNetUsd: divUsd, dividendNetThb: divThb, error: true, needsRate: splitTradesByRate(own).missingRate.length > 0 };
   }
 }
 
@@ -199,6 +202,13 @@ function buildRow(us: Base, data: InvestmentData, today: string, currency: Displ
   const dividends = currency === 'USD' ? us.dividendNetUsd : us.dividendNetThb;
   const priceMicro = us.priceMicro;
 
+  if (us.needsRate) {
+    // ขาดเรต: ไม่คำนวณ ไม่นับเป็น 0 (R26)
+    return {
+      ...base, priceMicro, pricePerShare: null, cost: null, costPerShare: null, value: null, dividends: null, dividends12m: null, yieldBps: null, yieldOnCostBps: null,
+      profit: null, profitBps: null, unrealized: null, unrealizedBps: null, weightBps: null, sources: null, missing: 'rate',
+    };
+  }
   if (us.error) {
     return {
       ...base, priceMicro, pricePerShare: null, cost: null, costPerShare: null, value: null, dividends: null, dividends12m: null, yieldBps: null, yieldOnCostBps: null,
@@ -220,7 +230,7 @@ function buildRow(us: Base, data: InvestmentData, today: string, currency: Displ
   }
 
   const sub = subsetOf(data, us.asset.id);
-  const ps = guard(() => computeProfitSources(sub, today), null);
+  const ps = guard(() => computeProfitSources(sub, today, { strictRate: true }), null);
   const src = ps === null ? null : currency === 'THB' ? ps.thb : ps.usd;
   const profit = src === null ? null : src.total;
   const sources: ProfitSourcesRow | null =

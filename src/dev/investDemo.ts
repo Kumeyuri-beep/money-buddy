@@ -44,3 +44,9 @@ export function demoInvestmentsWithHistory(): InvestmentData {
   const sell = { id: 'sell-d1', assetId: 'd1', kind: 'sell', date: '2026-06-10', createdAt: '2026-06-10T03:00:00.000Z', units: String(5 * 100_000_000), priceMicro: 104_000_000, fee: 100, withholding: 0, memo: '', fxRateMicro: 33_600_000 } as TradeRecord;
   return { ...base, trades: [...base.trades, sell], prices: [...prices, ...base.prices], fxRates: [...fxRates, ...(base.fxRates ?? [])] } as InvestmentData;
 }
+
+/** ข้อมูลสมมติที่ปันผลหนึ่งรายการไม่มีเรต (?investDemo=norate · ทดสอบธง Needs rate / Incomplete · R26) */
+export function demoInvestmentsNoRate(): InvestmentData {
+  const d = demoInvestments();
+  return { ...d, trades: d.trades.map((t) => { if (t.id !== 'div-d1') return t; const { fxRateMicro: _drop, ...rest } = t; return rest as TradeRecord; }) };
+}

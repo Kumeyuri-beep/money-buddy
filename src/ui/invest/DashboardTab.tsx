@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { investError } from './investError';
 import { useInvest } from './InvestContext';
+import { MissingRateNotice } from './MissingRateNotice';
 import { LowerCards } from './dashboard/LowerCards';
 import { PortfolioCard } from './dashboard/PortfolioCard';
 import { StatCards } from './dashboard/StatCards';
@@ -33,6 +34,7 @@ export function DashboardTab() {
         </p>
       ) : (
         <>
+          <MissingRateNotice trades={built.view.us.missingRate} tickerOf={(id) => built.view?.us.rows.find((r) => r.assetId === id)?.ticker ?? ''} />
           <StatCards view={built.view} currency={currency} onOpenRetirement={onOpenRetirement} />
           <PortfolioCard view={built.view} currency={currency} />
           <LowerCards view={built.view} currency={currency} onOpenRetirement={onOpenRetirement} />
