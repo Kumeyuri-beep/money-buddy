@@ -4,11 +4,14 @@
 .iv-goal-layout { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 1024px) { .iv-goal-layout { grid-template-columns: minmax(320px, 400px) minmax(0, 1fr); align-items: start; } }
 
-.iv-goal-form { gap: 16px; }
+.iv-goal-form { gap: 16px; grid-template-columns: minmax(0, 1fr); }
+.iv-goal-form > *, .iv-goal-form .iv-field, .iv-goal-by-row > * { min-width: 0; }
+.iv-goal-form .iv-field { grid-template-columns: minmax(0, 1fr); }
+.iv-goal-form .iv-field input, .iv-goal-form .iv-field select { width: 100%; min-width: 0; box-sizing: border-box; }
 .iv-goal-form fieldset { margin: 0; padding: 0; border: 0; min-width: 0; display: grid; gap: 8px; }
 .iv-goal-form legend { padding: 0; display: flex; align-items: center; gap: 4px; font-size: 14px; color: var(--muted); }
 .iv-goal-form .iv-field label { display: flex; align-items: center; gap: 4px; }
-.iv-goal-kind .iv-seg { display: grid; grid-template-columns: 1fr 1fr; }
+.iv-goal-kind .iv-seg { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .iv-goal-kind .iv-seg-btn { min-height: 44px; padding: 0 14px; border: 0; border-radius: 11px; background: transparent; color: var(--muted); font-size: 15px; font-weight: 600; cursor: pointer; }
 .iv-goal-kind .iv-seg-btn.is-active { background: var(--gold); color: var(--on-gold); }
 .iv-goal-kind .iv-seg-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
@@ -16,7 +19,7 @@
 .iv-goal-money:focus-within { outline: 2px solid var(--gold); outline-offset: 2px; }
 .iv-goal-money input, .iv-goal-money input:focus-visible { flex: 1; min-width: 0; min-height: 40px; padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; outline: none; }
 .iv-goal-unit { color: var(--muted); font-size: 14px; white-space: nowrap; }
-.iv-goal-by-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.iv-goal-by-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
 .iv-goal-hint { font-size: 13px; color: var(--muted); }
 .iv-goal-err { font-size: 13px; color: var(--expense); }
 .iv-goal-expand { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--ov-12); }

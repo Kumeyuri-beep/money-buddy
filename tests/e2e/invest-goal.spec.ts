@@ -45,6 +45,21 @@ for (const w of WIDTHS) {
       expect(seen.errors, 'error ใน console').toEqual([]);
     });
 
+    test('ฟอร์มไม่ล้นการ์ดของตัวเอง แม้ฟอนต์กว้างกว่าปกติ (CI Linux ใช้ฟอนต์ต่างจากเครื่องเรา)', async ({ page }) => {
+      await openGoal(page);
+      await page.addStyleTag({ content: '.iv-goal-page, .iv-goal-page * { font-family: "Courier New", monospace !important; }' });
+      const bad = await page.evaluate(() => {
+        const form = document.querySelector('.iv-goal-form') as HTMLElement;
+        const fr = form.getBoundingClientRect();
+        const pad = parseFloat(getComputedStyle(form).paddingRight) || 0;
+        return Array.from(form.querySelectorAll('*'))
+          .filter((e) => !e.closest('.iv-tip') && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0)
+          .filter((e) => e.getBoundingClientRect().right > fr.right - pad + 1)
+          .map((e) => `${e.tagName}.${String((e as HTMLElement).className)} ${Math.round(e.getBoundingClientRect().right)} > ${Math.round(fr.right - pad)}`);
+      });
+      expect(bad, 'องค์ประกอบในฟอร์มล้นขอบการ์ด').toEqual([]);
+    });
+
     test('สลับ Value / Passive income และ ฿ / USD', async ({ page }) => {
       await openGoal(page);
       await page.getByRole('button', { name: 'Passive income', exact: true }).click();
