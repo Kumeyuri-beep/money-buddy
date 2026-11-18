@@ -20,6 +20,15 @@ for (const width of WIDTHS) {
       expect(seen.external, 'คำขอออกนอกเครื่อง').toEqual([]);
       expect(seen.errors, 'error ใน console').toEqual([]);
     });
+    test('Transactions (UsOverview): ต้นทุนรวม incomplete ไม่ใช่ 0 · กล่องแจ้ง Needs rate', async ({ page }) => {
+      const seen = watch(page);
+      await page.route((url) => !/^(localhost|127.0.0.1)$/.test(url.hostname), (route) => route.abort());
+      await page.goto('/harness.html?seed=1&investDemo=norate#/invest/portfolio/transactions');
+      await expect(page.getByText('Total cost basis (THB) · ⚠ incomplete')).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByTestId('needs-rate-notice')).toContainText('Needs rate');
+      expect(await overflowing(page), 'ล้นจอ').toEqual([]);
+      expect(seen.errors, 'error ใน console').toEqual([]);
+    });
     test('Holdings: ป้าย Needs rate ที่แถว · กล่องแจ้งเดียว · ไม่ล้นจอ', async ({ page }) => {
       const seen = watch(page);
       await page.route((url) => !/^(localhost|127.0.0.1)$/.test(url.hostname), (route) => route.abort());

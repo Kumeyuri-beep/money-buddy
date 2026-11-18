@@ -158,3 +158,18 @@ describe('แถว needsRate ไม่ส่งยอดบางส่วน�
     expect(us.totals.realizedGainThb).toBe(0);
   });
 });
+
+describe('แถวที่คำนวณล้ม (error) ไม่ส่งปันผลบางส่วน และไม่รวมเข้ายอดรวม', () => {
+  it('ยอดรวมปันผล USD ข้ามแถว error + ติด complete=false', () => {
+    const d = mk([
+      trade({ id: 's1', kind: 'sell', date: '2026-10-05', units: '500000000', priceMicro: 100_000_000, amount: undefined }),
+      trade({ id: 'dv', kind: 'dividend', date: '2026-10-20', amount: 1_000, units: undefined, priceMicro: undefined }),
+    ]);
+    const us = buildUsPortfolio([], [], d, TODAY);
+    expect(us.rows[0]!.error).toBeDefined();
+    expect(us.rows[0]).toMatchObject({ dividendNetUsd: 0, dividendNetThb: 0 });
+    expect(us.dividendNetUsdTotal).toBe(0);
+    expect(us.totals.complete).toBe(false);
+    expect(buildAnalysisModel([], [], d, TODAY).dividendNetUsdTotal).toBe(0);
+  });
+});

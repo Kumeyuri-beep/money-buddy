@@ -345,6 +345,8 @@ export interface DividendMetrics {
   yieldOnCostBps: number | null;
   /** true = มีรายการ USD ที่ไม่มีเรต (ปันผลที่ขาดไม่ถูกนับ และ yield ไม่คำนวณ) · ไม่นับเป็น 0 (R26) */
   incomplete: boolean;
+  /** true = คำนวณปันผลไม่สำเร็จ (ตัวเลขไม่ใช่ 0 จริง) หน้าจอแสดง Couldn't load (R26) · ไม่ตั้ง = ปกติ */
+  loadError?: boolean;
 }
 
 export function computeDividendMetrics(data: InvestmentData, asOf: string): DividendMetrics {

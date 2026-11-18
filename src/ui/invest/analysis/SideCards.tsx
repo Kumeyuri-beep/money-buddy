@@ -50,11 +50,11 @@ export function DividendCard({ model, currency }: { model: AnalysisModel; curren
       <dl className="avg-result">
         <div>
           <dt>Dividends (before tax), last 12 months</dt>
-          <dd className="num">{currency === 'THB' ? baht(d.grossThb) : usd(d.grossUsd)}{d.incomplete && <IncompleteTag />}</dd>
+          <dd className="num">{d.loadError ? <>Couldn't load<IncompleteTag /></> : <>{currency === 'THB' ? baht(d.grossThb) : usd(d.grossUsd)}{d.incomplete && <IncompleteTag />}</>}</dd>
         </div>
         <div>
           <dt>After withholding tax, last 12 months</dt>
-          <dd className="num">{currency === 'THB' ? baht(d.netThb) : usd(d.netUsd)}{d.incomplete && <IncompleteTag />}</dd>
+          <dd className="num">{d.loadError ? <>Couldn't load<IncompleteTag /></> : <>{currency === 'THB' ? baht(d.netThb) : usd(d.netUsd)}{d.incomplete && <IncompleteTag />}</>}</dd>
         </div>
         <div>
           <dt>Dividend yield on market value (%)</dt>

@@ -655,7 +655,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
                         {r.valueThb !== null && <span className="muted small"> ≈ {baht(r.valueThb)}</span>}
                       </td>
                       <td className="num" data-label="Unrealized gain (THB)">{r.unrealizedThb === null ? <Dash /> : signed(r.unrealizedThb)}</td>
-                      <td className="num" data-label="Net dividends">{r.needsRate ? <>Needs rate</> : usd(r.dividendNetUsd)}</td>
+                      <td className="num" data-label="Net dividends">{r.needsRate ? <>Needs rate</> : r.error !== undefined ? <>Couldn't load</> : usd(r.dividendNetUsd)}</td>
                       <td data-label="Actions">
                         <span className="dialog-actions">
                           <button type="button" className="btn btn-primary btn-small" onClick={(e) => openTrade(r, 'buy', e.currentTarget)} aria-label={`Buy ${r.ticker}`}>Buy</button>

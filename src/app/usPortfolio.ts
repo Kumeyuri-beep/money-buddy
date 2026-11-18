@@ -154,7 +154,7 @@ export function buildUsPortfolio(accounts: readonly Account[], entries: readonly
     } catch (e) {
       rows.push({
         ...base, units: 0n, costUsd: 0, costThb: 0, avgCostMicro: null, price: null, valueUsd: null, valueThb: null, unrealizedThb: null, priceGainThb: null, fxGainThb: null,
-        dividendNetUsd: assetMissing.length > 0 ? 0 : divUsd, dividendNetThb: assetMissing.length > 0 ? 0 : divThb, realizedGainThb: 0, ...(assetMissing.length > 0 ? { needsRate: true } : {}), error: e instanceof Error ? e.message : formMsg('usp.calcFailed'),
+        dividendNetUsd: 0, dividendNetThb: 0, realizedGainThb: 0, ...(assetMissing.length > 0 ? { needsRate: true } : {}), error: e instanceof Error ? e.message : formMsg('usp.calcFailed'),
         ...(hasCode(e) ? { errorCode: e.code, errorParams: e.params } : e instanceof Error ? {} : { errorCode: 'usp.calcFailed', errorParams: {} }),
       });
       complete = false;
