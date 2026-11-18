@@ -65,7 +65,7 @@ describe('ปรับยอดเงินสดของพอร์ตผ่�
     const inv = await a.loadInvestments();
     expect(usdCashBalances(ledger.accounts, ledger.entries, inv).find((x) => x.accountId === 'usd-cash')?.cents).toBe(10_000);
     expect(ledger.entries.some((e) => e.id === 'ca3')).toBe(false);
-    expect(runIntegrityCheck(ledger.accounts, ledger.entries)).toEqual(expect.any(Array));
+    expect(runIntegrityCheck(ledger.accounts, ledger.entries)).toMatchObject({ ok: true, issues: [] });
     await expect(b.recordCashAdjustment({ ...base, id: 'cb1', date: '2026-11-02', createdAt: '2026-11-02T03:00:00.000Z', direction: 'deposit', amountMinor: 100 })).rejects.toThrow();
   });
 });
