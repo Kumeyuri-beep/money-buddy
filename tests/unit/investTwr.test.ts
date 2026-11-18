@@ -131,3 +131,25 @@ describe('activeMonths: เดือนที่มีหุ้นหรือ�
     expect(m[m.length - 1]).toMatchObject({ key: '2026-02', end: '2026-02-15', prevEnd: '2026-01-31', start: '2026-02-01' });
   });
 });
+
+describe('R27/R25.4 ขอบเขตการปัด: ตกกึ่งกลาง .5 พอดี ปัดออกจากศูนย์', () => {
+  it('compoundBps [50,100] = 10,150.5 → +151 · [-50,-100] = 9,850.5 → ปัดออกจากศูนย์ได้ 9,851 → −149 (ตามสูตร R27 ปัจจุบัน)', () => {
+    expect(compoundBps([50, 100])).toBe(151);
+    expect(compoundBps([-50, -100])).toBe(-149);
+  });
+  it('compoundBps ผลเป็นศูนย์ไม่ใช่ -0', () => {
+    expect(Object.is(compoundBps([0]), 0)).toBe(true);
+    expect(Object.is(compoundBps([0, 0]), 0)).toBe(true);
+  });
+  // ซื้อ 1 หน่วย 100.00 USD วันที่ 29 (เหลือ 2 วันจาก 31) → ตัวหาร = 10,000×2 · ส่วนต่าง 1 เซนต์ → 31×1/2 = 15.5 bps
+  const tie = (priceAtEnd: number) => data({
+    trades: [trade({ id: 'tie', date: '2026-01-29', units: '100000000', priceMicro: 100_000_000, amount: 10_000 })],
+    prices: [{ assetId: 'us1', date: '2026-01-31', priceMicro: priceAtEnd }],
+  });
+  it('Dietz USD กำไร 1 เซนต์ = 15.5 bps → +16', () => {
+    expect(computeMonthlyReturnsUsd(tie(100_010_000), '2026-01-31').months[0]!.bps).toBe(16);
+  });
+  it('Dietz USD ขาดทุน 1 เซนต์ = −15.5 bps → −16 (ปัดออกจากศูนย์)', () => {
+    expect(computeMonthlyReturnsUsd(tie(99_990_000), '2026-01-31').months[0]!.bps).toBe(-16);
+  });
+});

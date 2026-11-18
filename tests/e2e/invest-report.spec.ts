@@ -102,6 +102,37 @@ for (const w of WIDTHS) {
       });
     }
 
+    test('คีย์บอร์ด: Tab ไปชื่อแถวแล้ว Space เลือกได้ · มีเลขลำดับและป้ายแกน Y · เลือกได้สูงสุด 4 แถว · คำอธิบายแถวอ่านได้', async ({ page }) => {
+      await openReport(page);
+      const btn = nameBtn(page, 'profit');
+      await btn.focus();
+      await page.keyboard.press('Space');
+      await expect(btn).toHaveAttribute('aria-pressed', 'true');
+      await expect(btn.locator('.rp-num')).toHaveText('1');
+      await expect(btn).toHaveAccessibleDescription(/Price change \+ realized/);
+      await expect(page.getByTestId('report-y-label').first()).toBeVisible();
+      for (const id of ['dividends', 'fees', 'taxes', 'price']) await nameBtn(page, id).click();
+      await expect(page.getByTestId('report-max-note')).toBeVisible();
+      await expect(nameBtn(page, 'price')).toHaveAttribute('aria-pressed', 'false');
+      await page.getByText('What do the rows mean?').click();
+      await expect(page.locator('.rp-guide dd').first()).toBeVisible();
+    });
+
+    test('พิมพ์ (print): หัวแถวพื้นขาวตัวดำ ไม่ sticky · แกนกราฟสีดำ · ไม่มีปุ่มควบคุม', async ({ page }) => {
+      await openReport(page);
+      await nameBtn(page, 'profit').click();
+      await nameBtn(page, 'dividends').click();
+      await page.emulateMedia({ media: 'print' });
+      const th = rowOf(page, 'profit').locator('th[scope="row"]');
+      const style = await th.evaluate((el) => {
+        const s = getComputedStyle(el);
+        return { bg: s.backgroundColor, color: s.color, position: s.position };
+      });
+      expect(style).toEqual({ bg: 'rgb(255, 255, 255)', color: 'rgb(0, 0, 0)', position: 'static' });
+      expect(await page.locator('.rp-axis').first().evaluate((el) => getComputedStyle(el).fill)).toBe('rgb(0, 0, 0)');
+      await expect(page.getByRole('button', { name: /Export to Excel/ })).toBeHidden();
+    });
+
     test('Export to Excel ได้ไฟล์ .csv ในเครื่อง ไม่มีคำขอออกนอกเครื่อง · สกุลตามปุ่ม · มี BOM', async ({ page }) => {
       const seen = watch(page);
       await openReport(page);

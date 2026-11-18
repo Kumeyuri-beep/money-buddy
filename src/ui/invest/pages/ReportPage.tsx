@@ -3,7 +3,7 @@ import { buildReport, type ReportGrouping, type ReportPeriod, type ReportTable }
 import { buildReportCsv, GROUP_LABELS, REPORT_ROWS, reportCsvFilename, type ReportRowDef, type RowGroup } from '../../../domain/invest/reportRows';
 import { Dash } from '../analysis/Dash';
 import { useInvest } from '../InvestContext';
-import { seriesColor } from '../report/chartModel';
+import { MAX_SERIES, seriesColor } from '../report/chartModel';
 import { ReportChart } from '../report/ReportChart';
 import { columnLabel, formatCell, GROUPINGS, PERIODS } from '../report/reportFormat';
 import '../report/report.css';
@@ -38,7 +38,9 @@ export function ReportPage({ onHome: _onHome }: { onHome: () => void }) {
   const built = useMemo(() => {
     if (data === null) return { table: null, failed: false };
     try {
-      return { table: buildReport(data, today, currency, grouping, period), failed: false };
+      const table = buildReport(data, today, currency, grouping, period);
+      for (const c of [...table.columns, ...(table.total ? [table.total] : [])]) for (const row of REPORT_ROWS) row.pick(c); // ค่าที่เกินช่วงปลอดภัย (เช่น Turnover) โยน RangeError ที่นี่ ไม่ใช่ตอน render
+      return { table, failed: false };
     } catch (e) {
       if (e instanceof RangeError) return { table: null, failed: true };
       throw e;
@@ -46,7 +48,7 @@ export function ReportPage({ onHome: _onHome }: { onHome: () => void }) {
   }, [data, today, currency, grouping, period]);
   const table = built.table;
 
-  const toggle = (id: string): void => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  const toggle = (id: string): void => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : s.length >= MAX_SERIES ? s : [...s, id]));
 
   return (
     <div className="invest-tab invest-report">
@@ -102,7 +104,7 @@ export function ReportPage({ onHome: _onHome }: { onHome: () => void }) {
               <h2 className="rp-print-title">Portfolio report · {table.currency}</h2>
               {table.incomplete && (
                 <p className="rp-note" role="status" data-testid="report-incomplete">
-                  Some figures are missing {table.missing.map((m) => MISSING_TEXT[m]).join(' and ')} for a month, so they show as — instead of 0. Totals only add what can be calculated.
+                  Some figures are missing {table.missing.map((m) => MISSING_TEXT[m]).join(' and ')} for a month, so they show as — instead of 0. A total shows — if any month in the period cannot be calculated.
                 </p>
               )}
               <section className="solid card" aria-labelledby="rp-chart-title">
@@ -114,10 +116,15 @@ export function ReportPage({ onHome: _onHome }: { onHome: () => void }) {
                 </div>
                 {selected.length === 0 ? (
                   <p className="muted rp-noprint" data-testid="report-chart-hint">
-                    Click the names of rows in the table to compare them as colored bars.
+                    Select the names of rows in the table (up to 4) to compare them as bars.
                   </p>
                 ) : (
                   <ReportChart table={table} grouping={grouping} currency={currency} selected={selected} />
+                )}
+                {selected.length >= MAX_SERIES && (
+                  <p className="muted small rp-noprint" role="status" data-testid="report-max-note">
+                    You can compare up to {MAX_SERIES} rows. Clear one to pick another.
+                  </p>
                 )}
               </section>
 
@@ -166,10 +173,20 @@ export function ReportPage({ onHome: _onHome }: { onHome: () => void }) {
                                     {row.label}
                                   </span>
                                 ) : (
-                                  <button type="button" className={`rp-name${idx >= 0 ? ' is-on' : ''}`} aria-pressed={idx >= 0} title={row.hint} onClick={() => toggle(row.id)}>
-                                    <span className="rp-swatch" style={idx >= 0 ? { background: seriesColor(idx) } : undefined} aria-hidden="true" />
-                                    {row.label}
-                                  </button>
+                                  <>
+                                    <button type="button" className={`rp-name${idx >= 0 ? ' is-on' : ''}`} aria-pressed={idx >= 0} aria-describedby={`rp-hint-${row.id}`} title={row.hint} onClick={() => toggle(row.id)}>
+                                      <span className="rp-swatch" style={idx >= 0 ? { background: seriesColor(idx) } : undefined} aria-hidden="true" />
+                                      {idx >= 0 && (
+                                        <span className="rp-num" aria-hidden="true">
+                                          {idx + 1}
+                                        </span>
+                                      )}
+                                      {row.label}
+                                    </button>
+                                    <span id={`rp-hint-${row.id}`} className="sr-only">
+                                      {row.hint}
+                                    </span>
+                                  </>
                                 )}
                               </th>
                               {table.columns.map((c) => cell(row.pick(c), c.key))}
@@ -184,6 +201,17 @@ export function ReportPage({ onHome: _onHome }: { onHome: () => void }) {
                 <p className="muted small">
                   {currency === 'USD' ? 'US dollars. Currency (FX) is not available in this view.' : 'Thai baht. Currency (FX) is the gain or loss from the exchange rate.'} Total profit, % chains the months (a quarter, year or Total is not a simple sum).
                 </p>
+                <details className="rp-guide rp-noprint">
+                  <summary>What do the rows mean?</summary>
+                  <dl>
+                    {REPORT_ROWS.map((r) => (
+                      <div key={r.id}>
+                        <dt>{r.label}</dt>
+                        <dd className="muted">{r.hint}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </details>
               </section>
             </div>
           )}

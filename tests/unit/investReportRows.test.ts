@@ -62,3 +62,13 @@ describe('buildReportCsv', () => {
     expect(t.pick(col('x', { purchases: 700, sales: 300 }))).toBe(1_000);
   });
 });
+
+describe('ขอบเขตเพิ่ม', () => {
+  it('minorToDecimal(-0) = "0.00" (ไม่มีเครื่องหมายลบ)', () => {
+    expect(minorToDecimal(-0)).toBe('0.00');
+  });
+  it('Turnover เกินช่วงปลอดภัย → RangeError (ไม่เงียบ)', () => {
+    const t = REPORT_ROWS.find((r) => r.id === 'turnover')!;
+    expect(() => t.pick(col('x', { purchases: Number.MAX_SAFE_INTEGER, sales: 1 }))).toThrow(RangeError);
+  });
+});

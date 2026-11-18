@@ -6,6 +6,7 @@
  *   - ข้อความที่ขึ้นต้นด้วย = + - @ (หรือ tab/CR) ถูกนำหน้าด้วย ' เพื่อกัน CSV/formula injection · ตัวเลขที่เราสร้างเองเป็นเลขล้วน ไม่ผ่านการ escape
  */
 
+import { safeAdd } from '../money/safe';
 import type { Cell, ReportColumn, ReportCurrency, ReportTable } from './reportSeries';
 
 export type RowUnit = 'money' | 'bps' | 'count' | 'market';
@@ -23,11 +24,6 @@ export interface ReportRowDef {
   pick: (c: ReportColumn) => Cell;
 }
 
-const add = (a: number, b: number): number => {
-  const s = a + b;
-  if (!Number.isSafeInteger(s)) throw new RangeError('จำนวนเงินเกินช่วงปลอดภัย');
-  return s;
-};
 
 export const GROUP_LABELS: Record<RowGroup, string> = {
   value: 'Portfolio value',
@@ -49,7 +45,7 @@ export const REPORT_ROWS: readonly ReportRowDef[] = [
   { id: 'fx', label: 'Currency (FX)', hint: 'Gain or loss from the baht / dollar rate. Shown in THB view only.', group: 'profit', unit: 'money', signed: true, pick: (c) => c.fx },
   { id: 'fees', label: 'Fees', hint: 'Broker commissions and other fees.', group: 'profit', unit: 'money', signed: true, pick: (c) => c.fees },
   { id: 'taxes', label: 'Taxes', hint: 'Withholding tax taken from dividends.', group: 'profit', unit: 'money', signed: true, pick: (c) => c.taxes },
-  { id: 'turnover', label: 'Turnover', hint: 'Purchases + sales: how much money moved through the portfolio.', group: 'turnover', unit: 'money', signed: false, pick: (c) => add(c.purchases, c.sales) },
+  { id: 'turnover', label: 'Turnover', hint: 'Purchases + sales: how much money moved through the portfolio.', group: 'turnover', unit: 'money', signed: false, pick: (c) => safeAdd(c.purchases, c.sales) },
   { id: 'purchases', label: 'Total purchases', hint: 'Total amount spent buying (including fees).', group: 'turnover', unit: 'money', signed: false, pick: (c) => c.purchases },
   { id: 'sales', label: 'Total sales', hint: 'Total amount received from selling (after fees).', group: 'turnover', unit: 'money', signed: false, pick: (c) => c.sales },
   { id: 'trades', label: 'Total trades', hint: 'Number of buy and sell transactions.', group: 'trades', unit: 'count', signed: false, pick: (c) => c.buys + c.sells },

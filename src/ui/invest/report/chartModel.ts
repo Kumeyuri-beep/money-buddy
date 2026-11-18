@@ -30,7 +30,7 @@ export interface ChartModel {
   min: number;
 }
 
-export const CHART_PAD = { top: 12, bottom: 28, left: 8, right: 8 } as const;
+export const CHART_PAD = { top: 14, bottom: 32, left: 96, right: 8 } as const;
 
 export function buildChartModel(series: readonly BarSeries[], columns: number, plotHeight = 180): ChartModel {
   const all = series.flatMap((s) => s.values.filter((v): v is number => v !== null));
@@ -63,5 +63,7 @@ export function buildChartModel(series: readonly BarSeries[], columns: number, p
 }
 
 /** สีของแท่งตามลำดับที่เลือก (ตัวแปรสีเดิมของระบบ) */
-export const SERIES_COLORS = ['var(--chart-fb1)', 'var(--chart-fb2)', 'var(--chart-fb3)', 'var(--chart-fb4)', 'var(--chart-income)', 'var(--chart-shortfall)', 'var(--chart-cat-bill)', 'var(--chart-cat-shopping)'] as const;
+export const SERIES_COLORS = ['var(--chart-fb1)', 'var(--chart-fb2)', 'var(--chart-fb3)', 'var(--chart-fb4)'] as const;
+/** เลือกเทียบได้สูงสุดเท่าจำนวนสีกลางของระบบ (สีรายรับ/ขาดดุลมีความหมายอื่น จึงไม่นำมาใช้) */
+export const MAX_SERIES = SERIES_COLORS.length;
 export const seriesColor = (index: number): string => SERIES_COLORS[index % SERIES_COLORS.length]!;
