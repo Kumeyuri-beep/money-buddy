@@ -242,14 +242,14 @@ begin
   --      ใส่เป็นชุดเดียวในฐานะผู้ดูแล (ตรวจระดับคำสั่ง) แล้วทดลองลบด้วย reset_my_ledger_step: ต้องไม่หมดเวลา
   insert into public.trades (user_id, id, asset_id, kind, date, units, amount)
     select ub, 'bulk-' || i, 'a1', 'buy', date '2026-11-06', '100', 100 from generate_series(1, 10000) i;
-  r := pg_temp.fails($$ insert into public.trades (user_id, id, asset_id, kind, date, units, amount) values ((select user_id from public.assets where id = 'a1' limit 1), 'bulk-over', 'a1', 'buy', date '2026-11-06', '100', 100) $$);
+  r := pg_temp.fails($$ insert into public.trades (user_id, id, asset_id, kind, date, units, amount) values ((select user_id from public.assets where id = 'a1' and user_id = (select id from auth.users where email = 'b-inv@users.money-buddy.internal') limit 1), 'bulk-over', 'a1', 'buy', date '2026-11-06', '100', 100) $$);
   if r is null or r not like '%เกินเพดาน%' then raise exception 'FAIL: T11b trades เกิน 10,000 ได้ (%)', r; end if;
-  r := pg_temp.fails($$ insert into public.trades (user_id, id, asset_id, kind, date, units, amount) select user_id, 'bulk2-' || i, 'a1', 'buy', date '2026-11-06', '100', 100 from public.assets, generate_series(1, 5) i where id = 'a1' $$);
+  r := pg_temp.fails($$ insert into public.trades (user_id, id, asset_id, kind, date, units, amount) select user_id, 'bulk2-' || i, 'a1', 'buy', date '2026-11-06', '100', 100 from public.assets, generate_series(1, 5) i where id = 'a1' and user_id = (select id from auth.users where email = 'b-inv@users.money-buddy.internal') $$);
   if r is null or r not like '%เกินเพดาน%' then raise exception 'FAIL: T11b ใส่ทีเดียวเกินเพดานได้ (%)', r; end if;
   insert into public.accounts (user_id, id, type, name, currency, kind) select ub, 'bi' || i, 'asset', 'x', 'THB', 'investment' from generate_series(1, 199) i;
   insert into public.assets (user_id, id, name, account_id) select ub, 'bs' || i, 'x', 'bi' || i from generate_series(1, 199) i;
-  r := pg_temp.fails($$ insert into public.accounts (user_id, id, type, name, currency, kind) values ((select user_id from public.assets where id = 'a1' limit 1), 'bi-over', 'asset', 'x', 'THB', 'investment') $$);
-  r := pg_temp.fails($$ insert into public.assets (user_id, id, name, account_id) values ((select user_id from public.assets where id = 'a1' limit 1), 'bs-over', 'x', 'bi-over') $$);
+  r := pg_temp.fails($$ insert into public.accounts (user_id, id, type, name, currency, kind) values ((select user_id from public.assets where id = 'a1' and user_id = (select id from auth.users where email = 'b-inv@users.money-buddy.internal') limit 1), 'bi-over', 'asset', 'x', 'THB', 'investment') $$);
+  r := pg_temp.fails($$ insert into public.assets (user_id, id, name, account_id) values ((select user_id from public.assets where id = 'a1' and user_id = (select id from auth.users where email = 'b-inv@users.money-buddy.internal') limit 1), 'bs-over', 'x', 'bi-over') $$);
   if r is null or r not like '%เกินเพดาน%' then raise exception 'FAIL: T11b สินทรัพย์เกิน 200 ได้ (%)', r; end if;
 
   -- T12 ลบบัญชีผู้ใช้ (delete_my_account_step) ที่มีข้อมูลลงทุน: ต้องลบสะอาด ไม่ติด FK

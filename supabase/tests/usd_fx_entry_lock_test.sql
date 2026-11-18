@@ -79,7 +79,7 @@ begin
   -- T5 ลบ Entry แลกเงินทั้งรายการยังทำได้ และ fx_exchanges หายตาม (cascade)
   delete from public.entries where id = 'fx1-e';
   perform pg_temp.settle();
-  if pg_temp.ac(ua, $q$ select (select count(*) from public.fx_exchanges) + (select count(*) from public.lines where entry_id = 'fx1-e') $q$) <> 0 then raise exception 'FAIL: T5 ลบ Entry แลกเงินแล้วแถวไม่ตาม'; end if;
+  if pg_temp.ac(ua, format($q$ select (select count(*) from public.fx_exchanges where user_id = %L) + (select count(*) from public.lines where entry_id = 'fx1-e' and user_id = %L) $q$, ua, ua)) <> 0 then raise exception 'FAIL: T5 ลบ Entry แลกเงินแล้วแถวไม่ตาม'; end if;
 
   -- T6 ห้ามซ่อนหมวดผลลงทุนฝั่ง USD (เหมือนฝั่งบาท) · หมวดปกติยังซ่อนได้
   insert into public.accounts (id, type, name, currency, kind) values
@@ -115,7 +115,7 @@ begin
   if r is null or r not like '23514|%' then raise exception 'FAIL: T7 B ใช้บัญชี USD ที่มีแต่ของ A ใน record_fx_exchange ได้ (%)', r; end if;
   r := pg_temp.fails($q$ insert into public.fx_rates (account_id, date, rate_micro) values ('inv-us', '2026-11-05', 35000000) $q$);
   if r is null or r not like '23514|%' then raise exception 'FAIL: T7 B ใส่อัตราผูกบัญชีของ A ได้ (%)', r; end if;
-  if pg_temp.ac(ub, $q$ select (select count(*) from public.trades) + (select count(*) from public.fx_exchanges) + (select count(*) from public.fx_rates) + (select count(*) from public.entries where id like 'b-%') $q$) <> 0 then raise exception 'FAIL: T7 รายการที่ถูกปฏิเสธเขียนแถวค้าง'; end if;
+  if pg_temp.ac(ub, format($q$ select (select count(*) from public.trades where user_id = %L) + (select count(*) from public.fx_exchanges where user_id = %L) + (select count(*) from public.fx_rates where user_id = %L) + (select count(*) from public.entries where user_id = %L and id like 'b-%%') $q$, ub, ub, ub, ub)) <> 0 then raise exception 'FAIL: T7 รายการที่ถูกปฏิเสธเขียนแถวค้าง'; end if;
 
   perform pg_temp.logout();
   raise exception 'TESTS_PASSED (rollback แล้ว ไม่มีข้อมูลทดสอบเหลือ)';
