@@ -4,7 +4,7 @@ import type { ReportColumn, ReportTable } from '../../src/domain/invest/reportSe
 
 const col = (key: string, o: Partial<ReportColumn> = {}): ReportColumn => ({
   key, begin: 100_000, end: 112_345, change: 12_345, profit: 12_345, profitBps: 1_069, price: 10_000, realized: 0, dividends: 2_345, fx: null, fees: -5, taxes: 0,
-  purchases: 50_000, sales: 0, buys: 2, sells: 0, missing: null, ...o,
+  purchases: 50_000, sales: 0, buys: 2, sells: 0, missing: null, needsRate: false, ...o,
 });
 
 describe('minorToDecimal / bpsToDecimal', () => {

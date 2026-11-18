@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { buildReport, type ReportGrouping, type ReportPeriod, type ReportTable } from '../../../domain/invest/reportSeries';
+import { buildReport, type ReportColumn, type ReportGrouping, type ReportPeriod, type ReportTable } from '../../../domain/invest/reportSeries';
 import { buildReportCsv, GROUP_LABELS, REPORT_ROWS, reportCsvFilename, type ReportRowDef, type RowGroup } from '../../../domain/invest/reportRows';
 import { Dash } from '../analysis/Dash';
 import { useInvest } from '../InvestContext';
@@ -160,11 +160,14 @@ export function ReportPage({ onHome: _onHome }: { onHome: () => void }) {
                             ]),
                         ...REPORT_ROWS.filter((r) => r.group === g).map((row) => {
                           const idx = selected.indexOf(row.id);
-                          const cell = (v: number | null, key: string, extra?: string) => (
+                          const cell = (col: ReportColumn, key: string, extra?: string) => {
+                            const v = row.pick(col);
+                            return (
                             <td key={key} className={cellClass(row, v, extra)}>
-                              {row.unit === 'market' ? <span className="muted">Needs market data</span> : v === null ? <Dash why="Needs a price or exchange rate" /> : formatCell(row, v, table.currency)}
+                              {row.unit === 'market' ? <span className="muted">Needs market data</span> : v === null ? col.needsRate ? <span className="muted" data-testid="needs-rate">Needs rate</span> : <Dash why="Needs a price or exchange rate" /> : formatCell(row, v, table.currency)}
                             </td>
-                          );
+                            );
+                          };
                           return (
                             <tr key={row.id} data-row={row.id}>
                               <th scope="row">
@@ -189,8 +192,8 @@ export function ReportPage({ onHome: _onHome }: { onHome: () => void }) {
                                   </>
                                 )}
                               </th>
-                              {table.columns.map((c) => cell(row.pick(c), c.key))}
-                              {table.total && cell(row.pick(table.total), 'total', 'rp-total')}
+                              {table.columns.map((c) => cell(c, c.key))}
+                              {table.total && cell(table.total, 'total', 'rp-total')}
                             </tr>
                           );
                         }),

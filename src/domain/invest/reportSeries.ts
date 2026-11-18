@@ -12,7 +12,7 @@ import { convertMinor } from './fx';
 import { computeMonthlyReturns, computeProfitSources, replayWithFees, type FeeReplay, type ProfitResult } from './metrics';
 import { latestFxRate } from './portfolioMoney';
 import { toTradesFx } from './tradesFx';
-import { activeMonths, compoundBps, computeMonthlyReturnsUsd, priceMicroAt, usdAssetTrades, type MonthSpan } from './twr';
+import { activeMonths, compoundBps, computeMonthlyReturnsUsd, needsRateMonths, priceMicroAt, usdAssetTrades, type MonthSpan } from './twr';
 import type { InvestmentData } from './types';
 import { valueInSatang } from './units';
 
@@ -43,12 +43,14 @@ export interface ReportColumn {
   fees: Cell;
   taxes: Cell;
   /** เงินซื้อ (รวมค่าธรรมเนียม) และเงินขาย (สุทธิ) ของงวด */
-  purchases: number;
-  sales: number;
-  buys: number;
-  sells: number;
+  purchases: Cell;
+  sales: Cell;
+  buys: Cell;
+  sells: Cell;
   /** เหตุที่ค่าใดค่าหนึ่งเป็น null (null = ครบทุกค่า) */
   missing: ReportMissing | null;
+  /** มีรายการลงทุนที่ไม่มีอัตราแลกเปลี่ยนกระทบงวดนี้ (R26) → ทุกค่าเป็น null แสดง "Needs rate" · ไม่นับเป็น 0 */
+  needsRate: boolean;
 }
 
 export interface ReportTable {
@@ -132,7 +134,10 @@ function snapshotAt(data: InvestmentData, date: string, currency: ReportCurrency
 
 const diff = (a: Cell, b: Cell): Cell => (a === null || b === null ? null : safeSub(a, b));
 
-function monthColumn(sp: MonthSpan, begin: Snapshot, end: Snapshot, bps: Cell, currency: ReportCurrency): ReportColumn {
+function monthColumn(sp: MonthSpan, begin: Snapshot, end: Snapshot, bps: Cell, currency: ReportCurrency, needsRate: boolean): ReportColumn {
+  if (needsRate) {
+    return { key: sp.key, begin: null, end: null, change: null, profit: null, profitBps: null, price: null, realized: null, dividends: null, fx: null, fees: null, taxes: null, purchases: null, sales: null, buys: null, sells: null, missing: 'rate', needsRate: true };
+  }
   const inMonth = (d: string): boolean => d >= sp.start && d <= sp.end;
   let purchases = 0;
   let sales = 0;
@@ -173,6 +178,7 @@ function monthColumn(sp: MonthSpan, begin: Snapshot, end: Snapshot, bps: Cell, c
     buys,
     sells,
     missing,
+    needsRate: false,
   };
 }
 
@@ -203,11 +209,12 @@ function aggregate(key: string, cols: readonly ReportColumn[], currency: ReportC
     fx: currency === 'USD' ? null : sum((c) => c.fx),
     fees: sum((c) => c.fees),
     taxes: sum((c) => c.taxes),
-    purchases: cols.reduce((s, c) => safeAdd(s, c.purchases), 0),
-    sales: cols.reduce((s, c) => safeAdd(s, c.sales), 0),
-    buys: cols.reduce((s, c) => s + c.buys, 0),
-    sells: cols.reduce((s, c) => s + c.sells, 0),
-    missing: cols.find((c) => c.missing !== null)?.missing ?? null,
+    purchases: sum((c) => c.purchases),
+    sales: sum((c) => c.sales),
+    buys: sum((c) => c.buys),
+    sells: sum((c) => c.sells),
+    missing: cols.some((c) => c.needsRate) ? 'rate' : (cols.find((c) => c.missing !== null)?.missing ?? null),
+    needsRate: cols.some((c) => c.needsRate),
   };
 }
 
@@ -253,7 +260,8 @@ export function buildReport(data: InvestmentData, asOf: string, currency: Report
     }
     return s;
   };
-  const months = spans.map((sp) => monthColumn(sp, snap(sp.prevEnd), snap(sp.end), bpsByMonth.get(sp.key) ?? null, currency));
+  const gaps = needsRateMonths(data, spans, asOf);
+  const months = spans.map((sp) => monthColumn(sp, snap(sp.prevEnd), snap(sp.end), bpsByMonth.get(sp.key) ?? null, currency, gaps.has(sp.key)));
 
   let columns: ReportColumn[];
   if (grouping === 'monthly') columns = months;

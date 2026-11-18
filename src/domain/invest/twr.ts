@@ -6,7 +6,7 @@
  */
 
 import { roundHalfUpBig } from '../money/round';
-import { replayWithFees, type FeeReplay, type MonthlyReturns, type MonthReturn } from './metrics';
+import { replayWithFees, type FeeReplay } from './metrics';
 import { toTradesFx } from './tradesFx';
 import { assetCurrency, type Asset, type InvestmentData, type TradeRecord } from './types';
 import { toSafeSatang, valueInSatang } from './units';
@@ -15,7 +15,7 @@ import { toSafeSatang, valueInSatang } from './units';
 
 /**
  * ต่อทบผลตอบแทนรายเดือน (bps) เป็นผลรวมของช่วง (R27):
- *   total = roundHalfUp(∏(10,000 + bᵢ) / 10,000^(n−1)) − 10,000 · ปัดครั้งเดียวตอนท้าย
+ *   total = roundHalfUp((∏(10,000 + bᵢ) − 10,000^n) / 10,000^(n−1)) · ปัดครั้งเดียวตอนท้าย ครึ่งออกจากศูนย์ (−149.5 → −150)
  * null = ไม่มีเดือนที่คำนวณได้ หรือมีเดือนใดเป็น null (ห้ามข้ามเดือนแล้วคิดต่อ) · bᵢ < −10,000 โยน RangeError
  */
 export function compoundBps(monthly: readonly (number | null)[]): number | null {
@@ -27,7 +27,8 @@ export function compoundBps(monthly: readonly (number | null)[]): number | null 
     if (b < -10_000) throw new RangeError(`ผลตอบแทนรายเดือนต่ำกว่า −100% ไม่ได้ (ได้รับ ${String(b)} bps)`);
     product *= BigInt(10_000 + b);
   }
-  return toSafeSatang(roundHalfUpBig(product, 10_000n ** BigInt(monthly.length - 1))) - 10_000;
+  // ปัดที่ "ผลตอบแทน" (ไม่ใช่ที่ผลคูณ) ครึ่งออกจากศูนย์ สมมาตรบวก/ลบ (R27 · เจ้าของสั่ง 18 พ.ย. 2569)
+  return toSafeSatang(roundHalfUpBig(product - 10_000n ** BigInt(monthly.length), 10_000n ** BigInt(monthly.length - 1))) || 0;
 }
 
 // ───────────────────────── ตัวช่วยร่วม (ใช้ใน reportSeries ด้วย) ─────────────────────────
@@ -60,6 +61,26 @@ export function priceMicroAt(data: InvestmentData, assetId: string, asOf: string
   return best ? best.priceMicro : null;
 }
 
+/** รายการซื้อ/ขาย/ปันผลของสินทรัพย์ USD ที่ไม่มี fxRateMicro (ไม่ถูกเล่นซ้ำใน R24/R25) วันที่ไม่เกิน asOf */
+export function noRateTrades(data: InvestmentData, asOf: string): TradeRecord[] {
+  const usdIds = new Set(data.assets.filter((a) => assetCurrency(a) === 'USD').map((a) => a.id));
+  return data.trades.filter((t) => usdIds.has(t.assetId) && t.date <= asOf && t.fxRateMicro === undefined && (t.kind === 'buy' || t.kind === 'sell' || t.kind === 'dividend'));
+}
+
+/**
+ * เดือน (YYYY-MM) ที่คำนวณไม่ได้เพราะรายการไม่มีอัตราแลกเปลี่ยน (R26 ห้ามเดา · ห้ามข้ามเงียบ):
+ *   ซื้อ/ขายที่ไม่มีอัตรา → เปลี่ยนจำนวนหน่วยที่ถือ จึงกระทบเดือนนั้นและทุกเดือนหลังจากนั้น
+ *   ปันผลที่ไม่มีอัตรา → กระทบเฉพาะเดือนของปันผล (ผลต่างของกำไรสะสมเดือนอื่นไม่เปลี่ยน)
+ */
+export function needsRateMonths(data: InvestmentData, spans: readonly MonthSpan[], asOf: string): Set<string> {
+  const out = new Set<string>();
+  for (const t of noRateTrades(data, asOf)) {
+    const key = t.date.slice(0, 7);
+    for (const sp of spans) if (t.kind === 'dividend' ? sp.key === key : sp.key >= key) out.add(sp.key);
+  }
+  return out;
+}
+
 export interface MonthSpan {
   /** YYYY-MM */
   key: string;
@@ -80,8 +101,11 @@ export interface MonthSpan {
 export function activeMonths(data: InvestmentData, asOf: string): MonthSpan[] {
   const assets = usdAssetTrades(data, asOf);
   const all = assets.flatMap((a) => a.trades);
-  if (all.length === 0) return [];
-  const first = all.reduce((m, t) => (t.date < m ? t.date : m), all[0]!.date);
+  /** รายการที่ไม่มีอัตรา (ไม่ถูกเล่นซ้ำ) ก็นับเป็นกิจกรรมของเดือนนั้น เพื่อให้เดือนนั้นอยู่ในรายงานและถูกติดธง needs-rate (R26) */
+  const noRate = noRateTrades(data, asOf);
+  if (all.length === 0 && noRate.length === 0) return [];
+  const dates = [...all, ...noRate].map((t) => t.date);
+  const first = dates.reduce((m, d) => (d < m ? d : m), dates[0]!);
   const replays = assets.map((a) => (date: string): FeeReplay => replayWithFees(toTradesFx(a.trades.filter((t) => t.date <= date))));
   const out: MonthSpan[] = [];
   let y = Number(first.slice(0, 4));
@@ -92,9 +116,11 @@ export function activeMonths(data: InvestmentData, asOf: string): MonthSpan[] {
     const start = isoDate(y, m, 1);
     const end = y === lastY && m === lastM ? asOf : monthEnd(y, m);
     const prevEnd = prevMonthEnd(y, m);
-    const hasTrade = all.some((t) => t.date >= start && t.date <= end);
-    const heldBefore = replays.some((r) => r(prevEnd).position.units > 0n);
-    const heldAfter = replays.some((r) => r(end).position.units > 0n);
+    const hasTrade = dates.some((d) => d >= start && d <= end);
+    // ซื้อ/ขายที่ไม่มีอัตราไม่ถูกเล่นซ้ำ จำนวนหน่วยหลังจากนั้นจึงไม่แน่นอน → ถือว่าอาจถืออยู่ (เดือนไม่ถูกข้าม · ถูกติดธง needs-rate)
+    const unknownBy = (date: string): boolean => noRate.some((t) => t.kind !== 'dividend' && t.date <= date);
+    const heldBefore = unknownBy(prevEnd) || replays.some((r) => r(prevEnd).position.units > 0n);
+    const heldAfter = unknownBy(end) || replays.some((r) => r(end).position.units > 0n);
     if (hasTrade || heldBefore || heldAfter) out.push({ key: `${pad(y, 4)}-${pad(m)}`, year: y, month: m, end, prevEnd, start });
     m += 1;
     if (m > 12) {
@@ -107,6 +133,18 @@ export function activeMonths(data: InvestmentData, asOf: string): MonthSpan[] {
 
 // ───────────────────────── R25.4 Modified Dietz แบบเซนต์ (มุมมอง USD) ─────────────────────────
 
+/** เหตุที่รายเดือนเป็น null: ขาดราคา · ตัวหารศูนย์ · มีรายการไม่มีอัตรา (needs-rate · R26) */
+export interface UsdMonthReturn {
+  /** YYYY-MM */
+  month: string;
+  bps: number | null;
+  na?: 'missing' | 'zero-base' | 'needs-rate';
+}
+export interface UsdMonthlyReturns {
+  months: UsdMonthReturn[];
+  years: Record<string, number | null>;
+}
+
 /**
  * ผลตอบแทนรายเดือน (Modified Dietz · R25.4) ของพอร์ตหุ้นสหรัฐ **คิดเป็นเซนต์โดยตรง** ไม่ผ่านอัตราแลกเปลี่ยน (R26 มุมมอง USD)
  *   ต่อเดือน = (มูลค่าสิ้นเดือน − มูลค่าต้นเดือน − เงินใส่เพิ่มสุทธิ + ปันผลสุทธิ) ÷ (มูลค่าต้นเดือน + Σ เงินใส่เพิ่ม × วันที่เหลือ ÷ วันในเดือน)
@@ -114,7 +152,7 @@ export function activeMonths(data: InvestmentData, asOf: string): MonthSpan[] {
  *   มูลค่า ณ วัน = หน่วยที่ถือ × ราคาล่าสุดที่กรอกก่อนหรือเท่าวันนั้น · เดือนปัจจุบันใช้ asOf เป็นวันสิ้นสุด
  * เดือนที่หุ้นที่ถืออยู่ตัวใดไม่มีราคา = null (na 'missing') · ตัวหาร ≤ 0 = null (na 'zero-base') · ทั้งปี = ต่อทบ (R27) ถ้าครบทุกเดือน
  */
-export function computeMonthlyReturnsUsd(data: InvestmentData, asOf: string): MonthlyReturns {
+export function computeMonthlyReturnsUsd(data: InvestmentData, asOf: string): UsdMonthlyReturns {
   const assets = usdAssetTrades(data, asOf);
   const spans = activeMonths(data, asOf);
   const replayAt = (a: UsdAssetTrades, date: string): FeeReplay => replayWithFees(toTradesFx(a.trades.filter((t) => t.date <= date)));
@@ -132,15 +170,17 @@ export function computeMonthlyReturnsUsd(data: InvestmentData, asOf: string): Mo
     return sum;
   };
 
-  const months: MonthReturn[] = [];
+  const months: UsdMonthReturn[] = [];
+  const gaps = needsRateMonths(data, spans, asOf);
   const byYear = new Map<string, (number | null)[]>();
   for (const sp of spans) {
     const L = BigInt(Number(sp.end.slice(8, 10)));
     const inMonth = (d: string): boolean => d >= sp.start && d <= sp.end;
     const v0 = valueOn(sp.prevEnd);
     const v1 = valueOn(sp.end);
-    let entry: MonthReturn;
-    if (v0 === null || v1 === null) entry = { month: sp.key, bps: null, na: 'missing' };
+    let entry: UsdMonthReturn;
+    if (gaps.has(sp.key)) entry = { month: sp.key, bps: null, na: 'needs-rate' };
+    else if (v0 === null || v1 === null) entry = { month: sp.key, bps: null, na: 'missing' };
     else {
       let flowSum = 0n;
       let weighted = 0n;

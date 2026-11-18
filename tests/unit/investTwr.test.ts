@@ -133,9 +133,9 @@ describe('activeMonths: เดือนที่มีหุ้นหรือ�
 });
 
 describe('R27/R25.4 ขอบเขตการปัด: ตกกึ่งกลาง .5 พอดี ปัดออกจากศูนย์', () => {
-  it('compoundBps [50,100] = 10,150.5 → +151 · [-50,-100] = 9,850.5 → ปัดออกจากศูนย์ได้ 9,851 → −149 (ตามสูตร R27 ปัจจุบัน)', () => {
+  it('compoundBps [50,100] = 10,150.5 → +151 · [-50,-100] = −149.5 → ปัดครึ่งออกจากศูนย์ = −150 (สมมาตรกับบวก · เจ้าของสั่ง 18 พ.ย. 2569)', () => {
     expect(compoundBps([50, 100])).toBe(151);
-    expect(compoundBps([-50, -100])).toBe(-149);
+    expect(compoundBps([-50, -100])).toBe(-150);
   });
   it('compoundBps ผลเป็นศูนย์ไม่ใช่ -0', () => {
     expect(Object.is(compoundBps([0]), 0)).toBe(true);
@@ -151,5 +151,26 @@ describe('R27/R25.4 ขอบเขตการปัด: ตกกึ่งก�
   });
   it('Dietz USD ขาดทุน 1 เซนต์ = −15.5 bps → −16 (ปัดออกจากศูนย์)', () => {
     expect(computeMonthlyReturnsUsd(tie(99_990_000), '2026-01-31').months[0]!.bps).toBe(-16);
+  });
+});
+
+describe('computeMonthlyReturnsUsd: รายการไม่มีอัตรา → needs-rate (R26)', () => {
+  const d0 = data({ trades: [trade({ id: 'a', date: '2026-01-10' })], prices: [{ assetId: 'us1', date: '2026-01-31', priceMicro: 110_000_000 }, { assetId: 'us1', date: '2026-02-28', priceMicro: 120_000_000 }] });
+  it('ครบเรต → ผลเดิม (ไม่มี na)', () => {
+    const r = computeMonthlyReturnsUsd(d0, '2026-02-28');
+    expect(r.months.map((m) => m.na)).toEqual([undefined, undefined]);
+    expect(r.months.every((m) => m.bps !== null)).toBe(true);
+  });
+  it('ปันผลไม่มีเรตเดือนก.พ. → ก.พ. needs-rate · ม.ค. เท่าเดิม · ทั้งปี null', () => {
+    const div = trade({ id: 'dv', kind: 'dividend', date: '2026-02-12', units: undefined, priceMicro: undefined, amount: 500, fxRateMicro: undefined });
+    const r = computeMonthlyReturnsUsd({ ...d0, trades: [...d0.trades, div] }, '2026-02-28');
+    expect(r.months[0]).toEqual(computeMonthlyReturnsUsd(d0, '2026-02-28').months[0]);
+    expect(r.months[1]).toEqual({ month: '2026-02', bps: null, na: 'needs-rate' });
+    expect(r.years['2026']).toBeNull();
+  });
+  it('ซื้อไม่มีเรตเดือนม.ค. → ทุกเดือนตั้งแต่ม.ค. needs-rate (เดือนของรายการนับเป็นเดือนที่มีกิจกรรม แม้เป็นรายการแรก)', () => {
+    const noRate = data({ trades: [trade({ id: 'x', date: '2026-01-10', fxRateMicro: undefined })], prices: d0.prices });
+    const r = computeMonthlyReturnsUsd(noRate, '2026-02-28');
+    expect(r.months.map((m) => [m.month, m.na])).toEqual([['2026-01', 'needs-rate'], ['2026-02', 'needs-rate']]);
   });
 });

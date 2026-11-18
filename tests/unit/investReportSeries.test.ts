@@ -174,3 +174,34 @@ describe('ขอบเขต', () => {
     expect(t.columns[1]!.realized).toBeNull();
   });
 });
+
+describe('รายการไม่มีอัตราแลกเปลี่ยน (R26): ห้ามข้ามเงียบ → needs-rate + incomplete', () => {
+  const noRateDiv = trade({ id: 'dn', kind: 'dividend', date: '2026-01-20', units: undefined, priceMicro: undefined, amount: 1_000, fee: 0, withholding: 0, fxRateMicro: undefined });
+  for (const cur of ['USD', 'THB'] as const) {
+    it(`${cur}: ปันผลไม่มีเรตเดือนม.ค. → ม.ค. เป็น null ทุกค่า needsRate · ก.พ. เท่าเดิม · Total เป็น null + incomplete`, () => {
+      const base = buildReport(data(), ASOF, cur, 'monthly', 'all');
+      const t = buildReport(data({ trades: [...TRADES, noRateDiv] }), ASOF, cur, 'monthly', 'all');
+      const [jan, feb] = t.columns;
+      expect(jan).toMatchObject({ key: '2026-01', needsRate: true, missing: 'rate', begin: null, end: null, profit: null, profitBps: null, dividends: null, purchases: null, sales: null, buys: null, sells: null });
+      expect(feb).toEqual(base.columns[1]);
+      expect(t.total).toMatchObject({ profit: null, profitBps: null, needsRate: true, purchases: null });
+      expect(t.incomplete).toBe(true);
+      expect(t.missing).toContain('rate');
+    });
+    it(`${cur}: ซื้อไม่มีเรตเดือนม.ค. → ม.ค. และทุกเดือนหลังจากนั้น needs-rate (จำนวนหน่วยที่ถือเปลี่ยน)`, () => {
+      const noRateBuy = trade({ id: 'bn', kind: 'buy', date: '2026-01-15', units: '100000000', amount: 10_000, fxRateMicro: undefined });
+      const t = buildReport(data({ trades: [...TRADES, noRateBuy] }), ASOF, cur, 'monthly', 'all');
+      expect(t.columns.map((c) => c.needsRate)).toEqual([true, true]);
+      expect(t.incomplete).toBe(true);
+    });
+    it(`${cur}: ข้อมูลครบเรต → ผลเดิม ไม่ติดธง`, () => {
+      const t = buildReport(data(), ASOF, cur, 'monthly', 'all');
+      expect(t.columns.every((c) => !c.needsRate)).toBe(true);
+      expect(t.missing).not.toContain('rate');
+    });
+  }
+  it('ไตรมาส: กลุ่มที่มีเดือน needs-rate เป็น null ทั้งกลุ่ม', () => {
+    const t = buildReport(data({ trades: [...TRADES, noRateDiv] }), ASOF, 'USD', 'quarterly', 'all');
+    expect(t.columns[0]).toMatchObject({ key: '2026-Q1', needsRate: true, profit: null, profitBps: null });
+  });
+});
