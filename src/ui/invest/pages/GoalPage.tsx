@@ -9,7 +9,7 @@ import { buildDashboardView } from '../dashboard/dashboardView';
 import { GoalForm } from '../goal/GoalForm';
 import { GoalResults } from '../goal/GoalResults';
 import { defaultAchieve, draftFromGoal, minorToInput, parseGoalDraft, type GoalDraft } from '../goal/goalDraft';
-import { buildGoalContext, goalAmountsForDisplay, runGoal } from '../goal/goalModel';
+import { buildGoalContext, runGoal } from '../goal/goalModel';
 import '../goal/goal.css';
 
 /**
@@ -55,33 +55,29 @@ export function GoalPage(_props: { onHome: () => void }) {
   }, [accounts, entries, data, today, currency]);
 
   const ctx = built?.ctx ?? null;
-  const rateMicro = ctx?.rateMicro ?? null;
-  const suggested = ctx?.suggestedContributionMinor ?? null;
+    const suggested = ctx?.suggestedContributionMinor ?? null;
   const ready = settingsReady && built !== null;
 
   // ค่าเริ่มต้นของฟอร์ม: เป้าที่บันทึกไว้ (แปลงเป็นสกุลที่แสดง · R26) หรือค่าว่างพร้อมเงินเพิ่มที่เสนอจากรายการซื้อจริง · เริ่มใหม่เมื่อโหลดเสร็จ เป้าที่บันทึกเปลี่ยน หรือสกุลที่แสดงเปลี่ยน
   useEffect(() => {
     if (!ready) return;
     if (saved !== null) {
-      const amounts = goalAmountsForDisplay(saved, currency, rateMicro);
-      if (amounts.kind === 'ok') {
-        setDraft(draftFromGoal(saved, amounts));
-        setErrors({});
-        return;
-      }
+      setDraft(draftFromGoal(saved)); // จำนวนและสกุลที่เก็บจริง (ไม่แปลงตามปุ่มสกุล)
+      setErrors({});
+      return;
     }
     const by = defaultAchieve(today);
-    setDraft({ kind: saved?.kind ?? 'value', target: '', month: by.month, year: by.year, contribution: suggested === null ? '' : minorToInput(suggested), returnPct: '', inflationPct: '' });
+    setDraft({ kind: 'value', currency, target: '', month: by.month, year: by.year, contribution: suggested === null ? '' : minorToInput(suggested), returnPct: '', inflationPct: '' });
     setErrors({});
     // เริ่มฟอร์มใหม่เฉพาะเมื่อพร้อม/เป้าที่บันทึกหรือสกุลเปลี่ยน (ไม่ใช่ทุกครั้งที่พิมพ์หรือราคาเปลี่ยน)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, saved, currency]);
+  }, [ready, saved, saved === null ? currency : null]);
 
   const outcome = useMemo(() => (saved !== null && ctx !== null ? runGoal(saved, ctx, currency, today) : null), [saved, ctx, currency, today]);
 
   const save = useCallback(async () => {
     if (draft === null) return;
-    const parsed = parseGoalDraft(draft, currency, today);
+    const parsed = parseGoalDraft(draft, today);
     if (!parsed.ok) {
       setErrors(parsed.errors);
       return;
@@ -112,7 +108,7 @@ export function GoalPage(_props: { onHome: () => void }) {
         <p className="iv-empty">Loading…</p>
       ) : (
         <div className="iv-goal-layout">
-          <GoalForm draft={draft} errors={errors} currency={currency} saving={saving} saveError={saveError} contributionHint={hint} onChange={(p) => setDraft({ ...draft, ...p })} onSubmit={() => void save()} />
+          <GoalForm draft={draft} errors={errors} saving={saving} saveError={saveError} contributionHint={hint} onChange={(p) => setDraft({ ...draft, ...p })} onSubmit={() => void save()} />
           <GoalResults outcome={outcome} kind={saved?.kind ?? draft.kind} currency={currency} today={today} achieveBy={saved?.achieveBy ?? ''} hasGoal={saved !== null} />
         </div>
       )}

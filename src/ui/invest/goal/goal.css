@@ -54,3 +54,7 @@
 
 /* ลดความโปร่งใส: การ์ดของหน้านี้ต้องทึบ (ข้อกำหนดของแบบ Aurora Glass) */
 @media (prefers-reduced-transparency: reduce) { .iv-goal-layout .iv-card { background: var(--surface-fallback); box-shadow: none; } }
+
+.iv-goal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.iv-goal-head h3 { margin: 0; min-width: 0; }
+.iv-goal-badge { flex: none; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--ov-20); color: var(--muted); font-size: 12px; font-weight: 600; }

@@ -19,6 +19,8 @@ import { parseBahtToSatang, toBahtString, satang } from '../../../domain/money/s
 
 export interface GoalDraft {
   kind: GoalKind;
+  /** สกุลของจำนวนในฟอร์ม (สกุลที่เก็บจริง · ไม่ใช่สกุลของปุ่ม ฿/USD · R26) */
+  currency: GoalCurrency;
   target: string;
   /** 1-12 */
   month: string;
@@ -57,7 +59,8 @@ function amount(text: string): number | null {
   }
 }
 
-export function parseGoalDraft(d: GoalDraft, currency: GoalCurrency, today: string): GoalFormResult {
+export function parseGoalDraft(d: GoalDraft, today: string): GoalFormResult {
+  const currency = d.currency;
   const errors: Partial<Record<keyof GoalDraft, string>> = {};
 
   const targetMinor = amount(d.target);
@@ -98,14 +101,15 @@ export function defaultAchieve(today: string): { month: string; year: string } {
   return { month: '12', year: String(Number(today.slice(0, 4)) + 10) };
 }
 
-/** เป้าที่บันทึกไว้ (สกุลที่แสดงตอนนี้แล้ว) → ค่าในฟอร์ม */
-export function draftFromGoal(goal: InvestGoal, amounts: { targetMinor: number; contributionMinor: number }): GoalDraft {
+/** เป้าที่บันทึกไว้ → ค่าในฟอร์ม: แสดงจำนวนและสกุลที่เก็บจริง ไม่แปลงตามปุ่ม ฿/USD (R26 · กด Save โดยไม่แก้ต้องไม่เปลี่ยนค่าที่เก็บ) */
+export function draftFromGoal(goal: InvestGoal): GoalDraft {
   return {
     kind: goal.kind,
-    target: minorToInput(amounts.targetMinor),
+    currency: goal.currency,
+    target: minorToInput(goal.targetMinor),
     month: String(Number(goal.achieveBy.slice(5, 7))),
     year: goal.achieveBy.slice(0, 4),
-    contribution: minorToInput(amounts.contributionMinor),
+    contribution: minorToInput(goal.contributionMinor),
     returnPct: bpsToInput(goal.returnBps),
     inflationPct: goal.inflationBps === 0 ? '' : bpsToInput(goal.inflationBps),
   };

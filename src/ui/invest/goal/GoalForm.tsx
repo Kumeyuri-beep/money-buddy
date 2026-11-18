@@ -8,7 +8,6 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 interface Props {
   draft: GoalDraft;
   errors: Partial<Record<keyof GoalDraft, string>>;
-  currency: GoalCurrency;
   saving: boolean;
   saveError: string;
   /** แนะนำค่าเงินเพิ่มต่อเดือนจากรายการซื้อจริง (ข้อความอธิบายใต้ช่อง) · null = ไม่มี */
@@ -18,9 +17,10 @@ interface Props {
 }
 
 /** ฟอร์มตั้งเป้า (ภาษาอังกฤษ): Goal (Value / Passive income) · Achieve by · Contributions · Returns and inflation · Save and calculate */
-export function GoalForm({ draft, errors, currency, saving, saveError, contributionHint, onChange, onSubmit }: Props) {
+export function GoalForm({ draft, errors, saving, saveError, contributionHint, onChange, onSubmit }: Props) {
   const id = useId();
   const [open, setOpen] = useState(false);
+  const currency: GoalCurrency = draft.currency;
   const symbol = currency === 'THB' ? '฿' : '$';
   const kinds: { kind: GoalKind; label: string }[] = [
     { kind: 'value', label: 'Value' },
@@ -63,6 +63,16 @@ export function GoalForm({ draft, errors, currency, saving, saveError, contribut
           ))}
         </div>
       </fieldset>
+
+      <div className="iv-goal-kind">
+        <div className="iv-seg" role="group" aria-label="Goal currency">
+          {(['USD', 'THB'] as const).map((c) => (
+            <button key={c} type="button" className={`iv-seg-btn${draft.currency === c ? ' is-active' : ''}`} aria-pressed={draft.currency === c} onClick={() => onChange({ currency: c })}>
+              {c}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="iv-field">
         <label htmlFor={`${id}-target`}>{draft.kind === 'value' ? 'Target value' : 'Target passive income per month'}</label>

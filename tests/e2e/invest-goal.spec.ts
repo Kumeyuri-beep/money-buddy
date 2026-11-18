@@ -26,16 +26,16 @@ for (const w of WIDTHS) {
     test('ตั้งเป้า บันทึก จำค่าหลังโหลดใหม่ · มีข้อความ Projection, not a promise · ไม่ล้นจอ', async ({ page }) => {
       const seen = watch(page);
       await openGoal(page);
-      await expect(page.getByText('Projection, not a promise')).toBeVisible();
+      await expect(page.locator('.iv-goal-disclaimer')).toBeVisible();
       await page.getByLabel('Target value').fill('9999999');
       await page.getByLabel(/^Contributions/).fill('1000');
       await page.getByLabel('Expected return per year (%)').fill('7');
       await page.getByRole('button', { name: 'Save and calculate' }).click();
-      await expect(page.getByText('Projection, not a promise')).toBeVisible();
+      await expect(page.locator('.iv-goal-disclaimer')).toBeVisible();
       await expect(page.getByText(/(On track|Behind) ·/).or(page.getByText(/^Needs (data|rate)/))).toBeVisible();
       await page.reload();
       await expect(page.getByLabel('Target value')).toHaveValue(/9,?999,?999/, { timeout: 20_000 });
-      await expect(page.getByText('Projection, not a promise')).toBeVisible();
+      await expect(page.locator('.iv-goal-disclaimer')).toBeVisible();
 
       const doc = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
       expect(doc.scroll, `หน้าเลื่อนแนวนอนได้ (${doc.scroll} > ${doc.client})`).toBeLessThanOrEqual(doc.client + 1);
@@ -69,10 +69,16 @@ for (const w of WIDTHS) {
       await page.getByLabel('Target value').fill('500000');
       await page.getByLabel('Expected return per year (%)').fill('7');
       await page.getByRole('button', { name: 'Save and calculate' }).click();
-      await page.getByRole('button', { name: '$ USD', exact: true }).click();
-      await expect(page.getByText('Projection, not a promise')).toBeVisible();
+      await expect(page.locator('.iv-goal-badge')).toBeVisible();
       await page.getByRole('button', { name: '฿ THB', exact: true }).click();
-      await expect(page.getByLabel('Target value')).toBeVisible();
+      await expect(page.locator('.iv-goal-disclaimer')).toBeVisible();
+      // ฟอร์มแสดงจำนวนและสกุลที่เก็บจริง ไม่แปลงตามปุ่มสกุลด้านบน (R26)
+      await expect(page.getByRole('group', { name: 'Goal currency' }).getByRole('button', { name: 'USD', exact: true })).toHaveAttribute('aria-pressed', 'true');
+      await expect(page.getByLabel('Target value')).toHaveValue('500000.00');
+      await page.getByRole('button', { name: 'Save and calculate' }).click();
+      await expect(page.getByLabel('Target value')).toHaveValue('500000.00');
+      await page.getByRole('button', { name: '$ USD', exact: true }).click();
+      await expect(page.getByLabel('Target value')).toHaveValue('500000.00');
     });
   });
 }

@@ -1,3 +1,4 @@
+import { InfoTip } from '../Tip';
 import { useId } from 'react';
 import { baht } from '../../../app/bahtFormat';
 import { usd } from '../../../app/usdFormat';
@@ -42,7 +43,7 @@ function Chart({ outcome, kind, currency, today, achieveBy }: { outcome: Extract
   const { width, height, left, right, top, bottom } = CHART;
   const symbol = currency === 'THB' ? '฿' : '$';
   const targetLabel = kind === 'income' ? `Goal ${money(currency, outcome.targetMinor)}/month` : `Goal ${money(currency, outcome.targetMinor)}`;
-  const label = `Projected ${kind === 'income' ? 'monthly passive income' : 'portfolio value'} over time against the goal of ${targetLabel}. ${
+  const label = `Projection, not a promise: projected ${kind === 'income' ? 'monthly passive income' : 'portfolio value'} over time against the goal of ${targetLabel}. ${
     outcome.year === null ? 'The goal is not reached within 100 years.' : `The goal is reached in ${outcome.year}.`
   }`;
   const deadlineText = `Target: ${MONTH_NAMES[Number(achieveBy.slice(5, 7)) - 1] ?? ''} ${achieveBy.slice(0, 4)}`;
@@ -121,6 +122,7 @@ export function GoalResults({ outcome, kind, currency, today, achieveBy, hasGoal
             <span aria-hidden="true">{outcome.status === 'on-track' ? '✓ ' : '▼ '}</span>
             {statusText} · {reached ? `reached in ${outcome.year}` : 'not reached in 100 years'}
           </p>
+          <InfoTip label="About these numbers" tip="Estimated with rule R28. A projection, not a promise." />
         </div>
         <div className="iv-goal-stats">
           <div className="iv-goal-stat">
@@ -148,7 +150,10 @@ export function GoalResults({ outcome, kind, currency, today, achieveBy, hasGoal
   }
   return (
     <section className="iv-card iv-goal-results" aria-labelledby={`${id}-title`}>
-      <h3 id={`${id}-title`}>How far away is your target?</h3>
+      <div className="iv-goal-head">
+        <h3 id={`${id}-title`}>How far away is your target?</h3>
+        <span className="iv-goal-badge">Projection</span>
+      </div>
       <p className="iv-sub">Based on your contributions, expected return and today&apos;s dividend yield</p>
       {body}
       <p className="iv-goal-disclaimer">{DISCLAIMER}</p>
