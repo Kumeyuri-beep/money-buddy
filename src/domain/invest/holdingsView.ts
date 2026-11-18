@@ -90,12 +90,12 @@ export interface HoldingRow {
   /** ราคาต่อหุ้นในสกุลที่แสดง (หน่วยย่อย) · null = ไม่มีราคา/เรต */
   pricePerShare: number | null;
   /** ต้นทุนที่ยังถืออยู่ (รวมค่าธรรมเนียมซื้อ ตามสกุลที่แสดง: USD = เซนต์ · THB = Cthb) */
-  cost: number;
+  cost: number | null;
   costPerShare: number | null;
   /** มูลค่าตลาด = หน่วย × ราคาล่าสุด (ถือ 0 หน่วย = 0) · null = ไม่มีราคา หรือมุมมอง THB ไม่มีเรต */
   value: number | null;
   /** ปันผลสะสมสุทธิ (หลังหักภาษี) */
-  dividends: number;
+  dividends: number | null;
   /** ปันผล 12 เดือนล่าสุดสุทธิ (R25.1) */
   dividends12m: number | null;
   /** yield ปัจจุบัน / yield on cost (bps · R25.2) · null = ไม่คำนวณ */
@@ -201,7 +201,7 @@ function buildRow(us: Base, data: InvestmentData, today: string, currency: Displ
 
   if (us.error) {
     return {
-      ...base, priceMicro, pricePerShare: null, cost, costPerShare: null, value: null, dividends, dividends12m: null, yieldBps: null, yieldOnCostBps: null,
+      ...base, priceMicro, pricePerShare: null, cost: null, costPerShare: null, value: null, dividends: null, dividends12m: null, yieldBps: null, yieldOnCostBps: null,
       profit: null, profitBps: null, unrealized: null, unrealizedBps: null, weightBps: null, sources: null, missing: 'error',
     };
   }
@@ -245,7 +245,7 @@ function buildRow(us: Base, data: InvestmentData, today: string, currency: Displ
     yieldBps: dm === null ? null : dm.yieldBps,
     yieldOnCostBps: dm === null ? null : dm.yieldOnCostBps,
     profit,
-    profitBps: profitPercentBps(profit, cost),
+    profitBps: cost === null ? null : profitPercentBps(profit, cost),
     unrealized,
     unrealizedBps: held ? profitPercentBps(unrealized, cost) : null,
     weightBps: null,
@@ -324,10 +324,10 @@ export function filterAndSort(rows: readonly HoldingRow[], q: HoldingsQuery): Ho
 
 export interface HoldingsTotals {
   count: number;
-  cost: number;
+  cost: number | null;
   /** null = มีแถวที่ถืออยู่แต่ไม่มีราคา/เรต (รวมไม่ครบ ไม่นับเป็น 0) */
   value: number | null;
-  dividends: number;
+  dividends: number | null;
   profit: number | null;
   profitBps: number | null;
   unrealized: number | null;
@@ -338,9 +338,9 @@ export interface HoldingsTotals {
 
 /** แถวรวม (R26): ผลรวม = ผลบวกค่าที่แปลงแล้วของแต่ละแถวที่แสดง · มีแถวใดเป็น null = รวมเป็น null (flag ไม่ครบ) */
 export function totalsOf(rows: readonly HoldingRow[], currency: DisplayCurrency): HoldingsTotals {
-  const cost = sumDisplayed(rows.map((r) => r.cost)) ?? 0;
+  const cost = sumDisplayed(rows.map((r) => r.cost));
   const value = sumDisplayed(rows.map((r) => r.value));
-  const dividends = sumDisplayed(rows.map((r) => r.dividends)) ?? 0;
+  const dividends = sumDisplayed(rows.map((r) => r.dividends));
   const profit = sumDisplayed(rows.map((r) => r.profit));
   const unrealized = sumDisplayed(rows.map((r) => r.unrealized));
   const allSources = rows.length > 0 && rows.every((r) => r.sources !== null);
@@ -362,9 +362,9 @@ export function totalsOf(rows: readonly HoldingRow[], currency: DisplayCurrency)
     value,
     dividends,
     profit,
-    profitBps: profitPercentBps(profit, cost),
+    profitBps: cost === null ? null : profitPercentBps(profit, cost),
     unrealized,
-    unrealizedBps: unrealized === null ? null : profitPercentBps(unrealized, cost),
+    unrealizedBps: unrealized === null || cost === null ? null : profitPercentBps(unrealized, cost),
     sources,
     complete: rows.every((r) => r.missing === null),
   };
@@ -379,7 +379,7 @@ export type DeletePlan = { ok: true; ids: string[] } | { ok: false; problem: Cod
 export function planHoldingDelete(trades: readonly TradeRecord[], assetId: string): DeletePlan {
   const own = trades.filter((t) => t.assetId === assetId);
   const rank = (t: TradeRecord): number => (t.kind === 'sell' ? 0 : 1);
-  const order = [...own].sort((a, b) => (a.date !== b.date ? (a.date < b.date ? 1 : -1) : rank(a) - rank(b) || (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0)));
+  const order = [...own].sort((a, b) => (a.date !== b.date ? (a.date < b.date ? 1 : -1) : rank(a) - rank(b) || (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : a.id < b.id ? 1 : a.id > b.id ? -1 : 0)));
   let rest = own;
   for (const t of order) {
     const p = checkTradeDeleteCoded(rest, t.id);

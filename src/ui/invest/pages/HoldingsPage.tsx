@@ -24,6 +24,7 @@ export function HoldingsPage({ addSignal }: { addSignal: number }) {
   const [openId, setOpenId] = useState('');
   const [confirm, setConfirm] = useState<{ row: HoldingRow; from: HTMLElement } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [formsKey, setFormsKey] = useState(0); // ลบแล้วให้ฟอร์ม/รายการด้านล่าง (UsStocksView โหลดข้อมูลเอง) โหลดใหม่
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
 
   // สั่งเปิดฟอร์มของ UsStocksView: ปุ่ม Add บนแถบบน (addSignal) และเมนู ⋯ ของแถว · nonce เพิ่มทุกครั้ง
@@ -79,8 +80,44 @@ export function HoldingsPage({ addSignal }: { addSignal: number }) {
     } finally {
       setBusy(false);
       setConfirm(null);
-      await reload();
-      onLedgerChanged();
+      try {
+        await reload();
+      } catch (e) {
+        // โหลดใหม่ไม่ได้ ไม่กลบข้อความเดิม (ถ้ามี) และต้องแจ้งสมุดบัญชีเสมอ
+        setMessage((m) => m ?? { kind: 'error', text: `Could not refresh holdings: ${investError(e)}` });
+      } finally {
+        onLedgerChanged();
+        if (done > 0) setFormsKey((k) => k + 1);
+        if (done > 0) titleRef.current?.focus(); // แถวที่เปิดเมนูอาจหายไปแล้ว: โฟกัสไปที่หัวข้อหน้า
+      }
+    }
+  };
+
+  const closeConfirm = () => {
+    confirm?.from.focus();
+    setConfirm(null);
+  };
+  const confirmRef = useRef<HTMLElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (confirm) confirmRef.current?.scrollIntoView({ block: 'center' });
+  }, [confirm]);
+  const deleteCount = useMemo(() => {
+    if (!confirm || !data) return 0;
+    const plan = planHoldingDelete(data.trades, confirm.row.assetId);
+    return plan.ok ? plan.ids.length : data.trades.filter((t) => t.assetId === confirm.row.assetId).length;
+  }, [confirm, data]);
+  const confirmKey = (e: KeyboardEvent<HTMLElement>) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeConfirm();
+    } else if (e.key === 'Tab') {
+      const btns = [...(confirmRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled)') ?? [])];
+      if (btns.length === 0) return;
+      const i = btns.indexOf(document.activeElement as HTMLElement);
+      const next = e.shiftKey ? (i <= 0 ? btns.length - 1 : i - 1) : i === btns.length - 1 ? 0 : i + 1;
+      e.preventDefault();
+      btns[next]?.focus();
     }
   };
 
@@ -99,7 +136,9 @@ export function HoldingsPage({ addSignal }: { addSignal: number }) {
       <div role="region" aria-label="US stocks" id="pf-panel-us">
         <section className="glass-lite card hd-card" aria-labelledby="hd-title">
           <div className="hd-head">
-            <h2 id="hd-title">Holdings</h2>
+            <h2 id="hd-title" ref={titleRef} tabIndex={-1}>
+              Holdings
+            </h2>
             <p className="muted hd-fx" role="status">
               {view?.fx
                 ? `Latest rate ${fxRateText(view.fx.rateMicro)} · ${formatDateEn(view.fx.date)}${view.fx.stale ? ` (${view.fx.days} days old)` : ''}`
@@ -232,31 +271,29 @@ export function HoldingsPage({ addSignal }: { addSignal: number }) {
         </section>
 
         {confirm && (
-          <section className="solid card hd-confirm" role="alertdialog" aria-labelledby="hd-del-title" aria-describedby="hd-del-desc">
+          <section ref={confirmRef} onKeyDown={confirmKey} className="solid card hd-confirm" role="alertdialog" aria-labelledby="hd-del-title" aria-describedby="hd-del-desc">
             <h2 id="hd-del-title">Delete {confirm.row.ticker || confirm.row.name}?</h2>
             <p id="hd-del-desc" className="muted">
-              This permanently deletes every record of this holding (buys, sells and dividends), newest first, and reverses the matching entries in your ledger. If a record cannot be deleted under the sale-order rule, nothing is deleted.
+              This deletes every record of this holding (buys, sells and dividends) and reverses the matching ledger entries. It cannot be undone. If one record can't be deleted, nothing is deleted.
             </p>
             <div className="dialog-actions">
               <button
                 type="button"
                 className="iv-btn"
                 autoFocus
-                onClick={() => {
-                  confirm.from.focus();
-                  setConfirm(null);
-                }}
+                onClick={closeConfirm}
               >
                 Keep
               </button>
-              <button type="button" className="iv-btn" disabled={busy} onClick={() => void doDelete()}>
-                {busy ? 'Deleting…' : 'Confirm delete'}
+              <button type="button" className="iv-btn iv-btn-danger" disabled={busy} onClick={() => void doDelete()}>
+                {busy ? 'Deleting…' : `Delete ${deleteCount} ${deleteCount === 1 ? 'record' : 'records'}`}
               </button>
             </div>
           </section>
         )}
 
         <UsStocksView
+          key={formsKey}
           today={today}
           accounts={accounts}
           entries={entries}

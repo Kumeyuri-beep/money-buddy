@@ -47,8 +47,8 @@ describe('แถวถือครองตามตัวอย่างหล�
     expect(t.value).toBe(2_550_000);
     expect(u.cost).toBe(60_060); // 0.6 × (100,000 + 100) เซนต์
     expect(t.cost).toBe(2_102_100); // 0.6 × (100,100 เซนต์ × 35.00) ที่เรตวันซื้อ
-    expect(t.cost).not.toBe(Math.round((u.cost * 34_000_000) / 1_000_000));
-    expect(t.unrealized).toBe(t.value! - t.cost);
+    expect(t.cost).not.toBe(Math.round((u.cost! * 34_000_000) / 1_000_000));
+    expect(t.unrealized).toBe(t.value! - t.cost!);
   });
   it('% กำไร = กำไร ÷ ต้นทุนที่ยังถืออยู่ เป็น bps ปัดครึ่งออกจากศูนย์ (R24.5) · ปันผลสะสมสุทธิ USD 4,250', () => {
     const u = only(MAIN, 'USD');
@@ -268,5 +268,79 @@ describe('planHoldingDelete: ลบทั้งสินทรัพย์ตา
   it('ไม่มีรายการ → ids ว่าง · รหัสสินทรัพย์ไม่มี = ids ว่าง', () => {
     const r = planHoldingDelete([], 'x');
     expect(r.ok && r.ids).toEqual([]);
+  });
+});
+
+describe('แถว error ปนแถวปกติ: ผลรวมต้นทุน/ปันผล/มูลค่าเป็น null ไม่นับเป็น 0 (R26)', () => {
+  const mixed = data({
+    assets: [asset('us1'), asset('bad', 'BAD')],
+    trades: [
+      trade({ id: 'g1', assetId: 'us1', kind: 'buy', date: '2026-11-03', units: '1000000000', amount: 100_000, fee: 0 }),
+      trade({ id: 'x1', assetId: 'bad', kind: 'sell', date: '2026-11-04', units: '100000000', priceMicro: 100_000_000, amount: undefined, fee: 0 }), // ขายโดยไม่เคยซื้อ = เล่นซ้ำไม่ผ่าน
+    ],
+    prices: [{ assetId: 'us1', date: '2026-11-12', priceMicro: 120_000_000 }],
+    fxRates: [{ accountId: 'usd-cash', date: '2026-11-12', rateMicro: 34_000_000 }],
+  });
+  it('แถว error: cost/dividends/value เป็น null และผลรวมของทุกสกุลเป็น null (complete = false)', () => {
+    for (const cur of ['USD', 'THB'] as const) {
+      const rows = buildHoldingsView(mixed, TODAY, cur).rows;
+      const bad = rows.find((r) => r.assetId === 'bad')!;
+      expect(bad.missing).toBe('error');
+      expect(bad.cost).toBeNull();
+      expect(bad.dividends).toBeNull();
+      expect(bad.value).toBeNull();
+      const t = totalsOf(rows, cur);
+      expect(t.cost).toBeNull();
+      expect(t.dividends).toBeNull();
+      expect(t.value).toBeNull();
+      expect(t.profit).toBeNull();
+      expect(t.profitBps).toBeNull();
+      expect(t.complete).toBe(false);
+    }
+  });
+  it('เฉพาะแถวปกติ: ผลรวมยังเป็นตัวเลข', () => {
+    const rows = buildHoldingsView(mixed, TODAY, 'USD').rows.filter((r) => r.assetId === 'us1');
+    expect(totalsOf(rows, 'USD').cost).toBe(100_000);
+  });
+});
+
+describe('แถวรวม: กำไรติดลบกับครึ่งสตางค์ปัดออกจากศูนย์ (R24.5)', () => {
+  it('กำไร −1 ต้นทุน 20,000 = −0.5 bps → −1 bps · กำไร +1 → +1 bps', () => {
+    const real = buildHoldingsView(MAIN, TODAY, 'USD').rows[0]!;
+    const neg = totalsOf([{ ...real, cost: 20_000, profit: -1, unrealized: -1, value: 19_999, dividends: 0, missing: null, sources: null }], 'USD');
+    expect(neg.profitBps).toBe(-1);
+    expect(neg.unrealizedBps).toBe(-1);
+    const pos = totalsOf([{ ...real, cost: 20_000, profit: 1, unrealized: 1, value: 20_001, dividends: 0, missing: null, sources: null }], 'USD');
+    expect(pos.profitBps).toBe(1);
+  });
+});
+
+describe('planHoldingDelete: กรณีขอบ', () => {
+  it('ข้อมูลเดิมไม่สอดคล้อง (ซื้อลงวันหลังการขาย ขายเกินที่ถือ) → ok:false กลางทาง ไม่คืนแผนบางส่วน', () => {
+    const tr = [
+      trade({ id: 'k1', assetId: 'x', kind: 'sell', date: '2026-10-02', units: '100000000', priceMicro: 100_000_000, amount: undefined }),
+      trade({ id: 'k2', assetId: 'x', date: '2026-10-03', units: '100000000', amount: 10_000 }),
+    ];
+    const r = planHoldingDelete(tr, 'x');
+    expect(r.ok).toBe(false);
+  });
+  it('ขาย 2 รายการวันเดียวกัน createdAt เท่ากัน: ตัดสินด้วย id เหมือน rules.ts → id มากลบก่อน', () => {
+    const at = '2026-10-05T03:00:00.000Z';
+    const tr = [
+      trade({ id: 'b0', assetId: 'x', date: '2026-10-01', units: '1000000000', amount: 100_000 }),
+      trade({ id: 's1', assetId: 'x', kind: 'sell', date: '2026-10-05', createdAt: at, units: '100000000', priceMicro: 110_000_000, amount: undefined }),
+      trade({ id: 's2', assetId: 'x', kind: 'sell', date: '2026-10-05', createdAt: at, units: '100000000', priceMicro: 110_000_000, amount: undefined }),
+    ];
+    const r = planHoldingDelete(tr, 'x');
+    expect(r.ok && r.ids).toEqual(['s2', 's1', 'b0']);
+  });
+  it('ซื้อ-ขาย-ปันผลวันเดียวกัน: ขายก่อน แล้วปันผล/ซื้อตาม createdAt ใหม่ไปเก่า', () => {
+    const tr = [
+      trade({ id: 'b', assetId: 'x', date: '2026-10-05', createdAt: '2026-10-05T01:00:00.000Z', units: '1000000000', amount: 100_000 }),
+      trade({ id: 's', assetId: 'x', kind: 'sell', date: '2026-10-05', createdAt: '2026-10-05T02:00:00.000Z', units: '100000000', priceMicro: 110_000_000, amount: undefined }),
+      trade({ id: 'd', assetId: 'x', kind: 'dividend', date: '2026-10-05', createdAt: '2026-10-05T03:00:00.000Z', units: undefined, priceMicro: undefined, amount: 1_000 }),
+    ];
+    const r = planHoldingDelete(tr, 'x');
+    expect(r.ok && r.ids).toEqual(['s', 'd', 'b']);
   });
 });

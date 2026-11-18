@@ -91,6 +91,31 @@ for (const w of WIDTHS) {
       await expect(page.getByRole('checkbox', { name: /Show sold/ })).toBeChecked();
     });
 
+    test('Delete: Esc ปิด confirm แล้วโฟกัสกลับปุ่ม ⋯ · ปุ่ม Delete N records ลบจริง แถวหาย โฟกัสไปหัวข้อหน้า · Tab วนอยู่ในกรอบ', async ({ page }) => {
+      await openHoldings(page);
+      const more = page.getByRole('button', { name: 'Actions for DEMB' });
+      await more.click();
+      await page.getByRole('menuitem', { name: 'Delete' }).click();
+      const dialog = page.getByRole('alertdialog', { name: /Delete DEMB/ });
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole('button', { name: 'Delete 1 record' })).toBeVisible(); // DEMB มี 1 รายการซื้อ
+      await page.keyboard.press('Tab');
+      await page.keyboard.press('Tab');
+      await expect(dialog.getByRole('button', { name: 'Keep' })).toBeFocused(); // วนกลับต้นกรอบ
+      await page.keyboard.press('Escape');
+      await expect(dialog).toHaveCount(0);
+      await expect(more).toBeFocused();
+
+      await more.click();
+      await page.getByRole('menuitem', { name: 'Delete' }).click();
+      await page.getByRole('button', { name: 'Delete 1 record' }).click();
+      // ลบรายการหมดแล้ว สินทรัพย์ยังอยู่ (ถือ 0 หน่วย ไม่มีรายการ) · ตัวเลขของแถวเปลี่ยนเป็น 0
+      await expect(page.getByRole('row', { name: /Demo Beta Health/ }).getByRole('cell').first()).toHaveText('0');
+      await expect(page.getByRole('row', { name: /Demo Beta Health/ })).toContainText('$0.00');
+      await expect(page.getByText('Deleted DEMB: 1 record')).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Holdings', level: 2, exact: true })).toBeFocused();
+    });
+
     test('เมนู ⋯: 4 รายการ · Open holding ขยายรายละเอียด · Delete มี confirm และ Keep ไม่ลบ · Esc ปิดแล้วโฟกัสกลับปุ่ม', async ({ page }) => {
       await openHoldings(page);
       const more = page.getByRole('button', { name: 'Actions for DEMA' });

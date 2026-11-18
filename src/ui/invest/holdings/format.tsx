@@ -55,9 +55,9 @@ const srcCell = (c: DisplayCurrency, r: ProfitSourcesRow | null, pick: (s: Profi
 export function cellOf(col: ColumnId, r: HoldingRow, c: DisplayCurrency): ReactNode {
   switch (col) {
     case 'shares': return r.units > 0n ? formatUnits(r.units) : '0';
-    case 'costBasis': return r.units > 0n ? money(c, r.cost) : <NoData kind={null} />;
+    case 'costBasis': return r.cost === null ? flagged(r.missing) : r.units > 0n ? money(c, r.cost) : <NoData kind={null} />;
     case 'currentValue': return r.units === 0n ? money(c, 0) : r.value === null ? flagged(r.missing) : money(c, r.value);
-    case 'dividends': return money(c, r.dividends);
+    case 'dividends': return r.dividends === null ? flagged(r.missing) : money(c, r.dividends);
     case 'dividendYield': return r.yieldBps === null ? <NoData kind={null} /> : bpsText(r.yieldBps);
     case 'totalProfit': return r.profit === null ? flagged(r.missing) : withPct(moneySigned(c, r.profit), r.profitBps, signClass(r.profit));
     case 'weight': return r.weightBps === null ? <NoData kind={null} /> : bpsText(r.weightBps);
@@ -80,9 +80,9 @@ export function cellOf(col: ColumnId, r: HoldingRow, c: DisplayCurrency): ReactN
 export function totalCellOf(col: ColumnId, t: HoldingsTotals, c: DisplayCurrency): ReactNode {
   const src = (pick: (s: ProfitSourcesRow) => number | null): ReactNode => (t.sources === null ? flagged('price') : srcCell(c, t.sources, pick, null));
   switch (col) {
-    case 'costBasis': return money(c, t.cost);
+    case 'costBasis': return t.cost === null ? flagged('error') : money(c, t.cost);
     case 'currentValue': return t.value === null ? flagged('price') : money(c, t.value);
-    case 'dividends': return money(c, t.dividends);
+    case 'dividends': return t.dividends === null ? flagged('error') : money(c, t.dividends);
     case 'div12m': return <NoData kind={null} />;
     case 'totalProfit': return t.profit === null ? flagged('price') : withPct(moneySigned(c, t.profit), t.profitBps, signClass(t.profit));
     case 'unrealized': return t.unrealized === null ? flagged('price') : withPct(moneySigned(c, t.unrealized), t.unrealizedBps, signClass(t.unrealized));
