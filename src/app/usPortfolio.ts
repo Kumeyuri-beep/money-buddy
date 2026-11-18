@@ -44,7 +44,7 @@ export interface UsStockRow {
   dividendNetUsd: number;
   dividendNetThb: number;
   realizedGainThb: number;
-  /** true = หุ้นนี้มีรายการ (ซื้อ/ขาย/ปันผล) ที่ไม่มีเรต → มูลค่า/กำไรไม่คำนวณ แสดง "Needs rate" ไม่นับเป็น 0 (R26) */
+  /** true = หุ้นนี้มีรายการ (ซื้อ/ขาย/ปันผล) ที่ไม่มีเรต → มูลค่า/กำไรไม่คำนวณ ปันผล/กำไรขายส่งเป็น 0 เพื่อไม่ให้ยอดบางส่วนเข้ายอดรวม (หน้าจอต้องแสดง Needs rate ตามธง)  แสดง "Needs rate" ไม่นับเป็น 0 (R26) */
   needsRate?: boolean;
   error?: string;
   /** รหัส + พารามิเตอร์ของ error (ให้ UI แปลเป็นภาษาอื่น · ไม่มี = error ต้นทางยังไม่มีรหัส) */
@@ -195,7 +195,7 @@ export function buildUsPortfolio(accounts: readonly Account[], entries: readonly
       // ขาดเรต: หน่วย/ต้นทุนที่เล่นซ้ำได้ไม่ครบ → ไม่แสดงมูลค่า/กำไร และไม่รวมเข้ายอดรวม (R26 ห้ามเดา ห้ามนับเป็น 0)
       rows.push({
         ...base, units: pos.units, costUsd: pos.costUsd, costThb: pos.costThb, avgCostMicro: null, price, valueUsd: null, valueThb: null, unrealizedThb: null, priceGainThb: null,
-        fxGainThb: null, dividendNetUsd: divUsd, dividendNetThb: divThb, realizedGainThb: replay.realizedGainThb, needsRate: true,
+        fxGainThb: null, dividendNetUsd: 0, dividendNetThb: 0, realizedGainThb: 0, needsRate: true,
       });
       continue;
     }

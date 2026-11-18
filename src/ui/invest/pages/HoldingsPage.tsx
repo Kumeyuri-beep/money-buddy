@@ -48,6 +48,7 @@ export function HoldingsPage({ addSignal }: { addSignal: number }) {
   const shown = useMemo(() => (view ? filterAndSort(view.rows, q) : []), [view, q]);
   const totals = useMemo(() => totalsOf(shown, currency), [shown, currency]);
   const missingRate = useMemo(() => (data ? usdMissingRate(data, today) : []), [data, today]);
+  const needsRateIds = useMemo(() => new Set(missingRate.map((m) => m.assetId)), [missingRate]);
   const cols = columnsFor(tab);
   const soldCount = view ? view.rows.filter((r) => r.sold).length : 0;
   const noAssets = view !== null && view.rows.length === 0;
@@ -215,6 +216,7 @@ export function HoldingsPage({ addSignal }: { addSignal: number }) {
                 </label>
               </div>
 
+              <MissingRateNotice trades={missingRate} tickerOf={(id) => view?.rows.find((r) => r.assetId === id)?.ticker ?? ''} />
               <div id="hd-panel" role="tabpanel" aria-labelledby={`hd-tab-${tab}`}>
                 {shown.length === 0 ? (
                   <p className="muted" role="status">
@@ -241,7 +243,7 @@ export function HoldingsPage({ addSignal }: { addSignal: number }) {
                       </thead>
                       <tbody>
                         {shown.map((r) => (
-                          <HoldingTr key={r.assetId} r={r} cols={cols} currency={currency} open={openId === r.assetId} onPick={onPick} />
+                          <HoldingTr key={r.assetId} needsRate={needsRateIds.has(r.assetId)} r={r} cols={cols} currency={currency} open={openId === r.assetId} onPick={onPick} />
                         ))}
                       </tbody>
                       <tfoot>
@@ -260,8 +262,7 @@ export function HoldingsPage({ addSignal }: { addSignal: number }) {
                     </table>
                   </div>
                 )}
-                <MissingRateNotice trades={missingRate} tickerOf={(id) => view?.rows.find((r) => r.assetId === id)?.ticker ?? ''} />
-                {!totals.complete && shown.length > 0 && (
+                {!totals.complete && shown.length > 0 && missingRate.length === 0 && (
                   <p className="muted small" role="status">
                     Some holdings have no price or exchange rate, so their values and the totals are incomplete (they are not counted as 0).
                   </p>
@@ -314,8 +315,8 @@ export function HoldingsPage({ addSignal }: { addSignal: number }) {
   );
 }
 
-function HoldingTr(props: { r: HoldingRow; cols: ColumnId[]; currency: 'USD' | 'THB'; open: boolean; onPick: (r: HoldingRow, a: RowAction, from: HTMLElement) => void }) {
-  const { r, cols, currency, open, onPick } = props;
+function HoldingTr(props: { needsRate: boolean; r: HoldingRow; cols: ColumnId[]; currency: 'USD' | 'THB'; open: boolean; onPick: (r: HoldingRow, a: RowAction, from: HTMLElement) => void }) {
+  const { r, cols, currency, open, onPick, needsRate } = props;
   const label = r.ticker || r.name;
   return (
     <>
@@ -324,6 +325,7 @@ function HoldingTr(props: { r: HoldingRow; cols: ColumnId[]; currency: 'USD' | '
           <span className="hd-ticker">{label}</span>
           {r.ticker !== '' && <span className="hd-name">{r.name}</span>}
           {r.sold && <span className="hd-badge">Sold</span>}
+          {needsRate && <span className="hd-badge">Needs rate</span>}
         </th>
         {cols.map((c) => (
           <td key={c} className="num">

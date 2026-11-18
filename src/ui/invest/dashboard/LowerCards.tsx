@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { baht } from '../../../app/bahtFormat';
 import { usd } from '../../../app/usdFormat';
+import { IncompleteTag } from '../MissingRateNotice';
 import { InfoTip, TipAction, TipButton } from '../Tip';
 import { barPercent, type DashboardView, type DashCurrency } from './dashboardView';
 
@@ -84,8 +85,12 @@ function FuturePayments({ view, currency }: { view: DashboardView; currency: Das
         </p>
         <p className="iv-kpi">
           <span>Received this year</span>
-          <strong className="num">{money(currency, total)}</strong>
+          <strong className="num">
+            {money(currency, total)}
+            {view.monthlyIncomplete && <IncompleteTag />}
+          </strong>
         </p>
+        {view.monthlyIncomplete && <p className="iv-sub">Chart incomplete: some dividends have no exchange rate and are not shown.</p>}
         <ul className="iv-legend" aria-label="Legend">
           <li>
             <span className="iv-dot iv-dot-received" aria-hidden="true" />
@@ -97,7 +102,7 @@ function FuturePayments({ view, currency }: { view: DashboardView; currency: Das
           </li>
         </ul>
       </div>
-      <div className="iv-bars" role="img" aria-label={total === 0 ? 'No dividends received this year yet' : `Dividends received by month this year, before tax. Total ${money(currency, total)}`}>
+      <div className="iv-bars" role="img" aria-label={total === 0 ? 'No dividends received this year yet' : `Dividends received by month this year, before tax. Total ${money(currency, total)}${view.monthlyIncomplete ? ' (incomplete: some dividends have no exchange rate)' : ''}`}>
         {view.monthly.map((m, i) => {
           const v = values[i] ?? 0;
           return (

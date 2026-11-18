@@ -4,6 +4,8 @@ import { computeDividendMetrics, computeIrr, computeMonthlyReturns, computeProfi
 import { buildUsPortfolio } from '../../src/app/usPortfolio';
 import { buildHoldingsView } from '../../src/domain/invest/holdingsView';
 import { buildDashboardView } from '../../src/ui/invest/dashboard/dashboardView';
+import { buildAnalysisModel } from '../../src/ui/invest/analysis/analysisModel';
+import { wealthSummary } from '../../src/domain/invest/portfolioMoney';
 import type { Asset, InvestmentData, TradeRecord } from '../../src/domain/invest/types';
 
 const asset: Asset = { id: 'us1', name: 'หุ้น TEST', kind: 'stock', accountId: 'inv-us1', currency: 'USD', ticker: 'TEST', exchange: 'NASDAQ' };
@@ -93,5 +95,41 @@ describe('ปันผลที่ไม่มีเรต', () => {
     const v = buildDashboardView([], [], d, TODAY);
     expect(v.monthlyIncomplete).toBe(true);
     expect(buildDashboardView([], [], mk([trade({ id: 'b1' })]), TODAY).monthlyIncomplete).toBe(false);
+  });
+});
+
+describe('ติดธงสอดคล้องกันทุกสกุล (ผลตรวจ #223)', () => {
+  // ซื้อ $100 ไม่มีเรต + หุ้นอีกตัว $50 มีเรต
+  const asset2: Asset = { ...asset, id: 'us2', name: 'หุ้น TWO', accountId: 'inv-us2', ticker: 'TWO' };
+  const d: InvestmentData = {
+    ...mk([noRate({ id: 'n1', assetId: 'us1', amount: 10_000 }), trade({ id: 'o1', assetId: 'us2', amount: 5_000 })]),
+    assets: [asset, asset2],
+    prices: [{ assetId: 'us1', date: '2026-11-12', priceMicro: 100_000_000 }, { assetId: 'us2', date: '2026-11-12', priceMicro: 100_000_000 }],
+  };
+  it('ต้นทุนทั้งสองสกุลเป็น null เมื่อมีแถว needsRate (ไม่รวมบางส่วน)', () => {
+    const v = buildDashboardView([], [], d, TODAY);
+    expect(v.us.totals.complete).toBe(false);
+    expect(v.costUsd).toBeNull();
+    expect(v.costThb).toBeNull();
+    expect(v.profitPctThb).toBeNull();
+    expect(v.profitPctUsd).toBeNull();
+  });
+  it('ข้อมูลครบเรต ต้นทุนเป็นตัวเลขเดิม', () => {
+    const v = buildDashboardView([], [], mk([trade({ id: 'o1', amount: 5_000 })]), TODAY);
+    expect(v.costUsd).toBe(5_000);
+    expect(v.costThb).toBe(175_000);
+  });
+  it('ปันผลสะสมสุทธิ: แถว needsRate ไม่ส่งยอดบางส่วน ทั้งสองสกุลตรงกัน', () => {
+    const dd: InvestmentData = { ...d, trades: [...d.trades, trade({ id: 'dv1', assetId: 'us1', kind: 'dividend', date: '2026-10-20', amount: 1_000, units: undefined, priceMicro: undefined }), trade({ id: 'dv2', assetId: 'us2', kind: 'dividend', date: '2026-10-21', amount: 400, units: undefined, priceMicro: undefined })] };
+    const m = buildAnalysisModel([], [], dd, TODAY);
+    expect(m.dividendNetUsdTotal).toBe(400);
+    expect(m.us.totals.dividendNetThb).toBe(14_000);
+    expect(m.us.rows.find((r) => r.assetId === 'us1')).toMatchObject({ needsRate: true, dividendNetUsd: 0, dividendNetThb: 0 });
+  });
+  it('Wealth: ซื้อไม่มีเรต → incomplete + missing rate (ไม่ข้ามเงียบ)', () => {
+    const w = wealthSummary([], [], d, TODAY);
+    expect(w.incomplete).toBe(true);
+    expect(w.missing).toContainEqual({ kind: 'rate', tradeIds: ['n1'] });
+    expect(wealthSummary([], [], mk([trade({ id: 'o1' })]), TODAY).incomplete).toBe(false);
   });
 });

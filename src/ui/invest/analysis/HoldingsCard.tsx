@@ -159,13 +159,13 @@ export function HoldingsCard({ model, currency }: { model: AnalysisModel; curren
                 {rows.map(({ row: r, colorIndex }) => (
                   <tr key={r.assetId}>
                     <Name ticker={r.ticker} name={r.name} colorIndex={colorIndex} />
-                    <td className="num"><MoneyCell thb={r.dividendNetThb} usdCents={r.dividendNetUsd} currency={currency} /></td>
+                    <td className="num"><MoneyCell thb={r.needsRate ? null : r.dividendNetThb} usdCents={r.needsRate ? null : r.dividendNetUsd} currency={currency} why="Needs rate" /></td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr>
-                  <th scope="row">Total</th>
+                  <th scope="row">Total{complete ? '' : ' (incomplete)'}</th>
                   <td className="num"><MoneyCell thb={us.totals.dividendNetThb} usdCents={model.dividendNetUsdTotal} currency={currency} /></td>
                 </tr>
               </tfoot>

@@ -43,8 +43,9 @@ export interface DashboardView {
   valueThb: number | null;
   valueUsd: number | null;
   /** เงินลงทุน = ต้นทุนของที่ยังถืออยู่ (รวมค่าธรรมเนียม) */
-  costThb: number;
-  costUsd: number;
+  /** null = มีหุ้นที่ขาดเรต ต้นทุนไม่ครบ (ไม่รวมบางส่วน) */
+  costThb: number | null;
+  costUsd: number | null;
   profit: ProfitResult;
   /** กำไรรวมเป็น bps ÷ ต้นทุนที่ยังถืออยู่ (R24.5) · null = ไม่คำนวณ (ต้นทุน 0 หรือข้อมูลไม่ครบ) */
   profitPctThb: number | null;
@@ -97,7 +98,10 @@ export function buildDashboardView(accounts: readonly Account[], entries: readon
   const holding = held.length > 0;
   const valueThb = holding ? (held.every((r) => r.valueThb !== null) ? us.totals.valueThb : null) : 0;
   const valueUsd = holding ? (held.every((r) => r.valueUsd !== null) ? us.totals.valueUsd : null) : 0;
-  const costUsd = us.rows.reduce((n, r) => safeAdd(n, r.costUsd), 0);
+  // มีแถวขาดเรต: ต้นทุนไม่ครบทั้งสองสกุล → null (ไม่รวมบางส่วน · R26)
+  const costIncomplete = us.rows.some((r) => r.needsRate);
+  const costUsd = costIncomplete ? null : us.rows.reduce((n, r) => safeAdd(n, r.costUsd), 0);
+  const costThb = costIncomplete ? null : us.totals.costThb;
 
   let currencySlices: DonutSlice[] | null = null;
   let currencyParts: { usdThb: number; thbThb: number; totalThb: number } | null = null;
@@ -128,11 +132,11 @@ export function buildDashboardView(accounts: readonly Account[], entries: readon
     holding,
     valueThb,
     valueUsd,
-    costThb: us.totals.costThb,
+    costThb,
     costUsd,
     profit,
-    profitPctThb: profitPercentBps(profit.thb ? profit.thb.total : null, us.totals.costThb),
-    profitPctUsd: profitPercentBps(profit.usd ? profit.usd.total : null, costUsd),
+    profitPctThb: profitPercentBps(profit.thb && costThb !== null ? profit.thb.total : null, costThb ?? 0),
+    profitPctUsd: profitPercentBps(profit.usd && costUsd !== null ? profit.usd.total : null, costUsd ?? 0),
     dividend: computeDividendMetrics(data, today),
     irr: computeIrr(data, today),
     fxText: us.fx ? { rateMicro: us.fx.rateMicro, stale: us.fx.stale, days: us.fx.days } : null,

@@ -103,3 +103,13 @@ a.iv-tab { text-decoration: none; }
 @media (prefers-reduced-motion: reduce) {
   .iv-tip { transition: none; }
 }
+
+/* ป้ายและกล่องแจ้ง "Needs rate / Incomplete" (R26) · ใช้ตัวแปรสีเดิม · กล่องพื้นทึบขอบซ้ายสีทองเฉพาะคอม (<1024px คงข้อความธรรมดา) */
+.mr-notice { overflow-wrap: anywhere; font-size: 14px; }
+.mr-notice p { margin: 0 0 4px; }
+.mr-notice ul { margin: 4px 0; padding-left: 20px; }
+.mr-title { font-weight: 700; }
+.mr-tag { font-weight: 700; overflow-wrap: anywhere; }
+@media (min-width: 1024px) {
+  .mr-notice { padding: 12px 16px; border-radius: 12px; border: 1px solid var(--ov-20); border-left: 4px solid var(--gold); }
+}

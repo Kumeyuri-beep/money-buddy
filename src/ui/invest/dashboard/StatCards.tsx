@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { baht, signed } from '../../../app/bahtFormat';
 import { usd, usdSigned } from '../../../app/usdFormat';
+import { IncompleteTag } from '../MissingRateNotice';
 import { InfoTip } from '../Tip';
 import { bpsText, type DashboardView, type DashCurrency } from './dashboardView';
 
@@ -97,7 +98,7 @@ export function StatCards({ view, currency, onOpenRetirement }: { view: Dashboar
                 </svg>
               </button>
             </p>
-            <p className="iv-sub num">{hidden ? mask : `${money(currency, cost)} invested`}</p>
+            <p className="iv-sub num">{hidden ? mask : cost === null ? <>Cost not shown<IncompleteTag /></> : `${money(currency, cost)} invested`}</p>
             {value === null && !hidden && <p className="iv-sub">Incomplete: {MISSING}. Cost is not used instead.</p>}
           </>
         )}
@@ -194,6 +195,7 @@ export function StatCards({ view, currency, onOpenRetirement }: { view: Dashboar
             </p>
             <p className="iv-sub num">
               {money(currency, gross)} annually (before tax)
+              {d.incomplete && <IncompleteTag />}
               {d.yieldOnCostBps !== null ? ' · green = yield on cost' : ''}
             </p>
           </>
