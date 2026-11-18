@@ -136,7 +136,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
   const usdTrades = useMemo(() => {
     const own = new Map((data?.assets ?? []).filter((a) => assetCurrency(a) === 'USD').map((a) => [a.id, a]));
     return (data?.trades ?? [])
-      .filter((t) => own.has(t.assetId) && t.fxRateMicro !== undefined)
+      .filter((t) => own.has(t.assetId))
       .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.createdAt < b.createdAt ? 1 : -1))
       .slice(0, 30)
       .map((t) => ({ t, asset: own.get(t.assetId)! }));
@@ -773,7 +773,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
                     {tr.amount !== undefined ? ` · ${usd(tr.amount)}` : ''}
                     {tr.fee > 0 ? ` · fee ${usd(tr.fee)}` : ''}
                     {tr.withholding > 0 ? ` · tax withheld ${usd(tr.withholding)}` : ''}
-                    {tr.fxRateMicro !== undefined ? ` · ${fxRateText(tr.fxRateMicro)}` : ''}
+                    {tr.fxRateMicro !== undefined ? ` · ${fxRateText(tr.fxRateMicro)}` : tr.kind === 'buy' || tr.kind === 'sell' || tr.kind === 'dividend' ? ' · Needs rate' : ''}
                   </p>
                 </div>
                 <div className="bill-figures">

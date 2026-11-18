@@ -81,8 +81,8 @@ export function buildAnalysisModel(accounts: readonly Account[], entries: readon
     us,
     rows,
     monthly,
-    dividend: guard(() => computeDividendMetrics(data, today), { fromExclusive: today, toInclusive: today, grossThb: 0, netThb: 0, grossUsd: 0, netUsd: 0, yieldBps: null, yieldOnCostBps: null }),
-    profit: guard(() => computeProfitSources(data, today), { complete: false, missing: [], thb: null, usd: null, parts: null }),
+    dividend: guard(() => computeDividendMetrics(data, today), { fromExclusive: today, toInclusive: today, grossThb: 0, netThb: 0, grossUsd: 0, netUsd: 0, yieldBps: null, yieldOnCostBps: null, incomplete: false }),
+    profit: guard(() => computeProfitSources(data, today, { strictRate: true }), { complete: false, missing: [], thb: null, usd: null, parts: null }),
     dividendNetUsdTotal: guard(() => us.rows.reduce((n, r) => safeAdd(n, r.dividendNetUsd), 0), 0),
     currencyShares: currencySharesOf(accounts, entries, data, today, hasStocks),
   };

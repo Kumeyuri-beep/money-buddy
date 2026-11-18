@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { CardUnavailable } from './CardUnavailable';
 import { useInvest } from './InvestContext';
 import { buildAnalysisModel } from './analysis/analysisModel';
+import { MissingRateNotice } from './MissingRateNotice';
 import { HoldingsCard } from './analysis/HoldingsCard';
 import { MonthlyReturnsCard } from './analysis/MonthlyReturnsCard';
 import { ProfitSourcesCard } from './analysis/ProfitSourcesCard';
@@ -46,9 +47,13 @@ export function AnalysisTab({ part }: { part: 'common' | 'growth' }) {
         </section>
       ) : (
         part === 'growth' ? (
-          <MonthlyReturnsCard model={model} />
+          <>
+            <MissingRateNotice trades={model.us.missingRate} tickerOf={(id) => model.us.rows.find((r) => r.assetId === id)?.ticker ?? ''} />
+            <MonthlyReturnsCard model={model} />
+          </>
         ) : (
           <>
+            <MissingRateNotice trades={model.us.missingRate} tickerOf={(id) => model.us.rows.find((r) => r.assetId === id)?.ticker ?? ''} />
             <HoldingsCard model={model} currency={currency} />
             <ProfitSourcesCard profit={model.profit} currency={currency} />
             <div className="an-pair">

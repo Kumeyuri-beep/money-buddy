@@ -7,6 +7,8 @@ import {
 } from '../../../domain/invest/holdingsView';
 import { useRepository } from '../../RepositoryContext';
 import { UsStocksView, type UsStocksRequest } from '../../UsStocksView';
+import { usdMissingRate } from '../../../domain/invest/metrics';
+import { MissingRateNotice } from '../MissingRateNotice';
 import { cellOf, COLUMN_LABEL, totalCellOf } from '../holdings/format';
 import { RowMenu, type RowAction } from '../holdings/RowMenu';
 import '../holdings/holdings.css';
@@ -45,6 +47,7 @@ export function HoldingsPage({ addSignal }: { addSignal: number }) {
   const view = useMemo(() => (data ? buildHoldingsView(data, today, currency) : null), [data, today, currency]);
   const shown = useMemo(() => (view ? filterAndSort(view.rows, q) : []), [view, q]);
   const totals = useMemo(() => totalsOf(shown, currency), [shown, currency]);
+  const missingRate = useMemo(() => (data ? usdMissingRate(data, today) : []), [data, today]);
   const cols = columnsFor(tab);
   const soldCount = view ? view.rows.filter((r) => r.sold).length : 0;
   const noAssets = view !== null && view.rows.length === 0;
@@ -257,6 +260,7 @@ export function HoldingsPage({ addSignal }: { addSignal: number }) {
                     </table>
                   </div>
                 )}
+                <MissingRateNotice trades={missingRate} tickerOf={(id) => view?.rows.find((r) => r.assetId === id)?.ticker ?? ''} />
                 {!totals.complete && shown.length > 0 && (
                   <p className="muted small" role="status">
                     Some holdings have no price or exchange rate, so their values and the totals are incomplete (they are not counted as 0).

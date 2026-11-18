@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { baht, signed } from '../app/bahtFormat';
 import { investError } from './invest/investError';
+import { MissingRateNotice } from './invest/MissingRateNotice';
 import { fxRateText, usd } from '../app/usdFormat';
 import { buildUsPortfolio } from '../app/usPortfolio';
 import { formatBps } from '../domain/invest/allocation';
@@ -79,6 +80,7 @@ export function UsOverview({ today, accounts, entries, investments }: { today: s
             <dd className="num">{usd(view.cashUsd)}</dd>
           </div>
         </dl>
+        <MissingRateNotice trades={view.missingRate} tickerOf={(id) => view.rows.find((r) => r.assetId === id)?.ticker ?? ''} />
         {!t.complete && (
           <p className="muted small" role="status">
             This value is incomplete: some stocks have no price or exchange rate yet (cost basis is not used as a substitute). Enter them in the "US stocks" tab.

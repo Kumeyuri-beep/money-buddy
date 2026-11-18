@@ -56,6 +56,8 @@ export interface DashboardView {
   /** null = แบ่งตามสกุลไม่ได้ (ข้อมูลไม่ครบ) */
   currencySlices: DonutSlice[] | null;
   monthly: MonthlyDividend[];
+  /** true = มีปันผล USD ที่ไม่มีเรต ไม่ถูกรวมในกราฟรายเดือน (R26) */
+  monthlyIncomplete: boolean;
   /** พอร์ตหุ้นสหรัฐ (ใช้สร้างตาราง Holdings) */
   us: UsPortfolio;
   /** มูลค่ารวมเป็นสตางค์แยกส่วน USD/บาท (ใช้ในมุมมอง Currency) · null = แบ่งไม่ได้ */
@@ -120,7 +122,7 @@ export function buildDashboardView(accounts: readonly Account[], entries: readon
     }
   }
 
-  const profit = computeProfitSources(data, today);
+  const profit = computeProfitSources(data, today, { strictRate: true });
   return {
     empty: us.rows.length === 0,
     holding,
@@ -137,6 +139,7 @@ export function buildDashboardView(accounts: readonly Account[], entries: readon
     stockSlices: sliceLabels(us),
     currencySlices,
     monthly: monthlyDividends(data, today),
+    monthlyIncomplete: us.missingRate.some((m) => m.kind === 'dividend'),
     us,
     currencyParts,
   };
