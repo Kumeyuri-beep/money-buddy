@@ -11,7 +11,7 @@ import { db } from '../storage/instance';
 import { createDexieRepository } from '../storage/ledgerRepository';
 import { App } from '../ui/App';
 import { RepositoryProvider, localLedgerRepository } from '../ui/RepositoryContext';
-import { demoInvestments } from './investDemo';
+import { demoInvestments, demoInvestmentsWithHistory } from './investDemo';
 import { AccountContext } from '../ui/AuthContext';
 import { PasswordPromptProvider } from '../ui/PasswordPrompt';
 import '@fontsource/ibm-plex-sans-thai/400.css';
@@ -65,8 +65,8 @@ function Harness() {
   return (
     <AccountContext.Provider value={{ username: 'ผู้ทดสอบ', signOut: async () => undefined, refresh: async () => undefined }}>
       <PasswordPromptProvider>
-        {params.get('investDemo') === '1' ? (
-          <RepositoryProvider repository={{ ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestments()) }}>
+        {params.get('investDemo') === '1' || params.get('investDemo') === 'report' ? (
+          <RepositoryProvider repository={{ ...localLedgerRepository(), loadInvestments: () => Promise.resolve(params.get('investDemo') === 'report' ? demoInvestmentsWithHistory() : demoInvestments()) }}>
             <App />
           </RepositoryProvider>
         ) : (
