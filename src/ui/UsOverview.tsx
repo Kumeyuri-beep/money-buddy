@@ -68,8 +68,8 @@ export function UsOverview({ today, accounts, entries, investments }: { today: s
             <dd className="num">{!holding || hasValueUsd ? usd(t.valueUsd) : <Dash />}</dd>
           </div>
           <div>
-            <dt>Total cost basis (THB)</dt>
-            <dd className="num">{baht(t.costThb)}</dd>
+            <dt>Total cost basis (THB){t.complete ? '' : ' · ⚠ incomplete'}</dt>
+            <dd className="num">{t.complete ? baht(t.costThb) : <Dash />}</dd>
           </div>
           <div>
             <dt>Unrealized gain (THB){t.complete ? '' : ' · ⚠ incomplete'}</dt>

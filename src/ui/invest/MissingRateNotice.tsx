@@ -6,7 +6,12 @@ const SHOWN = 5;
 
 /** ป้ายสั้นข้างยอดที่ได้รับผลกระทบ (ไม่พึ่งสีอย่างเดียว · R26) */
 export function IncompleteTag() {
-  return <span className="mr-tag"> · Incomplete</span>;
+  return (
+    <span className="mr-tag">
+      {' '}
+      <span aria-hidden="true">·</span> Incomplete
+    </span>
+  );
 }
 
 /**

@@ -90,6 +90,7 @@ export interface UsPortfolio {
   /** มีข้อมูล USD ใดๆ (หุ้นสหรัฐ บัญชีเงินสด USD หรือการแลกเงิน) · ไม่มี = หน้าจอแสดงสถานะเริ่มต้น */
   hasUsd: boolean;
   rows: UsStockRow[];
+  dividendNetUsdTotal: number;
   /** รายการซื้อ/ขาย/ปันผลของหุ้น USD ที่ไม่มีเรต (ไม่ถูกนับ ไม่เป็น 0) · ไม่ว่าง = totals.complete เป็น false (R26) */
   missingRate: MissingRateTrade[];
   /** ปันผลล่าสุด (ใหม่ก่อน ไม่เกิน 20 แถว) */
@@ -128,6 +129,7 @@ export function buildUsPortfolio(accounts: readonly Account[], entries: readonly
   const missingRate: MissingRateTrade[] = [];
   let complete = true;
   const totals = { valueUsd: 0, valueThb: 0, costThb: 0, unrealizedThb: 0, priceGainThb: 0, fxGainThb: 0, dividendNetThb: 0, realizedGainThb: 0 };
+  let dividendNetUsdTotal = 0;
 
   for (const asset of usdAssets) {
     const own: TradeRecord[] = data.trades.filter((t) => t.assetId === asset.id && t.date <= today);
@@ -152,7 +154,7 @@ export function buildUsPortfolio(accounts: readonly Account[], entries: readonly
     } catch (e) {
       rows.push({
         ...base, units: 0n, costUsd: 0, costThb: 0, avgCostMicro: null, price: null, valueUsd: null, valueThb: null, unrealizedThb: null, priceGainThb: null, fxGainThb: null,
-        dividendNetUsd: divUsd, dividendNetThb: divThb, realizedGainThb: 0, ...(assetMissing.length > 0 ? { needsRate: true } : {}), error: e instanceof Error ? e.message : formMsg('usp.calcFailed'),
+        dividendNetUsd: assetMissing.length > 0 ? 0 : divUsd, dividendNetThb: assetMissing.length > 0 ? 0 : divThb, realizedGainThb: 0, ...(assetMissing.length > 0 ? { needsRate: true } : {}), error: e instanceof Error ? e.message : formMsg('usp.calcFailed'),
         ...(hasCode(e) ? { errorCode: e.code, errorParams: e.params } : e instanceof Error ? {} : { errorCode: 'usp.calcFailed', errorParams: {} }),
       });
       complete = false;
@@ -206,6 +208,7 @@ export function buildUsPortfolio(accounts: readonly Account[], entries: readonly
     });
     totals.costThb = safeAdd(totals.costThb, pos.costThb);
     totals.dividendNetThb = safeAdd(totals.dividendNetThb, divThb);
+    dividendNetUsdTotal = safeAdd(dividendNetUsdTotal, divUsd);
     totals.realizedGainThb = safeAdd(totals.realizedGainThb, replay.realizedGainThb);
     if (valueUsd !== null) totals.valueUsd = safeAdd(totals.valueUsd, valueUsd);
     if (valueThb !== null) totals.valueThb = safeAdd(totals.valueThb, valueThb);
@@ -230,6 +233,8 @@ export function buildUsPortfolio(accounts: readonly Account[], entries: readonly
   return {
     hasUsd: usdAssets.length > 0 || cash.length > 0 || exchanges.length > 0,
     rows,
+    /** ปันผลสุทธิรวม USD (เซนต์) ข้ามแถว needsRate เหมือน totals.dividendNetThb */
+    dividendNetUsdTotal,
     missingRate,
     dividends: dividends.slice(0, MAX_DIVIDEND_ROWS),
     exchanges,

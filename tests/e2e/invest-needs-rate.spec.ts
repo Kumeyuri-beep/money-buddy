@@ -20,5 +20,14 @@ for (const width of WIDTHS) {
       expect(seen.external, 'คำขอออกนอกเครื่อง').toEqual([]);
       expect(seen.errors, 'error ใน console').toEqual([]);
     });
+    test('Holdings: ป้าย Needs rate ที่แถว · กล่องแจ้งเดียว · ไม่ล้นจอ', async ({ page }) => {
+      const seen = watch(page);
+      await page.route((url) => !/^(localhost|127.0.0.1)$/.test(url.hostname), (route) => route.abort());
+      await page.goto('/harness.html?seed=1&investDemo=norate#/invest/portfolio/holdings');
+      await expect(page.getByTestId('needs-rate-notice')).toHaveCount(1, { timeout: 20_000 });
+      await expect(page.locator('.hd-badge', { hasText: 'Needs rate' }).first()).toBeVisible();
+      expect(await overflowing(page), 'ล้นจอ').toEqual([]);
+      expect(seen.errors, 'error ใน console').toEqual([]);
+    });
   });
 }

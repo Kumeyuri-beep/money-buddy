@@ -2,7 +2,7 @@
 export function Dash({ why }: { why?: string }) {
   return (
     <>
-      <span aria-hidden="true">—</span>
+      <span aria-hidden="true" title={why}>—</span>
       <span className="sr-only">{why ?? 'No data yet'}</span>
     </>
   );

@@ -190,7 +190,7 @@ export function HoldingsCard({ model, currency }: { model: AnalysisModel; curren
                     <td className="num"><MoneyCell thb={r.unrealizedThb} currency="THB" signedValue why={NEED} /></td>
                     <td className="num"><MoneyCell thb={r.priceGainThb} currency="THB" signedValue why={NEED} /></td>
                     <td className="num"><MoneyCell thb={r.fxGainThb} currency="THB" signedValue why={NEED} /></td>
-                    <td className="num"><MoneyCell thb={r.realizedGainThb} currency="THB" signedValue /></td>
+                    <td className="num"><MoneyCell thb={r.needsRate ? null : r.realizedGainThb} currency="THB" signedValue why="Needs rate" /></td>
                   </tr>
                 ))}
               </tbody>

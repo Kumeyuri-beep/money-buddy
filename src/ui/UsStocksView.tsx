@@ -12,7 +12,6 @@ import { INSTRUMENT_EXCHANGES, assetCurrency, emptyInvestments, type InvestmentD
 import { formatUnits, parsePriceMicro } from '../domain/invest/units';
 import type { Account, Entry } from '../domain/ledger/types';
 import { formatMicro } from '../domain/money/micro';
-import { safeAdd } from '../domain/money/safe';
 import { nextCreatedAt } from '../storage/repository';
 import { useRepository } from './RepositoryContext';
 
@@ -656,7 +655,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
                         {r.valueThb !== null && <span className="muted small"> ≈ {baht(r.valueThb)}</span>}
                       </td>
                       <td className="num" data-label="Unrealized gain (THB)">{r.unrealizedThb === null ? <Dash /> : signed(r.unrealizedThb)}</td>
-                      <td className="num" data-label="Net dividends">{usd(r.dividendNetUsd)}</td>
+                      <td className="num" data-label="Net dividends">{r.needsRate ? <>Needs rate</> : usd(r.dividendNetUsd)}</td>
                       <td data-label="Actions">
                         <span className="dialog-actions">
                           <button type="button" className="btn btn-primary btn-small" onClick={(e) => openTrade(r, 'buy', e.currentTarget)} aria-label={`Buy ${r.ticker}`}>Buy</button>
@@ -796,8 +795,8 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
 
       {view.rows.length > 0 && t.valueThb > 0 && (
         <p className="muted small" role="note">
-          Allocation by value: {view.allocation.map((s) => `${s.key === 'other' ? 'Other' : (view.rows.find((r) => r.assetId === s.key)?.ticker ?? s.key)} ${formatBps(s.bps)}`).join(' · ')} · Total realized gain {signed(t.realizedGainThb)} (for reference only, not a figure for tax filing)
-          · Total net dividends received {usdSigned(view.rows.reduce((n, r) => safeAdd(n, r.dividendNetUsd), 0))}
+          Allocation by value: {view.allocation.map((s) => `${s.key === 'other' ? 'Other' : (view.rows.find((r) => r.assetId === s.key)?.ticker ?? s.key)} ${formatBps(s.bps)}`).join(' · ')} · Total realized gain {signed(t.realizedGainThb)}{t.complete ? '' : ' (incomplete)'} (for reference only, not a figure for tax filing)
+          · Total net dividends received {usdSigned(view.dividendNetUsdTotal)}{t.complete ? '' : ' (incomplete)'}
         </p>
       )}
     </div>

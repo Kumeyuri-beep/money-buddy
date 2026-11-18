@@ -133,3 +133,28 @@ describe('ติดธงสอดคล้องกันทุกสกุล 
     expect(wealthSummary([], [], mk([trade({ id: 'o1' })]), TODAY).incomplete).toBe(false);
   });
 });
+
+describe('แถว needsRate ไม่ส่งยอดบางส่วนทุก branch (money-auditor C)', () => {
+  it('branch error (ขายเกินเพราะซื้อขาดเรต): ปันผลเป็น 0 เหมือน branch ปกติ + ติดธง', () => {
+    const d = mk([
+      noRate({ id: 'n1' }),
+      trade({ id: 's1', kind: 'sell', date: '2026-10-10', units: '500000000', priceMicro: 100_000_000, amount: undefined }),
+      trade({ id: 'dv', kind: 'dividend', date: '2026-10-20', amount: 1_000, units: undefined, priceMicro: undefined }),
+    ]);
+    const row = buildUsPortfolio([], [], d, TODAY).rows[0]!;
+    expect(row.needsRate).toBe(true);
+    expect(row).toMatchObject({ dividendNetUsd: 0, dividendNetThb: 0, realizedGainThb: 0 });
+  });
+  it('totals.dividendNetUsd ข้ามแถว needsRate (ตรงกับ THB)', () => {
+    const asset2: Asset = { ...asset, id: 'us2', name: 'หุ้น TWO', accountId: 'inv-us2', ticker: 'TWO' };
+    const d: InvestmentData = {
+      ...mk([noRate({ id: 'n1' }), trade({ id: 'dv1', kind: 'dividend', date: '2026-10-20', amount: 1_000, units: undefined, priceMicro: undefined }),
+        trade({ id: 'o1', assetId: 'us2' }), trade({ id: 'dv2', assetId: 'us2', kind: 'dividend', date: '2026-10-21', amount: 400, units: undefined, priceMicro: undefined })]),
+      assets: [asset, asset2],
+    };
+    const us = buildUsPortfolio([], [], d, TODAY);
+    expect(us.dividendNetUsdTotal).toBe(400);
+    expect(us.totals.complete).toBe(false);
+    expect(us.totals.realizedGainThb).toBe(0);
+  });
+});
