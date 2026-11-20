@@ -23,6 +23,21 @@ describe('csvText (กัน formula injection)', () => {
     for (const s of ['=1+1', '+SUM(A1)', '-2', '@cmd', '\tx', '\rx']) expect(csvText(s).replace(/^"/, '').startsWith("'")).toBe(true);
     expect(csvText('=HYPERLINK("x")')).toBe('"\'=HYPERLINK(""x"")"');
   });
+  it("มีช่องว่าง/tab/ขึ้นบรรทัดนำหน้าแล้วตามด้วย = + - @ ก็ถูก escape ด้วย ' (Excel ตัดช่องว่างนำหน้าก่อนตีความสูตร)", () => {
+    for (const s of [' =1+1', '  +SUM(A1)', ' \t-2', '\t @cmd', '   @x', ' =1', '\n=1', ' \r+1']) {
+      const out = csvText(s).replace(/^"/, '');
+      expect(out.startsWith("'"), JSON.stringify(s)).toBe(true);
+    }
+    expect(csvText(' =1+1')).toBe("' =1+1"); // ช่องว่างเดิมคงอยู่ แค่นำหน้าด้วย '
+    expect(csvText('  =A,B')).toBe(`"'  =A,B"`); // มีคอมมา: ครอบเครื่องหมายคำพูดหลังใส่ '
+  });
+  it('ช่องว่างนำหน้าแต่ไม่ตามด้วยอักขระสูตร = ไม่เปลี่ยน · = ที่ไม่ได้อยู่ต้นข้อความ ไม่เปลี่ยน', () => {
+    expect(csvText('  hello')).toBe('  hello');
+    expect(csvText('a=b')).toBe('a=b');
+    expect(csvText(' 5 - 3')).toBe(' 5 - 3');
+    expect(csvText('')).toBe('');
+    expect(csvText('   ')).toBe('   ');
+  });
   it('ข้อความปกติไม่เปลี่ยน · มีคอมมา/ขึ้นบรรทัดถูกครอบ', () => {
     expect(csvText('Dividends')).toBe('Dividends');
     expect(csvText('a,b')).toBe('"a,b"');
