@@ -68,6 +68,12 @@ describe('ส่งออก CSV ของ Holdings (ตัวเลขเป็
     const withSold = csv(sold, 'USD', 'holdings', true);
     expect(withSold.find((l) => l.startsWith('US2,'))).toContain('Sold');
     expect(withSold).toHaveLength(5); // สกุล + หัว + 2 หุ้น + รวม
+    // ถือ 0 หน่วย: ต้นทุนว่างเหมือนหน้าจอ ("—") แต่มูลค่า 0.00 (ไม่ใช่ว่าง) และปันผล/กำไรที่ขายแล้วยังอยู่
+    const cells = withSold.find((l) => l.startsWith('US2,'))!.split(',');
+    expect(cells[2]).toBe('0'); // shares
+    expect(cells[3]).toBe(''); // costBasis
+    expect(cells[4]).toBe('0.00'); // currentValue = 0 จริง ไม่ใช่ว่าง
+    expect(cells[7]).toBe('10.00'); // totalProfit: ซื้อ 1 หุ้น $100.00 ขายที่ $110.00 = +$10.00
   });
 
   it('กัน CSV/formula injection ในชื่อ/ชื่อย่อ และครอบเครื่องหมายคำพูดเมื่อมีจุลภาค', () => {
@@ -76,6 +82,13 @@ describe('ส่งออก CSV ของ Holdings (ตัวเลขเป็
     expect(line.startsWith(`'=CMD,"'@Evil, ""Corp""",`)).toBe(true);
   });
 
+  it('ค่าติดลบออกเป็นทศนิยมมีเครื่องหมายลบ (ขาดทุนเล็ก) และ 0 จริงเป็น "0.00" ไม่ใช่ว่าง', () => {
+    const loss: InvestmentData = { ...MAIN, prices: [{ assetId: 'us1', date: '2026-11-12', priceMicro: 99_000_000 }] };
+    const cells = csv(loss, 'USD', 'general')[2]!.split(',');
+    expect(cells.some((c) => c.startsWith('-'))).toBe(true);
+    const zero = csv(MAIN, 'USD', 'returns')[2]!.split(',');
+    expect(zero[4]).toBe('0.00'); // options = 0 จริง
+  });
   it('ไม่มีแถวเลย = มีหัวกับแถวรวม 0 holdings (ไม่ล้ม)', () => {
     const lines = csv({ ...MAIN, assets: [], trades: [], prices: [] }, 'USD', 'holdings');
     expect(lines).toHaveLength(3);

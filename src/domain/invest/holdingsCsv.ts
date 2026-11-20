@@ -22,7 +22,7 @@ const src = (s: ProfitSourcesRow | null, pick: (s: ProfitSourcesRow) => number |
 function rowValue(col: ColumnId, r: HoldingRow): number | bigint | null {
   switch (col) {
     case 'shares': return r.units;
-    case 'costBasis': return r.cost;
+    case 'costBasis': return r.units > 0n ? r.cost : null; // ถือ 0 หน่วย: หน้าจอแสดง "—" ส่งออกเป็นช่องว่างเหมือนกัน
     case 'currentValue': return r.value;
     case 'dividends': return r.dividends;
     case 'dividendYield': return r.yieldBps;
@@ -30,7 +30,7 @@ function rowValue(col: ColumnId, r: HoldingRow): number | bigint | null {
     case 'weight': return r.weightBps;
     case 'avgCost': return r.costPerShare;
     case 'lastPrice': return r.pricePerShare;
-    case 'unrealized': return r.unrealized;
+    case 'unrealized': return r.units > 0n ? r.unrealized : null;
     case 'div12m': return r.dividends12m;
     case 'yieldCurrent': return r.yieldBps;
     case 'yieldOnCost': return r.yieldOnCostBps;
@@ -75,7 +75,7 @@ const noteOf = (r: HoldingRow): string => [r.sold ? 'Sold' : '', r.missing === n
 /** ที่มาของคอลัมน์ % ที่ตามหลังคอลัมน์กำไร (หน้าจอแสดงเป็นบรรทัดเล็กใต้ตัวเลข) */
 const PCT_AFTER: Partial<Record<ColumnId, { label: string; row: (r: HoldingRow) => number | null; total: (t: HoldingsTotals) => number | null }>> = {
   totalProfit: { label: 'Total profit (%)', row: (r) => r.profitBps, total: (t) => t.profitBps },
-  unrealized: { label: 'Unrealized profit (%)', row: (r) => r.unrealizedBps, total: (t) => t.unrealizedBps },
+  unrealized: { label: 'Unrealized profit (%)', row: (r) => (r.units > 0n ? r.unrealizedBps : null), total: (t) => t.unrealizedBps },
 };
 
 export interface HoldingsCsvInput {
