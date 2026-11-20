@@ -26,7 +26,7 @@ describe('ci.yml: e2e แบบ shard', () => {
   });
   it('ชื่อ shard ขึ้นต้นด้วย "e2e-shard" (ไม่ชนกับคำสั่ง merge ที่จับ job ชื่อ e2e) และมีเพดานเวลา', () => {
     expect(text).toContain('name: e2e-shard (${{ matrix.shard }}/5)');
-    expect(text).toMatch(/e2e-shard:[\s\S]*timeout-minutes: 6/);
+    expect(text).toMatch(/e2e-shard:[\s\S]*timeout-minutes: 10/);
   });
   it('shard เก็บผลเมื่อล้มด้วยชื่อ artifact ไม่ซ้ำกันต่อ shard', () => {
     expect(text).toContain('name: playwright-results-${{ matrix.shard }}');
