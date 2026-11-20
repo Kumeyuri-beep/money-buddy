@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 
-export type AddAction = 'buy' | 'sell' | 'dividend' | 'cash' | 'transfer' | 'exchange';
+export type AddAction = 'buy' | 'sell' | 'dividend' | 'cash' | 'transfer' | 'exchange' | 'thai';
 
 /** ลำดับตามแบบร่าง 21 · ไม่มี "Fee or tax" (เจ้าของตัดออกจากเมนู 19 พ.ย. 2569) */
 export const ADD_ITEMS: readonly { id: AddAction; label: string }[] = [
@@ -10,6 +10,8 @@ export const ADD_ITEMS: readonly { id: AddAction; label: string }[] = [
   { id: 'cash', label: 'Cash deposit / withdrawal' },
   { id: 'transfer', label: 'Transfer to / from portfolio' },
   { id: 'exchange', label: 'Currency exchange' },
+  // ฟอร์มเดิมของสินทรัพย์บาท คงไว้จนกว่าจะทำสินทรัพย์บาทใน v2 (เจ้าของสั่ง 20 พ.ย. 2569)
+  { id: 'thai', label: 'Thai fund / Thai stock' },
 ];
 
 /** เมนู Add ของหน้า Transactions: ลูกศรขึ้น/ลง Home/End เลื่อนรายการ · Esc ปิดแล้วโฟกัสกลับปุ่ม · Tab ปิด */
