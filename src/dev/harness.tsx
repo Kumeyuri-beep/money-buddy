@@ -12,7 +12,7 @@ import { createDexieRepository } from '../storage/ledgerRepository';
 import { App } from '../ui/App';
 import { RepositoryProvider, localLedgerRepository } from '../ui/RepositoryContext';
 import { buildCashAdjustmentEntry } from '../domain/invest/cashAdjustment';
-import { demoCashLedger, demoInvestments, demoInvestmentsNoRate, demoInvestmentsWithHistory } from './investDemo';
+import { demoCashLedger, demoInvestments, demoInvestmentsNoRate, demoInvestmentsWithHistory, demoTransactionsData, demoTransactionsLedger } from './investDemo';
 import { AccountContext } from '../ui/AuthContext';
 import { PasswordPromptProvider } from '../ui/PasswordPrompt';
 import '@fontsource/ibm-plex-sans-thai/400.css';
@@ -66,8 +66,8 @@ function Harness() {
   return (
     <AccountContext.Provider value={{ username: 'ผู้ทดสอบ', signOut: async () => undefined, refresh: async () => undefined }}>
       <PasswordPromptProvider>
-        {params.get('investDemo') === '1' || params.get('investDemo') === 'report' || params.get('investDemo') === 'norate' || params.get('investDemo') === 'cash' || params.get('investDemo') === 'cashneg' ? (
-          <RepositoryProvider repository={params.get('investDemo') === 'report' ? { ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestmentsWithHistory()) } : params.get('investDemo') === 'norate' ? { ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestmentsNoRate()) } : params.get('investDemo') === 'cash' || params.get('investDemo') === 'cashneg' ? cashDemoRepository(params.get('investDemo') === 'cashneg') : demoRepository()}>
+        {params.get('investDemo') === '1' || params.get('investDemo') === 'report' || params.get('investDemo') === 'norate' || params.get('investDemo') === 'cash' || params.get('investDemo') === 'cashneg' || params.get('investDemo') === 'tx' ? (
+          <RepositoryProvider repository={params.get('investDemo') === 'report' ? { ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestmentsWithHistory()) } : params.get('investDemo') === 'norate' ? { ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestmentsNoRate()) } : params.get('investDemo') === 'cash' || params.get('investDemo') === 'cashneg' ? cashDemoRepository(params.get('investDemo') === 'cashneg') : params.get('investDemo') === 'tx' ? txRepository() : demoRepository()}>
             <App />
           </RepositoryProvider>
         ) : (
@@ -89,6 +89,41 @@ function makeDemoRepository() {
     deleteTrade: (id: string) => {
       demo.trades = demo.trades.filter((t) => t.id !== id);
       return Promise.resolve();
+    },
+  };
+}
+
+/** ที่เก็บสมมติของหน้า Transactions (?investDemo=tx): ข้อมูลลงทุน + บัญชี/รายการสมุดเพิ่ม · ลบ trade/แลกเงิน/รายการสมุดสมมติได้ในหน่วยความจำ (ไม่เขียนฐานข้อมูล) */
+let txRepo: ReturnType<typeof makeTxRepository> | null = null;
+const txRepository = () => (txRepo ??= makeTxRepository());
+function makeTxRepository() {
+  const base = localLedgerRepository();
+  const demo = demoTransactionsData();
+  const extra = demoTransactionsLedger();
+  const gone = new Set<string>();
+  return {
+    ...base,
+    loadInvestments: () => Promise.resolve({ ...demo, trades: [...demo.trades], fxExchanges: [...(demo.fxExchanges ?? [])] }),
+    loadLedger: async () => {
+      const l = await base.loadLedger();
+      const wallet = l.accounts.find((a) => a.type === 'asset' && a.kind !== 'investment')?.id ?? '';
+      const add = extra.entries.filter((e) => !gone.has(e.id)).map((e) => ({ ...e, lines: e.lines.map((x) => (x.accountId === 'WALLET' ? { ...x, accountId: wallet } : x)) }));
+      return { accounts: [...l.accounts, ...(extra.accounts as typeof l.accounts)], entries: [...l.entries, ...(add as typeof l.entries)] };
+    },
+    deleteTrade: (id: string) => {
+      demo.trades = demo.trades.filter((t) => t.id !== id);
+      return Promise.resolve();
+    },
+    deleteFxExchange: (id: string) => {
+      demo.fxExchanges = (demo.fxExchanges ?? []).filter((x) => x.id !== id);
+      return Promise.resolve();
+    },
+    deleteEntry: (id: string) => {
+      if (extra.entries.some((e) => e.id === id)) {
+        gone.add(id);
+        return Promise.resolve(extra.entries.find((e) => e.id === id) as never);
+      }
+      return base.deleteEntry(id);
     },
   };
 }

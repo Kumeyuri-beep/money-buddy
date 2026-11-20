@@ -20,12 +20,15 @@ for (const width of WIDTHS) {
       expect(seen.external, 'คำขอออกนอกเครื่อง').toEqual([]);
       expect(seen.errors, 'error ใน console').toEqual([]);
     });
-    test('Transactions (UsOverview): ต้นทุนรวม incomplete ไม่ใช่ 0 · กล่องแจ้ง Needs rate', async ({ page }) => {
+    test('Transactions: มุมมอง THB แถวปันผลที่ไม่มีเรตแสดง Needs rate + ยอด Incomplete (ไม่นับเป็น 0)', async ({ page }) => {
       const seen = watch(page);
       await page.route((url) => !/^(localhost|127.0.0.1)$/.test(url.hostname), (route) => route.abort());
       await page.goto('/harness.html?seed=1&investDemo=norate#/invest/portfolio/transactions');
-      await expect(page.getByText('Total cost basis (THB) · ⚠ incomplete')).toBeVisible({ timeout: 20_000 });
-      await expect(page.getByTestId('needs-rate-notice')).toContainText('Needs rate');
+      await expect(page.getByRole('heading', { name: 'Transactions', level: 2, exact: true })).toBeVisible({ timeout: 20_000 });
+      await page.getByRole('button', { name: '฿ THB', exact: true }).click();
+      await expect(page.locator('.tx-needs').first()).toBeVisible();
+      await expect(page.getByTestId('tx-needs-rate-note')).toContainText('Needs rate');
+      await expect(page.getByLabel(/^Totals for the/)).toContainText('Incomplete');
       expect(await overflowing(page), 'ล้นจอ').toEqual([]);
       expect(seen.errors, 'error ใน console').toEqual([]);
     });

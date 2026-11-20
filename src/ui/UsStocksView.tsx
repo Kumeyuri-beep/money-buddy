@@ -26,9 +26,11 @@ interface Props {
   request?: UsStocksRequest;
   /** ซ่อนหัวหน้าและตารางถือครองเดิม (หน้า Holdings ใหม่มีหัวและตารางของตัวเอง) · ฟอร์ม/เงินสด USD/แลกเงินยังอยู่ครบ */
   hideList?: boolean;
+  /** (หน้า Portfolio → Transactions ของ /invest) แสดงเฉพาะฟอร์มที่เปิดด้วย request: ซ่อนหัวหน้า การ์ดเงินสด/เรต รายการล่าสุด และคำเตือน (หน้าใหม่มีของตัวเองแล้ว) */
+  formsOnly?: boolean;
 }
 
-export type UsStocksRequest = { nonce: number } & ({ panel: 'stock' } | { panel: 'trade'; assetId: string; kind?: UsTradeKind } | { panel: 'price'; assetId: string });
+export type UsStocksRequest = { nonce: number } & ({ panel: 'stock' } | { panel: 'exchange' } | { panel: 'cash' } |{ panel: 'trade'; assetId: string; kind?: UsTradeKind } | { panel: 'price'; assetId: string });
 
 type Panel =
   | { type: 'exchange' }
@@ -95,7 +97,7 @@ function Field(props: {
 const errOf = <F extends string>(errors: UsFormError<F>[], field: F): string | undefined => (() => { const f = errors.find((e) => e.field === field); return f ? investProblem(f) : undefined; })();
 
 /** แท็บ "หุ้นสหรัฐ": หุ้นสกุล USD (หุ้นเศษส่วนได้) แลกเงินบาท↔USD ราคา/อัตรากรอกเอง (A3-2 · R20) */
-export function UsStocksView({ today, accounts, entries, wallets, onLedgerChanged, request, hideList }: Props) {
+export function UsStocksView({ today, accounts, entries, wallets, onLedgerChanged, request, hideList, formsOnly }: Props) {
   const repo = useRepository();
   const [data, setData] = useState<InvestmentData | null>(null);
   const [loadError, setLoadError] = useState('');
@@ -299,12 +301,12 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
   const stockRow = (id: string): UsStockRow | undefined => view.rows.find((r) => r.assetId === id);
   // คำสั่งเปิดฟอร์มจากภายนอก (ทำครั้งเดียวต่อ nonce · รอข้อมูลโหลดก่อนเมื่อต้องรู้ว่าหุ้นตัวไหน)
   const handledRequest = useRef(0);
-  const requestReady = request !== undefined && (request.panel === 'stock' || data !== null);
+  const requestReady = request !== undefined && (request.panel === 'stock' || request.panel === 'exchange' || request.panel === 'cash' || data !== null);
   useEffect(() => {
     if (!request || !requestReady || handledRequest.current === request.nonce) return;
     handledRequest.current = request.nonce;
-    if (request.panel === 'stock') {
-      open({ type: 'stock' });
+    if (request.panel === 'stock' || request.panel === 'exchange' || request.panel === 'cash') {
+      open({ type: request.panel });
       return;
     }
     const row = view.rows.find((r) => r.assetId === request.assetId);
@@ -329,10 +331,12 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
 
   return (
     <div className="us-stocks">
+      {!formsOnly && (
       <div className="page-header">
         <h2 className="page-title">US stock portfolio</h2>
         <p className="muted">USD-denominated stocks (fractional shares supported), THB↔USD currency exchange. Prices and exchange rates are entered manually.</p>
       </div>
+      )}
 
       <div role="status">{message?.kind === 'ok' && <p className="muted">{message.text}</p>}</div>
       <div role="alert">{message?.kind === 'error' && <p className="form-error">{message.text}</p>}</div>
@@ -345,7 +349,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
         </div>
       )}
 
-      {view.negativeCash.length > 0 && (
+      {!formsOnly && view.negativeCash.length > 0 && (
         <div className="notice" role="alert" aria-labelledby="us-neg-title">
           <p id="us-neg-title">
             <strong>USD cash is negative</strong>
@@ -358,6 +362,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
         </div>
       )}
 
+      {!formsOnly && (
       <section className="glass-lite card" aria-labelledby="us-cash-title">
         <h2 id="us-cash-title">USD cash and exchange rate</h2>
         {cashAccounts.length === 0 ? (
@@ -396,6 +401,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
           </button>
         </div>
       </section>
+      )}
 
       {panel?.type === 'cash' && (
         <section className="solid card" aria-labelledby="us-cashnew-title">
@@ -692,7 +698,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
       </section>
       )}
 
-      {view.dividends.length > 0 && (
+      {!formsOnly && view.dividends.length > 0 && (
         <section className="solid card" aria-labelledby="us-div-title">
           <h2 id="us-div-title">Recent dividends</h2>
           <div className="migrate-table-wrap" role="region" aria-label="Recent dividends table" tabIndex={0}>
@@ -723,7 +729,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
         </section>
       )}
 
-      {view.exchanges.length > 0 && (
+      {!formsOnly && view.exchanges.length > 0 && (
         <section className="solid card" aria-labelledby="us-exh-title">
           <h2 id="us-exh-title">Currency exchange history</h2>
           <ul className="bill-list">
@@ -755,7 +761,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
         </section>
       )}
 
-      {usdTrades.length > 0 && (
+      {!formsOnly && usdTrades.length > 0 && (
         <section className="solid card" aria-labelledby="us-hist-title">
           <h2 id="us-hist-title">Recent trades</h2>
           <ul className="bill-list">
@@ -793,7 +799,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
         </section>
       )}
 
-      {view.rows.length > 0 && t.valueThb > 0 && (
+      {!formsOnly && view.rows.length > 0 && t.valueThb > 0 && (
         <p className="muted small" role="note">
           Allocation by value: {view.allocation.map((s) => `${s.key === 'other' ? 'Other' : (view.rows.find((r) => r.assetId === s.key)?.ticker ?? s.key)} ${formatBps(s.bps)}`).join(' · ')} · Total realized gain {signed(t.realizedGainThb)}{t.complete ? '' : ' (incomplete)'} (for reference only, not a figure for tax filing)
           · Total net dividends received {usdSigned(view.dividendNetUsdTotal)}{t.complete ? '' : ' (incomplete)'}
