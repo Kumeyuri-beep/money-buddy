@@ -107,12 +107,12 @@ describe('แปลงสกุลที่แสดง (R26): ปัดคร�
     expect(r.value?.minor).toBe(32);
   });
 
-  it('ค่าธรรมเนียม + ภาษีหัก แปลงครั้งเดียวจากผลบวก (ไม่ใช่แปลงสองครั้งแล้วบวก)', () => {
-    // ปันผล 1 เซนต์ ภาษี 1 เซนต์ที่เรต 32.5: ผลบวก 2 เซนต์ = 65 สตางค์ (ถ้าแปลงทีละค่า = 33+33 = 66)
+  it('ค่าธรรมเนียม + ภาษีหัก แปลงแยกค่าแล้วบวกกัน · ปันผลสุทธิ = gross − wht (R20.4)', () => {
+    // ค่าธรรมเนียม 1 เซนต์ + ภาษี 1 เซนต์ที่เรต 32.5: แต่ละค่า → 33 สตางค์ รวม 66 (ไม่ใช่แปลงผลรวม = 65)
     const d = trade({ id: 'd1', assetId: 'a1', kind: 'dividend', date: '2026-08-01', amount: 100, withholding: 1, fee: 1, fxRateMicro: 32_500_000 });
     const r = build(base({ trades: [d] }), 'THB').rows[0]!;
-    expect(r.feeTax?.minor).toBe(65); // 2 × 32.5 = 65.0
-    expect(r.dividendNet?.minor).toBe(3_218); // (100 − 1) × 32.5 = 3217.5 → 3218
+    expect(r.feeTax?.minor).toBe(66);
+    expect(r.dividendNet?.minor).toBe(3_217); // gross 3,250 − wht 33 = 3,217 (R20.4 ไม่ใช่ 99 × 32.5 = 3,218)
     expect(r.value?.minor).toBe(3_250);
   });
 

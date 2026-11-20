@@ -8,13 +8,15 @@
  * ไม่มีเรต = null + needsRate (หน้าจอแสดง "Needs rate") ห้ามนับเป็น 0 ห้ามใช้เรตอื่นแทน
  * สินทรัพย์บาท (กองทุน/หุ้นไทย) ในมุมมอง USD ไม่แปลง (R26 ขอบเขต): แสดงเป็นบาทตามต้นทาง (native) และไม่นับในยอดรวม
  */
+import { daysBetween } from '../bills/calendar';
 import type { CodedProblem } from '../errors/problem';
 import type { Account, Entry } from '../ledger/types';
 import { roundHalfUpBig } from '../money/round';
 import { CASH_ADJUST_ACCOUNT_IDS } from './cashAdjustment';
+import { assertFxRateMicro, dividendInThb } from './fx';
 import { sumDisplayed, toDisplayMinor, type DisplayCurrency } from './displayCurrency';
 import { perShareMinor, pricePerShareMinor } from './holdingsView';
-import { classifyPortfolioTransfer, latestFxRate } from './portfolioMoney';
+import { classifyPortfolioTransfer, latestFxRate, WEALTH_STALE_DAYS } from './portfolioMoney';
 import { checkTradeDeleteCoded } from './rules';
 import { assetCurrency, type Asset, type FxExchangeRecord, type InvestmentData, type TradeRecord } from './types';
 import { toSafeSatang, UNIT_SCALE, valueInSatang } from './units';
@@ -73,9 +75,9 @@ export interface TxRow {
   units: bigint | null;
   /** ราคาต่อหุ้น (ซื้อ = เฉลี่ยของรายการ · ขาย = ราคาขาย) · แลกเงิน = null (ดู fxRateMicro) */
   price: TxAmount | null;
-  /** มูลค่า (ขนาดล้วน ไม่มีเครื่องหมาย: ชนิดรายการบอกทิศทาง) */
+  /** มูลค่า (ขนาดล้วน ไม่มีเครื่องหมาย · เครื่องหมายมาจาก direction) */
   value: TxAmount | null;
-  /** ค่าธรรมเนียม + ภาษีหัก ณ ที่จ่าย (แปลงครั้งเดียวจากผลบวกต้นทาง) · เฉพาะรายการซื้อขายปันผล */
+  /** ค่าธรรมเนียม + ภาษีหัก ณ ที่จ่าย (แปลงแยกค่าด้วยเรตของรายการแล้วบวกกัน) · เฉพาะรายการซื้อขายปันผล */
   feeTax: TxAmount | null;
   /** ปันผลสุทธิ (หลังหักภาษี) เฉพาะ kind = dividend */
   dividendNet: TxAmount | null;
@@ -83,6 +85,10 @@ export interface TxRow {
   fxRateMicro: number | null;
   /** ต้องใช้เรตแต่ไม่มี (R26) · ค่าเงินทุกช่องของแถวนี้เป็น null */
   needsRate: boolean;
+  /** แปลงไม่ได้ (เรตผิด/ตัวเลขเกินช่วง = RangeError) · ค่าที่แปลงไม่ได้เป็น null ยอดรวมที่เกี่ยวข้องไม่ครบ (หน้าจอแสดง "Couldn't convert") */
+  failed: boolean;
+  /** ทิศทางเงินของพอร์ต: in = เข้า · out = ออก · null = ไม่มีเงินเข้า/ออก (ปันผลลงทุนต่อ) · ใช้ใส่เครื่องหมายในคอลัมน์ Value (แบบร่าง 21) */
+  direction: 'in' | 'out' | null;
   /** แสดงเป็นสกุลต้นทางไม่แปลง (สินทรัพย์บาทในมุมมอง USD) · ไม่นับในยอดรวม */
   native: boolean;
 }
@@ -97,7 +103,8 @@ export interface TransactionsView {
   /** ใหม่ก่อน: วันที่ → เวลาบันทึก → รหัส (ย้อนลำดับ) */
   rows: TxRow[];
   assets: TxAssetOption[];
-  fx: { rateMicro: number; date: string } | null;
+  /** เรตล่าสุดที่กรอก (R26: เก่ากว่า 30 วัน = stale ต้องเตือน) */
+  fx: { rateMicro: number; date: string; days: number; stale: boolean } | null;
   /** บัญชีเงินสด USD ที่ติดลบ (ให้หน้าจอเตือน) */
   negativeCash: UsdCashBalance[];
 }
@@ -110,10 +117,29 @@ export interface TransactionsInput {
   today: string;
 }
 
-/** แปลงค่าต้นทางหนึ่งค่า · null = ต้องใช้เรตแต่ไม่มี */
+/** แปลงค่าต้นทางหนึ่งค่า · null = ต้องใช้เรตแต่ไม่มี · RangeError (เรตผิด/เกินช่วง) โยนต่อให้ผู้เรียกจับต่อแถว */
 function convert(from: DisplayCurrency, minor: number, view: DisplayCurrency, rate: number | null | undefined): TxAmount | null {
   const v = toDisplayMinor(from, minor, view, rate);
-  return v === null ? null : { minor: v, currency: view };
+  return v === null ? null : { minor: v || 0, currency: view }; // `|| 0` กัน -0
+}
+
+/** รันการคำนวณของแถวเดียว: RangeError = แถวนี้แปลงไม่ได้ (ค่าเป็น null + failed) ไม่ทำให้ทั้งหน้าพัง */
+function guarded(): { run: <T>(fn: () => T | null) => T | null; failed: () => boolean } {
+  let failed = false;
+  return {
+    run: (fn) => {
+      try {
+        return fn();
+      } catch (e) {
+        if (e instanceof RangeError) {
+          failed = true;
+          return null;
+        }
+        throw e;
+      }
+    },
+    failed: () => failed,
+  };
 }
 
 const cmpRowDesc = (a: TxRow, b: TxRow): number =>
@@ -127,6 +153,7 @@ function buyPrice(amountMinor: number, units: bigint, from: DisplayCurrency, vie
     return v === null ? null : { minor: v, currency: view };
   }
   if (rate === null || from !== 'USD') return null;
+  assertFxRateMicro(rate);
   return { minor: toSafeSatang(roundHalfUpBig(BigInt(amountMinor) * BigInt(rate) * UNIT_SCALE, units * 1_000_000n)), currency: view };
 }
 
@@ -137,9 +164,13 @@ function sellPrice(priceMicro: number, from: DisplayCurrency, view: DisplayCurre
     return v === null ? null : { minor: v, currency: view };
   }
   if (from !== 'USD') return null;
+  if (rate !== null) assertFxRateMicro(rate);
   const v = pricePerShareMinor(priceMicro, view, rate);
   return v === null ? null : { minor: v, currency: view };
 }
+
+/** ทิศทางเงินของพอร์ตตามชนิดรายการ (เครื่องหมายในคอลัมน์ Value) · ปันผลลงทุนต่อไม่มีเงินเข้า/ออก = null · แลกเงินดูตามฝั่งที่แสดง */
+const TRADE_DIRECTION: Partial<Record<TxKind, 'in' | 'out'>> = { buy: 'out', sell: 'in', dividend: 'in', transfer_in: 'in', transfer_out: 'out', cash_in: 'in', cash_out: 'out' };
 
 function tradeRow(t: TradeRecord, asset: Asset | undefined, view: DisplayCurrency): TxRow {
   const from: DisplayCurrency = asset ? assetCurrency(asset) : 'USD';
@@ -148,21 +179,40 @@ function tradeRow(t: TradeRecord, asset: Asset | undefined, view: DisplayCurrenc
   const rate = t.fxRateMicro ?? null;
   const units = t.units !== undefined ? BigInt(t.units) : null;
   const needsRate = from === 'USD' && view === 'THB' && rate === null;
-  const cv = (minor: number): TxAmount | null => (needsRate ? null : convert(from, minor, target, rate));
+  const g = guarded();
+  const cv = (minor: number): TxAmount | null => (needsRate ? null : g.run(() => convert(from, minor, target, rate)));
 
   let valueMinor: number | null = null;
-  if (t.kind === 'sell') valueMinor = units !== null && t.priceMicro !== undefined ? valueInSatang(units, t.priceMicro) : null;
+  if (t.kind === 'sell') valueMinor = units !== null && t.priceMicro !== undefined ? g.run(() => valueInSatang(units, t.priceMicro as number)) : null;
   else valueMinor = t.amount ?? null; // ซื้อ = มูลค่าซื้อ · ปันผล = ยอดก่อนภาษี · ปันผลลงทุนต่อ = ต้นทุนที่เพิ่ม
 
   let price: TxAmount | null = null;
   if (!needsRate) {
-    if (t.kind === 'sell' && t.priceMicro !== undefined) price = sellPrice(t.priceMicro, from, target, rate);
-    else if ((t.kind === 'buy' || t.kind === 'reinvest') && valueMinor !== null && units !== null) price = buyPrice(valueMinor, units, from, target, rate);
+    if (t.kind === 'sell' && t.priceMicro !== undefined) price = g.run(() => sellPrice(t.priceMicro as number, from, target, rate));
+    else if ((t.kind === 'buy' || t.kind === 'reinvest') && valueMinor !== null && units !== null) price = g.run(() => buyPrice(valueMinor as number, units, from, target, rate));
   }
 
-  const taxSum = t.fee + t.withholding;
-  const netMinor = t.kind === 'dividend' && valueMinor !== null ? valueMinor - t.withholding : null;
+  // ค่าธรรมเนียมและภาษีหัก: แปลงทีละค่าด้วยเรตของรายการ (ปัดครั้งเดียวต่อค่า) แล้วบวกกัน (R26) ไม่แปลงผลรวมก้อนเดียว
+  let feeTax: TxAmount | null = null;
+  if (!needsRate) {
+    feeTax = g.run(() => {
+      const fee = convert(from, t.fee, target, rate);
+      const wht = convert(from, t.withholding, target, rate);
+      return fee === null || wht === null ? null : { minor: fee.minor + wht.minor, currency: target };
+    });
+  }
+  // ปันผลสุทธิ: มุมมองที่ต้องแปลง = R20.4 netThb = grossThb − whtThb (แปลงแยกแล้วหักกัน ใช้ dividendInThb) · สกุลเดียวกัน = D − W ตรงๆ
+  let dividendNet: TxAmount | null = null;
+  if (t.kind === 'dividend' && valueMinor !== null && !needsRate) {
+    const gross = valueMinor;
+    dividendNet = g.run(() => {
+      if (from === target) return { minor: gross - t.withholding, currency: target };
+      if (rate === null) return null;
+      return { minor: dividendInThb(gross, t.withholding, rate).netThb, currency: target };
+    });
+  }
   const label = asset ? asset.ticker || asset.name : 'Unknown asset';
+  const value = valueMinor === null ? null : cv(valueMinor);
   return {
     key: `trade:${t.id}`,
     source: 'trade',
@@ -177,11 +227,13 @@ function tradeRow(t: TradeRecord, asset: Asset | undefined, view: DisplayCurrenc
     sourceCurrency: from,
     units,
     price,
-    value: valueMinor === null ? null : cv(valueMinor),
-    feeTax: cv(taxSum),
-    dividendNet: netMinor === null ? null : cv(netMinor),
+    value,
+    feeTax,
+    dividendNet,
     fxRateMicro: rate,
     needsRate,
+    failed: g.failed(),
+    direction: TRADE_DIRECTION[t.kind] ?? null,
     native: isBahtInUsdView,
   };
 }
@@ -207,6 +259,9 @@ function fxRow(x: FxExchangeRecord, view: DisplayCurrency): TxRow {
     dividendNet: null,
     fxRateMicro: x.rateMicro,
     needsRate: false,
+    failed: false,
+    // ฝั่งที่แสดง: THB view = ฝั่งบาท (thb_to_usd บาทออก) · USD view = ฝั่งดอลลาร์ (thb_to_usd ดอลลาร์เข้า)
+    direction: (view === 'THB') === (x.direction === 'thb_to_usd') ? 'out' : 'in',
     native: false,
   };
 }
@@ -237,7 +292,8 @@ function entryRow(
   view: DisplayCurrency,
   latestRate: number | null,
 ): TxRow {
-  const value = convert(src, amountMinor, view, latestRate); // เงินสด/โอนบาท = เรตล่าสุดที่กรอก (R26)
+  const g = guarded();
+  const value = g.run(() => convert(src, amountMinor, view, latestRate)); // เงินสด/โอนบาท = เรตล่าสุดที่กรอก (R26)
   const labels: Record<string, string> = { transfer_in: 'Baht cash', transfer_out: 'Baht cash', cash_in: `${src} cash`, cash_out: `${src} cash` };
   return {
     key: `entry:${e.id}`,
@@ -257,7 +313,9 @@ function entryRow(
     feeTax: null,
     dividendNet: null,
     fxRateMicro: null,
-    needsRate: value === null,
+    needsRate: value === null && !g.failed(),
+    failed: g.failed(),
+    direction: TRADE_DIRECTION[kind] ?? null,
     native: false,
   };
 }
@@ -297,7 +355,8 @@ export function buildTransactionsView(input: TransactionsInput): TransactionsVie
     .filter((a) => used.has(a.id))
     .map((a) => ({ id: a.id, label: a.ticker || a.name }))
     .sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : a.id < b.id ? -1 : 1));
-  return { currency, rows, assets, fx: latest, negativeCash: negativeUsdCash(accounts, entries, data) };
+  const fx = latest ? (() => { const days = daysBetween(latest.date, today); return { ...latest, days, stale: days > WEALTH_STALE_DAYS }; })() : null;
+  return { currency, rows, assets, fx, negativeCash: negativeUsdCash(accounts, entries, data) };
 }
 
 export interface TxQuery {
@@ -362,7 +421,7 @@ export function totalsOf(rows: readonly TxRow[]): TxTotals {
     sell: sum(['sell'], (r) => r.value),
     feeTax: sum(feeKinds, (r) => r.feeTax),
     dividendNet: sum(['dividend'], (r) => r.dividendNet),
-    incomplete: rows.some((r) => r.needsRate),
+    incomplete: rows.some((r) => r.needsRate || r.failed),
     excluded: rows.length - counted.length,
   };
 }
