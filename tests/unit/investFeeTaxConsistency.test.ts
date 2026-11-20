@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { buildReport } from '../../src/domain/invest/reportSeries';
 import { computeProfitSources, replayWithFees } from '../../src/domain/invest/metrics';
 import { toTradesFx } from '../../src/domain/invest/tradesFx';
 import { buildTransactionsView, totalsOf } from '../../src/domain/invest/transactionsView';
@@ -57,5 +58,36 @@ describe('ค่าธรรมเนียมขายและภาษีห�
     const d = data([trade({ amount: 100, fee: 0, priceMicro: 100_000_000 })], 100_000_000);
     expect(txFeeTaxThb(d)).toBe(0);
     expect(Object.is(sources(d).feesAndTax, 0)).toBe(true);
+  });
+});
+
+describe('ขอบเขตเพิ่ม (ผล money-auditor): ซื้อหลายรายการ · ขายบางส่วน · ปันผลหลายเรต · รายงานรายเดือน', () => {
+  // ค่าธรรมเนียมแต่ละรายการ ×32.5 ลงท้าย .5 พอดี (1 เซนต์ → 32.5 → 33): ผลรวมแบบแปลงทีละค่ากับแบบผลต่างจะต่างกันชัด
+  const many = data([
+    trade({ id: 'b1', date: '2026-01-05', amount: 10_001, fee: 1, units: '100000000', priceMicro: 100_010_000 }),
+    trade({ id: 'b2', date: '2026-02-05', amount: 10_003, fee: 3, units: '100000000', priceMicro: 100_030_000 }),
+    trade({ id: 's1', kind: 'sell', date: '2026-03-05', units: '50000000', priceMicro: 120_000_000, amount: undefined, fee: 1 }),
+    trade({ id: 'd1', kind: 'dividend', date: '2026-03-10', amount: 101, withholding: 1, fee: 0, units: undefined, priceMicro: undefined, fxRateMicro: 32_500_000 }),
+    trade({ id: 'd2', kind: 'dividend', date: '2026-04-10', amount: 333, withholding: 5, fee: 0, units: undefined, priceMicro: undefined, fxRateMicro: 31_999_999 }),
+    trade({ id: 'b3', date: '2026-05-05', amount: 10_005, fee: 5, units: '100000000', priceMicro: 100_050_000, fxRateMicro: 33_333_333 }),
+    trade({ id: 's2', kind: 'sell', date: '2026-06-05', units: '100000000', priceMicro: 130_000_000, amount: undefined, fee: 3, fxRateMicro: 34_000_000 }),
+  ], 125_000_000);
+  it('ซื้อ 3 · ขายบางส่วน 2 · ปันผล 2 เรต: ตาราง Transactions = −แหล่ง (6) · 6 แหล่งรวมเท่า P', () => {
+    const s = sources(many);
+    expect(0 - s.feesAndTax).toBe(txFeeTaxThb(many));
+    expect(s.priceUnrealized + s.priceRealized + s.options + s.dividendGross + s.fx + s.feesAndTax).toBe(s.total);
+    // มือ: fee 1@32.5=33 · 3@32.5=98 (97.5) · ขาย 1@32.5=33 · 5@33.333333=167 (166.67) · ขาย 3@34=102 · wht 1@32.5=33 · 5@31.999999=160 (159.99995) → 33+98+33+167+102+33+160 = 626
+    expect(s.feesAndTax).toBe(-626);
+  });
+  it('รายงานรายเดือน (บาท): ผลรวม fees + taxes ของทุกคอลัมน์ = แหล่ง (6) ตรงเป๊ะ', () => {
+    // ราคาและเรตปลายทุกเดือน (รายงานต้องมีข้อมูลครบทุกเดือนจึงคำนวณได้)
+    const ends = ['01-31', '02-28', '03-31', '04-30', '05-31', '06-30', '07-31', '08-31', '09-30', '10-31'].map((d) => `2026-${d}`);
+    const full: InvestmentData = { ...many, prices: ends.map((date) => ({ assetId: 'a1', date, priceMicro: 125_000_000 })), fxRates: ends.map((date) => ({ accountId: 'usd-cash', date, rateMicro: 32_500_000 })) };
+    const t = buildReport(full, '2026-06-30', 'THB', 'monthly', 'all');
+    const fees = t.columns.reduce((n, c) => n + (c.fees ?? 0), 0);
+    const taxes = t.columns.reduce((n, c) => n + (c.taxes ?? 0), 0);
+    expect(t.columns.length).toBeGreaterThan(0);
+    expect(fees + taxes).toBe(computeProfitSources(full, '2026-06-30').thb!.feesAndTax);
+    expect(fees + taxes).toBe(-626); // ค่าเดียวกับตัวอย่างมือข้างบน (ไม่ใช่เทสต์ว่าง)
   });
 });
