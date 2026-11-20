@@ -3,6 +3,8 @@
  * ชื่อบริษัท/ตัวเลขทั้งหมดเป็นของสมมติ (ชื่อย่อ DEMO) ห้ามใช้ข้อมูลจริง · ไม่ถูกรวมใน build จริง (อยู่ใต้ src/dev ที่ index.html ไม่ import)
  */
 import type { Asset, InvestmentData, TradeRecord } from '../domain/invest/types';
+import { buildCashAdjustmentEntry } from '../domain/invest/cashAdjustment';
+import type { Account, Entry } from '../domain/ledger/types';
 
 const STOCKS: { id: string; ticker: string; name: string; units: number; cost: number; price: number }[] = [
   { id: 'd1', ticker: 'DEMA', name: 'Demo Alpha Tech', units: 30, cost: 100, price: 130 },
@@ -79,5 +81,28 @@ export function demoTransactionsLedger() {
     { id: 'demo-dep', date: '2026-03-01', memo: 'เงินเข้าพอร์ต (ปรับยอดเงินสด)', source: 'manual', createdAt: '2026-03-01T01:00:00.000Z', lines: [{ accountId: 'demo-usd-cash', amount: 5_000 }, { accountId: 'inv-cash-adjust-usd', amount: -5_000 }] },
     { id: 'demo-wd', date: '2026-04-01', memo: 'เงินออกจากพอร์ต (ปรับยอดเงินสด)', source: 'manual', createdAt: '2026-04-01T01:00:00.000Z', lines: [{ accountId: 'demo-usd-cash', amount: -8_000 }, { accountId: 'inv-cash-adjust-usd', amount: 8_000 }] },
   ];
+  return { accounts, entries };
+}
+
+/**
+ * ข้อมูลสมมติของหน้า Cash (?investDemo=cash · ?investDemo=cashneg ที่ USD ติดลบ) · บัญชีเงินสดลงทุน USD/บาท + รายการในสมุดที่ลงด้วย Entry จริงของ buildCashAdjustmentEntry
+ * ข้อมูลสมมติทั้งหมด ห้ามใช้ข้อมูลจริง
+ */
+
+export function demoCashLedger(negative: boolean): { accounts: Account[]; entries: Entry[] } {
+  const accounts: Account[] = [
+    { id: 'cash-demo-usd', name: 'Broker USD', type: 'asset', currency: 'USD', kind: 'investment' },
+    { id: 'cash-demo-thb', name: 'Broker THB', type: 'asset', currency: 'THB', kind: 'investment' },
+    { id: 'inv-cash-adjust-usd', name: 'Cash adjustment USD', type: 'equity', currency: 'USD' },
+    { id: 'inv-cash-adjust-thb', name: 'Cash adjustment THB', type: 'equity', currency: 'THB' },
+  ];
+  const adj = (id: string, date: string, cashAccountId: string, currency: 'USD' | 'THB', direction: 'deposit' | 'withdraw', amountMinor: number, memo = ''): Entry =>
+    buildCashAdjustmentEntry({ id, date, createdAt: `${date}T03:00:00.000Z`, cashAccountId, currency, direction, amountMinor, memo }).entry as Entry;
+  const entries: Entry[] = [
+    adj('cd1', '2026-11-02', 'cash-demo-usd', 'USD', 'deposit', negative ? 10_000 : 12_037, 'Statement top-up'),
+    adj('cd2', '2026-11-03', 'cash-demo-thb', 'THB', 'deposit', 500_000),
+  ];
+  if (!negative) entries.push(adj('cd3', '2026-11-05', 'cash-demo-usd', 'USD', 'withdraw', 2_000));
+  if (negative) entries.push({ id: 'cd-neg', date: '2026-11-06', memo: 'Demo purchase without a deposit', source: 'manual', createdAt: '2026-11-06T03:00:00.000Z', lines: [{ accountId: 'cash-demo-usd', amount: -12_500 }, { accountId: 'inv-cash-adjust-usd', amount: 12_500 }] } as Entry);
   return { accounts, entries };
 }
