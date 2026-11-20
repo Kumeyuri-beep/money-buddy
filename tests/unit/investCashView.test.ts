@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildCashAdjustmentEntry } from '../../src/domain/invest/cashAdjustment';
 import { buildCashView, cashAccountBalances, planCashChange, parseCashMinor, recentCashMovements } from '../../src/domain/invest/cashView';
+import { usdCashBalances } from '../../src/domain/invest/usdIntegrity';
 import type { InvestmentData } from '../../src/domain/invest/types';
 import type { Account, Entry } from '../../src/domain/ledger/types';
 
@@ -36,6 +37,12 @@ describe('cashAccountBalances', () => {
     expect(r.find((x) => x.accountId === 'cash-usd')!.minor).toBe(0);
     expect(Object.is(r.find((x) => x.accountId === 'cash-usd')!.minor, -0)).toBe(false);
     expect(r.map((x) => x.accountId).sort()).toEqual(['cash-thb', 'cash-usd']);
+  });
+  it('มีธง archived', () => {
+    const arch = [...accounts, acc('old-usd', 'USD', 'investment', 'asset', { archived: true })];
+    const r = cashAccountBalances(arch, [e('x', '2026-11-02', [['old-usd', 500], ['inv-cash-adjust-usd', -500]])], data());
+    expect(r.find((x) => x.accountId === 'old-usd')!.archived).toBe(true);
+    expect(r.find((x) => x.accountId === 'cash-usd')!.archived).toBe(false);
   });
   it('บัญชีเก็บถาวร: ยอด 0 ซ่อน · ยอดไม่ศูนย์ยังแสดง', () => {
     const arch = [...accounts, acc('old-usd', 'USD', 'investment', 'asset', { archived: true })];
@@ -131,9 +138,38 @@ describe('planCashChange (Change balance)', () => {
     expect(ok('deposit', '9999999999999999', 0).ok).toBe(false);
     expect(planCashChange({ mode: 'set', text: '1', currentMinor: 1.5 }).ok).toBe(false);
   });
+  it('parseCashMinor ปฏิเสธลบทุกรูปแบบ (ก่อนและหลังสัญลักษณ์สกุล) และรูปแบบแปลก', () => {
+    for (const t of ['฿-5', '฿ -5', '฿+5', '$-5', '-฿5', '-$5', '-0', '-0.00', '+0', '1e2', '1E2', '0x10', '1.2.3', '--5', '฿', '$', '  ']) expect(parseCashMinor(t), t).toBeNull();
+    expect(parseCashMinor('0.004')).toBe(0);
+    expect(parseCashMinor('1.005')).toBe(101);
+    expect(parseCashMinor('$100')).toBe(10_000);
+    expect(parseCashMinor('฿ 1,000.5')).toBe(100_050);
+    expect(parseCashMinor('$100', 'USD')).toBe(10_000);
+    expect(parseCashMinor('฿100', 'USD')).toBeNull();
+    expect(parseCashMinor('$100', 'THB')).toBeNull();
+    expect(parseCashMinor('฿100', 'THB')).toBe(10_000);
+  });
+  it('Set balance: เป้าติดลบในรูปแบบใดๆ ปฏิเสธ', () => {
+    for (const t of ['฿-5', '-5', '฿ -5', '$-5']) expect(planCashChange({ mode: 'set', text: t, currentMinor: 1000 }).ok, t).toBe(false);
+  });
   it('parseCashMinor', () => {
     expect(parseCashMinor('฿5,000.50')).toBe(500_050);
     expect(parseCashMinor('x')).toBeNull();
+  });
+});
+
+describe('ยอด ณ วันนี้ (ตรง Holdings: กรอง date <= today)', () => {
+  const future = dep('f1', '2026-12-01', 'cash-usd', 'USD', 5_000);
+  const now = dep('n1', '2026-11-02', 'cash-usd', 'USD', 10_000);
+  it('ฝากวันอนาคตไม่นับในยอด และตรงกับ usdCashBalances ที่กรองวันเดียวกัน', () => {
+    const v = buildCashView(accounts, [now, future], data(), 'USD', '2026-11-19');
+    expect(v.rows.find((r) => r.currency === 'USD')!.minor).toBe(10_000);
+    const ref = usdCashBalances(accounts, [now, future].filter((e) => e.date <= '2026-11-19'), data());
+    expect(ref.find((b) => b.accountId === 'cash-usd')!.cents).toBe(10_000);
+    expect(cashAccountBalances(accounts, [now, future], data(), '2026-11-19').find((b) => b.accountId === 'cash-usd')!.minor).toBe(10_000);
+  });
+  it('วันที่เท่ากับวันนี้นับ · ถึงวันแล้วนับ', () => {
+    expect(buildCashView(accounts, [future], data(), 'USD', '2026-12-01').rows.find((r) => r.currency === 'USD')!.minor).toBe(5_000);
   });
 });
 

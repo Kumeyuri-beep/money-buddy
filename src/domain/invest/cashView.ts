@@ -24,6 +24,7 @@ export interface CashAccountBalance {
   currency: InstrumentCurrency;
   /** สตางค์/เซนต์ ติดลบได้ */
   minor: number;
+  archived: boolean;
 }
 
 /** ยอดรวมของบัญชีทั้งสมุด (BigInt แล้วค่อยกลับเป็นจำนวนเต็มปลอดภัย: ยอดที่เกินช่วงโยน RangeError ไม่ปัดเงียบ) */
@@ -44,15 +45,16 @@ const isCurrency = (c: string): c is InstrumentCurrency => c === 'THB' || c === 
  * บัญชีเงินสดของพอร์ต = บัญชีลงทุน (kind investment) ชนิดสินทรัพย์ สกุล THB/USD ที่ไม่ผูกสินทรัพย์ใดเป็นบัญชีต้นทุน
  * บัญชีที่เก็บถาวรแล้วแสดงเฉพาะเมื่อยังมียอด (ไม่ซ่อนเงินที่ยังอยู่)
  */
-export function cashAccountBalances(accounts: readonly Account[], entries: readonly Entry[], investments: InvestmentData | undefined): CashAccountBalance[] {
+export function cashAccountBalances(accounts: readonly Account[], entries: readonly Entry[], investments: InvestmentData | undefined, asOf?: string): CashAccountBalance[] {
   const assetAccounts = new Set((investments?.assets ?? []).map((a) => a.accountId));
-  const sums = ledgerSums(entries);
+  // ยอด ณ วัน asOf: นับเฉพาะรายการวันที่ <= asOf เหมือน Holdings (usPortfolio) เพื่อให้สองหน้าตรงกัน
+  const sums = ledgerSums(asOf === undefined ? entries : entries.filter((e) => e.date <= asOf));
   const out: CashAccountBalance[] = [];
   for (const a of accounts) {
     if (a.kind !== 'investment' || a.type !== 'asset' || !isCurrency(a.currency) || assetAccounts.has(a.id)) continue;
     const minor = toSafe(sums.get(a.id) ?? 0n);
     if (a.archived === true && minor === 0) continue;
-    out.push({ accountId: a.id, name: a.name, currency: a.currency, minor });
+    out.push({ accountId: a.id, name: a.name, currency: a.currency, minor, archived: a.archived === true });
   }
   return out;
 }
@@ -95,7 +97,7 @@ export function buildCashView(
   display: DisplayCurrency,
   today: string,
 ): CashView {
-  const all = cashAccountBalances(accounts, entries, investments);
+  const all = cashAccountBalances(accounts, entries, investments, today);
   const rate = latestFxRate(investments?.fxRates ?? [], today);
   const rows: CashCurrencyRow[] = [];
   for (const currency of CASH_CURRENCIES) {
@@ -119,12 +121,21 @@ export type CashChangeMode = 'deposit' | 'withdraw' | 'set';
 
 export type CashChangePlan = { kind: 'none' } | { kind: 'change'; direction: 'deposit' | 'withdraw'; amountMinor: number };
 
-/** อ่านข้อความจำนวนเงิน (ทศนิยมไม่เกิน 2 ตำแหน่งปัดครึ่งขึ้น · ไม่รับลบ) → หน่วยย่อยจำนวนเต็ม · อ่านไม่ได้ = null */
-export function parseCashMinor(text: string): number | null {
-  const t = text.trim();
-  if (t === '' || t.startsWith('-') || t.startsWith('+')) return null;
+/**
+ * อ่านข้อความจำนวนเงิน → หน่วยย่อยจำนวนเต็ม · ตัดช่องว่าง คอมมา และสัญลักษณ์สกุล (฿ $) ก่อน แล้วค่อยตรวจ: ไม่รับเครื่องหมายใดๆ (ลบ/บวก) รูปแบบ e/x ใช้ไม่ได้
+ * ทศนิยมเกิน 2 ตำแหน่งปัดครึ่งขึ้น · ระบุ currency = สัญลักษณ์ของสกุลอื่นถูกปฏิเสธ · อ่านไม่ได้ = null
+ */
+export function parseCashMinor(text: string, currency?: InstrumentCurrency): number | null {
+  const compact = text.replace(/[\s,]/g, '');
+  const hasBaht = compact.includes('฿');
+  const hasDollar = compact.includes('$');
+  if (hasBaht && hasDollar) return null;
+  if (currency === 'USD' && hasBaht) return null;
+  if (currency === 'THB' && hasDollar) return null;
+  const digits = compact.replace(/[฿$]/g, '');
+  if (!/^(\d+(\.\d*)?|\.\d+)$/.test(digits)) return null;
   try {
-    return parseBahtToSatang(t);
+    return parseBahtToSatang(digits);
   } catch {
     return null;
   }
@@ -135,11 +146,11 @@ export function parseCashMinor(text: string): number | null {
  *   deposit/withdraw: จำนวนตั้งแต่ 1 · set: เป้า ≥ 0 ส่วนต่าง 0 = { kind: 'none' } (ไม่บันทึก) · ผลต่างเกินช่วงปลอดภัยปฏิเสธ
  * ไม่ตรวจว่าถอนเกินยอด (ฐานข้อมูลตรวจซ้ำและปฏิเสธ)
  */
-export function planCashChange(input: { mode: CashChangeMode; text: string; currentMinor: number }): { ok: true; plan: CashChangePlan } | { ok: false; problem: CodedProblem } {
+export function planCashChange(input: { mode: CashChangeMode; text: string; currentMinor: number; currency?: InstrumentCurrency }): { ok: true; plan: CashChangePlan } | { ok: false; problem: CodedProblem } {
   const bad = { ok: false as const, problem: problem('link.cashAmountInvalid') };
   if (!Number.isSafeInteger(input.currentMinor)) return bad;
-  const value = parseCashMinor(input.text);
-  if (value === null) return bad;
+  const value = parseCashMinor(input.text, input.currency);
+  if (value === null || value < 0) return bad;
   if (input.mode !== 'set') {
     if (value < 1) return bad;
     return { ok: true, plan: { kind: 'change', direction: input.mode, amountMinor: value } };
