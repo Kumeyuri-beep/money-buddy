@@ -47,7 +47,7 @@
 .tx-panel { display: grid; gap: 10px; margin-bottom: 16px; }
 .tx-transfer { display: grid; gap: 10px; margin-bottom: 16px; }
 .tx-transfer:focus { outline: none; }
-.tx-neg { border-left: 4px solid var(--expense); }
+.tx-neg { border: 1px solid var(--expense); }
 
 @media (max-width: 1023px) {
   .tx-tools .iv-field { flex: 1 1 100%; }
