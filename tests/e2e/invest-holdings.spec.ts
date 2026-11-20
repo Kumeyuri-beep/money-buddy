@@ -92,6 +92,23 @@ for (const w of WIDTHS) {
       }
     });
 
+    test('Add stock (ปุ่ม Add บนแถบบน): คอม = dialog modal (Esc ปิด โฟกัสกลับ) · มือถือ = การ์ดในหน้าเหมือนเดิม', async ({ page }) => {
+      await openHoldings(page);
+      const add = page.getByRole('button', { name: 'Add', exact: true }).first();
+      await add.click();
+      const heading = page.getByRole('heading', { name: 'Add US stock', level: 2 });
+      await expect(heading).toBeVisible();
+      const dialog = page.getByRole('dialog', { name: 'Add US stock' });
+      if (w.width >= 1024) {
+        await expect(dialog).toBeVisible();
+        await expect(dialog.getByLabel('Stock name')).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(dialog).toBeHidden();
+      } else {
+        await expect(dialog).toHaveCount(0); // ไม่ใช่ dialog บนมือถือ (การ์ดในหน้าเหมือนเดิม)
+      }
+    });
+
     test('ค้นหา · เรียง · Show sold', async ({ page }) => {
       await openHoldings(page);
       await page.getByRole('searchbox', { name: 'Search' }).fill('beta');

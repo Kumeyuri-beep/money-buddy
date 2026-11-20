@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { investError, investProblem } from './invest/investError';
 import { baht, signed } from '../app/bahtFormat';
 import { formatDateEn } from '../app/dateEn';
@@ -39,6 +39,48 @@ type Panel =
   | { type: 'trade'; assetId: string; kind: UsTradeKind }
   | { type: 'price'; assetId: string }
   | null;
+
+/** จอคอม (≥1024px): ฟอร์มเพิ่มหุ้นเปิดเป็น dialog · ต่ำกว่านั้นคงเป็นการ์ดในหน้าเหมือนเดิม (มือถือไม่เปลี่ยน) */
+function useDesktop(): boolean {
+  const query = '(min-width: 1024px)';
+  const [match, setMatch] = useState(() => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(query).matches);
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia(query);
+    const on = () => setMatch(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return match;
+}
+
+function StockShell({ desktop, onClose, children }: { desktop: boolean; onClose: () => void; children: ReactNode }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const d = ref.current;
+    if (d && !d.open) d.showModal(); // modal: โฟกัสถูกกักในกรอบ · Esc ปิด · พื้นหลังกดไม่ได้
+  }, []);
+  if (!desktop) {
+    return (
+      <section className="solid card" aria-labelledby="us-stock-title">
+        {children}
+      </section>
+    );
+  }
+  return (
+    <dialog
+      ref={ref}
+      className="entry-dialog"
+      aria-labelledby="us-stock-title"
+      onCancel={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
+    >
+      <div className="entry-form">{children}</div>
+    </dialog>
+  );
+}
 
 const KIND_LABEL: Record<UsTradeKind, string> = { buy: 'Buy', sell: 'Sell', dividend: 'Dividend' };
 
@@ -104,6 +146,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
   const [message, setMessage] = useState<{ text: string; kind: 'ok' | 'error' } | null>(null);
   const [busy, setBusy] = useState(false);
   const [panel, setPanel] = useState<Panel>(null);
+  const desktop = useDesktop();
   const [confirmDelete, setConfirmDelete] = useState('');
   const headingRef = useRef<HTMLHeadingElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
@@ -485,7 +528,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
       )}
 
       {panel?.type === 'stock' && (
-        <section className="solid card" aria-labelledby="us-stock-title">
+        <StockShell desktop={desktop} onClose={close}>
           <h2 id="us-stock-title" ref={headingRef} tabIndex={-1}>
             Add US stock
           </h2>
@@ -514,7 +557,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
               </button>
             </div>
           </form>
-        </section>
+        </StockShell>
       )}
 
       {panel?.type === 'trade' && (
