@@ -92,6 +92,36 @@ for (const w of WIDTHS) {
       }
     });
 
+    test('Export CSV (คอมเท่านั้น): ดาวน์โหลดแท็บปัจจุบัน ตัวเลขตรงตาราง · ปุ่มไม่แสดงบนมือถือ', async ({ page }) => {
+      await openHoldings(page);
+      const btn = page.getByRole('button', { name: 'Export CSV' });
+      if (w.width < 1024) {
+        await expect(btn).toBeHidden();
+        return;
+      }
+      // เก็บข้อความของไฟล์ที่สร้าง (Blob) เพื่อตรวจเนื้อหา · ไม่มีการส่งออกนอกเครื่อง
+      await page.evaluate(() => {
+        const w = window as unknown as { __csv?: string };
+        const orig = URL.createObjectURL.bind(URL);
+        URL.createObjectURL = (b: Blob | MediaSource) => {
+          void (b as Blob).text().then((t) => (w.__csv = t));
+          return orig(b);
+        };
+      });
+      const [download] = await Promise.all([page.waitForEvent('download'), btn.click()]);
+      expect(download.suggestedFilename()).toMatch(/^holdings-holdings-USD-\d{4}-\d{2}-\d{2}\.csv$/);
+      await page.waitForFunction(() => (window as unknown as { __csv?: string }).__csv !== undefined);
+      const text = await page.evaluate(() => (window as unknown as { __csv: string }).__csv);
+      const lines = text.replace(/^\uFEFF/, '').split('\r\n');
+      expect(lines[0]).toBe('Currency,USD');
+      expect(lines[1]).toContain('Ticker,Name,');
+      expect(lines.find((l: string) => l.startsWith('DEMA,Demo Alpha Tech,30,'))).toBeTruthy();
+      expect(lines.some((l: string) => l.startsWith('Total,6 holdings,'))).toBe(true);
+      await page.getByRole('tab', { name: 'Returns' }).click();
+      const [d2] = await Promise.all([page.waitForEvent('download'), btn.click()]);
+      expect(d2.suggestedFilename()).toContain('holdings-returns-USD-');
+    });
+
     test('ค้นหา · เรียง · Show sold', async ({ page }) => {
       await openHoldings(page);
       await page.getByRole('searchbox', { name: 'Search' }).fill('beta');

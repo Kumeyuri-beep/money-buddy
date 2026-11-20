@@ -47,6 +47,7 @@
 /* ───── แบบร่าง 20 (เฉพาะคอม ≥1024px · ต่ำกว่านี้หน้าตาเดิมทุกอย่าง) ───── */
 .hd-bar { display: contents; }
 .hd-avatar, .hd-persub { display: none; }
+.hd-tools > .hd-export { display: none; } /* ปุ่ม Export เฉพาะคอม (มือถือรอปรับภายหลัง) */
 @media (min-width: 1024px) {
   /* แถวเดียวในหัวการ์ด: แท็บ | Show sold | ค้นหา | เรียง */
   .hd-bar { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 16px; }
@@ -58,6 +59,7 @@
   .hd-bar .hd-tools > .iv-field:not(.hd-search) { order: 3; min-width: 150px; }
   .hd-bar .hd-dir-text { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .hd-bar .hd-tools > button { order: 4; }
+  .hd-bar .hd-tools > .hd-export { display: inline-flex; }
 
   /* ชื่อ: อวาตาร์ตัวอักษรย่อในกรอบสี · ชื่อหุ้นบน ชื่อย่อล่าง */
   .hd-table tbody th { display: table-cell; }
