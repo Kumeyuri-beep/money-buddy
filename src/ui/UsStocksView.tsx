@@ -192,7 +192,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
 
   useEffect(() => {
     if (panel) headingRef.current?.focus();
-  }, [panel]);
+  }, [panel, desktop]);
 
   const open = (next: Panel, opener?: HTMLElement) => {
     openerRef.current = opener ?? null;
