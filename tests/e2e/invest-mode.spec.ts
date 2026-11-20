@@ -134,18 +134,18 @@ for (const w of WIDTHS) {
       await goInvest(page, 'Analytics', 'Growth');
       expect(hash()).toBe('#/invest/analytics/growth');
       await expect(page.getByRole('heading', { name: 'Analytics · Growth', level: 2 })).toBeVisible();
-      await goInvest(page, 'Portfolio', 'Cash');
-      expect(hash()).toBe('#/invest/portfolio/cash');
-      await expect(page.getByRole('heading', { name: 'Cash', level: 2 })).toBeVisible();
+      await goInvest(page, 'Portfolio', 'Categories');
+      expect(hash()).toBe('#/invest/portfolio/categories');
+      await expect(page.getByRole('heading', { name: 'Categories', level: 2 })).toBeVisible();
       await expect(page.getByText('Coming soon', { exact: true })).toBeVisible();
-      await expect(page.getByText(/Built from your own records/)).toBeVisible();
+      await expect(page.getByText(/Needs a place to store your labels/)).toBeVisible();
       await goInvest(page, 'Tools', 'Find the Dip');
       expect(hash()).toBe('#/invest/tools/find-the-dip');
       await expect(page.getByText(/Needs automatic market data/)).toBeVisible();
 
       await page.goBack();
-      expect(hash()).toBe('#/invest/portfolio/cash');
-      await expect(page.getByRole('heading', { name: 'Cash', level: 2 })).toBeVisible();
+      expect(hash()).toBe('#/invest/portfolio/categories');
+      await expect(page.getByRole('heading', { name: 'Categories', level: 2 })).toBeVisible();
       await page.goBack();
       await page.goBack();
       expect(hash()).toBe('#/invest/analytics/common');
