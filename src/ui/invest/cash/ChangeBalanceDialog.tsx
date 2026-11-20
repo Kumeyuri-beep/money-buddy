@@ -29,9 +29,9 @@ export function ChangeBalanceDialog({ accounts, initialAccountId, today, onClose
   const repo = useRepository();
   const id = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const modeRef = useRef<HTMLButtonElement>(null);
+  const amountRef = useRef<HTMLInputElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
-  const [accountId, setAccountId] = useState(accounts.some((a) => a.accountId === initialAccountId) ? initialAccountId : (accounts[0]?.accountId ?? ''));
+  const [accountId, setAccountId] = useState(initialAccountId);
   const [mode, setMode] = useState<CashChangeMode>('deposit');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(today);
@@ -45,19 +45,22 @@ export function ChangeBalanceDialog({ accounts, initialAccountId, today, onClose
     // เก็บปุ่มที่เปิดไว้ใน ref: StrictMode (dev) รัน effect ซ้ำ รอบสองจะเห็นโฟกัสอยู่ใน dialog แล้ว ไม่ใช่ปุ่มเดิม
     if (openerRef.current === null && document.activeElement instanceof HTMLElement) openerRef.current = document.activeElement;
     if (dialog && !dialog.open) dialog.showModal();
-    modeRef.current?.focus();
+    amountRef.current?.focus();
     return () => restoreFocus(openerRef.current);
   }, []);
 
-  const account = accounts.find((a) => a.accountId === accountId);
+  // บัญชีที่เก็บถาวรแล้ว: เลือกได้เฉพาะตอนถอน (ฝาก/ตั้งยอดเข้าบัญชีที่ปิดไปแล้วไม่ควรทำ)
+  const options = useMemo(() => accounts.filter((a) => !a.archived || mode === 'withdraw'), [accounts, mode]);
+  const account = options.find((a) => a.accountId === accountId) ?? options[0];
+  const futureDate = isValidIsoDate(date) && date > today;
   // ตัวอย่างผล (แสดงเฉพาะที่ domain คำนวณได้ · ไม่คำนวณเงินใน component)
   const preview = useMemo(() => {
     if (!account || amount.trim() === '') return '';
-    const r = planCashChange({ mode, text: amount, currentMinor: account.minor });
+    const r = planCashChange({ mode, text: amount, currentMinor: account.minor, currency: account.currency });
     if (!r.ok) return '';
     if (r.plan.kind === 'none') return 'No change: the balance already matches.';
     const verb = r.plan.direction === 'deposit' ? 'Deposit' : 'Withdraw';
-    const target = mode === 'set' ? parseCashMinor(amount) : null;
+    const target = mode === 'set' ? parseCashMinor(amount, account.currency) : null;
     return `${verb} ${minorText(account.currency, r.plan.amountMinor)}${target === null ? '' : ` (balance becomes ${minorText(account.currency, target)})`}`;
   }, [account, amount, mode]);
 
@@ -78,9 +81,9 @@ export function ChangeBalanceDialog({ accounts, initialAccountId, today, onClose
       setError('Enter a valid date.');
       return;
     }
-    const r = planCashChange({ mode, text: amount, currentMinor: account.minor });
+    const r = planCashChange({ mode, text: amount, currentMinor: account.minor, currency: account.currency });
     if (!r.ok) {
-      setError(investProblem(r.problem));
+      setError(r.problem.code === 'link.cashAmountInvalid' ? (mode === 'set' ? 'Enter a balance of 0 or more, up to 2 decimal places.' : 'Enter an amount greater than 0, up to 2 decimal places.') : investProblem(r.problem));
       return;
     }
     if (r.plan.kind === 'none') {
@@ -101,13 +104,13 @@ export function ChangeBalanceDialog({ accounts, initialAccountId, today, onClose
       });
       onSaved(`${r.plan.direction === 'deposit' ? 'Deposited' : 'Withdrew'} ${minorText(account.currency, r.plan.amountMinor)} · ${account.name}`);
     } catch (err) {
-      setError(investError(err, 'Could not save the change. A withdrawal cannot be larger than the current balance.'));
+      setError(investError(err, 'Could not save. A withdrawal cannot be larger than the balance, or the connection failed.'));
       setSaving(false);
     }
   };
 
   return (
-    <dialog ref={dialogRef} className="entry-dialog cs-dialog" aria-labelledby={`${id}-title`} lang="en" onClose={onClose} onCancel={onClose}>
+    <dialog ref={dialogRef} className="entry-dialog cs-dialog" aria-labelledby={`${id}-title`} lang="en" onClose={onClose} onCancel={(e) => (saving ? e.preventDefault() : onClose())}>
       <form className="entry-form" onSubmit={(e) => void submit(e)} noValidate>
         <h2 id={`${id}-title`}>Change balance</h2>
         <p className="muted small">Recorded in your ledger as money moving in or out of the portfolio. It is not income or spending.</p>
@@ -116,26 +119,25 @@ export function ChangeBalanceDialog({ accounts, initialAccountId, today, onClose
           <label htmlFor={`${id}-acct`}>Cash account</label>
           <select
             id={`${id}-acct`}
-            value={accountId}
+            value={account?.accountId ?? ''}
             onChange={(e) => {
               setAccountId(e.target.value);
               touch();
             }}
           >
-            {accounts.map((a) => (
+            {options.map((a) => (
               <option key={a.accountId} value={a.accountId}>
-                {a.name} · {a.currency} · {minorText(a.currency, a.minor)}
+                {a.name} · {a.currency} · {minorText(a.currency, a.minor)}{a.archived ? ' · Archived' : ''}
               </option>
             ))}
           </select>
         </div>
 
         <fieldset className="cs-modes">
-          <legend>Change</legend>
-          {MODES.map((m, i) => (
+          <legend>Action</legend>
+          {MODES.map((m) => (
             <button
               key={m.id}
-              ref={i === 0 ? modeRef : undefined}
               type="button"
               className="cs-mode"
               aria-pressed={mode === m.id}
@@ -144,6 +146,7 @@ export function ChangeBalanceDialog({ accounts, initialAccountId, today, onClose
                 touch();
               }}
             >
+              {mode === m.id && <span aria-hidden="true">✓ </span>}
               {m.label}
             </button>
           ))}
@@ -153,6 +156,8 @@ export function ChangeBalanceDialog({ accounts, initialAccountId, today, onClose
           <label htmlFor={`${id}-amt`}>{mode === 'set' ? `New balance (${account?.currency ?? ''})` : `Amount (${account?.currency ?? ''})`}</label>
           <input
             id={`${id}-amt`}
+            ref={amountRef}
+            aria-invalid={error !== '' ? true : undefined}
             type="text"
             inputMode="decimal"
             autoComplete="off"
@@ -182,6 +187,7 @@ export function ChangeBalanceDialog({ accounts, initialAccountId, today, onClose
           <input id={`${id}-memo`} type="text" maxLength={MAX_NAME_LENGTH} autoComplete="off" value={memo} onChange={(e) => setMemo(e.target.value)} />
         </div>
 
+        {futureDate && <p className="muted small">This date is in the future. The entry will count toward your balance from that day.</p>}
         <p className="cs-preview" role="status">
           {preview || 'Enter an amount to see what will be recorded.'}
         </p>

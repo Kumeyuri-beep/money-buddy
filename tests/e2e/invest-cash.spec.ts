@@ -51,7 +51,7 @@ for (const w of WIDTHS) {
       await page.keyboard.press('Enter');
       const dialog = page.getByRole('dialog', { name: 'Change balance' });
       await expect(dialog).toBeVisible();
-      await expect(dialog.getByRole('button', { name: 'Deposit', exact: true })).toBeFocused();
+      await expect(dialog.getByLabel('Amount (USD)').or(dialog.getByLabel('Amount (THB)'))).toBeFocused();
       const box = await dialog.boundingBox();
       expect(box!.x).toBeGreaterThanOrEqual(0);
       expect(box!.x + box!.width).toBeLessThanOrEqual(w.width + 1);
@@ -97,7 +97,28 @@ for (const w of WIDTHS) {
       await expect(dialog.getByRole('alert')).toContainText('cannot be larger');
       await dialog.getByLabel('Amount (USD)').fill('0');
       await dialog.getByRole('button', { name: 'Save' }).click();
-      await expect(dialog.getByRole('alert')).toContainText('whole number of minor units');
+      await expect(dialog.getByRole('alert')).toContainText('Enter an amount greater than 0');
+    });
+
+    test('dialog: Tab วนอยู่ใน dialog · ปุ่ม/ช่องกรอกสูง >= 44px · ตั้งยอดติดลบถูกปฏิเสธ · วันที่อนาคตมีข้อความบอก', async ({ page }) => {
+      await openCash(page);
+      await expect(page.getByRole('button', { name: 'Change USD balance' })).toBeVisible({ timeout: 20_000 });
+      expect((await page.getByRole('button', { name: 'Change USD balance' }).boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      await page.getByRole('button', { name: 'Change USD balance' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Change balance' });
+      for (const loc of [dialog.locator('.cs-mode').first(), dialog.getByLabel('Amount (USD)'), dialog.getByLabel('Date'), dialog.getByLabel('Cash account')]) {
+        expect((await loc.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      }
+      for (let i = 0; i < 14; i += 1) await page.keyboard.press('Tab');
+      expect(await page.evaluate(() => !!document.activeElement?.closest('dialog'))).toBe(true);
+      await dialog.getByRole('button', { name: 'Set balance to' }).click();
+      await expect(dialog.getByRole('button', { name: 'Set balance to' })).toHaveAttribute('aria-pressed', 'true');
+      await dialog.getByLabel('New balance (USD)').fill('$-5');
+      await dialog.getByRole('button', { name: 'Save' }).click();
+      await expect(dialog.getByRole('alert')).toContainText('0 or more');
+      await expect(dialog.getByLabel('New balance (USD)')).toHaveAttribute('aria-invalid', 'true');
+      await dialog.getByLabel('Date').fill('2099-01-01');
+      await expect(dialog.getByText('This date is in the future')).toBeVisible();
     });
 
     test('สลับ ฿ THB / $ USD แล้วเลขเปลี่ยน', async ({ page }) => {
@@ -118,13 +139,16 @@ for (const w of WIDTHS) {
       await expect(warn).toHaveCount(1, { timeout: 20_000 });
       await expect(warn).toContainText('Warning');
       await expect(warn).toContainText('below zero');
-      await expect(warn).toContainText('$');
+      await expect(warn).toContainText('−$');
     });
 
     test('ไม่มีบัญชีเงินสด: หน้าว่างบอกทางไป Holdings ไม่มีปุ่ม Change balance', async ({ page }) => {
       await openCash(page, '1');
       await expect(page.getByRole('heading', { name: 'No cash accounts yet' })).toBeVisible({ timeout: 20_000 });
       await expect(page.getByText('Holdings page')).toBeVisible();
+      await page.getByRole('link', { name: 'Go to Holdings' }).click();
+      await expect(page.getByRole('heading', { name: 'Holdings', level: 2 })).toBeVisible();
+      expect(new URL(page.url()).hash).toBe('#/invest/portfolio/holdings');
       await expect(page.getByRole('button', { name: 'Change balance', exact: true })).toHaveCount(0);
     });
   });

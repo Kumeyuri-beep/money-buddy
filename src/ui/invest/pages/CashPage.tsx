@@ -1,5 +1,6 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, type MouseEvent } from 'react';
 import { formatDateEn } from '../../../app/dateEn';
+import { investUrl } from '../../../app/investRoute';
 import { fxRateText } from '../../../app/usdFormat';
 import { buildCashView, cashAccountBalances, recentCashMovements } from '../../../domain/invest/cashView';
 import { investError } from '../investError';
@@ -25,7 +26,7 @@ export function CashPage(_props: { onHome: () => void }) {
       const inv = data ?? undefined;
       return {
         view: buildCashView(accounts, entries, inv, currency, today),
-        cash: cashAccountBalances(accounts, entries, inv),
+        cash: cashAccountBalances(accounts, entries, inv, today),
         movements: recentCashMovements(accounts, entries, inv, 20),
         failure: '',
       };
@@ -34,6 +35,13 @@ export function CashPage(_props: { onHome: () => void }) {
     }
   }, [accounts, entries, data, currency, today]);
   const { view, cash, movements } = built;
+
+  // ลิงก์ไปหน้า Holdings: ใช้ pushState + popstate ให้ InvestMode อ่านหน้าจาก URL (ไม่แตะไฟล์กลาง)
+  const goHoldings = (e: MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    window.history.pushState({ view: 'portfolio', invest: 'portfolio/holdings' }, '', investUrl('portfolio/holdings', window.location));
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
 
   const saved = async (text: string) => {
     setDialog(null);
@@ -53,7 +61,7 @@ export function CashPage(_props: { onHome: () => void }) {
         <h2 id="cs-title" ref={titleRef} tabIndex={-1}>
           Cash
         </h2>
-        <p className="muted cs-rate" role="status">
+        <p className="cs-flash cs-rate" role="status">
           {view?.rate
             ? `Latest rate ${fxRateText(view.rate.rateMicro)} · ${formatDateEn(view.rate.date)}`
             : view !== null && view.rows.length > 1
@@ -64,30 +72,33 @@ export function CashPage(_props: { onHome: () => void }) {
 
       <section className="glass-lite card cs-note" aria-label="How cash works">
         <p>
-          <strong>How cash works.</strong> Money you move from your spending accounts into the portfolio is a <strong>transfer</strong>, not an expense. Buying shares takes cash out; selling and dividends put it back. Changing a
-          balance here records money moving in or out of the portfolio; it is not income or spending. Cash is part of your wealth but is not counted in your &quot;safe to spend&quot; amount.
+          <strong>How cash works</strong>
         </p>
-        <p className="muted">Return figures on other pages are calculated without cash.</p>
+        <ul className="cs-list">
+          <li>Money you move from your spending accounts into the portfolio is a <strong>transfer</strong>, not an expense. Buying shares takes cash out; selling and dividends put it back.</li>
+          <li>Changing a balance here records money moving in or out of the portfolio. It is not income or spending.</li>
+          <li>Cash is part of your wealth but is not counted in your &quot;safe to spend&quot; amount. Return figures on other pages are calculated without cash.</li>
+        </ul>
       </section>
 
-      <div role="status">{message?.kind === 'ok' && <p className="cs-msg">{message.text}</p>}</div>
-      <div role="alert">{message?.kind === 'error' && <p className="form-error">{message.text}</p>}</div>
+      <div role="status">{message?.kind === 'ok' && <p className="cs-flash cs-msg">{message.text}</p>}</div>
+      <div role="alert">{message?.kind === 'error' && <p className="cs-flash form-error">{message.text}</p>}</div>
 
       {loadError !== '' ? (
         <div role="alert">
-          <p className="form-error">Could not load your records: {loadError}</p>
+          <p className="cs-flash form-error">Could not load your records: {loadError}</p>
           <button type="button" className="iv-btn" onClick={() => void reload()}>
             Retry
           </button>
         </div>
       ) : built.failure !== '' ? (
-        <p className="form-error" role="alert">
+        <p className="cs-flash form-error" role="alert">
           {built.failure}
         </p>
       ) : view === null ? null : (
         <>
           {view.warnings.map((w) => (
-            <p key={w.accountId} className="cs-warn" role="status">
+            <p key={w.accountId} className="cs-flash cs-warn" role="status">
               <strong>Warning:</strong> {w.name} ({w.currency}) is below zero at {minorText(w.currency, w.minor)}. Check your records: a purchase or withdrawal may be missing a deposit.
             </p>
           ))}
@@ -96,6 +107,9 @@ export function CashPage(_props: { onHome: () => void }) {
             <section className="solid card cs-empty" aria-labelledby="cs-empty-title">
               <h3 id="cs-empty-title">No cash accounts yet</h3>
               <p className="muted">Create a USD cash account on the Holdings page (under Portfolio) to keep your broker cash here. Baht cash appears once a baht account is set as a portfolio account.</p>
+              <a className="iv-btn iv-btn-gold" href={investUrl('portfolio/holdings', window.location)} onClick={goHoldings}>
+                Go to Holdings
+              </a>
             </section>
           ) : (
             <>
@@ -154,7 +168,7 @@ export function CashPage(_props: { onHome: () => void }) {
                         <th scope="row">Total cash</th>
                         <td className="num">{view.totalDisplayMinor === null ? 'Needs rate' : minorText(currency, view.totalDisplayMinor)}</td>
                         <td />
-                        <td className="num">{view.totalDisplayMinor === null || view.totalDisplayMinor <= 0 ? '—' : '100%'}</td>
+                        <td className="num">{view.rows.some((r) => r.shareBps === null) ? '—' : '100%'}</td>
                         <td />
                       </tr>
                     </tfoot>

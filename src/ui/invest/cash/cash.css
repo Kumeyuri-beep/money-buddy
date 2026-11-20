@@ -5,13 +5,16 @@
 .cs-head h2 { margin: 0; font-size: 28px; font-weight: 700; }
 .cs-head h2:focus { outline: none; }
 .cs-rate { margin: 0; font-size: 14px; }
+.cs-flash { margin: 0; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--ov-12); background: var(--surface-solid); color: var(--text); font-size: 15px; }
+.cs-rate:empty { display: none; }
+.cs-list { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
 .cs-note { display: grid; gap: 6px; padding: 14px 16px; font-size: 15px; line-height: 1.5; }
 .cs-note p { margin: 0; }
 .cs-card { display: grid; gap: 14px; }
 .cs-card > * { min-width: 0; }
 .cs-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
 .cs-card-head h3 { margin: 0; font-size: 20px; }
-.cs-warn { margin: 0; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--expense); color: var(--text); font-size: 15px; }
+.cs-warn { border-color: var(--expense); }
 .cs-warn strong { color: var(--expense); }
 .cs-table th.num, .cs-table td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cs-table td.cs-sub { display: block; }
@@ -21,7 +24,7 @@
 .cs-empty { display: grid; gap: 8px; justify-items: start; }
 .cs-empty h3 { margin: 0; font-size: 20px; }
 .cs-empty p { margin: 0; }
-.cs-msg { margin: 0; font-size: 15px; }
+
 .cs-row-btn { min-height: 44px; }
 
 /* dialog Change balance */
