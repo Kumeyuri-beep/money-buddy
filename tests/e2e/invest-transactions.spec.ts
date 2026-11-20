@@ -88,14 +88,14 @@ for (const w of WIDTHS) {
       await expect(page.locator('.tx-table .tx-kind', { hasText: /^Dividend$/ })).toHaveCount(0);
     });
 
-    test('เมนู Add: ครบ 6 รายการ ไม่มี Fee or tax · คีย์บอร์ด (Esc ปิดแล้วโฟกัสกลับ) · Buy เปิดตัวเลือกหุ้น', async ({ page }) => {
+    test('เมนู Add: ครบ 7 รายการ (รวม Thai fund / Thai stock) ไม่มี Fee or tax · คีย์บอร์ด (Esc ปิดแล้วโฟกัสกลับ) · Buy เปิดตัวเลือกหุ้น', async ({ page }) => {
       await openTx(page);
       const add = page.getByRole('button', { name: 'Add', exact: true }).last();
       await add.click();
       const menu = page.getByRole('menu', { name: 'Add a transaction' });
       const items = menu.getByRole('menuitem');
-      await expect(items).toHaveCount(6);
-      for (const n of ['Buy', 'Sell', 'Dividend', 'Cash deposit / withdrawal', 'Transfer to / from portfolio', 'Currency exchange']) await expect(menu.getByRole('menuitem', { name: n, exact: true })).toBeVisible();
+      await expect(items).toHaveCount(7);
+      for (const n of ['Buy', 'Sell', 'Dividend', 'Cash deposit / withdrawal', 'Transfer to / from portfolio', 'Currency exchange', 'Thai fund / Thai stock']) await expect(menu.getByRole('menuitem', { name: n, exact: true })).toBeVisible();
       await expect(menu.getByText(/fee or tax/i)).toHaveCount(0);
       await expect(items.first()).toBeFocused();
       await page.keyboard.press('ArrowDown');
@@ -139,6 +139,19 @@ for (const w of WIDTHS) {
       await expect(rows).toHaveCount(before - 1);
       await expect(page.getByText(/Deleted sell on/)).toBeVisible();
       await expect(page.getByRole('heading', { name: 'Transactions', level: 2 })).toBeFocused();
+    });
+
+    test('Add → Thai fund / Thai stock เปิดฟอร์มเดิม (Add fund/stock) · Close โฟกัสกลับปุ่ม Add', async ({ page }) => {
+      await openTx(page);
+      const add = page.getByRole('button', { name: 'Add', exact: true }).last();
+      await add.click();
+      await page.getByRole('menuitem', { name: 'Thai fund / Thai stock' }).click();
+      const group = page.getByRole('group', { name: 'Thai fund or Thai stock' });
+      await expect(group).toBeFocused();
+      await expect(group.getByRole('heading', { name: 'Add fund/stock' })).toBeVisible();
+      await group.getByRole('button', { name: 'Close', exact: true }).click();
+      await expect(group).toBeHidden();
+      await expect(add).toBeFocused();
     });
 
     test('แผง Transfer เปิดอยู่: พิมพ์ในช่อง Search โฟกัสไม่เด้งกลับ · Esc ปิดแล้วโฟกัสกลับปุ่ม Add', async ({ page }) => {

@@ -10,6 +10,7 @@ import { assetCurrency } from '../../../domain/invest/types';
 import { formatUnits } from '../../../domain/invest/units';
 import { usdCashBalances } from '../../../domain/invest/usdIntegrity';
 import { PortfolioTransfer } from '../../PortfolioTransfer';
+import { PortfolioView } from '../../PortfolioView';
 import { useRepository } from '../../RepositoryContext';
 import { UsStocksView, type UsStocksRequest } from '../../UsStocksView';
 import { InfoTip } from '../Tip';
@@ -23,7 +24,7 @@ import { StockPicker } from '../transactions/StockPicker';
 import '../transactions/transactions.css';
 
 type WithoutNonce<T> = T extends unknown ? Omit<T, 'nonce'> : never;
-type Panel = { type: 'pick'; kind: UsTradeKind } | { type: 'cash' } | { type: 'transfer' } | { type: 'needCash' } | null;
+type Panel = { type: 'pick'; kind: UsTradeKind } | { type: 'cash' } | { type: 'transfer' } | { type: 'thai' } | { type: 'needCash' } | null;
 
 const EDIT_NOTE = 'Editing is not available yet. Delete and add it again.';
 
@@ -42,6 +43,7 @@ export function TransactionsPage() {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const needRef = useRef<HTMLHeadingElement>(null);
   const transferRef = useRef<HTMLDivElement>(null);
+  const thaiRef = useRef<HTMLDivElement>(null);
 
   // สั่งเปิดฟอร์มเดิมของ UsStocksView (ซื้อ/ขาย/ปันผล/แลกเงิน/เพิ่มหุ้น/สร้างบัญชี USD) · nonce เพิ่มทุกครั้ง
   const counter = useRef(0);
@@ -69,6 +71,7 @@ export function TransactionsPage() {
   useEffect(() => {
     if (panelType === 'needCash') needRef.current?.focus();
     else if (panelType === 'transfer') transferRef.current?.focus();
+    else if (panelType === 'thai') thaiRef.current?.focus();
   }, [panelType]); // ย้ายโฟกัสครั้งเดียวตอนแผงเปิด (ไม่ดึงกลับทุก render)
 
   const closePanel = () => {
@@ -83,6 +86,7 @@ export function TransactionsPage() {
     if (a === 'buy' || a === 'sell' || a === 'dividend') setPanel({ type: 'pick', kind: a });
     else if (a === 'cash') setPanel({ type: 'cash' });
     else if (a === 'transfer') setPanel({ type: 'transfer' });
+    else if (a === 'thai') setPanel({ type: 'thai' });
     else if (usdCash.length === 0) setPanel({ type: 'needCash' });
     else {
       setPanel(null);
@@ -491,6 +495,34 @@ export function TransactionsPage() {
                 <p className="muted">You need a baht cash account tagged as investment money (for example, cash held with a broker). Tag one in Accounts first.</p>
               </section>
             )}
+            <div className="dialog-actions">
+              <button type="button" className="iv-btn" onClick={closePanel}>
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+
+        {panel?.type === 'thai' && (
+          <div
+            className="tx-transfer"
+            role="group"
+            aria-label="Thai fund or Thai stock"
+            tabIndex={-1}
+            ref={thaiRef}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape' && !e.defaultPrevented && !(e.target instanceof HTMLSelectElement)) closePanel();
+            }}
+          >
+            <PortfolioView
+              today={today}
+              wallets={wallets}
+              onLedgerChanged={() => {
+                void reload();
+                onLedgerChanged();
+                setFormsKey((k) => k + 1);
+              }}
+            />
             <div className="dialog-actions">
               <button type="button" className="iv-btn" onClick={closePanel}>
                 Close
