@@ -109,11 +109,13 @@ for (const w of WIDTHS) {
       await more.click();
       await page.getByRole('menuitem', { name: 'Delete' }).click();
       await page.getByRole('button', { name: 'Delete 1 record' }).click();
-      // ลบรายการหมดแล้ว สินทรัพย์ยังอยู่ (ถือ 0 หน่วย ไม่มีรายการ) · ตัวเลขของแถวเปลี่ยนเป็น 0
-      await expect(page.getByRole('row', { name: /Demo Beta Health/ }).getByRole('cell').first()).toHaveText('0');
-      await expect(page.getByRole('row', { name: /Demo Beta Health/ })).toContainText('$0.00');
       await expect(page.getByText('Deleted DEMB: 1 record')).toBeVisible();
       await expect(page.getByRole('heading', { name: 'Holdings', level: 2, exact: true })).toBeFocused();
+      // ลบรายการหมดแล้ว หุ้นถือ 0 หน่วย: ซ่อนเป็นค่าเริ่มต้น (เจ้าของสั่ง 20 พ.ย. 2569) แสดงเมื่อติ๊ก Show sold ตัวเลขเป็น 0
+      await expect(page.getByRole('row', { name: /Demo Beta Health/ })).toHaveCount(0);
+      await page.getByRole('checkbox', { name: /Show sold/ }).check();
+      await expect(page.getByRole('row', { name: /Demo Beta Health/ }).getByRole('cell').first()).toHaveText('0');
+      await expect(page.getByRole('row', { name: /Demo Beta Health/ })).toContainText('$0.00');
     });
 
     test('เมนู ⋯: 4 รายการ · Open holding ขยายรายละเอียด · Delete มี confirm และ Keep ไม่ลบ · Esc ปิดแล้วโฟกัสกลับปุ่ม', async ({ page }) => {
