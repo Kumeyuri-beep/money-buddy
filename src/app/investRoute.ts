@@ -59,7 +59,7 @@ export const INVEST_PAGES: readonly InvestPage[] = [
   live('portfolio/transactions', 'Transactions'),
   soon('portfolio/dividend-calendar', 'Dividend calendar', 'Upcoming dividend dates for the stocks you hold.', 'Needs automatic market data (dividend schedules).', 'market'),
   live('portfolio/goal', 'My goal'),
-  soon('portfolio/cash', 'Cash', 'Cash balances in THB and USD, and money moved in and out of the portfolio.', 'Built from your own records — not built yet.', 'own'),
+  live('portfolio/cash', 'Cash'),
   soon('portfolio/categories', 'Categories', 'Group holdings with your own labels, such as "Retirement" or "Income".', 'Needs a place to store your labels — not built yet.', 'own'),
   soon('portfolio/corporate-actions', 'Corporate actions', 'Stock splits and similar events applied to your holdings.', 'Entering them by hand is not built yet; automatic detection needs market data.', 'own'),
   soon('tools/rebalancing', 'Portfolio rebalancing', 'Compare your mix with a target mix and see what to buy or sell.', 'Needs current prices to suggest amounts.', 'market'),
