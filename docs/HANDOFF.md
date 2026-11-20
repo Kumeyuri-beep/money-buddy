@@ -1435,3 +1435,19 @@ money-auditor ตรวจ 5 ตัวที่เกี่ยวกับเง
 **money-auditor ตรวจ #244:** ผ่าน ไม่มีระดับสูง/กลาง · เพิ่มเทสต์ขอบแล้ว (ซื้อ 3 ขายบางส่วน 2 ปันผล 2 เรต = −626 ตรงมือ · รายงานรายเดือน fees+taxes = แหล่ง (6)) · ข้อสังเกตต่ำที่ไม่ได้แก้: ตาราง Transactions มุมมอง THB นับสินทรัพย์บาทด้วย ส่วนแหล่ง (6) เป็นเฉพาะพอร์ต USD (เทียบกันได้เมื่อกรองเฉพาะ USD) · `reinvest` ไม่มีในพอร์ต USD
 **รอเจ้าของ:** ตอบคำถาม 2 ข้อท้าย `docs/proposals/edit-recorded-transactions.md` (แก้ไขรายการที่บันทึกแล้ว รอบที่ 2)
 **ต้องลองบนคอม:** Transactions มุมมอง THB (Fee & tax รวม) เทียบ Analytics → Report แถว Fees & tax (เฉพาะพอร์ตที่มีแต่หุ้น USD) · Holdings ลบรายการหุ้นจนหมดแล้วหุ้นยังแสดง · ขายหุ้นหมดแล้วหายจนติ๊ก Show sold
+
+## 100. ปิดรอบที่ 1 — งานเล็กที่เหลือ (20 พ.ย. 2569)
+**merge แล้ว:** #247 `csvText` กัน CSV injection กรณีมีช่องว่าง/tab/ขึ้นบรรทัดนำหน้าก่อน = + - @ (Report + Holdings) · #248 แยก `latestFxRate` ไป `src/domain/invest/fxRate.ts` (ไม่เปลี่ยนพฤติกรรม) + เทสต์ `investReturnsImports` ไล่สายนำเข้าของ metrics/twr/reportSeries/reportRows ห้ามเจอโมดูลสมุดบัญชี/เงินสด (ลองใส่ import เดิมกลับแล้วล้มจริง) · #249 เมนูย่อยแถบบน /invest ไม่ปิด/สลับเองเมื่อหน้าเลื่อนใต้เมาส์ที่นิ่ง · #250 หน้า Cash: Share of portfolio + ค้นหา + Show zero balances (เฉพาะคอม · ไม่ทำ Upload report) — **ดูสถานะ merge ของ #250 ใน git log**
+
+**เทสต์เมนูย่อย 390px — หาสาเหตุเจอแล้ว (ปิดข้อ "ไม่นิ่งที่ยังพิสูจน์ไม่ได้" ของ §94/§97 ข้อ `helpers/investNav.ts` และ `invest-mode` 390 intercept):**
+- อาการ: `goInvest` คลิกลิงก์เมนูย่อยหมดเวลา log "element is not stable … element was detached from the DOM, retrying" ที่ 390px (และ `us-stocks.spec.ts:47` ที่ 360px ใน #247 shard 5/5 · ไฟล์ที่ล้มก่อนหน้า: `invest-analysis.spec.ts:37` (#224), `invest-mode.spec.ts:203` (#225), `invest-mode.spec.ts:125/35` (ตอนซ้ำเครื่องเรา)) · ทำซ้ำในเครื่องได้ ~3-8% เมื่อรันขนาน 8 workers
+- สาเหตุ (จาก log เหตุการณ์ pointer, ไม่ใช่การเดา): เมนูย่อยยาวเกินขอบจอ ต้องเลื่อนหน้าเพื่อเห็นลิงก์ → เมาส์ที่นิ่งอยู่ไปชี้นอกเมนู (หรือชี้เมนูอื่น) → เบราว์เซอร์ส่ง `pointerleave`/`pointerenter` แบบสังเคราะห์ → โค้ดเดิมปิดเมนู/สลับเมนู → ลิงก์หายก่อนคลิก · **เป็นบั๊กจริงของผู้ใช้เมาส์บนหน้าต่างแคบ/เตี้ย** (การแตะบนมือถือไม่โดน เพราะไม่มี pointer แบบเมาส์)
+- แก้ที่โค้ดแอป (`InvestTopBar.tsx` จำตำแหน่งเมาส์ล่าสุดในแถบ ถ้า leave/enter ตำแหน่งเดิม = ไม่ปิด/ไม่สลับ) ไม่ใช้ retry/รอเพิ่ม · ผลหลังแก้: รัน `invest-mode`/`invest-analysis`/`invest-nav-scroll` ทุกความกว้าง 272 ครั้ง ผ่านหมด (ก่อนแก้ล้ม 3-8%) · เทสต์ถาวร `tests/e2e/invest-nav-scroll.spec.ts` (1280x420 ล้มก่อนแก้)
+- ความพยายามแก้ที่ไม่ได้ผล (ไม่นำมาใช้): ย้ายเมาส์ไป (1,1) ก่อนเริ่มใน helper (เมนูถูกชี้เปิดตั้งแต่ก่อนเรียก helper)
+- **ล้มแล้วผ่านซ้ำใน CI (บันทึกตามกติกา):** #247 `e2e-shard (5/5)` ล้มที่ `tests/e2e/us-stocks.spec.ts:47` "360px › เมนู Portfolio: Holdings = หุ้นสหรัฐ…" (`goInvest` ลิงก์ Transactions "element is not stable") รันซ้ำผ่าน · log ตรงกับสาเหตุข้างบน (PR นั้นไม่แตะเมนู) · ถ้ายังเจออาการนี้หลัง #249 ให้ตรวจ `InvestTopBar.tsx` ก่อน ไม่ใช่เพิ่ม retry
+
+**เรื่องเก่าที่ปิด:** อีเมลส่วนตัวใน commit เก่า (556 commit) — เจ้าของยอมรับแล้วตอนเปิด repo เป็น public (20 พ.ย. 2569) ไม่ต้องทำอะไร · leaked password protection ใน Supabase — เจ้าของจะเปิดเองใน Supabase Dashboard (ไม่ใช่งานผู้ช่วย)
+
+**รอเจ้าของ:** ถ้าต้องการให้นิยาม "Share of portfolio" (หน้า Cash) เขียนลง `docs/money-rules.md` (ตอนนี้อยู่ในโค้ด/คอมเมนต์ · money-auditor ยืนยันไม่ขัด R25.4/R23) · เรื่องค้างอื่นของรอบ 2: แก้ไขรายการที่บันทึกแล้ว (ข้อตัดสินแล้วใน `docs/proposals/edit-recorded-transactions.md`) · API ลบสินทรัพย์ · ช่องติ๊กแถว/เลือกคอลัมน์/Daily · backlog มือถือ
+
+**ต้องลองบนคอม:** Portfolio → Cash (Show zero balances · ค้นหา · คอลัมน์ Share of portfolio · สลับ USD/THB) · เปิดเมนู Portfolio ในหน้าต่างเตี้ยแล้วเลื่อนหน้าเมนูไม่ปิดเอง ขยับเมาส์ออกเมนูปิด
