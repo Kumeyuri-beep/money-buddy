@@ -50,3 +50,34 @@ export function demoInvestmentsNoRate(): InvestmentData {
   const d = demoInvestments();
   return { ...d, trades: d.trades.map((t) => { if (t.id !== 'div-d1') return t; const { fxRateMicro: _drop, ...rest } = t; return rest as TradeRecord; }) };
 }
+
+/**
+ * ข้อมูลสมมติสำหรับหน้า Transactions (?investDemo=tx · ชุดของหน้านี้เอง): ซื้อ 6 ตัว + ขายล่าสุดของ DEMB + ปันผล DEMA (มีเรต) + ปันผล DEMC ไม่มีเรต
+ * + แลกเงิน 1 รายการ · ลดข้อมูลให้เป็นของสมมติทั้งหมด ห้ามใช้ข้อมูลจริง
+ */
+export function demoTransactionsData(): InvestmentData {
+  const d = demoInvestments();
+  const sell = { id: 'sell-d2', assetId: 'd2', kind: 'sell', date: '2026-06-10', createdAt: '2026-06-10T03:00:00.000Z', units: String(5 * 100_000_000), priceMicro: 70_000_000, fee: 100, withholding: 0, memo: 'trim', fxRateMicro: 33_600_000 } as TradeRecord;
+  const noRate = { id: 'div-d3', assetId: 'd3', kind: 'dividend', date: '2026-09-01', createdAt: '2026-09-01T03:00:00.000Z', amount: 1_000, fee: 0, withholding: 150, memo: '' } as TradeRecord;
+  return {
+    ...d,
+    trades: [...d.trades, sell, noRate],
+    fxExchanges: [{ id: 'fx-1', date: '2026-01-10', createdAt: '2026-01-10T02:00:00.000Z', direction: 'thb_to_usd', thbSatang: 3_400_000, usdCents: 100_000, rateMicro: 34_000_000, memo: '', entryId: 'demo-fx-entry' }],
+  } as InvestmentData;
+}
+
+/** บัญชีและรายการสมุดสมมติของ ?investDemo=tx: โอนเข้าพอร์ตบาท + เงินเข้า/ออก USD (ถอนมากกว่าฝาก = เงินสด USD ติดลบ เพื่อทดสอบคำเตือน) */
+export function demoTransactionsLedger() {
+  const accounts = [
+    { id: 'demo-brk', type: 'asset', name: 'Broker baht (demo)', currency: 'THB', kind: 'investment' },
+    { id: 'demo-usd-cash', type: 'asset', name: 'USD cash (demo)', currency: 'USD', kind: 'investment' },
+    { id: 'inv-cash-adjust-usd', type: 'equity', name: 'Cash adjustment USD', currency: 'USD' },
+    { id: 'inv-cash-adjust-thb', type: 'equity', name: 'Cash adjustment THB', currency: 'THB' },
+  ];
+  const entries = [
+    { id: 'demo-tin', date: '2026-02-01', memo: 'Transfer to portfolio', source: 'manual', createdAt: '2026-02-01T01:00:00.000Z', lines: [{ accountId: 'demo-brk', amount: 5_000_000 }, { accountId: 'WALLET', amount: -5_000_000 }] },
+    { id: 'demo-dep', date: '2026-03-01', memo: 'เงินเข้าพอร์ต (ปรับยอดเงินสด)', source: 'manual', createdAt: '2026-03-01T01:00:00.000Z', lines: [{ accountId: 'demo-usd-cash', amount: 5_000 }, { accountId: 'inv-cash-adjust-usd', amount: -5_000 }] },
+    { id: 'demo-wd', date: '2026-04-01', memo: 'เงินออกจากพอร์ต (ปรับยอดเงินสด)', source: 'manual', createdAt: '2026-04-01T01:00:00.000Z', lines: [{ accountId: 'demo-usd-cash', amount: -8_000 }, { accountId: 'inv-cash-adjust-usd', amount: 8_000 }] },
+  ];
+  return { accounts, entries };
+}
