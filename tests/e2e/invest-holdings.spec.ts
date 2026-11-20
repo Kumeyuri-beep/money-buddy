@@ -177,9 +177,7 @@ for (const w of WIDTHS) {
       await page.getByRole('button', { name: 'Delete 1 record' }).click();
       await expect(page.getByText('Deleted DEMB: 1 record')).toBeVisible();
       await expect(page.getByRole('heading', { name: 'Holdings', level: 2, exact: true })).toBeFocused();
-      // ลบรายการหมดแล้ว หุ้นถือ 0 หน่วย: ซ่อนเป็นค่าเริ่มต้น (เจ้าของสั่ง 20 พ.ย. 2569) แสดงเมื่อติ๊ก Show sold ตัวเลขเป็น 0
-      await expect(page.getByRole('row', { name: /Demo Beta Health/ })).toHaveCount(0);
-      await page.getByRole('checkbox', { name: /Show sold/ }).check();
+      // ลบรายการหมดแล้ว สินทรัพย์ยังอยู่ (ไม่เคยขาย จึงไม่ซ่อน) · ตัวเลขของแถวเป็น 0
       await expect(page.getByRole('row', { name: /Demo Beta Health/ }).getByRole('cell').first()).toHaveText('0');
       await expect(page.getByRole('row', { name: /Demo Beta Health/ })).toContainText('$0.00');
     });

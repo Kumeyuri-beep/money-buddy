@@ -84,7 +84,7 @@ export interface HoldingRow {
   units: bigint;
   /** มีรายการซื้อขายหรือปันผลแล้วอย่างน้อยหนึ่งรายการ */
   hasTrades: boolean;
-  /** ถือ 0 หน่วย (ขายหมดแล้ว หรือลบรายการจนไม่เหลือ หรือเพิ่งเพิ่มหุ้นที่ยังไม่ซื้อ) = ซ่อนเป็นค่าเริ่มต้น แสดงเมื่อติ๊ก Show sold · แถวที่คำนวณไม่ได้ (error) ไม่ซ่อน (เจ้าของสั่ง 20 พ.ย. 2569) */
+  /** ถือ 0 หน่วยและเคยมีรายการขาย (ขายหมดแล้ว) = ซ่อนเป็นค่าเริ่มต้น แสดงเมื่อติ๊ก Show sold · หุ้นที่เพิ่งเพิ่มยังไม่มีรายการขาย (หรือลบรายการจนไม่เหลือ) แสดงปกติ · แถวที่คำนวณไม่ได้ (error) ไม่ซ่อน (เจ้าของสั่ง 20 พ.ย. 2569) */
   sold: boolean;
   priceMicro: number | null;
   /** ราคาต่อหุ้นในสกุลที่แสดง (หน่วยย่อย) · null = ไม่มีราคา/เรต */
@@ -196,7 +196,8 @@ function baseOf(asset: Asset, data: InvestmentData, today: string): Base {
 function buildRow(us: Base, data: InvestmentData, today: string, currency: DisplayCurrency, rateMicro: number | null): HoldingRow {
   const hasTrades = data.trades.some((t) => t.assetId === us.asset.id && t.date <= today);
   const held = us.units > 0n;
-  const sold = !held && !us.error;
+  const hadSell = data.trades.some((t) => t.assetId === us.asset.id && t.kind === 'sell' && t.date <= today);
+  const sold = !held && !us.error && hadSell;
   const base = { assetId: us.asset.id, name: us.asset.name, ticker: us.asset.ticker ?? '', units: us.units, hasTrades, sold };
   const cost = currency === 'USD' ? us.costUsd : us.costThb;
   const dividends = currency === 'USD' ? us.dividendNetUsd : us.dividendNetThb;
