@@ -115,6 +115,54 @@ export function buildCashView(
   return { rows, totalDisplayMinor, rate, warnings, noAccounts: all.length === 0, allZero: all.length > 0 && all.every((a) => a.minor === 0) };
 }
 
+export const CASH_CURRENCY_NAME: Record<InstrumentCurrency, string> = { USD: 'US Dollar', THB: 'Thai Baht' };
+
+/**
+ * ค้นหา + Show zero balances ของตารางเงินสด (แบบร่าง 24): ซ่อนสกุลที่ยอดเป็น 0 เว้นแต่ติ๊ก showZero · ค้นจากรหัสสกุล ชื่อสกุล และชื่อบัญชี (ไม่สนตัวพิมพ์ใหญ่เล็ก)
+ * เป็นการกรองแสดงผลอย่างเดียว ไม่เปลี่ยนยอดรวม/สัดส่วนของ view
+ */
+export function filterCashRows(rows: readonly CashCurrencyRow[], q: { query: string; showZero: boolean }): CashCurrencyRow[] {
+  const needle = q.query.trim().toLowerCase();
+  return rows.filter((r) => {
+    if (!q.showZero && r.minor === 0) return false;
+    if (needle === '') return true;
+    return r.currency.toLowerCase().includes(needle) || CASH_CURRENCY_NAME[r.currency].toLowerCase().includes(needle) || r.accounts.some((a) => a.name.toLowerCase().includes(needle));
+  });
+}
+
+export interface CashPortfolioShares {
+  /** สัดส่วนของพอร์ตต่อสกุล (bps · 10000 = 100%) · null = คำนวณไม่ได้ */
+  rows: Map<InstrumentCurrency, number | null>;
+  /** เงินสดทั้งหมดต่อพอร์ต (bps) · ปัดครั้งเดียวจากยอดรวม ไม่ใช่ผลบวกของแถว (อาจต่างแถวรวมกันไม่เกิน 1 bps ต่อแถว) */
+  total: number | null;
+}
+
+/**
+ * Share of portfolio (แบบร่าง 24): สัดส่วนเงินสด (สกุลที่แสดง) ต่อพอร์ต = หุ้นที่ถืออยู่ (มูลค่าตลาด) + เงินสดทั้งหมด · ปัดครึ่งออกจากศูนย์ครั้งเดียวต่อค่า (R8) ด้วย BigInt
+ * stocksDisplayMinor = มูลค่าตลาดของหุ้นในสกุลที่แสดง (จาก Holdings totals) · null = ราคา/เรตไม่ครบ → ไม่คำนวณ ห้ามเดา (R20.7)
+ * ไม่คำนวณ (null) เมื่อ: มูลค่าหุ้นไม่ครบหรือติดลบ · เงินสดรวมไม่ครบ (ไม่มีเรต) · มีสกุลเงินสดติดลบ · พอร์ตรวมไม่เป็นบวก · ไม่มีแถวเงินสด
+ * หมายเหตุ: ขอบเขตพอร์ตของหน้านี้ = หุ้นสหรัฐ + เงินสด (R26) · ไม่ใช่ตัวชี้วัดผลตอบแทน (R25.4 ไม่เกี่ยว)
+ */
+export function cashPortfolioShares(view: Pick<CashView, 'rows' | 'totalDisplayMinor'>, stocksDisplayMinor: number | null): CashPortfolioShares {
+  const nulls = (): CashPortfolioShares => ({ rows: new Map(view.rows.map((r) => [r.currency, null])), total: null });
+  if (stocksDisplayMinor === null || stocksDisplayMinor < 0 || view.totalDisplayMinor === null || view.rows.length === 0) return nulls();
+  if (view.rows.some((r) => r.displayMinor === null || r.displayMinor < 0)) return nulls();
+  const portfolio = BigInt(stocksDisplayMinor) + BigInt(view.totalDisplayMinor);
+  if (portfolio <= 0n) return nulls();
+  const bps = (v: number): number => Number(roundHalfUpBig(BigInt(v) * 10_000n, portfolio));
+  return { rows: new Map(view.rows.map((r) => [r.currency, bps(r.displayMinor!)])), total: bps(view.totalDisplayMinor) };
+}
+
+/** bps → "2.9%" ปัดครึ่งขึ้นเป็นทศนิยม 1 ตำแหน่งด้วยจำนวนเต็ม ไม่ผ่าน float (R8) · bps ติดลบหรือไม่ใช่จำนวนเต็ม = RangeError · null = "—" */
+export function percentOneDecimal(bps: number | null): string {
+  if (bps === null) return '—';
+  if (!Number.isSafeInteger(bps) || bps < 0) throw new RangeError('bps ต้องเป็นจำนวนเต็มไม่ติดลบ');
+  // หารจำนวนเต็มด้วยการลบเศษ (ไม่ใช้ Math.floor/float): tenths = ⌊(bps + 5) / 10⌋ แล้วแยกส่วนจำนวนเต็มกับทศนิยม 1 ตำแหน่ง
+  const shifted = bps + 5;
+  const tenths = (shifted - (shifted % 10)) / 10;
+  return `${(tenths - (tenths % 10)) / 10}.${tenths % 10}%`;
+}
+
 // ---------- Change balance ----------
 
 export type CashChangeMode = 'deposit' | 'withdraw' | 'set';

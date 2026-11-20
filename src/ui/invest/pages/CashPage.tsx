@@ -2,14 +2,14 @@ import { useMemo, useRef, useState, type MouseEvent } from 'react';
 import { formatDateEn } from '../../../app/dateEn';
 import { investUrl } from '../../../app/investRoute';
 import { fxRateText } from '../../../app/usdFormat';
-import { buildCashView, cashAccountBalances, recentCashMovements } from '../../../domain/invest/cashView';
+import { buildCashView, CASH_CURRENCY_NAME, cashAccountBalances, cashPortfolioShares, filterCashRows, percentOneDecimal, recentCashMovements } from '../../../domain/invest/cashView';
+import { buildHoldingsView, totalsOf } from '../../../domain/invest/holdingsView';
 import { investError } from '../investError';
 import { useInvest } from '../InvestContext';
+import { useDesktop } from '../../useDesktop';
 import { ChangeBalanceDialog } from '../cash/ChangeBalanceDialog';
 import { MOVEMENT_LABEL, minorText, signedMinorText } from '../cash/cashFormat';
 import '../cash/cash.css';
-
-const CURRENCY_NAME = { USD: 'US Dollar', THB: 'Thai Baht' } as const;
 
 /**
  * portfolio/cash · Cash (แบบร่าง 24 · R16 R20 R23 R26): ยอดเงินสดของพอร์ตสกุลบาท/USD อ่านจากสมุด + รายการเงินเข้า/ออก + ปุ่ม Change balance
@@ -20,21 +20,31 @@ export function CashPage(_props: { onHome: () => void }) {
   const [dialog, setDialog] = useState<{ accountId: string } | null>(null);
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const desktop = useDesktop();
+  const [query, setQuery] = useState('');
+  const [showZero, setShowZero] = useState(false);
 
   const built = useMemo(() => {
     try {
       const inv = data ?? undefined;
+      const cashView = buildCashView(accounts, entries, inv, currency, today);
+      // มูลค่าตลาดของหุ้นในสกุลที่แสดง (ตัวเดียวกับแถวรวมของ Holdings) · ราคา/เรตไม่ครบ = null → Share of portfolio แสดง "—"
+      const stocks = data === null ? null : totalsOf(buildHoldingsView(data, today, currency).rows, currency).value;
       return {
-        view: buildCashView(accounts, entries, inv, currency, today),
+        view: cashView,
+        pf: cashPortfolioShares(cashView, stocks),
         cash: cashAccountBalances(accounts, entries, inv, today),
         movements: recentCashMovements(accounts, entries, inv, 20),
         failure: '',
       };
     } catch (e) {
-      return { view: null, cash: [], movements: [], failure: investError(e, 'Could not read your cash balances.') };
+      return { view: null, pf: null, cash: [], movements: [], failure: investError(e, 'Could not read your cash balances.') };
     }
   }, [accounts, entries, data, currency, today]);
-  const { view, cash, movements } = built;
+  const { view, pf, cash, movements } = built;
+  // ค้นหา + Show zero balances เฉพาะคอม · มือถือแสดงทุกสกุลเหมือนเดิม (ไม่เปลี่ยนหน้าตา)
+  const shownRows = view === null ? [] : desktop ? filterCashRows(view.rows, { query, showZero }) : view.rows;
+  const filtering = desktop && view !== null && shownRows.length < view.rows.length;
 
   // ลิงก์ไปหน้า Holdings: ใช้ pushState + popstate ให้ InvestMode อ่านหน้าจาก URL (ไม่แตะไฟล์กลาง)
   const goHoldings = (e: MouseEvent<HTMLAnchorElement>) => {
@@ -120,7 +130,24 @@ export function CashPage(_props: { onHome: () => void }) {
                     Change balance
                   </button>
                 </div>
-                {view.allZero && <p className="muted">All cash balances are zero for now. Use Change balance to add your broker cash.</p>}
+                {view.allZero && (!desktop || showZero) && <p className="muted">All cash balances are zero for now. Use Change balance to add your broker cash.</p>}
+                <div className="cs-tools">
+                  <label className="cs-check">
+                    <input type="checkbox" checked={showZero} onChange={(e) => setShowZero(e.target.checked)} />
+                    Show zero balances
+                  </label>
+                  <div className="iv-field cs-search">
+                    <label htmlFor="cs-search">Search cash balances</label>
+                    <input id="cs-search" type="search" value={query} placeholder="Currency or account" autoComplete="off" onChange={(e) => setQuery(e.target.value)} />
+                  </div>
+                </div>
+                <div role="status">
+                  {desktop && shownRows.length === 0 && (
+                    <p className="muted">
+                      {query.trim() !== '' ? 'No cash balances match your search.' : 'No cash balances to show. Turn on Show zero balances to see currencies with a zero balance.'}
+                    </p>
+                  )}
+                </div>
                 <div className="migrate-table-wrap" role="region" aria-label="Cash balances, scrollable horizontally" tabIndex={0}>
                   <table className="migrate-table cs-table">
                     <caption className="sr-only">Cash balances by currency, shown in {currency}</caption>
@@ -136,17 +163,20 @@ export function CashPage(_props: { onHome: () => void }) {
                         <th scope="col" className="num">
                           Share of cash
                         </th>
+                        <th scope="col" className="num cs-pf">
+                          Share of portfolio
+                        </th>
                         <th scope="col" className="num">
                           <span className="sr-only">Actions</span>
                         </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {view.rows.map((r) => (
+                      {shownRows.map((r) => (
                         <tr key={r.currency}>
                           <th scope="row">
                             <span className="cs-cur">
-                              {CURRENCY_NAME[r.currency]}
+                              {CASH_CURRENCY_NAME[r.currency]}
                               <small>
                                 {r.currency} · {r.accounts.length} {r.accounts.length === 1 ? 'account' : 'accounts'}
                               </small>
@@ -154,7 +184,8 @@ export function CashPage(_props: { onHome: () => void }) {
                           </th>
                           <td className="num">{r.displayMinor === null ? 'Needs rate' : minorText(currency, r.displayMinor)}</td>
                           <td className="num">{minorText(r.currency, r.minor)}</td>
-                          <td className="num">{r.shareBps === null ? '—' : `${(r.shareBps / 100).toFixed(1)}%`}</td>
+                          <td className="num">{percentOneDecimal(r.shareBps)}</td>
+                          <td className="num cs-pf">{percentOneDecimal(pf?.rows.get(r.currency) ?? null)}</td>
                           <td className="num">
                             <button type="button" className="iv-btn cs-row-btn" aria-label={`Change ${r.currency} balance`} onClick={() => setDialog({ accountId: r.accounts[0]!.accountId })}>
                               Change
@@ -169,11 +200,15 @@ export function CashPage(_props: { onHome: () => void }) {
                         <td className="num">{view.totalDisplayMinor === null ? 'Needs rate' : minorText(currency, view.totalDisplayMinor)}</td>
                         <td />
                         <td className="num">{view.rows.some((r) => r.shareBps === null) ? '—' : '100%'}</td>
+                        <td className="num cs-pf">{percentOneDecimal(pf?.total ?? null)}</td>
                         <td />
                       </tr>
                     </tfoot>
                   </table>
                 </div>
+                <p className="muted small cs-pf-note">
+                  Share of portfolio = cash ÷ (US stocks + cash), in {currency}.{filtering ? ' Totals include every currency, including the ones hidden above.' : ''}
+                </p>
               </section>
 
               <section className="solid card cs-card" aria-labelledby="cs-moves-title">

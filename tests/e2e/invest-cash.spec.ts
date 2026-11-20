@@ -44,6 +44,53 @@ for (const w of WIDTHS) {
       expect(seen.errors, 'error ใน console').toEqual([]);
     });
 
+    test('แบบร่าง 24: Share of portfolio · ค้นหา · Show zero balances (คอมเท่านั้น) · มือถือไม่เปลี่ยน (ซ่อนส่วนใหม่ แสดงทุกสกุลเหมือนเดิม)', async ({ page }) => {
+      await openCash(page);
+      const thb = page.getByRole('row', { name: /Thai Baht/ });
+      const usd = page.getByRole('row', { name: /US Dollar/ });
+      if (w.width < 1024) {
+        await expect(page.getByRole('columnheader', { name: 'Share of portfolio' })).toBeHidden();
+        await expect(page.getByLabel('Show zero balances')).toBeHidden();
+        await expect(page.getByRole('searchbox', { name: 'Search' })).toBeHidden();
+        await expect(usd).toBeVisible();
+        await expect(thb).toBeVisible();
+        return;
+      }
+      // ตัวอย่างมือ: เงินสด $100.37 + ฿5,000 (÷32.40 = $154.32) = $254.69 · หุ้นสมมติมูลค่า $11,308.00 → พอร์ต $11,562.69
+      // USD 10,037 ÷ 1,156,269 = 0.87% → 0.9% · THB 15,432 ÷ 1,156,269 = 1.33% → 1.3% · รวม 25,469 ÷ 1,156,269 = 2.20% → 2.2%
+      await expect(page.getByRole('columnheader', { name: 'Share of portfolio' })).toBeVisible();
+      await expect(usd).toContainText('0.9%');
+      await expect(thb).toContainText('1.3%');
+      await expect(page.getByRole('row', { name: /Total cash/ })).toContainText('2.2%');
+
+      // ค้นหา
+      const search = page.getByRole('searchbox', { name: 'Search' });
+      await search.fill('thai');
+      await expect(thb).toBeVisible();
+      await expect(usd).toHaveCount(0);
+      await expect(page.getByRole('row', { name: /Total cash/ })).toContainText('$'); // แถวรวมยังเป็นยอดรวมทุกสกุล
+      await expect(page.getByText('Totals include every currency')).toBeVisible();
+      await search.fill('zzz');
+      await expect(page.getByText('No cash balances match your search.')).toBeVisible();
+      await search.fill('');
+      await expect(usd).toBeVisible();
+
+      // Show zero balances: ตั้งยอดบาทเป็น 0 → แถวบาทหายเป็นค่าเริ่มต้น · ติ๊กแล้วกลับมา
+      await page.getByRole('button', { name: 'Change THB balance' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Change balance' });
+      await dialog.getByRole('button', { name: 'Set balance to' }).click();
+      await dialog.getByLabel('New balance (THB)').fill('0');
+      await dialog.getByRole('button', { name: 'Save' }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(thb).toHaveCount(0);
+      await expect(usd).toBeVisible();
+      await page.getByLabel('Show zero balances').check();
+      await expect(thb).toBeVisible();
+      await expect(thb).toContainText('฿0.00');
+      await page.getByLabel('Show zero balances').uncheck();
+      await expect(thb).toHaveCount(0);
+    });
+
     test('dialog Change balance: เปิดด้วยปุ่ม ปิดด้วย Esc คืนโฟกัสให้ปุ่ม · ไม่ล้นจอตอนเปิด', async ({ page }) => {
       await openCash(page);
       const btn = page.getByRole('button', { name: 'Change balance', exact: true });
