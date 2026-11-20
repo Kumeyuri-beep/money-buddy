@@ -10,7 +10,7 @@
 import { safeAdd, safeSub } from '../money/safe';
 import { convertMinor } from './fx';
 import { computeMonthlyReturns, computeProfitSources, replayWithFees, type FeeReplay, type ProfitResult } from './metrics';
-import { latestFxRate } from './portfolioMoney';
+import { latestFxRate } from './fxRate';
 import { toTradesFx } from './tradesFx';
 import { activeMonths, compoundBps, computeMonthlyReturnsUsd, needsRateMonths, priceMicroAt, usdAssetTrades, type MonthSpan } from './twr';
 import type { InvestmentData } from './types';
