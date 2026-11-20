@@ -11,7 +11,8 @@ import { db } from '../storage/instance';
 import { createDexieRepository } from '../storage/ledgerRepository';
 import { App } from '../ui/App';
 import { RepositoryProvider, localLedgerRepository } from '../ui/RepositoryContext';
-import { demoInvestments, demoInvestmentsNoRate, demoInvestmentsWithHistory } from './investDemo';
+import { buildCashAdjustmentEntry } from '../domain/invest/cashAdjustment';
+import { demoCashLedger, demoInvestments, demoInvestmentsNoRate, demoInvestmentsWithHistory } from './investDemo';
 import { AccountContext } from '../ui/AuthContext';
 import { PasswordPromptProvider } from '../ui/PasswordPrompt';
 import '@fontsource/ibm-plex-sans-thai/400.css';
@@ -65,8 +66,8 @@ function Harness() {
   return (
     <AccountContext.Provider value={{ username: 'ผู้ทดสอบ', signOut: async () => undefined, refresh: async () => undefined }}>
       <PasswordPromptProvider>
-        {params.get('investDemo') === '1' || params.get('investDemo') === 'report' || params.get('investDemo') === 'norate' ? (
-          <RepositoryProvider repository={params.get('investDemo') === 'report' ? { ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestmentsWithHistory()) } : params.get('investDemo') === 'norate' ? { ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestmentsNoRate()) } : demoRepository()}>
+        {params.get('investDemo') === '1' || params.get('investDemo') === 'report' || params.get('investDemo') === 'norate' || params.get('investDemo') === 'cash' || params.get('investDemo') === 'cashneg' ? (
+          <RepositoryProvider repository={params.get('investDemo') === 'report' ? { ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestmentsWithHistory()) } : params.get('investDemo') === 'norate' ? { ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestmentsNoRate()) } : params.get('investDemo') === 'cash' || params.get('investDemo') === 'cashneg' ? cashDemoRepository(params.get('investDemo') === 'cashneg') : demoRepository()}>
             <App />
           </RepositoryProvider>
         ) : (
@@ -87,6 +88,32 @@ function makeDemoRepository() {
     loadInvestments: () => Promise.resolve({ ...demo, trades: [...demo.trades] }),
     deleteTrade: (id: string) => {
       demo.trades = demo.trades.filter((t) => t.id !== id);
+      return Promise.resolve();
+    },
+  };
+}
+
+/** ที่เก็บสมมติของหน้า Cash (?investDemo=cash|cashneg): สมุดอยู่ในหน่วยความจำ บันทึกการปรับยอดได้ (ถอนเกินยอดถูกปฏิเสธเหมือนฐานข้อมูลจริง) */
+let cashRepo: ReturnType<typeof makeCashDemoRepository> | null = null;
+const cashDemoRepository = (negative: boolean) => (cashRepo ??= makeCashDemoRepository(negative));
+function makeCashDemoRepository(negative: boolean) {
+  const base = localLedgerRepository();
+  const demo = demoCashLedger(negative);
+  const entries = [...demo.entries];
+  return {
+    ...base,
+    loadLedger: async () => {
+      const l = await base.loadLedger();
+      return { accounts: [...l.accounts, ...demo.accounts], entries: [...l.entries, ...entries] };
+    },
+    loadInvestments: () => Promise.resolve(demoInvestments()),
+    recordCashAdjustment: (input: Parameters<typeof buildCashAdjustmentEntry>[0]) => {
+      const { entry } = buildCashAdjustmentEntry(input);
+      if (input.direction === 'withdraw') {
+        const balance = entries.flatMap((e) => e.lines).filter((l) => l.accountId === input.cashAccountId).reduce((s, l) => s + l.amount, 0);
+        if (balance < input.amountMinor) return Promise.reject(new Error('insufficient cash'));
+      }
+      entries.push(entry as (typeof entries)[number]);
       return Promise.resolve();
     },
   };
