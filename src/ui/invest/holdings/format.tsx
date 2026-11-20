@@ -101,9 +101,9 @@ export function totalCellOf(col: ColumnId, t: HoldingsTotals, c: DisplayCurrency
 export function subCellOf(col: ColumnId, r: HoldingRow, c: DisplayCurrency): ReactNode {
   if (r.units === 0n) return null;
   switch (col) {
-    case 'costBasis': return r.cost !== null && r.costPerShare !== null ? <span className="hd-persub" title="Average cost per share">{money(c, r.costPerShare)}</span> : null;
-    case 'currentValue': return r.value !== null && r.pricePerShare !== null ? <span className="hd-persub" title="Last price per share">{money(c, r.pricePerShare)}</span> : null;
-    case 'dividendYield': return r.yieldBps !== null && r.yieldOnCostBps !== null ? <span className="hd-persub" title="Yield on cost">{bpsText(r.yieldOnCostBps)}</span> : null;
+    case 'costBasis': return r.cost !== null && r.costPerShare !== null ? <span className="hd-persub"><span className="sr-only">Average cost per share: </span>{money(c, r.costPerShare)}</span> : null;
+    case 'currentValue': return r.value !== null && r.pricePerShare !== null ? <span className="hd-persub"><span className="sr-only">Last price per share: </span>{money(c, r.pricePerShare)}</span> : null;
+    case 'dividendYield': return r.yieldBps !== null && r.yieldOnCostBps !== null ? <span className="hd-persub"><span className="sr-only">Yield on cost: </span>{bpsText(r.yieldOnCostBps)}</span> : null;
     default: return null;
   }
 }

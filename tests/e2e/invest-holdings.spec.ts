@@ -82,7 +82,7 @@ for (const w of WIDTHS) {
         await expect(avatar).toBeVisible();
         await expect(avatar).toHaveText('DEMA');
         await expect(perShare.first()).toBeVisible();
-        await expect(perShare.first()).toHaveText('$100.03'); // ต้นทุนเฉลี่ยต่อหุ้น (domain คำนวณ)
+        await expect(perShare.first()).toContainText('$100.03'); // ต้นทุนเฉลี่ยต่อหุ้น (domain คำนวณ)
         const tabs = await page.getByRole('tablist', { name: 'Holdings columns' }).boundingBox();
         const search = await page.getByRole('searchbox', { name: 'Search' }).boundingBox();
         expect(Math.abs((tabs!.y + tabs!.height / 2) - (search!.y + search!.height / 2))).toBeLessThan(20); // อยู่แถวเดียวกัน

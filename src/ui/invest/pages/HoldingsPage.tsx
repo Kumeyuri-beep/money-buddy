@@ -208,7 +208,7 @@ export function HoldingsPage({ addSignal }: { addSignal: number }) {
                     ))}
                   </select>
                 </div>
-                <button type="button" className="iv-btn" aria-label={`Sort direction: ${q.dir === 'asc' ? 'ascending' : 'descending'}`} onClick={() => setQ({ ...q, dir: q.dir === 'asc' ? 'desc' : 'asc' })}>
+                <button type="button" className="iv-btn" aria-label={`Sort direction: ${q.dir === 'asc' ? 'ascending' : 'descending'}`} title={`Sort direction: ${q.dir === 'asc' ? 'ascending' : 'descending'}`} onClick={() => setQ({ ...q, dir: q.dir === 'asc' ? 'desc' : 'asc' })}>
                   <span aria-hidden="true">{q.dir === 'asc' ? '↑' : '↓'}</span> <span className="hd-dir-text">{q.dir === 'asc' ? 'Ascending' : 'Descending'}</span>
                 </button>
                 <label className="hd-check">

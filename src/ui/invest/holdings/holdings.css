@@ -52,7 +52,7 @@
   .hd-bar { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 16px; }
   .hd-bar .hd-tools { display: contents; }
   .hd-bar .hd-tabs { order: 0; flex: none; }
-  .hd-bar .hd-check { order: 1; }
+  .hd-bar .hd-check { order: 5; } /* ท้ายแถวตามลำดับใน DOM: ลำดับ Tab ต้องตรงกับลำดับที่เห็น (WCAG 2.4.3) */
   .hd-bar .hd-tools > .hd-search { order: 2; flex: 1 1 200px; min-width: 200px; }
   .hd-bar .hd-tools > .hd-search label { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .hd-bar .hd-tools > .iv-field:not(.hd-search) { order: 3; min-width: 150px; }
@@ -61,10 +61,11 @@
 
   /* ชื่อ: อวาตาร์ตัวอักษรย่อในกรอบสี · ชื่อหุ้นบน ชื่อย่อล่าง */
   .hd-table tbody th { display: table-cell; }
-  .hd-avatar { display: inline-grid; place-items: center; vertical-align: middle; width: 40px; height: 40px; margin-right: 12px; border-radius: 12px; font-size: 11px; font-weight: 800; letter-spacing: 0; color: #14161f; }
+  .hd-avatar { display: inline-grid; place-items: center; vertical-align: middle; width: 40px; height: 40px; margin-right: 12px; border-radius: 12px; font-size: 12px; font-weight: 800; letter-spacing: 0; color: #14161f; }
   .hd-who { display: inline-flex; flex-direction: column; vertical-align: middle; }
   .hd-who .hd-name { order: 0; font-size: 14px; font-weight: 600; color: var(--text); }
   .hd-who .hd-ticker { order: 1; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .hd-who .hd-ticker:only-of-type { font-size: 14px; font-weight: 600; color: var(--text); } /* ไม่มีชื่อย่อ: ชื่อเป็นตัวหลัก */
   .hd-who .hd-badge { order: 2; align-self: flex-start; }
   .hd-av-0 { background: #f7a8a8; } .hd-av-1 { background: #a9b1f7; } .hd-av-2 { background: #f7e08a; } .hd-av-3 { background: #8adfe4; }
   .hd-av-4 { background: #e9c9f7; } .hd-av-5 { background: #a8f0cf; } .hd-av-6 { background: #9cc4f7; } .hd-av-7 { background: #d9a8f7; }
