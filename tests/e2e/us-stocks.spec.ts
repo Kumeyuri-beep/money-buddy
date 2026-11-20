@@ -87,6 +87,12 @@ for (const w of WIDTHS) {
       await expect(page.getByText('Enter the stock name and ticker')).toBeVisible();
       const exchange = page.getByLabel('Exchange', { exact: true });
       await expect(exchange).toHaveValue('NASDAQ');
+      if (!w.mobile) {
+        // คอม: ฟอร์มเพิ่มหุ้นเป็น dialog modal (กั้นหน้าหลักไว้ จึงตรวจ "ถูกบัง" หลังปิด)
+        await expect(page.getByRole('dialog', { name: 'Add US stock' })).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(page.getByRole('dialog', { name: 'Add US stock' })).toBeHidden();
+      }
       await expectClean(page, seen);
     });
 
