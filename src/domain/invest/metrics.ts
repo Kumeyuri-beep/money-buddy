@@ -9,7 +9,7 @@ import { roundHalfUpBig } from '../money/round';
 import { safeAdd, safeSub } from '../money/safe';
 import { applyBuyFx, applySellFx, emptyPositionFx, replayTradesFx, type PositionFx, type TradeFx } from './costBasisFx';
 import { convertMinor } from './fx';
-import { latestFxRate } from './portfolioMoney';
+import { latestFxRate } from './fxRate';
 import { splitTradesByRate, toTradesFx, type MissingRateTrade } from './tradesFx';
 import { assetCurrency, type Asset, type InvestmentData, type TradeRecord } from './types';
 import { toSafeSatang, valueInSatang } from './units';
