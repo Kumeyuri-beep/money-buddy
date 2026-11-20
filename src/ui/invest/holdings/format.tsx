@@ -96,3 +96,27 @@ export function totalCellOf(col: ColumnId, t: HoldingsTotals, c: DisplayCurrency
     default: return null;
   }
 }
+
+/** บรรทัดล่างของเซลล์ในตาราง (แบบร่าง 20: บนคือยอดรวม ล่างคือต่อหุ้น) · แสดงผลอย่างเดียว ใช้ค่าที่ domain คำนวณแล้ว (costPerShare, pricePerShare, yieldOnCostBps) ไม่คำนวณใหม่ · ไม่มีค่า = ไม่แสดงบรรทัด */
+export function subCellOf(col: ColumnId, r: HoldingRow, c: DisplayCurrency): ReactNode {
+  if (r.units === 0n) return null;
+  switch (col) {
+    case 'costBasis': return r.cost !== null && r.costPerShare !== null ? <span className="hd-persub"><span className="sr-only">Average cost per share: </span>{money(c, r.costPerShare)}</span> : null;
+    case 'currentValue': return r.value !== null && r.pricePerShare !== null ? <span className="hd-persub"><span className="sr-only">Last price per share: </span>{money(c, r.pricePerShare)}</span> : null;
+    case 'dividendYield': return r.yieldBps !== null && r.yieldOnCostBps !== null ? <span className="hd-persub"><span className="sr-only">Yield on cost: </span>{bpsText(r.yieldOnCostBps)}</span> : null;
+    default: return null;
+  }
+}
+
+const AVATAR_COUNT = 8;
+/** ตัวอักษรย่อในกรอบสี (แบบร่าง 20) · สีคงที่ตามชื่อย่อ · ไม่เรียกบริการภายนอก (ความเป็นส่วนตัว) · ตกแต่งอย่างเดียว ซ่อนจากโปรแกรมอ่านหน้าจอ */
+export function HoldingAvatar({ ticker, name }: { ticker: string; name: string }): ReactNode {
+  const label = (ticker !== '' ? ticker : name).trim();
+  let h = 0;
+  for (const ch of label) h = (h * 31 + ch.codePointAt(0)!) % 997;
+  return (
+    <span className={`hd-avatar hd-av-${h % AVATAR_COUNT}`} aria-hidden="true">
+      {[...label].slice(0, 4).join('').toUpperCase()}
+    </span>
+  );
+}
