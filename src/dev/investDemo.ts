@@ -70,8 +70,8 @@ export function demoCashLedger(negative: boolean): { accounts: Account[]; entrie
   const entries: Entry[] = [
     adj('cd1', '2026-11-02', 'cash-demo-usd', 'USD', 'deposit', negative ? 10_000 : 12_037, 'Statement top-up'),
     adj('cd2', '2026-11-03', 'cash-demo-thb', 'THB', 'deposit', 500_000),
-    adj('cd3', '2026-11-05', 'cash-demo-usd', 'USD', 'withdraw', negative ? 0 : 2_000),
-  ].filter((e) => e.lines.every((l) => l.amount !== 0));
+  ];
+  if (!negative) entries.push(adj('cd3', '2026-11-05', 'cash-demo-usd', 'USD', 'withdraw', 2_000));
   if (negative) entries.push({ id: 'cd-neg', date: '2026-11-06', memo: 'Demo purchase without a deposit', source: 'manual', createdAt: '2026-11-06T03:00:00.000Z', lines: [{ accountId: 'cash-demo-usd', amount: -12_500 }, { accountId: 'inv-cash-adjust-usd', amount: 12_500 }] } as Entry);
   return { accounts, entries };
 }
