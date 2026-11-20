@@ -136,27 +136,29 @@ describe('Show sold · ค้นหา · เรียง', () => {
   const view = buildHoldingsView(base, TODAY, 'USD');
   const ids = (q: Partial<typeof DEFAULT_HOLDINGS_QUERY>) => filterAndSort(view.rows, { ...DEFAULT_HOLDINGS_QUERY, ...q }).map((r) => r.assetId);
 
-  it('ขายหมด (ถือ 0 หน่วย) อยู่ใน Show sold เท่านั้น · สินทรัพย์ที่ยังไม่มีรายการยังแสดงปกติ', () => {
-    expect(ids({})).toEqual(['a', 'b', 'd']);
+  it('ถือ 0 หน่วย (ขายหมด หรือยังไม่มีรายการ) อยู่ใน Show sold เท่านั้น (เจ้าของสั่ง 20 พ.ย. 2569)', () => {
+    expect(ids({})).toEqual(['a', 'b']);
     expect(ids({ showSold: true })).toEqual(['a', 'b', 'c', 'd']);
     const c = view.rows.find((r) => r.assetId === 'c')!;
     expect(c.sold).toBe(true);
     expect(c.value).toBe(0); // ถือ 0 หน่วย = มูลค่า 0 ไม่ต้องมีราคา
-    expect(view.rows.find((r) => r.assetId === 'd')!.sold).toBe(false);
+    expect(view.rows.find((r) => r.assetId === 'd')!.sold).toBe(true); // ไม่มีรายการเลย = 0 หน่วย ซ่อนเหมือนกัน
+    expect(view.rows.find((r) => r.assetId === 'a')!.sold).toBe(false);
   });
   it('ค้นหาจากชื่อย่อหรือชื่อ ไม่สนตัวพิมพ์ใหญ่เล็ก · ไม่เจอ = ว่าง', () => {
     expect(ids({ query: 'bb' })).toEqual(['b']);
     expect(ids({ query: ' ccc ', showSold: true })).toEqual(['c']);
-    expect(ids({ query: 'หุ้น' })).toEqual(['a', 'b', 'd']);
+    expect(ids({ query: 'หุ้น' })).toEqual(['a', 'b']);
+    expect(ids({ query: 'หุ้น', showSold: true })).toEqual(['a', 'b', 'c', 'd']);
     expect(ids({ query: 'zzz' })).toEqual([]);
   });
   it('เรียงตามชื่อ · มูลค่า (ไม่มีราคาอยู่ท้ายเสมอทั้งขึ้นและลง) · จำนวนหุ้น · ปันผล', () => {
-    expect(ids({ sortKey: 'holding', dir: 'desc' })).toEqual(['d', 'b', 'a']);
-    expect(ids({ sortKey: 'value', dir: 'desc' })).toEqual(['a', 'd', 'b']); // a=12,000 · d=0 (ยังไม่มีรายการ) · b ไม่มีราคา = null อยู่ท้าย
-    expect(ids({ sortKey: 'value', dir: 'asc' })).toEqual(['d', 'a', 'b']); // null (b) ท้ายเสมอแม้เรียงขึ้น
-    expect(ids({ sortKey: 'shares', dir: 'desc' })).toEqual(['b', 'a', 'd']);
-    expect(ids({ sortKey: 'shares', dir: 'asc' })).toEqual(['d', 'a', 'b']);
-    expect(ids({ sortKey: 'dividends', dir: 'asc' })).toEqual(['a', 'b', 'd']); // เท่ากันหมด → ตามชื่อ
+    expect(ids({ showSold: true, sortKey: 'holding', dir: 'desc' })).toEqual(['d', 'c', 'b', 'a']);
+    expect(ids({ showSold: true, sortKey: 'value', dir: 'desc' })).toEqual(['a', 'c', 'd', 'b']); // a=12,000 · d=0 (ยังไม่มีรายการ) · b ไม่มีราคา = null อยู่ท้าย
+    expect(ids({ showSold: true, sortKey: 'value', dir: 'asc' })).toEqual(['c', 'd', 'a', 'b']); // null (b) ท้ายเสมอแม้เรียงขึ้น
+    expect(ids({ showSold: true, sortKey: 'shares', dir: 'desc' })).toEqual(['b', 'a', 'c', 'd']);
+    expect(ids({ showSold: true, sortKey: 'shares', dir: 'asc' })).toEqual(['c', 'd', 'a', 'b']);
+    expect(ids({ showSold: true, sortKey: 'dividends', dir: 'asc' })).toEqual(['a', 'b', 'c', 'd']); // เท่ากันหมด → ตามชื่อ
   });
 });
 

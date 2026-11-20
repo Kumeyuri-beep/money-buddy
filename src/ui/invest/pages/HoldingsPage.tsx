@@ -220,7 +220,7 @@ export function HoldingsPage({ addSignal }: { addSignal: number }) {
               <div id="hd-panel" role="tabpanel" aria-labelledby={`hd-tab-${tab}`}>
                 {shown.length === 0 ? (
                   <p className="muted" role="status">
-                    {q.query.trim() !== '' ? 'No holdings match your search.' : 'No holdings to show. Turn on Show sold to see positions you have fully sold.'}
+                    {q.query.trim() !== '' ? 'No holdings match your search.' : 'No holdings to show. Turn on Show sold to see stocks with 0 shares (fully sold or not bought yet).'}
                   </p>
                 ) : (
                   <div className="migrate-table-wrap hd-wrap" role="region" aria-label="Holdings table, scrollable horizontally" tabIndex={0}>
