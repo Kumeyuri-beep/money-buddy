@@ -136,19 +136,34 @@ describe('Show sold · ค้นหา · เรียง', () => {
   const view = buildHoldingsView(base, TODAY, 'USD');
   const ids = (q: Partial<typeof DEFAULT_HOLDINGS_QUERY>) => filterAndSort(view.rows, { ...DEFAULT_HOLDINGS_QUERY, ...q }).map((r) => r.assetId);
 
-  it('ถือ 0 หน่วย (ขายหมด หรือยังไม่มีรายการ) อยู่ใน Show sold เท่านั้น (เจ้าของสั่ง 20 พ.ย. 2569)', () => {
-    expect(ids({})).toEqual(['a', 'b']);
+  it('ขายหมด (ถือ 0 หน่วยและเคยมีรายการขาย) อยู่ใน Show sold เท่านั้น · หุ้นที่เพิ่งเพิ่มยังไม่มีรายการแสดงปกติ (เจ้าของสั่ง 20 พ.ย. 2569)', () => {
+    expect(ids({})).toEqual(['a', 'b', 'd']);
     expect(ids({ showSold: true })).toEqual(['a', 'b', 'c', 'd']);
     const c = view.rows.find((r) => r.assetId === 'c')!;
     expect(c.sold).toBe(true);
     expect(c.value).toBe(0); // ถือ 0 หน่วย = มูลค่า 0 ไม่ต้องมีราคา
-    expect(view.rows.find((r) => r.assetId === 'd')!.sold).toBe(true); // ไม่มีรายการเลย = 0 หน่วย ซ่อนเหมือนกัน
+    expect(view.rows.find((r) => r.assetId === 'd')!.sold).toBe(false); // เพิ่งเพิ่ม ยังไม่มีรายการ = 0 หน่วยแต่ไม่เคยขาย แสดงปกติ
     expect(view.rows.find((r) => r.assetId === 'a')!.sold).toBe(false);
+  });
+  it('ซื้อแล้วลบรายการจนไม่เหลือ (0 รายการ) แสดงปกติ · ขายหมดแล้วซื้อใหม่ = ถืออยู่ แสดงปกติ · ขายหมดเท่านั้นที่ซ่อน', () => {
+    const deleted = data({ assets: [asset('e')], trades: [], prices: [] }); // ซื้อแล้วลบรายการหมด = ไม่มีรายการเหลือ
+    const rebought = data({
+      assets: [asset('f')],
+      trades: [
+        trade({ id: 'f1', assetId: 'f', amount: 10_000, units: '100000000' }),
+        trade({ id: 'f2', assetId: 'f', kind: 'sell', date: '2026-11-05', units: '100000000', priceMicro: 110_000_000, amount: undefined }),
+        trade({ id: 'f3', assetId: 'f', date: '2026-11-08', amount: 20_000, units: '200000000' }),
+      ],
+      fxRates: [{ accountId: 'usd-cash', date: '2026-11-12', rateMicro: 34_000_000 }],
+    });
+    const show = (d: InvestmentData) => filterAndSort(buildHoldingsView(d, TODAY, 'USD').rows, DEFAULT_HOLDINGS_QUERY).map((r) => r.assetId);
+    expect(show(deleted)).toEqual(['e']);
+    expect(show(rebought)).toEqual(['f']);
   });
   it('ค้นหาจากชื่อย่อหรือชื่อ ไม่สนตัวพิมพ์ใหญ่เล็ก · ไม่เจอ = ว่าง', () => {
     expect(ids({ query: 'bb' })).toEqual(['b']);
     expect(ids({ query: ' ccc ', showSold: true })).toEqual(['c']);
-    expect(ids({ query: 'หุ้น' })).toEqual(['a', 'b']);
+    expect(ids({ query: 'หุ้น' })).toEqual(['a', 'b', 'd']);
     expect(ids({ query: 'หุ้น', showSold: true })).toEqual(['a', 'b', 'c', 'd']);
     expect(ids({ query: 'zzz' })).toEqual([]);
   });
