@@ -5,6 +5,7 @@ import {
   buildHoldingsView, columnsFor, DEFAULT_HOLDINGS_QUERY, filterAndSort, HOLDINGS_TABS, planHoldingDelete, SORT_KEYS, totalsOf,
   type ColumnId, type HoldingRow, type HoldingsQuery, type HoldingsTab, type SortKey,
 } from '../../../domain/invest/holdingsView';
+import { buildHoldingsCsv, holdingsCsvFilename } from '../../../domain/invest/holdingsCsv';
 import { useRepository } from '../../RepositoryContext';
 import { UsStocksView, type UsStocksRequest } from '../../UsStocksView';
 import { usdMissingRate } from '../../../domain/invest/metrics';
@@ -13,6 +14,7 @@ import { cellOf, COLUMN_LABEL, HoldingAvatar, subCellOf, totalCellOf } from '../
 import { RowMenu, type RowAction } from '../holdings/RowMenu';
 import '../holdings/holdings.css';
 import { useInvest } from '../InvestContext';
+import { downloadCsv } from '../downloadCsv';
 import { investError, investProblem } from '../investError';
 
 type WithoutNonce<T> = T extends unknown ? Omit<T, 'nonce'> : never;
@@ -210,6 +212,15 @@ export function HoldingsPage({ addSignal }: { addSignal: number }) {
                 </div>
                 <button type="button" className="iv-btn" aria-label={`Sort direction: ${q.dir === 'asc' ? 'ascending' : 'descending'}`} title={`Sort direction: ${q.dir === 'asc' ? 'ascending' : 'descending'}`} onClick={() => setQ({ ...q, dir: q.dir === 'asc' ? 'desc' : 'asc' })}>
                   <span aria-hidden="true">{q.dir === 'asc' ? '↑' : '↓'}</span> <span className="hd-dir-text">{q.dir === 'asc' ? 'Ascending' : 'Descending'}</span>
+                </button>
+                <button
+                  type="button"
+                  className="iv-btn hd-export"
+                  disabled={shown.length === 0}
+                  title="Export the rows and columns shown to a CSV file"
+                  onClick={() => downloadCsv(buildHoldingsCsv({ rows: shown, tab, currency, totals, labelOf: (c) => COLUMN_LABEL[c] }), holdingsCsvFilename(currency, tab, today))}
+                >
+                  Export CSV
                 </button>
                 <label className="hd-check">
                   <input type="checkbox" checked={q.showSold} onChange={(e) => setQ({ ...q, showSold: e.target.checked })} />
