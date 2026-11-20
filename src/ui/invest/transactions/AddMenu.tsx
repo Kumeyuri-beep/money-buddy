@@ -56,7 +56,7 @@ export function AddMenu({ onPick }: { onPick: (a: AddAction, opener: HTMLElement
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         onKeyDown={(e) => {
-          if (e.key === 'ArrowDown' && !open) {
+          if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !open) {
             e.preventDefault();
             setOpen(true);
           }

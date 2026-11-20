@@ -55,7 +55,7 @@ for (const w of WIDTHS) {
     test('เตือนเงินสด USD ติดลบ · ป้าย Average cost (R11)', async ({ page }) => {
       await openTx(page);
       await expect(page.getByTestId('tx-negative-cash')).toContainText('USD cash is negative');
-      await expect(page.getByText('Average cost (R11)')).toBeVisible();
+      await expect(page.locator('.tx-r11')).toContainText('Average cost');
     });
 
     test('Filters: ค้นหา · ชนิด · สินทรัพย์ · ช่วงวันที่ · ล้างตัวกรอง · ไม่มีผลลัพธ์', async ({ page }) => {
@@ -139,6 +139,38 @@ for (const w of WIDTHS) {
       await expect(rows).toHaveCount(before - 1);
       await expect(page.getByText(/Deleted sell on/)).toBeVisible();
       await expect(page.getByRole('heading', { name: 'Transactions', level: 2 })).toBeFocused();
+    });
+
+    test('แผง Transfer เปิดอยู่: พิมพ์ในช่อง Search โฟกัสไม่เด้งกลับ · Esc ปิดแล้วโฟกัสกลับปุ่ม Add', async ({ page }) => {
+      await openTx(page);
+      const add = page.getByRole('button', { name: 'Add', exact: true }).last();
+      await add.click();
+      await page.getByRole('menuitem', { name: 'Transfer to / from portfolio' }).click();
+      const group = page.getByRole('group', { name: 'Transfer to or from portfolio' });
+      await expect(group).toBeFocused();
+      const search = page.getByRole('searchbox', { name: 'Search' });
+      await search.click();
+      await page.keyboard.type('dema');
+      await expect(search).toBeFocused();
+      await expect(search).toHaveValue('dema');
+      await page.getByRole('button', { name: 'Close', exact: true }).focus();
+      await page.keyboard.press('Enter');
+      await expect(add).toBeFocused();
+    });
+
+    test('เครื่องหมายคอลัมน์ Value: Buy − · Sell + · Cash withdrawal −', async ({ page }) => {
+      await openTx(page);
+      await expect(page.getByRole('row', { name: /Buy.*DEMA/ }).locator('td').nth(4)).toContainText(/^\u2212\$/);
+      await expect(page.getByRole('row', { name: /Sell.*DEMB/ }).locator('td').nth(4)).toContainText(/^\+\$/);
+      await expect(page.getByRole('row', { name: /Cash withdrawal/ }).locator('td').nth(4)).toContainText(/^\u2212\$/);
+    });
+
+    test('Edit กดแล้วมีข้อความบอก (role=status) · confirm ลบบอกว่าลบอะไร', async ({ page }) => {
+      await openTx(page);
+      await page.getByRole('button', { name: /^Edit Sell DEMB/ }).click({ force: true });
+      await expect(page.getByText('Editing is not available yet. Delete and add it again.').first()).toBeVisible();
+      await page.getByRole('button', { name: /^Delete Sell DEMB/ }).click();
+      await expect(page.getByRole('alertdialog')).toContainText('Sell DEMB · 10 Jun 2026 · 5 shares');
     });
 
     test('ปุ่ม Edit ปิดพร้อมคำอธิบาย (ยังไม่มีการแก้รายการที่บันทึกแล้ว)', async ({ page }) => {

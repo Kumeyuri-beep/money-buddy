@@ -18,14 +18,14 @@ import { investError, investProblem } from '../investError';
 import { IncompleteTag } from '../MissingRateNotice';
 import { AddMenu, type AddAction } from '../transactions/AddMenu';
 import { CashAdjustForm } from '../transactions/CashAdjustForm';
-import { AmountCell, amountText, NoValue } from '../transactions/format';
+import { AmountCell, amountText, NoValue, signedAmountText } from '../transactions/format';
 import { StockPicker } from '../transactions/StockPicker';
 import '../transactions/transactions.css';
 
 type WithoutNonce<T> = T extends unknown ? Omit<T, 'nonce'> : never;
 type Panel = { type: 'pick'; kind: UsTradeKind } | { type: 'cash' } | { type: 'transfer' } | { type: 'needCash' } | null;
 
-const EDIT_NOTE = 'Editing a saved transaction is not available yet. To change one, delete it and add it again.';
+const EDIT_NOTE = 'Editing is not available yet. Delete and add it again.';
 
 /** Portfolio → Transactions (แบบร่าง 21): ตารางรายการทุกชนิด + Filters + เมนู Add + ลบพร้อม confirm · ตัวเลขทั้งหมดมาจาก src/domain/invest/transactionsView */
 export function TransactionsPage() {
@@ -40,6 +40,8 @@ export function TransactionsPage() {
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const opener = useRef<HTMLElement | null>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const needRef = useRef<HTMLHeadingElement>(null);
+  const transferRef = useRef<HTMLDivElement>(null);
 
   // สั่งเปิดฟอร์มเดิมของ UsStocksView (ซื้อ/ขาย/ปันผล/แลกเงิน/เพิ่มหุ้น/สร้างบัญชี USD) · nonce เพิ่มทุกครั้ง
   const counter = useRef(0);
@@ -62,6 +64,12 @@ export function TransactionsPage() {
   const filtered = hasActiveFilters(q);
   const reversed = dateRangeReversed(q);
   const activeCount = [q.kind !== '', q.assetId !== '', q.from !== '' || q.to !== ''].filter(Boolean).length;
+
+  const panelType = panel?.type;
+  useEffect(() => {
+    if (panelType === 'needCash') needRef.current?.focus();
+    else if (panelType === 'transfer') transferRef.current?.focus();
+  }, [panelType]); // ย้ายโฟกัสครั้งเดียวตอนแผงเปิด (ไม่ดึงกลับทุก render)
 
   const closePanel = () => {
     setPanel(null);
@@ -160,6 +168,7 @@ export function TransactionsPage() {
 
   const total = view?.rows.length ?? 0;
   const needsRateCount = shown.filter((r) => r.needsRate).length;
+  const failedCount = shown.filter((r) => r.failed).length;
 
   return (
     <div className="invest-tab invest-transactions tx-page">
@@ -170,7 +179,7 @@ export function TransactionsPage() {
               Transactions
             </h2>
             <p className="muted tx-fx" role="status">
-              {view?.fx ? `Latest rate ${fxRateText(view.fx.rateMicro)} · ${formatDateEn(view.fx.date)}` : view !== null && currency === 'THB' ? 'No exchange rate yet: values that need one show "Needs rate"' : ''}
+              {view?.fx ? `Latest rate ${fxRateText(view.fx.rateMicro)} · ${formatDateEn(view.fx.date)}${view.fx.stale ? ` (${view.fx.days} days old, values converted with it may be out of date)` : ''}` : view !== null && currency === 'THB' ? 'No exchange rate yet: values that need one show "Needs rate"' : ''}
             </p>
           </div>
 
@@ -190,6 +199,9 @@ export function TransactionsPage() {
             </p>
           ) : (
             <>
+              <p className="sr-only" role="status">
+                {shown.length} of {total} transactions
+              </p>
               <div className="tx-tabs" role="tablist" aria-label="Transaction groups">
                 {TX_TABS.map((t, i) => (
                   <button
@@ -215,7 +227,7 @@ export function TransactionsPage() {
                   <label htmlFor="tx-search">Search</label>
                   <input id="tx-search" type="search" value={q.query} placeholder="Ticker, name or note" onChange={(e) => setQ({ ...q, query: e.target.value })} />
                 </div>
-                <button type="button" className="iv-btn" aria-expanded={showFilters} aria-controls="tx-filters" onClick={() => setShowFilters((s) => !s)}>
+                <button type="button" className="iv-btn" aria-expanded={showFilters} aria-controls={showFilters ? 'tx-filters' : undefined} onClick={() => setShowFilters((s) => !s)}>
                   Filters{activeCount > 0 ? ` (${activeCount})` : ''}
                 </button>
                 {filtered && (
@@ -224,7 +236,7 @@ export function TransactionsPage() {
                   </button>
                 )}
                 <span className="tx-r11">
-                  Average cost (R11)
+                  Average cost
                   <InfoTip label="About average cost" tip="Cost of what you still hold uses the average cost method: total cost including purchase fees, divided by shares held." />
                 </span>
               </div>
@@ -337,7 +349,7 @@ export function TransactionsPage() {
                       </thead>
                       <tbody>
                         {shown.map((r) => (
-                          <TxTr key={r.key} r={r} onDelete={(row, from) => setConfirm({ row, from })} />
+                          <TxTr key={r.key} r={r} onDelete={(row, from) => setConfirm({ row, from })} onEdit={() => setMessage({ kind: 'ok', text: EDIT_NOTE })} />
                         ))}
                       </tbody>
                     </table>
@@ -350,7 +362,12 @@ export function TransactionsPage() {
                     </p>
                     {needsRateCount > 0 && (
                       <p className="muted small" role="status" data-testid="tx-needs-rate-note">
-                        {needsRateCount} {needsRateCount === 1 ? 'transaction needs' : 'transactions need'} an exchange rate, so {needsRateCount === 1 ? 'it shows' : 'they show'} "Needs rate". Totals marked Incomplete leave {needsRateCount === 1 ? 'it' : 'them'} out (not counted as 0).
+                        {needsRateCount} {needsRateCount === 1 ? 'transaction needs' : 'transactions need'} an exchange rate, so {needsRateCount === 1 ? 'it shows' : 'they show'} "Needs rate". The trade totals above marked Incomplete leave {needsRateCount === 1 ? 'it' : 'them'} out (not counted as 0).
+                      </p>
+                    )}
+                    {failedCount > 0 && (
+                      <p className="muted small" role="status">
+                        {failedCount} {failedCount === 1 ? 'transaction' : 'transactions'} could not be converted (invalid rate or amount) and {failedCount === 1 ? 'is' : 'are'} left out of the totals.
                       </p>
                     )}
                     {totals.excluded > 0 && (
@@ -359,7 +376,7 @@ export function TransactionsPage() {
                       </p>
                     )}
                     <p className="muted small">
-                      Value is the amount of each transaction; the Type column shows the direction. Fee / tax is the fee plus tax withheld at source. In THB view each amount uses the exchange rate of its own date; cash deposits and transfers use the latest rate you entered.
+                      Value is the amount of each transaction (− money out of the portfolio, + money in). Fee / tax is the fee plus tax withheld at source. Totals above count only buys, sells, fees and dividends: reinvested dividends, exchanges, transfers and cash deposits are not included. In THB view each amount uses the exchange rate of its own date; cash deposits and transfers use the latest rate you entered.
                     </p>
                   </>
                 )}
@@ -373,6 +390,7 @@ export function TransactionsPage() {
             <h2 id="tx-del-title">
               {plan.ok ? 'Delete' : 'Cannot delete'} {TX_KIND_LABEL[confirm.row.kind].toLowerCase()} on {formatDateEn(confirm.row.date)}?
             </h2>
+            <p className="tx-del-what">{describeRow(confirm.row)}</p>
             <p id="tx-del-desc" className={plan.ok ? 'muted' : 'form-error'}>
               {plan.ok ? deleteText(confirm.row) : investProblem(plan.problem)}
             </p>
@@ -411,7 +429,7 @@ export function TransactionsPage() {
         )}
         {panel?.type === 'needCash' && (
           <section className="solid card tx-panel" aria-labelledby="tx-need-title" onKeyDown={(e) => e.key === 'Escape' && closePanel()}>
-            <h2 id="tx-need-title" tabIndex={-1} ref={(el) => el?.focus()}>
+            <h2 id="tx-need-title" tabIndex={-1} ref={needRef}>
               Currency exchange needs a USD cash account
             </h2>
             <p className="muted">Create a USD cash account first. Then you can exchange baht into dollars.</p>
@@ -440,7 +458,7 @@ export function TransactionsPage() {
             data={data}
             onClose={closePanel}
             onSaved={(text) => {
-              setPanel(null);
+              closePanel();
               void refresh(text);
             }}
           />
@@ -451,7 +469,7 @@ export function TransactionsPage() {
             role="group"
             aria-label="Transfer to or from portfolio"
             tabIndex={-1}
-            ref={(el) => el?.focus()}
+            ref={transferRef}
             onKeyDown={(e) => {
               if (e.key === 'Escape' && !e.defaultPrevented && !(e.target instanceof HTMLSelectElement)) closePanel();
             }}
@@ -500,9 +518,20 @@ export function TransactionsPage() {
   );
 }
 
+/** บอกว่ากำลังลบอะไร: ชนิด สินทรัพย์ วันที่ จำนวนหุ้น มูลค่า (ข้อความล้วนจากค่าในแถวที่ domain คำนวณแล้ว) */
+function describeRow(r: TxRow): string {
+  const parts = [`${TX_KIND_LABEL[r.kind]} ${r.label}`, formatDateEn(r.date)];
+  if (r.units !== null) parts.push(`${formatUnits(r.units)} shares`);
+  if (r.value !== null && !r.needsRate) parts.push(signedAmountText(r.value, r.direction));
+  return parts.join(' · ');
+}
+
 function deleteText(r: TxRow): string {
   if (r.source === 'fx') return 'This deletes the exchange and reverses its baht and dollar amounts in your ledger. If the dollars were already used to buy stock, USD cash will go negative and a warning will show. It cannot be undone.';
-  if (r.source === 'entry') return 'This deletes the entry from your ledger. If the money was already used, your cash balance may go negative and a warning will show. It cannot be undone.';
+  if (r.source === 'entry') {
+    if (r.sourceCurrency === 'USD') return r.kind === 'cash_in' ? 'This deletes the deposit from your ledger. If the dollars were already used, USD cash will go negative and a warning will show. It cannot be undone.' : 'This deletes the withdrawal from your ledger and adds the dollars back to USD cash. It cannot be undone.';
+    return 'This deletes the baht entry from your ledger. A warning is shown only for negative USD cash, so check your baht balance yourself. It cannot be undone.';
+  }
   return 'This deletes the record and reverses its ledger entry. It cannot be undone.';
 }
 
@@ -523,7 +552,7 @@ function IncompleteChip() {
   );
 }
 
-function TxTr({ r, onDelete }: { r: TxRow; onDelete: (r: TxRow, from: HTMLElement) => void }) {
+function TxTr({ r, onDelete, onEdit }: { r: TxRow; onDelete: (r: TxRow, from: HTMLElement) => void; onEdit: () => void }) {
   const desc = `${TX_KIND_LABEL[r.kind]} ${r.label} on ${formatDateEn(r.date)}`;
   return (
     <tr>
@@ -539,16 +568,27 @@ function TxTr({ r, onDelete }: { r: TxRow; onDelete: (r: TxRow, from: HTMLElemen
         {r.memo !== '' && <span className="tx-sub">{r.memo}</span>}
       </td>
       <td className="num">{r.units === null ? <NoValue /> : formatUnits(r.units)}</td>
-      <td className="num">{r.kind === 'fx' && r.fxRateMicro !== null ? fxRateText(r.fxRateMicro) : <AmountCell a={r.price} row={r} />}</td>
       <td className="num">
-        <AmountCell a={r.value} row={r} flag />
+        {r.kind === 'fx' && r.fxRateMicro !== null ? fxRateText(r.fxRateMicro) : <AmountCell a={r.price} row={r} />}
+        {(r.kind === 'buy' || r.kind === 'reinvest') && r.price !== null && (
+          <span className="tx-avg">
+            avg
+            <InfoTip label="About the average price" tip="Average price per share of this purchase: purchase value divided by shares." />
+          </span>
+        )}
+      </td>
+      <td className="num">
+        <AmountCell a={r.value} row={r} flag signed />
       </td>
       <td className="num">
         <AmountCell a={r.feeTax} row={r} hideZero />
       </td>
       <td>{r.sourceCurrency}</td>
       <td className="tx-actions">
-        <button type="button" className="tx-act" aria-disabled="true" aria-label={`Edit ${desc}`} aria-describedby="tx-edit-note" title={EDIT_NOTE} onClick={(e) => e.preventDefault()}>
+        <button type="button" className="tx-act" aria-disabled="true" aria-label={`Edit ${desc}`} aria-describedby="tx-edit-note" onClick={(e) => {
+            e.preventDefault();
+            onEdit();
+          }}>
           Edit
         </button>
         <button type="button" className="tx-act tx-act-del" aria-label={`Delete ${desc}`} onClick={(e) => onDelete(r, e.currentTarget)}>
