@@ -58,7 +58,7 @@ export interface SellDetail {
   costOutThb: number;
   /** ส่วนต่างราคาที่ขายแล้วของรายการนี้ (บาท ที่อัตราวันขาย) = แปลง(เงินขายก่อนหัก − ต้นทุน USD ไม่รวมค่าธรรมเนียม) */
   priceGainThb: number;
-  /** ค่าธรรมเนียมขายเป็นบาท = แปลง(เงินขายก่อนหัก) − แปลง(เงินขายสุทธิ) */
+  /** ค่าธรรมเนียมขายเป็นบาท = แปลง(ค่าธรรมเนียมขายของรายการนี้) ที่อัตราวันขาย (R24 แหล่ง (6) · ปรับ 20 พ.ย. 2569 ให้ตรงกับ R26 Fee & tax ในตาราง Transactions) */
   sellFeeThb: number;
   feeUsd: number;
 }
@@ -68,7 +68,7 @@ export interface FeeReplay {
   /** ส่วนค่าธรรมเนียมที่ติดอยู่ในต้นทุนของที่ถืออยู่ */
   heldFeeUsd: number;
   heldFeeThb: number;
-  /** รวมทุกรายการ (ซื้อ+ขาย) */
+  /** รวมทุกรายการ (ซื้อ+ขาย) · บาท = ผลบวกของค่าธรรมเนียมที่แปลงทีละรายการ (R24 แหล่ง (6)) */
   buyFeesUsd: number;
   buyFeesThb: number;
   sellFeesUsd: number;
@@ -99,11 +99,12 @@ export function replayWithFees(trades: readonly TradeFx[]): FeeReplay {
       pos = applyBuyFx(pos, t);
       const outlayUsd = safeAdd(t.amount, t.fee);
       const outlayThb = convertMinor(outlayUsd, t.fxRateMicro);
-      const feeThb = safeSub(outlayThb, convertMinor(t.amount, t.fxRateMicro));
+      // ส่วนค่าธรรมเนียมที่ติดในต้นทุนบาท (ไว้ตัดตามสัดส่วนเมื่อขาย) ใช้ผลต่างเพื่อให้ต้นทุน 2 ถังตรงเดิม (R20.3) · ไม่ใช่ตัวเลขแหล่ง (6)
+      const feeInCostThb = safeSub(outlayThb, convertMinor(t.amount, t.fxRateMicro));
       heldFeeUsd = safeAdd(heldFeeUsd, t.fee);
-      heldFeeThb = safeAdd(heldFeeThb, feeThb);
+      heldFeeThb = safeAdd(heldFeeThb, feeInCostThb);
       out.buyFeesUsd = safeAdd(out.buyFeesUsd, t.fee);
-      out.buyFeesThb = safeAdd(out.buyFeesThb, feeThb);
+      out.buyFeesThb = safeAdd(out.buyFeesThb, convertMinor(t.fee, t.fxRateMicro)); // แหล่ง (6): แปลงค่าธรรมเนียมของรายการนี้เอง
       out.investedUsd = safeAdd(out.investedUsd, outlayUsd);
       out.investedThb = safeAdd(out.investedThb, outlayThb);
       out.buys.push({ id: t.id, date: t.date, outlayUsd, outlayThb });
@@ -117,7 +118,7 @@ export function replayWithFees(trades: readonly TradeFx[]): FeeReplay {
       heldFeeThb = safeSub(heldFeeThb, feeOutThb);
       pos = r.position;
       const principalOutUsd = safeSub(r.costOutUsd, feeOutUsd);
-      const sellFeeThb = safeSub(convertMinor(r.grossUsd, t.fxRateMicro), r.proceedsThb);
+      const sellFeeThb = convertMinor(t.fee, t.fxRateMicro); // แหล่ง (6): แปลงค่าธรรมเนียมขายของรายการนี้เอง (ไม่ใช้ผลต่างของสองก้อน)
       out.sellFeesUsd = safeAdd(out.sellFeesUsd, t.fee);
       out.sellFeesThb = safeAdd(out.sellFeesThb, sellFeeThb);
       out.netProceedsUsd = safeAdd(out.netProceedsUsd, r.netUsd);
