@@ -73,6 +73,25 @@ for (const w of WIDTHS) {
       await expect(tabs.getByRole('tab', { name: 'Dividends' })).toHaveAttribute('aria-selected', 'true');
     });
 
+    test('แบบร่าง 20: อวาตาร์ตัวอักษรย่อ + บรรทัดล่างต่อหุ้น + แท็บ/ค้นหาแถวเดียวบนคอม · มือถือไม่เปลี่ยน (ซ่อน)', async ({ page }) => {
+      await openHoldings(page);
+      const row = page.getByRole('row', { name: /Demo Alpha Tech/ });
+      const avatar = row.locator('.hd-avatar');
+      const perShare = row.locator('.hd-persub');
+      if (w.width >= 1024) {
+        await expect(avatar).toBeVisible();
+        await expect(avatar).toHaveText('DEMA');
+        await expect(perShare.first()).toBeVisible();
+        await expect(perShare.first()).toHaveText('$100.03'); // ต้นทุนเฉลี่ยต่อหุ้น (domain คำนวณ)
+        const tabs = await page.getByRole('tablist', { name: 'Holdings columns' }).boundingBox();
+        const search = await page.getByRole('searchbox', { name: 'Search' }).boundingBox();
+        expect(Math.abs((tabs!.y + tabs!.height / 2) - (search!.y + search!.height / 2))).toBeLessThan(20); // อยู่แถวเดียวกัน
+      } else {
+        await expect(avatar).toBeHidden();
+        await expect(perShare.first()).toBeHidden();
+      }
+    });
+
     test('ค้นหา · เรียง · Show sold', async ({ page }) => {
       await openHoldings(page);
       await page.getByRole('searchbox', { name: 'Search' }).fill('beta');

@@ -9,7 +9,7 @@ import { useRepository } from '../../RepositoryContext';
 import { UsStocksView, type UsStocksRequest } from '../../UsStocksView';
 import { usdMissingRate } from '../../../domain/invest/metrics';
 import { MissingRateNotice } from '../MissingRateNotice';
-import { cellOf, COLUMN_LABEL, totalCellOf } from '../holdings/format';
+import { cellOf, COLUMN_LABEL, HoldingAvatar, subCellOf, totalCellOf } from '../holdings/format';
 import { RowMenu, type RowAction } from '../holdings/RowMenu';
 import '../holdings/holdings.css';
 import { useInvest } from '../InvestContext';
@@ -173,6 +173,7 @@ export function HoldingsPage({ addSignal }: { addSignal: number }) {
             </div>
           ) : (
             <>
+              <div className="hd-bar">
               <div className="hd-tabs" role="tablist" aria-label="Holdings columns">
                 {HOLDINGS_TABS.map((t, i) => (
                   <button
@@ -193,7 +194,7 @@ export function HoldingsPage({ addSignal }: { addSignal: number }) {
               </div>
 
               <div className="hd-tools">
-                <div className="iv-field">
+                <div className="iv-field hd-search">
                   <label htmlFor="hd-search">Search</label>
                   <input id="hd-search" type="search" value={q.query} placeholder="Ticker or name" onChange={(e) => setQ({ ...q, query: e.target.value })} />
                 </div>
@@ -208,12 +209,13 @@ export function HoldingsPage({ addSignal }: { addSignal: number }) {
                   </select>
                 </div>
                 <button type="button" className="iv-btn" aria-label={`Sort direction: ${q.dir === 'asc' ? 'ascending' : 'descending'}`} onClick={() => setQ({ ...q, dir: q.dir === 'asc' ? 'desc' : 'asc' })}>
-                  <span aria-hidden="true">{q.dir === 'asc' ? '↑' : '↓'}</span> {q.dir === 'asc' ? 'Ascending' : 'Descending'}
+                  <span aria-hidden="true">{q.dir === 'asc' ? '↑' : '↓'}</span> <span className="hd-dir-text">{q.dir === 'asc' ? 'Ascending' : 'Descending'}</span>
                 </button>
                 <label className="hd-check">
                   <input type="checkbox" checked={q.showSold} onChange={(e) => setQ({ ...q, showSold: e.target.checked })} />
                   Show sold{soldCount > 0 ? ` (${soldCount})` : ''}
                 </label>
+              </div>
               </div>
 
               <MissingRateNotice trades={missingRate} tickerOf={(id) => view?.rows.find((r) => r.assetId === id)?.ticker ?? ''} />
@@ -322,14 +324,18 @@ function HoldingTr(props: { needsRate: boolean; r: HoldingRow; cols: ColumnId[];
     <>
       <tr className={r.sold ? 'hd-sold' : undefined}>
         <th scope="row">
-          <span className="hd-ticker">{label}</span>
-          {r.ticker !== '' && <span className="hd-name">{r.name}</span>}
-          {r.sold && <span className="hd-badge">Sold</span>}
-          {needsRate && <span className="hd-badge">Needs rate</span>}
+          <HoldingAvatar ticker={r.ticker} name={r.name} />
+          <span className="hd-who">
+            <span className="hd-ticker">{label}</span>
+            {r.ticker !== '' && <span className="hd-name">{r.name}</span>}
+            {r.sold && <span className="hd-badge">Sold</span>}
+            {needsRate && <span className="hd-badge">Needs rate</span>}
+          </span>
         </th>
         {cols.map((c) => (
           <td key={c} className="num">
             {cellOf(c, r, currency)}
+            {subCellOf(c, r, currency)}
           </td>
         ))}
         <td className="hd-actions">
