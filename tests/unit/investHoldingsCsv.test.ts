@@ -89,6 +89,11 @@ describe('ส่งออก CSV ของ Holdings (ตัวเลขเป็
     const zero = csv(MAIN, 'USD', 'returns')[2]!.split(',');
     expect(zero[4]).toBe('0.00'); // options = 0 จริง
   });
+  it('ชื่อ/ชื่อย่อที่มีช่องว่างนำหน้าแล้วตามด้วย = + - @ ถูกกันเหมือนกัน (ใช้ csvText ตัวเดียวกับ Report)', () => {
+    const evil: InvestmentData = { ...MAIN, assets: [asset('us1', '  +SUM(A1)', ' @x')] };
+    const line = csv(evil, 'USD', 'holdings')[2]!;
+    expect(line.startsWith("'  +SUM(A1),' @x,")).toBe(true);
+  });
   it('ไม่มีแถวเลย = มีหัวกับแถวรวม 0 holdings (ไม่ล้ม)', () => {
     const lines = csv({ ...MAIN, assets: [], trades: [], prices: [] }, 'USD', 'holdings');
     expect(lines).toHaveLength(3);

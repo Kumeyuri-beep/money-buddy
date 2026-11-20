@@ -67,9 +67,12 @@ export function minorToDecimal(minor: number): string {
 /** bps → "10.69" / "-0.38" */
 export const bpsToDecimal = minorToDecimal;
 
-/** กัน CSV/formula injection ในข้อความ: ขึ้นต้น = + - @ tab CR → นำหน้าด้วย ' แล้วครอบเครื่องหมายคำพูดตามมาตรฐาน CSV */
+/**
+ * กัน CSV/formula injection ในข้อความ: ขึ้นต้น tab/CR หรือขึ้นต้นด้วย = + - @ → นำหน้าด้วย ' แล้วครอบเครื่องหมายคำพูดตามมาตรฐาน CSV
+ * รวมกรณีมีช่องว่าง/tab/ขึ้นบรรทัดนำหน้า (Excel ตัดช่องว่างนำหน้าก่อนตีความสูตร) · ใช้ทั้ง Report และ Holdings
+ */
 export function csvText(text: string): string {
-  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+  const safe = /^[\t\r]|^\s*[=+\-@]/.test(text) ? `'${text}` : text;
   return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 

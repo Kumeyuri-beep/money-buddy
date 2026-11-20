@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { groupOfPage, INVEST_GROUPS, investPage, type InvestMenuGroup, type InvestPageId } from '../../app/investRoute';
 import { PORTFOLIO_NAME_MAX, PORTFOLIO_NOTE_MAX } from '../../domain/bills/settings';
 import { TipButton } from './Tip';
@@ -187,6 +187,11 @@ function MainNav({ page, onNavigate, hrefFor }: Pick<Props, 'page' | 'onNavigate
   const navRef = useRef<HTMLElement>(null);
   const openedByHover = useRef(false);
   const skipFocusOpen = useRef(false); // ตอนคืนโฟกัสให้ปุ่มหลังกด Esc ห้ามเปิดเมนูซ้ำ
+  // ตำแหน่งเมาส์ล่าสุดที่อยู่ในแถบ · pointerleave ที่ตำแหน่งเดียวกันคือเหตุการณ์สังเคราะห์ (หน้าเลื่อน/เลย์เอาต์ขยับใต้เมาส์ที่นิ่ง) ไม่ใช่ผู้ใช้ขยับออก จึงไม่ปิดเมนู
+  const lastPointer = useRef<{ x: number; y: number } | null>(null);
+  const remember = (e: ReactPointerEvent) => {
+    lastPointer.current = { x: e.clientX, y: e.clientY };
+  };
   const activeGroup = groupOfPage(page);
 
   const triggers = (): HTMLElement[] => Array.from(navRef.current?.querySelectorAll<HTMLElement>('[data-iv-trigger]') ?? []);
@@ -301,13 +306,23 @@ function MainNav({ page, onNavigate, hrefFor }: Pick<Props, 'page' | 'onNavigate
           <div
             className={`iv-nav-item${isOpen ? ' is-open' : ''}`}
             key={g.id}
+            onPointerMove={(e) => {
+              if (e.pointerType === 'mouse') remember(e);
+            }}
             onPointerEnter={(e) => {
               if (e.pointerType !== 'mouse') return;
+              // หน้าเลื่อน/เลย์เอาต์ขยับใต้เมาส์ที่นิ่ง แล้วไปชี้เมนูอื่นขณะมีเมนูเปิดอยู่ = เหตุการณ์สังเคราะห์ ไม่สลับเมนู (ผู้ใช้ต้องขยับเมาส์จริง)
+              const last = lastPointer.current;
+              if (open !== null && open !== g.id && last !== null && last.x === e.clientX && last.y === e.clientY) return;
+              remember(e);
               if (open !== g.id) openedByHover.current = true;
               setOpen(g.id);
             }}
             onPointerLeave={(e) => {
-              if (e.pointerType === 'mouse' && open === g.id) close();
+              if (e.pointerType !== 'mouse' || open !== g.id) return;
+              const last = lastPointer.current;
+              if (last !== null && last.x === e.clientX && last.y === e.clientY) return; // เมาส์ไม่ได้ขยับ (หน้าเลื่อนใต้เมาส์) = ไม่ปิด
+              close();
             }}
             onFocus={(e) => {
               // เปิดเมื่อโฟกัสปุ่มหลักด้วยคีย์บอร์ดเท่านั้น (คลิกด้วยเมาส์/แตะ ให้ onClick จัดการเอง)
