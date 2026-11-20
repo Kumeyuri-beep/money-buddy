@@ -43,3 +43,14 @@
   .cs-page { gap: 18px; }
   .cs-head h2 { font-size: 32px; }
 }
+
+/* ───── แบบร่าง 24 (เฉพาะคอม ≥1024px · ต่ำกว่านี้หน้าตาเดิมทุกอย่าง) ───── */
+.cs-tools, .cs-pf, .cs-pf-note { display: none; }
+@media (min-width: 1024px) {
+  .cs-tools { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 10px 16px; }
+  .cs-check { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-size: 15px; color: var(--text); }
+  .cs-check input { width: 20px; height: 20px; }
+  .cs-search { min-width: 260px; flex: 0 1 360px; }
+  th.cs-pf, td.cs-pf { display: table-cell; }
+  .cs-pf-note { display: block; margin: 0; }
+}

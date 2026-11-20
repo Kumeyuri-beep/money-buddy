@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { investError, investProblem } from './invest/investError';
+import { useDesktop } from './useDesktop';
 import { baht, signed } from '../app/bahtFormat';
 import { formatDateEn } from '../app/dateEn';
 import { newId } from '../app/ids';
@@ -39,20 +40,6 @@ type Panel =
   | { type: 'trade'; assetId: string; kind: UsTradeKind }
   | { type: 'price'; assetId: string }
   | null;
-
-/** จอคอม (≥1024px): ฟอร์มเพิ่มหุ้นเปิดเป็น dialog · ต่ำกว่านั้นคงเป็นการ์ดในหน้าเหมือนเดิม (มือถือไม่เปลี่ยน) */
-function useDesktop(): boolean {
-  const query = '(min-width: 1024px)';
-  const [match, setMatch] = useState(() => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(query).matches);
-  useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return;
-    const mq = window.matchMedia(query);
-    const on = () => setMatch(mq.matches);
-    mq.addEventListener('change', on);
-    return () => mq.removeEventListener('change', on);
-  }, []);
-  return match;
-}
 
 function StockShell({ desktop, onClose, children }: { desktop: boolean; onClose: () => void; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);
