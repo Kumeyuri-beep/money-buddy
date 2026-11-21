@@ -3,6 +3,7 @@
  * ยอดเงินเป็นสตางค์จำนวนเต็มไม่ติดลบเสมอ (กฎ R1) ตัวแปลงจากข้อความผู้ใช้อยู่ที่ขอบ UI (R2) ไม่ใช่ที่นี่
  */
 
+import { investGoalProblem, sanitizeInvestGoal, type InvestGoal } from '../invest/goalProjection';
 import { dcaPlanProblem, sanitizeDcaPlans, MAX_DCA_PLANS, type DcaPlan } from '../invest/dcaPlan';
 import { retirementAssetIdsProblem, sanitizeRetirementAssetIds } from '../invest/retirementSelection';
 import { sanitizeTaxTagIds, taxTagsProblem } from '../invest/taxTags';
@@ -41,6 +42,8 @@ export interface FinanceSettings {
   portfolioNote?: string;
   /** สกุลเริ่มต้นของหน้าพอร์ต: 'THB' | 'USD' · ไม่ตั้ง = THB · ไม่ใช่ข้อมูลเงิน */
   portfolioCurrency?: 'THB' | 'USD';
+  /** เป้าหมายลงทุนหน้า My goal (R28) · ค่าที่ผู้ใช้ตั้ง ไม่ใช่ยอดเงินจริง ไม่ลงสมุด · ไม่ตั้ง = ยังไม่มีเป้า */
+  investGoal?: InvestGoal;
 }
 
 export const PORTFOLIO_NAME_MAX = 40;
@@ -69,6 +72,10 @@ export function settingsProblem(s: FinanceSettings): string | null {
   if (s.portfolioName !== undefined && !isPortfolioText(s.portfolioName, PORTFOLIO_NAME_MAX, 1)) return `ชื่อพอร์ตต้องยาว 1-${PORTFOLIO_NAME_MAX} ตัวอักษรและไม่มีช่องว่างหัวท้าย`;
   if (s.portfolioNote !== undefined && !isPortfolioText(s.portfolioNote, PORTFOLIO_NOTE_MAX, 1)) return `คำอธิบายพอร์ตต้องยาว 1-${PORTFOLIO_NOTE_MAX} ตัวอักษรและไม่มีช่องว่างหัวท้าย`;
   if (s.portfolioCurrency !== undefined && s.portfolioCurrency !== 'THB' && s.portfolioCurrency !== 'USD') return `สกุลเริ่มต้นของพอร์ตต้องเป็น THB หรือ USD (ได้รับ ${String(s.portfolioCurrency)})`;
+  if (s.investGoal !== undefined) {
+    const problem = investGoalProblem(s.investGoal);
+    if (problem) return problem;
+  }
   if (s.dcaPlans !== undefined) {
     if (!Array.isArray(s.dcaPlans)) return 'แผนซื้อประจำต้องเป็นอาร์เรย์';
     if (s.dcaPlans.length > MAX_DCA_PLANS) return `แผนซื้อประจำมีได้ไม่เกิน ${MAX_DCA_PLANS} แผน`;
@@ -108,6 +115,8 @@ export function sanitizeSettings(raw: unknown): FinanceSettings {
   if (isPortfolioText(r.portfolioName, PORTFOLIO_NAME_MAX, 1)) out.portfolioName = r.portfolioName;
   if (isPortfolioText(r.portfolioNote, PORTFOLIO_NOTE_MAX, 1)) out.portfolioNote = r.portfolioNote;
   if (r.portfolioCurrency === 'THB' || r.portfolioCurrency === 'USD') out.portfolioCurrency = r.portfolioCurrency;
+  const goal = sanitizeInvestGoal(r.investGoal);
+  if (goal !== undefined) out.investGoal = goal;
   if (Array.isArray(r.dcaPlans)) {
     const plans = sanitizeDcaPlans(r.dcaPlans);
     if (plans.length > 0) out.dcaPlans = plans;

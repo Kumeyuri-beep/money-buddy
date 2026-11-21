@@ -11,10 +11,12 @@ import type { CodedProblem } from '../errors/problem';
 import { safeAdd } from '../money/safe';
 import { replayTrades } from './costBasis';
 import { replayTradesFx, type TradeFx } from './costBasisFx';
+import { splitTradesByRate } from './tradesFx';
 import { problem } from './errorCodes';
 import { convertMinor } from './fx';
+import { latestFxRate } from './fxRate';
 import { toReplayTrades } from './rules';
-import { assetCurrency, type Asset, type FxRateRecord, type InvestmentData } from './types';
+import { assetCurrency, type Asset, type InvestmentData } from './types';
 import { valueInSatang } from './units';
 
 export type PortfolioTransferKind = 'to-portfolio' | 'from-portfolio';
@@ -79,20 +81,10 @@ function daysBetween(from: string, to: string): number {
   return (t - f) / 86_400_000;
 }
 
-/**
- * อัตราแลกเปลี่ยนล่าสุดที่ผู้ใช้กรอก ณ วัน asOf (R20.7): วันที่ล่าสุดก่อนหรือเท่า asOf · วันเดียวกันหลายบัญชี USD ให้รหัสบัญชีมากสุดชนะ (กติกาเดียวกันทุกหน้าจอ ตัวเลขจึงตรงกัน)
- * ไม่มี = null (ไม่เดา)
- */
-export function latestFxRate(rates: readonly FxRateRecord[], asOf: string): { date: string; rateMicro: number } | null {
-  let best: FxRateRecord | null = null;
-  for (const r of rates) {
-    if (r.date > asOf) continue;
-    if (best === null || r.date > best.date || (r.date === best.date && r.accountId > best.accountId)) best = r;
-  }
-  return best ? { date: best.date, rateMicro: best.rateMicro } : null;
-}
+/** ย้ายไป ./fxRate (ไม่เปลี่ยนพฤติกรรม) · ส่งออกซ้ำเพื่อไม่ให้ผู้เรียกเดิมที่แตะสมุดบัญชีต้องเปลี่ยน */
+export { latestFxRate };
 
-export type WealthMissing = { kind: 'price'; assetId: string } | { kind: 'fx' };
+export type WealthMissing = { kind: 'price'; assetId: string } | { kind: 'fx' } | { kind: 'rate'; tradeIds: string[] };
 export type WealthStale = { kind: 'price'; assetId: string; date: string; days: number } | { kind: 'fx'; date: string; days: number };
 
 export interface WealthSummary {
@@ -150,6 +142,12 @@ export function wealthSummary(accounts: readonly Account[], entries: readonly En
     const own = inv.trades.filter((t) => t.assetId === asset.id && t.date <= asOf);
     let units: bigint;
     if (assetCurrency(asset) === 'USD') {
+      // รายการที่ไม่มีเรตไม่ถูกเล่นซ้ำ หน่วยที่ถืออาจผิด: ไม่นับมูลค่าสินทรัพย์นี้ และแจ้งว่าไม่ครบ ไม่ข้ามเงียบ (R26)
+      const noRate = splitTradesByRate(own).missingRate;
+      if (noRate.length > 0) {
+        missing.push({ kind: 'rate', tradeIds: noRate.map((t) => t.id) });
+        continue;
+      }
       const fxTrades: TradeFx[] = [];
       for (const t of own) {
         if (t.fxRateMicro === undefined) continue;

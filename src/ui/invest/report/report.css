@@ -1,0 +1,64 @@
+/* หน้า Analytics → Report · ใช้ตัวแปรสีเดิม ไม่เพิ่ม token กลาง · สไตล์ที่เปลี่ยนเฉพาะคอมอยู่ใน @media (min-width: 1024px) */
+.invest-report > *, .rp-print > * { min-width: 0; }
+.rp-print { display: grid; gap: 16px; }
+.rp-print-title { display: none; }
+.rp-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+.rp-group { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: 14px; border: 1px solid var(--ov-20); background: var(--ov-6); }
+.rp-group .iv-seg-btn { min-height: 40px; padding: 0 14px; border: 0; border-radius: 11px; background: transparent; color: var(--muted); font-size: 14px; font-weight: 600; }
+.rp-group .iv-seg-btn.is-active { background: var(--gold); color: var(--on-gold); }
+.rp-period { display: inline-flex; align-items: center; gap: 8px; }
+.rp-period select { min-height: 44px; padding: 0 12px; font: inherit; color: var(--text); background: var(--ov-8); border: 1px solid var(--ov-20); border-radius: 12px; }
+.rp-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.rp-note { margin: 0; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--gold-border); background: var(--ov-6); }
+.rp-chart { margin: 0 0 12px; }
+.rp-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-bottom: 8px; }
+.rp-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.rp-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--ov-35); background: transparent; flex: none; }
+.rp-chart-scroll { overflow-x: auto; max-width: 100%; }
+.rp-chart svg { display: block; }
+.rp-zero { stroke: var(--ov-35); stroke-width: 1; }
+.rp-axis { fill: var(--muted); font-size: 12px; }
+.rp-num { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--text); color: var(--surface-solid); font-size: 12px; font-weight: 700; line-height: 1; }
+.rp-legend-hint { display: block; font-size: 12px; }
+.rp-legend-swatch { flex: none; }
+.rp-guide { margin-top: 12px; }
+.rp-guide summary { cursor: pointer; min-height: 36px; display: flex; align-items: center; font-weight: 600; }
+.rp-guide dl { display: grid; gap: 8px; margin: 8px 0 0; }
+.rp-guide dt { font-weight: 600; }
+.rp-guide dd { margin: 0; }
+.rp-table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+.rp-table th, .rp-table td { padding: 9px 10px; border-bottom: 1px solid var(--ov-10); white-space: nowrap; text-align: right; }
+.rp-table th[scope='row'], .rp-table thead th:first-child { text-align: left; position: sticky; left: 0; background: var(--surface-solid); }
+.rp-table .rp-group-row th { text-align: left; position: static; font-size: 13px; color: var(--muted); background: var(--ov-6); }
+.rp-table .rp-total { font-weight: 600; border-left: 1px solid var(--ov-18); }
+.rp-name { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; font: inherit; color: var(--text); background: transparent; border: 1px solid transparent; border-radius: 10px; cursor: pointer; text-align: left; }
+.rp-name:hover { background: var(--ov-8); }
+.rp-name.is-on { border-color: var(--ov-35); background: var(--ov-10); font-weight: 600; }
+.rp-name:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.rp-name-static { cursor: default; padding-left: 28px; }
+@media (min-width: 1024px) {
+  .rp-table { font-size: 15px; }
+}
+@media print {
+  @page { size: landscape; margin: 10mm; }
+  body * { visibility: hidden; }
+  .rp-print, .rp-print * { visibility: visible; }
+  .rp-print { position: absolute; left: 0; top: 0; width: 100%; color: #000; background: #fff; }
+  .rp-print-title { display: block; margin: 0 0 8px; }
+  .rp-noprint, .rp-noprint * { display: none !important; }
+  .rp-print .card { box-shadow: none; background: #fff; border: 0; color: #000; }
+  .rp-chart-scroll { overflow: visible; }
+  .rp-chart svg { width: 100%; height: auto; max-width: 100%; }
+  .rp-axis { fill: #000; }
+  .rp-zero { stroke: #000; }
+  .rp-swatch, .rp-legend-swatch, .rp-num, .rp-chart svg rect { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .rp-num { background: #000; color: #fff; }
+  .rp-legend-hint { color: #000; }
+  .migrate-table-wrap { overflow: visible; }
+  .rp-table { table-layout: fixed; width: 100%; }
+  .rp-table, .rp-table th, .rp-table td { font-size: 8px; color: #000; background: #fff; padding: 2px 3px; white-space: normal; overflow-wrap: anywhere; }
+  .rp-table th[scope='row'], .rp-table thead th:first-child { position: static; background: #fff; color: #000; width: 14%; }
+  .rp-table .rp-group-row th { background: #eee; color: #000; }
+  .rp-name { color: #000; }
+  .an-pos, .an-neg { color: #000; }
+}

@@ -4,6 +4,8 @@
  * harness (หน้าทดสอบ /harness.html) เป็นไฟล์ .html จึงใช้ hash (#/invest) แทน path
  */
 
+import { investPageFromPath } from './investRoute';
+
 export type RouteView = 'today' | 'ledger' | 'bills' | 'account' | 'averaging' | 'portfolio' | 'retirement' | 'tax';
 
 const PATH_OF: Partial<Record<RouteView, string>> = { portfolio: '/invest', tax: '/tax' };
@@ -25,7 +27,9 @@ const normalize = (p: string): string => {
 /** หน้าที่ URL ปัจจุบันบอก (null = URL ไม่ได้ระบุหน้าเฉพาะ ให้ใช้หน้าเริ่มต้น/หน้าที่เก็บใน history.state) */
 export function viewFromLocation(loc: LocationLike): RouteView | null {
   const raw = usesHash(loc) ? loc.hash.replace(/^#/, '') : loc.pathname;
-  return VIEW_OF[normalize(raw === '' ? '/' : raw)] ?? null;
+  const path = normalize(raw === '' ? '/' : raw);
+  if (investPageFromPath(path) !== null) return 'portfolio'; // /invest/analytics/common ฯลฯ = หน้าย่อยของโหมดพอร์ต
+  return VIEW_OF[path] ?? null;
 }
 
 /** URL ปลายทางของหน้า: หน้าที่มีเส้นทางของตัวเองได้ /invest หรือ /tax · หน้าอื่นได้ "/" (หรือ hash ว่างใน harness) */

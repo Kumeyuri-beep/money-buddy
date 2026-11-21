@@ -28,8 +28,8 @@ function Name({ ticker, name, colorIndex }: { ticker: string; name: string; colo
 }
 
 /** ตารางหุ้นที่ถือ (แท็บย่อย ทั่วไป / ปันผล / กำไร) · ตัวเลขทั้งหมดมาจากโมเดล (domain) · ตารางกว้างเลื่อนในกรอบของตัวเอง */
-export function HoldingsCard({ model, currency }: { model: AnalysisModel; currency: 'THB' | 'USD' }) {
-  const [sub, setSub] = useState<Sub>('general');
+export function HoldingsCard({ model, currency, initialSub = 'general' }: { model: AnalysisModel; currency: 'THB' | 'USD'; initialSub?: Sub }) {
+  const [sub, setSub] = useState<Sub>(initialSub);
   const refs = useRef<Record<Sub, HTMLButtonElement | null>>({ general: null, dividend: null, profit: null });
   const { us, rows } = model;
   const complete = us.totals.complete;
@@ -51,7 +51,7 @@ export function HoldingsCard({ model, currency }: { model: AnalysisModel; curren
     return (
       <section className="solid card an-card" aria-labelledby="an-hold-title">
         <h2 id="an-hold-title">Holdings</h2>
-        <p className="muted">No US stocks yet. Add a stock and record a purchase in the Transactions tab.</p>
+        <p className="muted">No US stocks yet. Add a stock and record a purchase under Portfolio → Holdings.</p>
       </section>
     );
   }
@@ -90,7 +90,7 @@ export function HoldingsCard({ model, currency }: { model: AnalysisModel; curren
       </div>
       {!complete && (
         <p className="muted small" role="status">
-          ⚠ Incomplete: some stocks have no price or exchange rate. Cost is never used in place of value. Enter them in the Transactions tab.
+          ⚠ Incomplete: some stocks have no price or exchange rate. Cost is never used in place of value. Enter them under Portfolio → Holdings.
         </p>
       )}
       <div id="an-sub-panel" role="tabpanel" aria-labelledby={`an-sub-${sub}`}>
@@ -137,10 +137,10 @@ export function HoldingsCard({ model, currency }: { model: AnalysisModel; curren
                   <td className="num"><Dash /></td>
                   <td className="num"><Dash /></td>
                   <td className="num">
-                    {holding && !anyValue ? <Dash why={NEED} /> : <MoneyCell thb={us.totals.valueThb} usdCents={us.totals.valueUsd} currency={currency} />}
+                    {us.missingRate.length > 0 || (holding && !anyValue) ? <Dash why={NEED} /> : <MoneyCell thb={us.totals.valueThb} usdCents={us.totals.valueUsd} currency={currency} />}
                   </td>
                   <td className="num">
-                    {holding && !anyGain ? <Dash why={NEED} /> : <MoneyCell thb={us.totals.unrealizedThb} currency="THB" signedValue />}
+                    {us.missingRate.length > 0 || (holding && !anyGain) ? <Dash why={NEED} /> : <MoneyCell thb={us.totals.unrealizedThb} currency="THB" signedValue />}
                   </td>
                 </tr>
               </tfoot>
@@ -159,14 +159,14 @@ export function HoldingsCard({ model, currency }: { model: AnalysisModel; curren
                 {rows.map(({ row: r, colorIndex }) => (
                   <tr key={r.assetId}>
                     <Name ticker={r.ticker} name={r.name} colorIndex={colorIndex} />
-                    <td className="num"><MoneyCell thb={r.dividendNetThb} usdCents={r.dividendNetUsd} currency={currency} /></td>
+                    <td className="num">{r.needsRate ? <MoneyCell thb={null} currency={currency} why="Needs rate" /> : r.error !== undefined ? <MoneyCell thb={null} currency={currency} why="Couldn't load" /> : <MoneyCell thb={r.dividendNetThb} usdCents={r.dividendNetUsd} currency={currency} />}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr>
-                  <th scope="row">Total</th>
-                  <td className="num"><MoneyCell thb={us.totals.dividendNetThb} usdCents={model.dividendNetUsdTotal} currency={currency} /></td>
+                  <th scope="row">Total{complete ? '' : ' (incomplete)'}</th>
+                  <td className="num"><MoneyCell thb={us.totals.dividendNetThb} usdCents={model.dividendNetUsdTotal} currency={currency} why="Couldn't load" /></td>
                 </tr>
               </tfoot>
             </table>
@@ -190,17 +190,17 @@ export function HoldingsCard({ model, currency }: { model: AnalysisModel; curren
                     <td className="num"><MoneyCell thb={r.unrealizedThb} currency="THB" signedValue why={NEED} /></td>
                     <td className="num"><MoneyCell thb={r.priceGainThb} currency="THB" signedValue why={NEED} /></td>
                     <td className="num"><MoneyCell thb={r.fxGainThb} currency="THB" signedValue why={NEED} /></td>
-                    <td className="num"><MoneyCell thb={r.realizedGainThb} currency="THB" signedValue /></td>
+                    <td className="num"><MoneyCell thb={r.needsRate ? null : r.realizedGainThb} currency="THB" signedValue why="Needs rate" /></td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr>
                   <th scope="row">Total{complete ? '' : ' (incomplete)'}</th>
-                  <td className="num">{holding && !anyGain ? <Dash why={NEED} /> : <MoneyCell thb={us.totals.unrealizedThb} currency="THB" signedValue />}</td>
-                  <td className="num">{holding && !anyGain ? <Dash why={NEED} /> : <MoneyCell thb={us.totals.priceGainThb} currency="THB" signedValue />}</td>
-                  <td className="num">{holding && !anyGain ? <Dash why={NEED} /> : <MoneyCell thb={us.totals.fxGainThb} currency="THB" signedValue />}</td>
-                  <td className="num"><MoneyCell thb={us.totals.realizedGainThb} currency="THB" signedValue /></td>
+                  <td className="num">{us.missingRate.length > 0 || (holding && !anyGain) ? <Dash why={NEED} /> : <MoneyCell thb={us.totals.unrealizedThb} currency="THB" signedValue />}</td>
+                  <td className="num">{us.missingRate.length > 0 || (holding && !anyGain) ? <Dash why={NEED} /> : <MoneyCell thb={us.totals.priceGainThb} currency="THB" signedValue />}</td>
+                  <td className="num">{us.missingRate.length > 0 || (holding && !anyGain) ? <Dash why={NEED} /> : <MoneyCell thb={us.totals.fxGainThb} currency="THB" signedValue />}</td>
+                  <td className="num">{us.missingRate.length > 0 ? <Dash why="Needs rate" /> : <MoneyCell thb={us.totals.realizedGainThb} currency="THB" signedValue />}</td>
                 </tr>
               </tfoot>
             </table>

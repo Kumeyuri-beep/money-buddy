@@ -44,7 +44,7 @@ export interface AnalysisModel {
   dividend: DividendMetrics;
   profit: ProfitResult;
   /** ปันผลสะสมสุทธิรวมทุกหุ้น (เซนต์ USD) · ผลบวกของค่าที่ buildUsPortfolio คำนวณแล้ว */
-  dividendNetUsdTotal: number;
+  dividendNetUsdTotal: number | null;
   /** สัดส่วน USD เทียบบาท (มูลค่าตลาด) */
   currencyShares: CurrencyShares;
 }
@@ -81,9 +81,9 @@ export function buildAnalysisModel(accounts: readonly Account[], entries: readon
     us,
     rows,
     monthly,
-    dividend: guard(() => computeDividendMetrics(data, today), { fromExclusive: today, toInclusive: today, grossThb: 0, netThb: 0, grossUsd: 0, netUsd: 0, yieldBps: null, yieldOnCostBps: null }),
-    profit: guard(() => computeProfitSources(data, today), { complete: false, missing: [], thb: null, usd: null, parts: null }),
-    dividendNetUsdTotal: guard(() => us.rows.reduce((n, r) => safeAdd(n, r.dividendNetUsd), 0), 0),
+    dividend: guard(() => computeDividendMetrics(data, today), { fromExclusive: today, toInclusive: today, grossThb: 0, netThb: 0, grossUsd: 0, netUsd: 0, yieldBps: null, yieldOnCostBps: null, incomplete: true, loadError: true }),
+    profit: guard(() => computeProfitSources(data, today, { strictRate: true }), { complete: false, missing: [], thb: null, usd: null, parts: null }),
+    dividendNetUsdTotal: guard<number | null>(() => us.rows.reduce((n, r) => (r.needsRate || r.error !== undefined ? n : safeAdd(n, r.dividendNetUsd)), 0), null),
     currencyShares: currencySharesOf(accounts, entries, data, today, hasStocks),
   };
 }

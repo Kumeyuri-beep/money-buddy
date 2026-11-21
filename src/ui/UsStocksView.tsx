@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { investError, investProblem } from './invest/investError';
+import { useDesktop } from './useDesktop';
 import { baht, signed } from '../app/bahtFormat';
 import { formatDateEn } from '../app/dateEn';
 import { newId } from '../app/ids';
@@ -12,7 +13,6 @@ import { INSTRUMENT_EXCHANGES, assetCurrency, emptyInvestments, type InvestmentD
 import { formatUnits, parsePriceMicro } from '../domain/invest/units';
 import type { Account, Entry } from '../domain/ledger/types';
 import { formatMicro } from '../domain/money/micro';
-import { safeAdd } from '../domain/money/safe';
 import { nextCreatedAt } from '../storage/repository';
 import { useRepository } from './RepositoryContext';
 
@@ -23,7 +23,15 @@ interface Props {
   /** กระเป๋าเงินสดบาทที่ใช้แลกเงินได้ (ป้ายเงินใช้จ่ายเท่านั้น · กระเป๋าที่ติดป้ายเงินลงทุนถูกซ่อน ดู backlog ใน HANDOFF) */
   wallets: readonly { id: string; name: string }[];
   onLedgerChanged: () => void;
+  /** (หน้า Portfolio → Holdings ของ /invest) สั่งเปิดฟอร์มจากภายนอก: nonce เปลี่ยน = เปิดใหม่ · ฟอร์มและการบันทึกใช้ของเดิมทั้งหมด */
+  request?: UsStocksRequest;
+  /** ซ่อนหัวหน้าและตารางถือครองเดิม (หน้า Holdings ใหม่มีหัวและตารางของตัวเอง) · ฟอร์ม/เงินสด USD/แลกเงินยังอยู่ครบ */
+  hideList?: boolean;
+  /** (หน้า Portfolio → Transactions ของ /invest) แสดงเฉพาะฟอร์มที่เปิดด้วย request: ซ่อนหัวหน้า การ์ดเงินสด/เรต รายการล่าสุด และคำเตือน (หน้าใหม่มีของตัวเองแล้ว) */
+  formsOnly?: boolean;
 }
+
+export type UsStocksRequest = { nonce: number } & ({ panel: 'stock' } | { panel: 'exchange' } | { panel: 'cash' } |{ panel: 'trade'; assetId: string; kind?: UsTradeKind } | { panel: 'price'; assetId: string });
 
 type Panel =
   | { type: 'exchange' }
@@ -32,6 +40,34 @@ type Panel =
   | { type: 'trade'; assetId: string; kind: UsTradeKind }
   | { type: 'price'; assetId: string }
   | null;
+
+function StockShell({ desktop, onClose, children }: { desktop: boolean; onClose: () => void; children: ReactNode }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const d = ref.current;
+    if (d && !d.open) d.showModal(); // modal: โฟกัสถูกกักในกรอบ · Esc ปิด · พื้นหลังกดไม่ได้
+  }, []);
+  if (!desktop) {
+    return (
+      <section className="solid card" aria-labelledby="us-stock-title">
+        {children}
+      </section>
+    );
+  }
+  return (
+    <dialog
+      ref={ref}
+      className="entry-dialog"
+      aria-labelledby="us-stock-title"
+      onCancel={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
+    >
+      <div className="entry-form">{children}</div>
+    </dialog>
+  );
+}
 
 const KIND_LABEL: Record<UsTradeKind, string> = { buy: 'Buy', sell: 'Sell', dividend: 'Dividend' };
 
@@ -90,13 +126,14 @@ function Field(props: {
 const errOf = <F extends string>(errors: UsFormError<F>[], field: F): string | undefined => (() => { const f = errors.find((e) => e.field === field); return f ? investProblem(f) : undefined; })();
 
 /** แท็บ "หุ้นสหรัฐ": หุ้นสกุล USD (หุ้นเศษส่วนได้) แลกเงินบาท↔USD ราคา/อัตรากรอกเอง (A3-2 · R20) */
-export function UsStocksView({ today, accounts, entries, wallets, onLedgerChanged }: Props) {
+export function UsStocksView({ today, accounts, entries, wallets, onLedgerChanged, request, hideList, formsOnly }: Props) {
   const repo = useRepository();
   const [data, setData] = useState<InvestmentData | null>(null);
   const [loadError, setLoadError] = useState('');
   const [message, setMessage] = useState<{ text: string; kind: 'ok' | 'error' } | null>(null);
   const [busy, setBusy] = useState(false);
   const [panel, setPanel] = useState<Panel>(null);
+  const desktop = useDesktop();
   const [confirmDelete, setConfirmDelete] = useState('');
   const headingRef = useRef<HTMLHeadingElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
@@ -130,7 +167,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
   const usdTrades = useMemo(() => {
     const own = new Map((data?.assets ?? []).filter((a) => assetCurrency(a) === 'USD').map((a) => [a.id, a]));
     return (data?.trades ?? [])
-      .filter((t) => own.has(t.assetId) && t.fxRateMicro !== undefined)
+      .filter((t) => own.has(t.assetId))
       .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.createdAt < b.createdAt ? 1 : -1))
       .slice(0, 30)
       .map((t) => ({ t, asset: own.get(t.assetId)! }));
@@ -142,7 +179,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
 
   useEffect(() => {
     if (panel) headingRef.current?.focus();
-  }, [panel]);
+  }, [panel, desktop]);
 
   const open = (next: Panel, opener?: HTMLElement) => {
     openerRef.current = opener ?? null;
@@ -292,6 +329,27 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
   const t = view.totals;
   const noValue = view.rows.some((r) => r.units > 0n && r.valueThb === null);
   const stockRow = (id: string): UsStockRow | undefined => view.rows.find((r) => r.assetId === id);
+  // คำสั่งเปิดฟอร์มจากภายนอก (ทำครั้งเดียวต่อ nonce · รอข้อมูลโหลดก่อนเมื่อต้องรู้ว่าหุ้นตัวไหน)
+  const handledRequest = useRef(0);
+  const requestReady = request !== undefined && (request.panel === 'stock' || request.panel === 'exchange' || request.panel === 'cash' || data !== null);
+  useEffect(() => {
+    if (!request || !requestReady || handledRequest.current === request.nonce) return;
+    handledRequest.current = request.nonce;
+    if (request.panel === 'stock' || request.panel === 'exchange' || request.panel === 'cash') {
+      open({ type: request.panel });
+      return;
+    }
+    const row = view.rows.find((r) => r.assetId === request.assetId);
+    if (!row) return;
+    if (request.panel === 'trade') {
+      openTrade(row, request.kind ?? 'buy', document.activeElement instanceof HTMLElement ? document.activeElement : document.body);
+    } else {
+      setPriceForm({ date: today, price: '', fxRate: '' });
+      setPriceError('');
+      open({ type: 'price', assetId: row.assetId });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request, requestReady]);
   const tradeKind = panel?.type === 'trade' ? (tradeForm.kind as UsTradeKind) : 'buy';
   const form = tradeForm;
   const setT = (patch: Partial<UsTradeForm>) => setTradeForm((f) => ({ ...f, ...patch }));
@@ -303,10 +361,12 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
 
   return (
     <div className="us-stocks">
+      {!formsOnly && (
       <div className="page-header">
         <h2 className="page-title">US stock portfolio</h2>
         <p className="muted">USD-denominated stocks (fractional shares supported), THB↔USD currency exchange. Prices and exchange rates are entered manually.</p>
       </div>
+      )}
 
       <div role="status">{message?.kind === 'ok' && <p className="muted">{message.text}</p>}</div>
       <div role="alert">{message?.kind === 'error' && <p className="form-error">{message.text}</p>}</div>
@@ -319,7 +379,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
         </div>
       )}
 
-      {view.negativeCash.length > 0 && (
+      {!formsOnly && view.negativeCash.length > 0 && (
         <div className="notice" role="alert" aria-labelledby="us-neg-title">
           <p id="us-neg-title">
             <strong>USD cash is negative</strong>
@@ -332,6 +392,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
         </div>
       )}
 
+      {!formsOnly && (
       <section className="glass-lite card" aria-labelledby="us-cash-title">
         <h2 id="us-cash-title">USD cash and exchange rate</h2>
         {cashAccounts.length === 0 ? (
@@ -370,6 +431,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
           </button>
         </div>
       </section>
+      )}
 
       {panel?.type === 'cash' && (
         <section className="solid card" aria-labelledby="us-cashnew-title">
@@ -453,7 +515,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
       )}
 
       {panel?.type === 'stock' && (
-        <section className="solid card" aria-labelledby="us-stock-title">
+        <StockShell desktop={desktop} onClose={close}>
           <h2 id="us-stock-title" ref={headingRef} tabIndex={-1}>
             Add US stock
           </h2>
@@ -482,7 +544,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
               </button>
             </div>
           </form>
-        </section>
+        </StockShell>
       )}
 
       {panel?.type === 'trade' && (
@@ -590,6 +652,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
         </section>
       )}
 
+      {!hideList && (
       <section className="solid card" aria-labelledby="us-list-title">
         <h2 id="us-list-title">Holdings</h2>
         {view.rows.length === 0 ? (
@@ -628,7 +691,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
                         {r.valueThb !== null && <span className="muted small"> ≈ {baht(r.valueThb)}</span>}
                       </td>
                       <td className="num" data-label="Unrealized gain (THB)">{r.unrealizedThb === null ? <Dash /> : signed(r.unrealizedThb)}</td>
-                      <td className="num" data-label="Net dividends">{usd(r.dividendNetUsd)}</td>
+                      <td className="num" data-label="Net dividends">{r.needsRate ? <>Needs rate</> : r.error !== undefined ? <>Couldn't load</> : usd(r.dividendNetUsd)}</td>
                       <td data-label="Actions">
                         <span className="dialog-actions">
                           <button type="button" className="btn btn-primary btn-small" onClick={(e) => openTrade(r, 'buy', e.currentTarget)} aria-label={`Buy ${r.ticker}`}>Buy</button>
@@ -663,8 +726,9 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
           </>
         )}
       </section>
+      )}
 
-      {view.dividends.length > 0 && (
+      {!formsOnly && view.dividends.length > 0 && (
         <section className="solid card" aria-labelledby="us-div-title">
           <h2 id="us-div-title">Recent dividends</h2>
           <div className="migrate-table-wrap" role="region" aria-label="Recent dividends table" tabIndex={0}>
@@ -695,7 +759,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
         </section>
       )}
 
-      {view.exchanges.length > 0 && (
+      {!formsOnly && view.exchanges.length > 0 && (
         <section className="solid card" aria-labelledby="us-exh-title">
           <h2 id="us-exh-title">Currency exchange history</h2>
           <ul className="bill-list">
@@ -727,7 +791,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
         </section>
       )}
 
-      {usdTrades.length > 0 && (
+      {!formsOnly && usdTrades.length > 0 && (
         <section className="solid card" aria-labelledby="us-hist-title">
           <h2 id="us-hist-title">Recent trades</h2>
           <ul className="bill-list">
@@ -744,7 +808,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
                     {tr.amount !== undefined ? ` · ${usd(tr.amount)}` : ''}
                     {tr.fee > 0 ? ` · fee ${usd(tr.fee)}` : ''}
                     {tr.withholding > 0 ? ` · tax withheld ${usd(tr.withholding)}` : ''}
-                    {tr.fxRateMicro !== undefined ? ` · ${fxRateText(tr.fxRateMicro)}` : ''}
+                    {tr.fxRateMicro !== undefined ? ` · ${fxRateText(tr.fxRateMicro)}` : tr.kind === 'buy' || tr.kind === 'sell' || tr.kind === 'dividend' ? ' · Needs rate' : ''}
                   </p>
                 </div>
                 <div className="bill-figures">
@@ -765,10 +829,10 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
         </section>
       )}
 
-      {view.rows.length > 0 && t.valueThb > 0 && (
+      {!formsOnly && view.rows.length > 0 && t.valueThb > 0 && (
         <p className="muted small" role="note">
-          Allocation by value: {view.allocation.map((s) => `${s.key === 'other' ? 'Other' : (view.rows.find((r) => r.assetId === s.key)?.ticker ?? s.key)} ${formatBps(s.bps)}`).join(' · ')} · Total realized gain {signed(t.realizedGainThb)} (for reference only, not a figure for tax filing)
-          · Total net dividends received {usdSigned(view.rows.reduce((n, r) => safeAdd(n, r.dividendNetUsd), 0))}
+          Allocation by value: {view.allocation.map((s) => `${s.key === 'other' ? 'Other' : (view.rows.find((r) => r.assetId === s.key)?.ticker ?? s.key)} ${formatBps(s.bps)}`).join(' · ')} · Total realized gain {signed(t.realizedGainThb)}{t.complete ? '' : ' (incomplete)'} (for reference only, not a figure for tax filing)
+          · Total net dividends received {usdSigned(view.dividendNetUsdTotal)}{t.complete ? '' : ' (incomplete)'}
         </p>
       )}
     </div>

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { goInvest } from './helpers/investNav';
 import { openDesktopView } from './helpers/nav';
 import { obscured, openHarness, overflowing, watch } from './helpers/layoutChecks';
 
@@ -25,9 +26,9 @@ async function openPortfolio(page: Page, mobile: boolean): Promise<void> {
     await openDesktopView(page, 'พอร์ตการลงทุน');
   }
   // ขั้น 1: ฟังก์ชันหุ้นสหรัฐอยู่ในโหมดการลงทุน → แท็บ "รายการ"
-  await expect(page.getByRole('heading', { name: 'Main portfolio', level: 2 }).first()).toBeVisible();
-  await page.getByRole('tab', { name: 'Portfolio', exact: true }).click();
-  await expect(page.getByRole('tablist', { name: 'Portfolio views' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Portfolio sections' }).first()).toBeVisible();
+  await goInvest(page, 'Portfolio', 'Holdings'); // หุ้นสหรัฐเดิม = Portfolio → Holdings
+  await expect(page.getByRole('heading', { name: 'Holdings', level: 2, exact: true })).toBeVisible();
 }
 
 async function expectClean(page: Page, seen: ReturnType<typeof watch>): Promise<void> {
@@ -43,37 +44,28 @@ for (const w of WIDTHS) {
   test.describe(`ความกว้าง ${w.width}px`, () => {
     test.use({ viewport: { width: w.width, height: w.height } });
 
-    test('แท็บ: ภาพรวมพอร์ตเป็นแท็บแรก (ของเดิมครบ) · สลับไปหุ้นสหรัฐด้วยเมาส์และลูกศรคีย์บอร์ด · ไม่ล้นจอ', async ({ page }) => {
+    test('เมนู Portfolio: Holdings = หุ้นสหรัฐ · Transactions = ภาพรวมพอร์ตเดิม (ของเดิมครบ) · สลับกลับไปมาได้ · ไม่ล้นจอ', async ({ page }) => {
       const seen = watch(page);
       await openHarness(page);
       await openPortfolio(page, w.mobile);
-      const overview = page.getByRole('tab', { name: 'Overview', exact: true });
-      const us = page.getByRole('tab', { name: 'US stocks', exact: true });
-      await expect(overview).toHaveAttribute('aria-selected', 'true');
-      await expect(page.getByRole('heading', { name: 'Main portfolio', level: 2 }).first()).toBeVisible(); // หน้าเดิมยังอยู่
-      await expectClean(page, seen);
-
-      await us.click();
-      await expect(us).toHaveAttribute('aria-selected', 'true');
-      await expect(page.locator('#pf-panel-us')).toHaveAttribute('aria-labelledby', 'pf-tab-us');
-      await expect(page.getByRole('heading', { name: 'US stock portfolio', level: 2 })).toBeVisible();
+      await expect(page.locator('#pf-panel-us')).toBeVisible();
       await expect(page.getByText('No US stocks yet')).toBeVisible();
       await expectClean(page, seen);
 
-      await us.focus();
-      await page.keyboard.press('ArrowLeft');
-      await expect(overview).toHaveAttribute('aria-selected', 'true');
-      await expect(overview).toBeFocused();
-      await page.keyboard.press('ArrowRight');
-      await expect(us).toHaveAttribute('aria-selected', 'true');
-      await expect(us).toBeFocused();
+      await goInvest(page, 'Portfolio', 'Transactions');
+      await expect(page.locator('#pf-panel-overview')).toBeVisible();
+      await expect(page.locator('#pf-panel-us')).toHaveCount(0);
+      await expect(page.getByRole('navigation', { name: 'Portfolio sections' }).first()).toBeVisible(); // หน้าเดิมยังอยู่
+      await expectClean(page, seen);
+
+      await goInvest(page, 'Portfolio', 'Holdings');
+      await expect(page.locator('#pf-panel-us')).toBeVisible();
     });
 
     test('หุ้นสหรัฐ: ยังไม่มีบัญชีเงินสด USD → สร้างบัญชี (เปิดฟอร์ม โฟกัสที่หัวข้อ ตรวจชื่อว่าง Esc ปิดแล้วโฟกัสกลับปุ่ม) · เพิ่มหุ้น · ไม่ล้นจอ', async ({ page }) => {
       const seen = watch(page);
       await openHarness(page);
       await openPortfolio(page, w.mobile);
-      await page.getByRole('tab', { name: 'US stocks', exact: true }).click();
       await expect(page.getByText('No USD cash account yet')).toBeVisible();
 
       const create = page.getByRole('button', { name: 'Create USD cash account' });
@@ -95,6 +87,12 @@ for (const w of WIDTHS) {
       await expect(page.getByText('Enter the stock name and ticker')).toBeVisible();
       const exchange = page.getByLabel('Exchange', { exact: true });
       await expect(exchange).toHaveValue('NASDAQ');
+      if (!w.mobile) {
+        // คอม: ฟอร์มเพิ่มหุ้นเป็น dialog modal (กั้นหน้าหลักไว้ จึงตรวจ "ถูกบัง" หลังปิด)
+        await expect(page.getByRole('dialog', { name: 'Add US stock' })).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(page.getByRole('dialog', { name: 'Add US stock' })).toBeHidden();
+      }
       await expectClean(page, seen);
     });
 

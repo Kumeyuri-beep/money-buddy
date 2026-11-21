@@ -19,8 +19,9 @@ export function initialView(): RouteView {
  */
 export function useViewHistory(view: RouteView, setView: (v: RouteView) => void): void {
   useEffect(() => {
-    const target = urlForView(view, window.location);
     const current = window.location.pathname + window.location.search + window.location.hash;
+    // URL ปัจจุบันอยู่ในหน้านี้อยู่แล้ว (เช่น /invest/analytics/common) = คง URL เดิมไว้ ไม่ย้อนไป /invest
+    const target = viewFromLocation(window.location) === view ? current : urlForView(view, window.location);
     const stateView = (window.history.state as { view?: unknown } | null)?.view;
     if (stateView === view && current === target) return; // ตรงกันแล้ว (เช่น เพิ่งกลับด้วยปุ่ม back)
     if (stateView === undefined) window.history.replaceState({ view }, '', target); // รอบแรก: ผูก state กับรายการ history ปัจจุบัน

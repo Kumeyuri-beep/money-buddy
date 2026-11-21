@@ -18,7 +18,7 @@ const WIDTHS = [
 async function openDemo(page: Page): Promise<void> {
   await page.route((url) => !/^(localhost|127\.0\.0\.1)$/.test(url.hostname), (route) => route.abort());
   await page.goto('/harness.html?seed=1&investDemo=1#/invest');
-  await expect(page.getByRole('heading', { name: 'Main portfolio', level: 2 })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole('navigation', { name: 'Portfolio sections' })).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole('heading', { name: 'Portfolio', level: 2, exact: true })).toBeVisible();
   await expect(page.getByRole('row', { name: /Demo Alpha Tech/ })).toBeVisible();
 }
@@ -69,7 +69,6 @@ for (const w of WIDTHS) {
       await expect(pop).toContainText('not counted yet');
       await page.keyboard.press('Escape');
       await expect(pop).toBeHidden();
-      await page.getByRole('heading', { name: 'Main portfolio', level: 2 }).click();
       await warn.blur();
       if (desktop) {
         await warn.hover();
@@ -122,18 +121,17 @@ for (const w of WIDTHS) {
       await menu.getByLabel('Default currency').selectOption('USD');
       await menu.getByRole('button', { name: 'Save' }).click();
       await expect(menu).toBeHidden();
-      await expect(page.getByRole('heading', { name: 'Growth', level: 2 })).toBeVisible();
-      await expect(page.getByText('Long-term US stocks')).toBeVisible();
+      await expect(page.getByRole('button', { name: /Growth/ })).toBeVisible();
       await page.reload();
-      await expect(page.getByRole('heading', { name: 'Growth', level: 2 })).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByRole('button', { name: /Growth/ })).toBeVisible({ timeout: 20_000 });
       await expect(page.getByRole('button', { name: '$ USD', exact: true })).toHaveAttribute('aria-pressed', 'true');
       // คืนค่าเริ่มต้น เพื่อไม่ให้กระทบเทสต์อื่น (ที่เก็บเป็นของเบราว์เซอร์นี้เท่านั้น)
       await page.getByRole('button', { name: /Growth/ }).click();
       await menu.getByLabel('Name').fill('Main portfolio');
       await menu.getByLabel('Description (optional)').fill('');
-      await menu.getByLabel('Default currency').selectOption('THB');
+      await menu.getByLabel('Default currency').selectOption('USD');
       await menu.getByRole('button', { name: 'Save' }).click();
-      await expect(page.getByRole('heading', { name: 'Main portfolio', level: 2 })).toBeVisible();
+      await expect(page.getByRole('button', { name: /Main portfolio/ })).toBeVisible();
     });
 
     test('ชื่อว่างบันทึกไม่ได้ และบอกเหตุผล', async ({ page }) => {
@@ -157,8 +155,8 @@ for (const w of WIDTHS) {
         await expect(page.getByRole('tooltip').filter({ hasText: tip }).first()).toBeVisible();
       }
       await page.getByRole('button', { name: 'Add', exact: true }).click();
-      await expect(page.getByRole('tab', { name: 'Portfolio', exact: true })).toHaveAttribute('aria-selected', 'true');
-      await expect(page.getByRole('tab', { name: 'US stocks', exact: true })).toHaveAttribute('aria-selected', 'true');
+      expect(new URL(page.url()).hash).toBe('#/invest/portfolio/holdings'); // Add → Portfolio → Holdings (ฟอร์มเพิ่มรายการหุ้นสหรัฐ)
+      await expect(page.getByRole('heading', { name: 'Holdings', level: 2, exact: true })).toBeVisible();
     });
 
     test('ชี้แถว/โฟกัสแถว: ชิ้นนั้นพองออก ชิ้นอื่นจางลง แถวไฮไลต์ กลางวงแสดงรายการ', async ({ page }) => {
@@ -195,7 +193,7 @@ for (const w of WIDTHS) {
       await sort.focus();
       await expect(sortTip).toBeVisible();
       await sort.click();
-      await expect(page.getByRole('button', { name: /currently by value change/ }).first()).toContainText('฿');
+      await expect(page.getByRole('button', { name: /currently by value change/ }).first()).toContainText('$');
       await expect(page.getByRole('tooltip').filter({ hasText: 'Sort by change in the value of assets in the portfolio' }).first()).toBeVisible();
 
       await page.getByRole('button', { name: 'About Top day gainers' }).focus();

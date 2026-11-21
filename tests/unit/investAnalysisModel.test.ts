@@ -94,7 +94,7 @@ function ctx(data: InvestmentData | null, currency: 'THB' | 'USD' = 'THB'): Inve
   return { today: '2026-02-28', accounts: [], entries: [], wallets: [], data, loadError: '', reload: async () => undefined, onLedgerChanged: () => undefined, currency, setCurrency: () => undefined };
 }
 const render = (data: InvestmentData | null, currency: 'THB' | 'USD' = 'THB'): string =>
-  renderToStaticMarkup(createElement(InvestContext.Provider, { value: ctx(data, currency) }, createElement(AnalysisTab)));
+  renderToStaticMarkup(createElement(InvestContext.Provider, { value: ctx(data, currency) }, createElement('div', null, createElement(AnalysisTab, { part: 'common' }), createElement(AnalysisTab, { part: 'growth' }))));
 
 describe('หน้าจอแท็บวิเคราะห์ (เรนเดอร์ฝั่งเซิร์ฟเวอร์ ไม่แตะเครือข่าย)', () => {
   it('ไม่มีหุ้น: ทุกการ์ดมี empty state ไม่มีตัวเลขปลอม', () => {

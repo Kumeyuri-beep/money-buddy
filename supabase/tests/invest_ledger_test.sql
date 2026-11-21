@@ -158,7 +158,7 @@ begin
   perform pg_temp.settle();
   delete from public.entries where id = 'e-buy1';
   perform pg_temp.settle();
-  if pg_temp.ac(ua, $q$ select (select count(*) from public.trades where asset_id = 'a1') + (select count(*) from public.lines where entry_id in ('e-sell1', 'e-buy1')) $q$) <> 0 then
+  if pg_temp.ac(ua, format($q$ select (select count(*) from public.trades where asset_id = 'a1' and user_id = %L) + (select count(*) from public.lines where entry_id in ('e-sell1', 'e-buy1') and user_id = %L) $q$, ua, ua)) <> 0 then
     raise exception 'FAIL: T6 ลบตามลำดับแล้วยังมีแถวค้าง'; end if;
 
   -- T7 ผู้ใช้ B ใช้สินทรัพย์ของ A ไม่ได้ (record_trade ไม่เห็น a1) และบัญชี inv-* ที่เป็นชนิดผิดถูกปฏิเสธ
@@ -184,7 +184,7 @@ begin
   if r is null or r not like '42501|%' then raise exception 'FAIL: T9 ชี้ entry_id เองได้ (%)', r; end if;
   r := pg_temp.fails($q$ delete from public.assets where id = 'a2' $q$);
   if r is null or r not like '23514|%' then raise exception 'FAIL: T9 ลบสินทรัพย์ที่ผูกสมุดได้ (%)', r; end if;
-  if pg_temp.ac(ua, $q$ select ((select count(*) from public.assets where id = 'a2') + (select count(*) from public.trades where id in ('t-a2', 't-rd')) + (select count(*) from public.trades where id in ('t-forge', 't-a2x')) * 100)::int $q$) <> 3 then
+  if pg_temp.ac(ua, format($q$ select ((select count(*) from public.assets where id = 'a2' and user_id = %L) + (select count(*) from public.trades where id in ('t-a2', 't-rd') and user_id = %L) + (select count(*) from public.trades where id in ('t-forge', 't-a2x') and user_id = %L) * 100)::int $q$, ua, ua, ua)) <> 3 then
     raise exception 'FAIL: T9 แถวไม่ตรงที่คาด'; end if;
   -- ลบตามลำดับ (ขายก่อน) ได้ผ่านการลบรายการในสมุด
   delete from public.entries where id = 'e-rd';

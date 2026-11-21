@@ -3,6 +3,7 @@ import type { FinanceSettings } from '../domain/bills/settings';
 import type { SettingsKey, SettingsPatch } from '../domain/bills/settingsPatch';
 import type { Bill } from '../domain/bills/types';
 import { emptyInvestments, type Asset, type AssetKind, type AssetPrice, type FxExchangeRecord, type FxRateRecord, type InvestmentData, type TradeRecord } from '../domain/invest/types';
+import type { CashAdjustmentInput } from '../domain/invest/cashAdjustment';
 import type { Account, Entry, NewEntry } from '../domain/ledger/types';
 import type { MoneyDB } from './db';
 import * as dexie from './repository';
@@ -118,6 +119,11 @@ export interface LedgerRepository {
   recordFxExchange(input: { exchange: Omit<FxExchangeRecord, 'rateMicro' | 'entryId'>; walletId: string; cashAccountId: string }): Promise<FxExchangeRecord>;
   /** ลบการแลกเงิน = ลบรายการในสมุดที่ผูก (แถวแลกเงินถูกลบตาม) · เงินสด USD อาจติดลบได้ (หน้าจอเตือน) */
   deleteFxExchange(id: string): Promise<void>;
+  /**
+   * ปรับยอดเงินสดของพอร์ต (R23/R20 · เงินเข้า/ออกจากภายนอกพอร์ต หรือปรับให้ตรงใบแจ้งยอดโบรกเกอร์) · RPC record_cash_adjustment
+   * Entry 2 บรรทัด: เงินสดของพอร์ต ± จำนวน และบัญชีพักการปรับยอดสกุลเดียวกัน (ไม่ใช่รายรับ/รายจ่าย) · ถอนเกินยอดคงเหลือไม่ได้ (ฐานข้อมูลตรวจ)
+   */
+  recordCashAdjustment(input: CashAdjustmentInput): Promise<void>;
   /** อัตราแลกเปลี่ยนล่าสุดที่ผู้ใช้กรอกเอง (หนึ่งอัตราต่อบัญชี USD ต่อวัน · ซ้ำวันเดิม = แก้) ใช้คำนวณมูลค่าพอร์ตเป็นบาท */
   saveFxRate(rate: FxRateRecord): Promise<void>;
 }
@@ -165,6 +171,7 @@ export function createDexieRepository(db: MoneyDB): LedgerRepository {
     addUsdStock: () => Promise.reject(localInvestError()),
     recordTradeFx: () => Promise.reject(localInvestError()),
     recordFxExchange: () => Promise.reject(localInvestError()),
+    recordCashAdjustment: () => Promise.reject(localInvestError()),
     deleteFxExchange: () => Promise.reject(localInvestError()),
     saveFxRate: () => Promise.reject(localInvestError()),
   };
