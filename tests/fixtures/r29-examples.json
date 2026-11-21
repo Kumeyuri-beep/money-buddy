@@ -1,0 +1,41 @@
+{
+  "_comment": "ตัวอย่างคำนวณมือ R29 (ข้อมูลสมมติ · USD เซนต์) · ผลจากสคริปต์อ้างอิง BigInt (21 พ.ย. 2569) · unit test ของ rebalance ต้องอ่านไฟล์นี้ไฟล์เดียว ห้ามคัดลอกตัวเลขไปใส่ในเทสต์",
+  "holdings": [
+    { "id": "AAA", "category": "Tech", "priceMicro": "100000000", "units": "600000000" },
+    { "id": "BBB", "category": "Tech", "priceMicro": "50000000", "units": "400000000" },
+    { "id": "CCC", "category": "Health", "priceMicro": "60000000", "units": "500000000" },
+    { "id": "DDD", "category": "Funds", "priceMicro": "25000000", "units": "200000000" }
+  ],
+  "targetsBps": { "Tech": 5000, "Health": 3000, "Funds": 2000 },
+  "valueCents": { "Tech": 80000, "Health": 30000, "Funds": 5000, "total": 115000 },
+  "cases": {
+    "A_fractional": { "deposit": 35000, "allowSales": false, "fractional": true,
+      "categoryMoney": { "Tech": 0, "Health": 13125, "Funds": 21875 },
+      "buys": [ { "id": "CCC", "units": "218700000", "cents": 13122 }, { "id": "DDD", "units": "875000000", "cents": 21875 } ],
+      "sells": [], "leftOver": 3, "shortBy": 0 },
+    "A_whole": { "deposit": 35000, "allowSales": false, "fractional": false,
+      "categoryMoney": { "Tech": 0, "Health": 13125, "Funds": 21875 },
+      "buys": [ { "id": "CCC", "units": "200000000", "cents": 12000 }, { "id": "DDD", "units": "800000000", "cents": 20000 } ],
+      "sells": [], "leftOver": 3000, "shortBy": 0 },
+    "B_fractional": { "deposit": 0, "allowSales": true, "fractional": true,
+      "categoryMoney": { "Tech": 0, "Health": 4499, "Funds": 17996 },
+      "sells": [ { "id": "AAA", "units": "168700000", "cents": 16870 }, { "id": "BBB", "units": "112500000", "cents": 5625 } ],
+      "buys": [ { "id": "CCC", "units": "74900000", "cents": 4494 }, { "id": "DDD", "units": "719800000", "cents": 17995 } ],
+      "leftOver": 6, "shortBy": 0 },
+    "B_whole": { "deposit": 0, "allowSales": true, "fractional": false,
+      "sells": [ { "id": "AAA", "units": "100000000", "cents": 10000 }, { "id": "BBB", "units": "100000000", "cents": 5000 } ],
+      "buys": [ { "id": "DDD", "units": "400000000", "cents": 10000 } ],
+      "droppedRows": [ { "id": "CCC", "reason": "units=0" } ], "leftOver": 5000, "shortBy": 0 },
+    "C_withdraw": { "withdraw": 11500, "fractional": true,
+      "sells": [ { "id": "AAA", "units": "86200000", "cents": 8620 }, { "id": "BBB", "units": "57500000", "cents": 2875 } ],
+      "buys": [], "shortBy": 5 },
+    "D_fractional": { "deposit": 10001, "allowSales": false, "fractional": true,
+      "categoryMoney": { "Tech": 0, "Health": 2728, "Funds": 7273 },
+      "buys": [ { "id": "CCC", "units": "45400000", "cents": 2724 }, { "id": "DDD", "units": "290900000", "cents": 7273 } ],
+      "sells": [], "leftOver": 4, "shortBy": 0 },
+    "E_fractional": { "deposit": 100000, "allowSales": false, "fractional": true,
+      "categoryMoney": { "Tech": 27500, "Health": 34500, "Funds": 38000 },
+      "buys": [ { "id": "AAA", "units": "206200000", "cents": 20620 }, { "id": "BBB", "units": "137500000", "cents": 6875 }, { "id": "CCC", "units": "575000000", "cents": 34500 }, { "id": "DDD", "units": "1520000000", "cents": 38000 } ],
+      "sells": [], "leftOver": 5, "shortBy": 0 }
+  }
+}
