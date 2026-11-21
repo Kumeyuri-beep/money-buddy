@@ -42,7 +42,8 @@ const MAX_SAFE = Number.MAX_SAFE_INTEGER;
 const ISO_INSTANT = /^(19|2[0-9])\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d{1,9})?(Z|[+-]\d\d:\d\d)$/;
 const validInstant = (v: unknown): v is string => typeof v === 'string' && ISO_INSTANT.test(v) && !Number.isNaN(Date.parse(v));
 const short = (v: unknown): string => {
-  const s = typeof v === 'string' ? v : String(v);
+  // แทนที่อักขระควบคุม/ศูนย์ความกว้าง/ตัวกลับทิศด้วย ? (ข้อความ error จากไฟล์ที่ผู้ใช้นำเข้าต้องไม่หลอกตาด้วยอักขระกลับทิศ)
+  const s = (typeof v === 'string' ? v : String(v)).replace(/[\p{Cc}\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]/gu, '?');
   return s.length > 24 ? `${s.slice(0, 24)}…` : s;
 };
 

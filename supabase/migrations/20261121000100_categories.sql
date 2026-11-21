@@ -10,7 +10,8 @@
 -- ---------------------------------------------------------------------------
 alter table public.assets add column sector text
   check (sector is null or (char_length(sector) between 1 and 60 and sector = btrim(sector)
-         and sector !~ E'[\\x01-\\x1F\\x7F-\\x9F\\u200B-\\u200F\\u202A-\\u202E\\u2060-\\u2069\\uFEFF]'));
+         and sector !~ E'[\\x01-\\x1F\\x7F-\\x9F\\u200B-\\u200F\\u202A-\\u202E\\u2060-\\u2069\\uFEFF]'
+         and sector !~ E'^[\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]|[\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]$'));
 alter table public.assets add column category_id text;
 
 -- ---------------------------------------------------------------------------
@@ -18,9 +19,10 @@ alter table public.assets add column category_id text;
 -- ---------------------------------------------------------------------------
 create table public.asset_categories (
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
-  id text not null check (char_length(id) between 1 and 100),
+  id text not null check (char_length(id) between 1 and 100 and id !~ E'[\\x01-\\x1F\\x7F-\\x9F\\u200B-\\u200F\\u202A-\\u202E\\u2060-\\u2069\\uFEFF]'),
   name text not null check (char_length(name) between 1 and 60 and name = btrim(name)
-    and name !~ E'[\\x01-\\x1F\\x7F-\\x9F\\u200B-\\u200F\\u202A-\\u202E\\u2060-\\u2069\\uFEFF]'),
+    and name !~ E'[\\x01-\\x1F\\x7F-\\x9F\\u200B-\\u200F\\u202A-\\u202E\\u2060-\\u2069\\uFEFF]'
+    and name !~ E'^[\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]|[\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]$'),
   -- กุญแจชื่อไม่สนตัวพิมพ์ ใช้กับ unique แบบ deferrable (สลับชื่อสองหมวดในการบันทึกครั้งเดียวได้)
   name_key text generated always as (lower(name)) stored,
   target_bps integer check (target_bps is null or (target_bps between 0 and 10000)),
@@ -45,6 +47,7 @@ declare
   v_n bigint;
 begin
   for v_user in select distinct user_id from new_rows loop
+    perform pg_advisory_xact_lock(hashtext('categories:' || v_user::text)); -- กันสองคำสั่งที่เขียนพร้อมกันผ่านเพดานทั้งคู่ (นับหลังได้ล็อก เห็นข้อมูลของคำสั่งที่ commit ก่อน)
     select count(*) into v_n from public.asset_categories where user_id = v_user;
     if v_n > 50 then
       raise exception 'จำนวนหมวดเกินเพดาน (50 หมวดต่อผู้ใช้)' using errcode = '54000';
@@ -57,6 +60,7 @@ create trigger asset_categories_limit_trg after insert on public.asset_categorie
   referencing new table as new_rows for each statement execute function private.enforce_category_limit();
 
 -- เป้ารวม = 100% (deferred: ตรวจตอน commit) · ข้าม role ผู้ดูแลเหมือนด่านเดิมทุกตัว (ลบผู้ใช้ทั้งบัญชีทำงานด้วย role เหล่านี้)
+-- **คำเตือนสำหรับอนาคต:** การข้าม role ผู้ดูแลหมายความว่า security definer function ที่แก้หมวดแค่บางส่วนจะข้ามด่านนี้โดยไม่ตั้งใจ ต้องเขียนให้ชุดหมวดครบและรวม 100% เสมอ
 create function private.categories_target_check() returns trigger
 language plpgsql security invoker set search_path = ''
 as $$
@@ -70,6 +74,8 @@ begin
     return null;
   end if;
   v_user := case when tg_op = 'DELETE' then old.user_id else new.user_id end;
+  -- ล็อกต่อผู้ใช้ก่อนนับ: ธุรกรรมที่ commit ทีหลังเห็นผลของที่ commit ก่อน (READ COMMITTED) จึงไม่ผ่านด่านพร้อมกันทั้งคู่
+  perform pg_advisory_xact_lock(hashtext('categories:' || v_user::text));
   select count(*), count(target_bps), coalesce(sum(target_bps), 0) into v_n, v_set, v_sum
     from public.asset_categories where user_id = v_user;
   if v_set > 0 and (v_set <> v_n or v_sum <> 10000) then
@@ -309,6 +315,7 @@ begin
     raise exception 'รูปแบบข้อมูลลงทุนไม่ถูกต้อง (แต่ละแถวต้องเป็นวัตถุ)' using errcode = '22023';
   end if;
   perform pg_advisory_xact_lock(hashtext('import_ledger:' || v_user::text));
+  perform pg_advisory_xact_lock(hashtext('categories:' || v_user::text)); -- ล็อกเดียวกับ save_categories และ trigger หมวด
   if private.import_session_exists() then
     raise exception 'มีการนำเข้าสมุดบัญชีค้างอยู่ นำเข้าข้อมูลลงทุนไม่ได้' using errcode = '55000';
   end if;

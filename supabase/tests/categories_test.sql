@@ -103,6 +103,10 @@ begin
   if r is null or r not like '23514|%' then raise exception 'FAIL: T4d ตัวกลับทิศต้องล้ม (ได้ %)', r; end if;
   r := pg_temp.fails($q$ select public.save_categories('[{"id":"c1","name":""}]'::jsonb) $q$);
   if r is null or r not like '23514|%' then raise exception 'FAIL: T4e ชื่อว่างต้องล้ม (ได้ %)', r; end if;
+  r := pg_temp.fails($q$ select public.save_categories('[{"id":"c1","name":"Tech\u00A0"}]'::jsonb) $q$);
+  if r is null or r not like '23514|%' then raise exception 'FAIL: T4h ชื่อลงท้ายด้วย NBSP ต้องล้ม (ได้ %)', r; end if;
+  r := pg_temp.fails($q$ select public.save_categories('[{"id":"c\u200B1","name":"Tech"}]'::jsonb) $q$);
+  if r is null or r not like '23514|%' then raise exception 'FAIL: T4i รหัสมีศูนย์ความกว้างต้องล้ม (ได้ %)', r; end if;
   r := pg_temp.fails($q$ update public.assets set sector = '  x' where id = 'sa' $q$);
   if r is null or r not like '23514|%' then raise exception 'FAIL: T4f sector มีช่องว่างนำหน้าต้องล้ม (ได้ %)', r; end if;
   r := pg_temp.fails($q$ update public.assets set sector = 'a' || chr(8238) || 'b' where id = 'sa' $q$);
@@ -139,7 +143,7 @@ begin
   r := pg_temp.fails($q$ update public.assets set category_id = 'c1' where id = 'sbx' $q$);
   if r is null or r not like '23503|%' then raise exception 'FAIL: T6d B ชี้สินทรัพย์ไปหมวดของ A ต้อง 23503 (ได้ %)', r; end if;
   r := pg_temp.fails(format($q$ insert into public.asset_categories (user_id, id, name) values (%L, 'forged', 'Forged') $q$, ua));
-  if r is null then raise exception 'FAIL: T6e B ใส่ user_id ของ A ได้'; end if;
+  if r is null or r not like '42501|%' then raise exception 'FAIL: T6e B ใส่ user_id ของ A ได้ หรือล้มด้วยเหตุอื่น (ได้ %)', r; end if;
   r := pg_temp.fails($q$ select public.save_categories('[{"id":"b1","name":"B only"}]'::jsonb, '[{"assetId":"sa","categoryId":"b1"}]'::jsonb) $q$);
   if r is null or r not like '23503|%' then raise exception 'FAIL: T6f B จัดหมวดสินทรัพย์ของ A ต้อง 23503 (ได้ %)', r; end if;
   perform pg_temp.login(ua);
@@ -236,6 +240,13 @@ begin
   delete from auth.users where id = ub;
   perform pg_temp.settle();
   if (select count(*) from public.asset_categories where user_id = ub) <> 0 then raise exception 'FAIL: T13 ลบผู้ใช้แล้วหมวดต้องหมด'; end if;
+
+  -- T14 ลบบัญชีผู้ใช้ทั้งบัญชีแบบเป็นชุด (delete_my_account_step) ล้างหมวดตาม (ผู้ใช้ D มีหมวดจาก T12)
+  perform pg_temp.login(ud);
+  if (select count(*) from public.asset_categories) <> 1 then raise exception 'FAIL: T14 ก่อนลบ D ต้องมี 1 หมวด'; end if;
+  while public.delete_my_account_step('new-password-4') = 'more' loop null; end loop;
+  perform pg_temp.logout();
+  if (select count(*) from public.asset_categories where user_id = ud) <> 0 then raise exception 'FAIL: T14 ลบบัญชีแล้วหมวดต้องหมด'; end if;
 
   raise exception 'TESTS_PASSED (rollback แล้ว ไม่มีข้อมูลทดสอบเหลือ)';
 end
