@@ -1,4 +1,5 @@
 import { defineMessages, hasCode, withCode, type ErrorParams } from '../domain/errors/coded';
+import { CATEGORY_PROBLEM_TEXT } from '../domain/invest/categories';
 
 /**
  * แม่แบบข้อความ error ของชั้น storage ที่ผู้ใช้โหมด /invest เห็นได้ (รหัส `store.*`)
@@ -18,6 +19,8 @@ const NUMBER_FIELDS = {
   price: { th: 'ราคา', en: 'price' },
   lineAmount: { th: 'จำนวนเงิน', en: 'amount' },
   billAmount: { th: 'ยอดบิล', en: 'bill amount' },
+  categoryTarget: { th: 'เป้าของหมวด', en: 'category target' },
+  categorySort: { th: 'ลำดับหมวด', en: 'category order' },
 } as const;
 export type NumberField = keyof typeof NUMBER_FIELDS;
 const fieldTh = (p: ErrorParams) => NUMBER_FIELDS[String(p.field) as NumberField].th;
@@ -99,6 +102,14 @@ export const storeMsg = defineMessages({
     th: () => 'ค่าตั้งค่าถูกแก้จากแท็บหรืออุปกรณ์อื่นแล้ว โหลดค่าล่าสุดแล้ว ลองบันทึกอีกครั้ง',
     en: () => 'Settings were changed from another tab or device. The latest values have been loaded. Please try saving again.',
   },
+  'store.categoryCount': { th: () => CATEGORY_PROBLEM_TEXT.count.th, en: () => CATEGORY_PROBLEM_TEXT.count.en },
+  'store.categoryId': { th: () => CATEGORY_PROBLEM_TEXT.id.th, en: () => CATEGORY_PROBLEM_TEXT.id.en },
+  'store.categoryName': { th: () => CATEGORY_PROBLEM_TEXT.name.th, en: () => CATEGORY_PROBLEM_TEXT.name.en },
+  'store.categorySort': { th: () => CATEGORY_PROBLEM_TEXT.sort.th, en: () => CATEGORY_PROBLEM_TEXT.sort.en },
+  'store.categoryTarget': { th: () => CATEGORY_PROBLEM_TEXT.target.th, en: () => CATEGORY_PROBLEM_TEXT.target.en },
+  'store.categoryDuplicateId': { th: () => CATEGORY_PROBLEM_TEXT.duplicateId.th, en: () => CATEGORY_PROBLEM_TEXT.duplicateId.en },
+  'store.categoryDuplicateName': { th: () => CATEGORY_PROBLEM_TEXT.duplicateName.th, en: () => CATEGORY_PROBLEM_TEXT.duplicateName.en },
+  'store.categoryTargetTotal': { th: () => CATEGORY_PROBLEM_TEXT.targetTotal.th, en: () => CATEGORY_PROBLEM_TEXT.targetTotal.en },
   'store.localInvestUnsupported': {
     th: () => 'พอร์ตลงทุนใช้ได้เฉพาะบัญชีออนไลน์ (ที่เก็บในเครื่องไม่รองรับ)',
     en: () => 'The investment portfolio is only available with an online account (local storage is not supported).',

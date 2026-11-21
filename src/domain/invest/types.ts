@@ -19,6 +19,18 @@ export interface Asset {
   ticker?: string;
   /** ตลาด (ไม่บังคับ) */
   exchange?: string;
+  /** sector ที่ผู้ใช้กรอก (ไม่บังคับ · ยาว 1-60 · Categories R2) */
+  sector?: string;
+  /** หมวดของสินทรัพย์นี้ (รหัสใน InvestmentData.categories) · ไม่มี = Uncategorized */
+  categoryId?: string;
+}
+
+/** หมวดของผู้ใช้ (Categories R2) · เป้าเป็น bps จำนวนเต็ม (45% = 4,500) · null = ยังไม่ตั้งเป้า · ถ้ามีหมวดใดตั้งเป้า ทุกหมวดต้องตั้งและรวม 10,000 */
+export interface AssetCategory {
+  id: string;
+  name: string;
+  targetBps: number | null;
+  sortOrder: number;
 }
 
 /** สกุลของสินทรัพย์ที่รองรับ (R11/R20) */
@@ -94,13 +106,15 @@ export interface InvestmentData {
   /** มีเฉพาะเมื่อมีข้อมูล USD (ไฟล์บาทเดิมไม่มีฟิลด์นี้) */
   fxRates?: FxRateRecord[];
   fxExchanges?: FxExchangeRecord[];
+  /** มีเฉพาะเมื่อผู้ใช้สร้างหมวดแล้ว (ไฟล์เดิมไม่มีฟิลด์นี้) */
+  categories?: AssetCategory[];
 }
 
 export const emptyInvestments = (): InvestmentData => ({ assets: [], trades: [], prices: [] });
 
 export const isEmptyInvestments = (d: InvestmentData | undefined): boolean =>
   d === undefined ||
-  (d.assets.length === 0 && d.trades.length === 0 && d.prices.length === 0 && (d.fxRates?.length ?? 0) === 0 && (d.fxExchanges?.length ?? 0) === 0);
+  (d.assets.length === 0 && d.trades.length === 0 && d.prices.length === 0 && (d.fxRates?.length ?? 0) === 0 && (d.fxExchanges?.length ?? 0) === 0 && (d.categories?.length ?? 0) === 0);
 
 /** เพดานแถวต่อผู้ใช้ (ต้องตรงกับ private.enforce_invest_limits ใน migration 20261111000100) */
 export const MAX_ASSETS = 200;
@@ -108,3 +122,7 @@ export const MAX_TRADES = 10_000;
 export const MAX_PRICES = 10_000;
 export const MAX_FX_RATES = 10_000;
 export const MAX_FX_EXCHANGES = 10_000;
+/** เพดานหมวดต่อผู้ใช้ (ต้องตรงกับ private.enforce_category_limit ใน migration 20261121000100) */
+export const MAX_CATEGORIES = 50;
+export const CATEGORY_NAME_MAX = 60;
+export const CATEGORY_TARGET_TOTAL_BPS = 10_000;

@@ -4,6 +4,7 @@
  * ฟังก์ชันล้วน ไม่แตะ DOM/เครือข่าย
  */
 
+import { CATEGORY_PROBLEM_TEXT, categoriesProblem, validSector } from '../invest/categories';
 import { replayTrades, type Trade } from '../invest/costBasis';
 import { replayTradesFx, type TradeFx } from '../invest/costBasisFx';
 import { exchangeEntryProblem, exchangeRateProblem } from '../invest/fxExchange';
@@ -12,12 +13,14 @@ import {
   FX_DIRECTIONS,
   INSTRUMENT_EXCHANGES,
   MAX_ASSETS,
+  MAX_CATEGORIES,
   MAX_FX_EXCHANGES,
   MAX_FX_RATES,
   MAX_PRICES,
   MAX_TRADES,
   TRADE_KINDS,
   type Asset,
+  type AssetCategory,
   type AssetPrice,
   type FxDirection,
   type FxExchangeRecord,
@@ -58,22 +61,25 @@ export function parseInvestments(
     add('investments ต้องเป็นวัตถุ');
     return out;
   }
-  const KEYS = ['assets', 'trades', 'prices', 'fxRates', 'fxExchanges'] as const;
+  const KEYS = ['categories', 'assets', 'trades', 'prices', 'fxRates', 'fxExchanges'] as const;
   for (const key of KEYS) {
     if (raw[key] !== undefined && !Array.isArray(raw[key])) add(`investments.${key} ต้องเป็นอาร์เรย์`);
   }
   if (!KEYS.every((k) => raw[k] === undefined || Array.isArray(raw[k]))) return out;
+  const rawCategories = (raw.categories ?? []) as unknown[];
   const rawAssets = (raw.assets ?? []) as unknown[];
   const rawTrades = (raw.trades ?? []) as unknown[];
   const rawPrices = (raw.prices ?? []) as unknown[];
   const rawFxRates = (raw.fxRates ?? []) as unknown[];
   const rawFxExchanges = (raw.fxExchanges ?? []) as unknown[];
+  if (rawCategories.length > MAX_CATEGORIES) add(`มีหมวดมากเกินไป (${rawCategories.length} เกิน ${MAX_CATEGORIES})`);
   if (rawAssets.length > MAX_ASSETS) add(`มีสินทรัพย์มากเกินไป (${rawAssets.length} เกิน ${MAX_ASSETS})`);
   if (rawTrades.length > MAX_TRADES) add(`มีรายการลงทุนมากเกินไป (${rawTrades.length} เกิน ${MAX_TRADES})`);
   if (rawPrices.length > MAX_PRICES) add(`มีราคามากเกินไป (${rawPrices.length} เกิน ${MAX_PRICES})`);
   if (rawFxRates.length > MAX_FX_RATES) add(`มีอัตราแลกเปลี่ยนมากเกินไป (${rawFxRates.length} เกิน ${MAX_FX_RATES})`);
   if (rawFxExchanges.length > MAX_FX_EXCHANGES) add(`มีรายการแลกเงินมากเกินไป (${rawFxExchanges.length} เกิน ${MAX_FX_EXCHANGES})`);
   if (
+    rawCategories.length > MAX_CATEGORIES ||
     rawAssets.length > MAX_ASSETS ||
     rawTrades.length > MAX_TRADES ||
     rawPrices.length > MAX_PRICES ||
@@ -88,13 +94,44 @@ export function parseInvestments(
   const entryById = new Map(entries.map((e) => [e.id, e]));
   const assetCurrencyById = new Map<string, InstrumentCurrency>();
 
+  // ---- หมวด (Categories R2) ----
+  const categoryIds = new Set<string>();
+  const categories: AssetCategory[] = [];
+  let categoriesShapeOk = true;
+  rawCategories.forEach((item, i) => {
+    const label = `หมวดที่ ${i + 1}`;
+    if (!isObject(item)) {
+      categoriesShapeOk = false;
+      return add(`${label}: ไม่ใช่วัตถุ`);
+    }
+    const { id, name, targetBps, sortOrder } = item;
+    if (typeof id !== 'string' || typeof name !== 'string') {
+      categoriesShapeOk = false;
+      return add(`${label}: ต้องมี id และ name เป็นข้อความ`);
+    }
+    if (targetBps !== undefined && targetBps !== null && typeof targetBps !== 'number') {
+      categoriesShapeOk = false;
+      return add(`${label} (${short(id)}): targetBps ต้องเป็นจำนวนเต็มหรือไม่ใส่`);
+    }
+    if (sortOrder !== undefined && typeof sortOrder !== 'number') {
+      categoriesShapeOk = false;
+      return add(`${label} (${short(id)}): sortOrder ต้องเป็นจำนวนเต็มหรือไม่ใส่`);
+    }
+    categories.push({ id, name, targetBps: typeof targetBps === 'number' ? targetBps : null, sortOrder: typeof sortOrder === 'number' ? sortOrder : i });
+  });
+  if (categoriesShapeOk) {
+    const problem = categoriesProblem(categories);
+    if (problem !== null) add(`ข้อมูลหมวดไม่ถูกต้อง: ${CATEGORY_PROBLEM_TEXT[problem].th}`);
+    else for (const c of categories) categoryIds.add(c.id);
+  }
+
   // ---- สินทรัพย์ ----
   const assetIds = new Set<string>();
   const assetAccounts = new Set<string>();
   rawAssets.forEach((item, i) => {
     const label = `สินทรัพย์ที่ ${i + 1}`;
     if (!isObject(item)) return add(`${label}: ไม่ใช่วัตถุ`);
-    const { id, name, kind, accountId, archived, currency, ticker, exchange } = item;
+    const { id, name, kind, accountId, archived, currency, ticker, exchange, sector, categoryId } = item;
     if (typeof id !== 'string' || typeof name !== 'string' || typeof kind !== 'string' || typeof accountId !== 'string') {
       return add(`${label}: ต้องมี id, name, kind, accountId เป็นข้อความ`);
     }
@@ -112,6 +149,12 @@ export function parseInvestments(
     if (exchange !== undefined && (typeof exchange !== 'string' || !INSTRUMENT_EXCHANGES.includes(exchange))) {
       return add(`${label} (${short(id)}): ตลาดต้องเป็นหนึ่งใน ${INSTRUMENT_EXCHANGES.join(', ')}`);
     }
+    if (sector !== undefined && !validSector(sector)) {
+      return add(`${label} (${short(id)}): sector ต้องยาว 1-60 ตัวอักษร ไม่มีช่องว่างหน้าหลังหรืออักขระควบคุม`);
+    }
+    if (categoryId !== undefined && (typeof categoryId !== 'string' || !categoryIds.has(categoryId))) {
+      return add(`${label} (${short(id)}): categoryId ไม่ตรงกับหมวดในไฟล์`);
+    }
     const account = accountById.get(accountId);
     if (!account || account.kind !== 'investment' || account.type !== 'asset' || account.currency !== cur) {
       return add(`${label} (${short(id)}): ต้องผูกกับบัญชีลงทุน${cur === 'USD' ? 'สกุล USD' : 'สกุลบาท'}ที่มีอยู่ในไฟล์ (บัญชี ${short(accountId)})`);
@@ -126,6 +169,8 @@ export function parseInvestments(
     if (cur === 'USD') asset.currency = 'USD';
     if (typeof ticker === 'string') asset.ticker = ticker;
     if (typeof exchange === 'string') asset.exchange = exchange;
+    if (typeof sector === 'string') asset.sector = sector;
+    if (typeof categoryId === 'string') asset.categoryId = categoryId;
     out.assets.push(asset);
   });
 
@@ -337,5 +382,6 @@ export function parseInvestments(
     fxExchanges.push(record);
   });
   if (fxExchanges.length > 0) out.fxExchanges = fxExchanges;
+  if (categories.length > 0 && categoriesShapeOk) out.categories = categories;
   return out;
 }
