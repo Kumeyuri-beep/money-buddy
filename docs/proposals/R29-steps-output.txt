@@ -1,0 +1,61 @@
+
+===== deposit D=35000 cents, fractional=ON (floor to 3 decimals = 0.001 share) =====
+V per category: {"Tech":"80000","Health":"30000","Funds":"5000"} V total=115000
+T = V + D = 150000
+  Tech: T*target=150000*5000=750000000 ; V*10000=800000000 ; sc=max(0,750000000-800000000)=0
+  Health: T*target=150000*3000=450000000 ; V*10000=300000000 ; sc=max(0,450000000-300000000)=150000000
+  Funds: T*target=150000*2000=300000000 ; V*10000=50000000 ; sc=max(0,300000000-50000000)=250000000
+  sum sc = 400000000
+  split F=35000 across categories by sc:
+    Tech: 35000 x 0 / 400000000 = 0/400000000 -> floor 0 remainder 0
+    Health: 35000 x 150000000 / 400000000 = 5250000000000/400000000 -> floor 13125 remainder 0
+    Funds: 35000 x 250000000 / 400000000 = 8750000000000/400000000 -> floor 21875 remainder 0
+  category money: {"Tech":"0","Health":"13125","Funds":"21875"}
+  inside Health (13125 cents) split by holding value:
+    CCC: 13125 x 30000 / 30000 = 393750000/30000 -> floor 13125 remainder 0
+    CCC: units = floor(13125 * 10^12 / 60000000) rounded down to 3 decimals = 2.18700000 shares ; amount = 218700000 x 60000000 / 10^12 = 13122 cents
+  inside Funds (21875 cents) split by holding value:
+    DDD: 21875 x 5000 / 5000 = 109375000/5000 -> floor 21875 remainder 0
+    DDD: units = floor(21875 * 10^12 / 25000000) rounded down to 3 decimals = 8.75000000 shares ; amount = 875000000 x 25000000 / 10^12 = 21875 cents
+  total buys = 34997 ; Left over = F - buys = 35000 - 34997 = 3 ; invariant buys <= D: true
+
+===== deposit D=35000 cents, fractional=OFF (whole shares) =====
+V per category: {"Tech":"80000","Health":"30000","Funds":"5000"} V total=115000
+T = V + D = 150000
+  Tech: T*target=150000*5000=750000000 ; V*10000=800000000 ; sc=max(0,750000000-800000000)=0
+  Health: T*target=150000*3000=450000000 ; V*10000=300000000 ; sc=max(0,450000000-300000000)=150000000
+  Funds: T*target=150000*2000=300000000 ; V*10000=50000000 ; sc=max(0,300000000-50000000)=250000000
+  sum sc = 400000000
+  split F=35000 across categories by sc:
+    Tech: 35000 x 0 / 400000000 = 0/400000000 -> floor 0 remainder 0
+    Health: 35000 x 150000000 / 400000000 = 5250000000000/400000000 -> floor 13125 remainder 0
+    Funds: 35000 x 250000000 / 400000000 = 8750000000000/400000000 -> floor 21875 remainder 0
+  category money: {"Tech":"0","Health":"13125","Funds":"21875"}
+  inside Health (13125 cents) split by holding value:
+    CCC: 13125 x 30000 / 30000 = 393750000/30000 -> floor 13125 remainder 0
+    CCC: units = floor(13125 * 10^12 / 60000000) rounded down to 0 decimals = 2.00000000 shares ; amount = 200000000 x 60000000 / 10^12 = 12000 cents
+  inside Funds (21875 cents) split by holding value:
+    DDD: 21875 x 5000 / 5000 = 109375000/5000 -> floor 21875 remainder 0
+    DDD: units = floor(21875 * 10^12 / 25000000) rounded down to 0 decimals = 8.00000000 shares ; amount = 800000000 x 25000000 / 10^12 = 20000 cents
+  total buys = 32000 ; Left over = F - buys = 35000 - 32000 = 3000 ; invariant buys <= D: true
+
+===== deposit D=10001 cents, fractional=ON (floor to 3 decimals = 0.001 share) =====
+V per category: {"Tech":"80000","Health":"30000","Funds":"5000"} V total=115000
+T = V + D = 125001
+  Tech: T*target=125001*5000=625005000 ; V*10000=800000000 ; sc=max(0,625005000-800000000)=0
+  Health: T*target=125001*3000=375003000 ; V*10000=300000000 ; sc=max(0,375003000-300000000)=75003000
+  Funds: T*target=125001*2000=250002000 ; V*10000=50000000 ; sc=max(0,250002000-50000000)=200002000
+  sum sc = 275005000
+  split F=10001 across categories by sc:
+    Tech: 10001 x 0 / 275005000 = 0/275005000 -> floor 0 remainder 0
+    Health: 10001 x 75003000 / 275005000 = 750105003000/275005000 -> floor 2727 remainder 166368000
+    Funds: 10001 x 200002000 / 275005000 = 2000220002000/275005000 -> floor 7273 remainder 108637000
+    +1 cent to Health (largest remainder)
+  category money: {"Tech":"0","Health":"2728","Funds":"7273"}
+  inside Health (2728 cents) split by holding value:
+    CCC: 2728 x 30000 / 30000 = 81840000/30000 -> floor 2728 remainder 0
+    CCC: units = floor(2728 * 10^12 / 60000000) rounded down to 3 decimals = 0.45400000 shares ; amount = 45400000 x 60000000 / 10^12 = 2724 cents
+  inside Funds (7273 cents) split by holding value:
+    DDD: 7273 x 5000 / 5000 = 36365000/5000 -> floor 7273 remainder 0
+    DDD: units = floor(7273 * 10^12 / 25000000) rounded down to 3 decimals = 2.90900000 shares ; amount = 290900000 x 25000000 / 10^12 = 7273 cents
+  total buys = 9997 ; Left over = F - buys = 10001 - 9997 = 4 ; invariant buys <= D: true
