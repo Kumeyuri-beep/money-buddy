@@ -1451,3 +1451,13 @@ money-auditor ตรวจ 5 ตัวที่เกี่ยวกับเง
 **รอเจ้าของ:** ถ้าต้องการให้นิยาม "Share of portfolio" (หน้า Cash) เขียนลง `docs/money-rules.md` (ตอนนี้อยู่ในโค้ด/คอมเมนต์ · money-auditor ยืนยันไม่ขัด R25.4/R23) · เรื่องค้างอื่นของรอบ 2: แก้ไขรายการที่บันทึกแล้ว (ข้อตัดสินแล้วใน `docs/proposals/edit-recorded-transactions.md`) · API ลบสินทรัพย์ · ช่องติ๊กแถว/เลือกคอลัมน์/Daily · backlog มือถือ
 
 **ต้องลองบนคอม:** Portfolio → Cash (Show zero balances · ค้นหา · คอลัมน์ Share of portfolio · สลับ USD/THB) · เปิดเมนู Portfolio ในหน้าต่างเตี้ยแล้วเลื่อนหน้าเมนูไม่ปิดเอง ขยับเมาส์ออกเมนูปิด
+
+## 101. backlog ข้อความไทยที่ยังเหลือ + ผล live-contract 17 พ.ย. 2569 (กู้จาก branch `auto/backlog-thai-leftovers` ที่ไม่เคยเข้า main · ตรวจ 21 พ.ย. 2569 ว่ายังเป็นจริง)
+**backlog: ข้อความไทยที่ยังเหลือหลัง #208–#211 (จดไว้ 17 พ.ย. 2569 · ยังไม่ทำจนกว่าเจ้าของสั่ง · PR แยก):**
+- `supabase/` — ข้อความ error ที่ฐานข้อมูลส่ง (RAISE EXCEPTION ใน migration/ฟังก์ชัน) ยังเป็นไทย · แก้ต้องเพิ่ม migration ใหม่ (`create or replace function`) หรือแมปที่ฝั่งเว็บด้วยรหัส/ข้อความเดิม → GM ทำเอง + dry-run rollback + เทสต์ SQL + live-contract
+- `src/domain/bills/settings.ts` (settings) — ข้อความตรวจค่าตั้งค่ายังเป็นไทย
+- `src/domain/invest/usdIntegrity.ts` — ข้อความผลตรวจความถูกต้อง USD ยังเป็นไทย
+- `src/domain/money/safe.ts` — ข้อความ error ของ safe-integer (ฟังก์ชันกลางของเงิน → money-auditor ตรวจ + เทสต์ขอบ 0/−0/2^53−1 ต้องไม่เปลี่ยน)
+- แนวทาง: ใช้โครง `defineMessages/withCode` ใน `src/domain/errors/coded.ts` เหมือน #206–#210 (รหัสที่ต้นทาง · ข้อความไทยเดิมต้องไม่เปลี่ยน)
+
+**live-contract บน main หลัง #208/#210/#209/#211:** 65/65 ทั้ง 4 รอบ (`live-2026-11-17T06-13-51`, `06-21-21`, `06-24-43`, `07-49-33`) ไม่มีข้อที่ล้ม · `.claude/worktrees` อยู่ใน `.gitignore` แล้ว
