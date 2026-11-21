@@ -224,7 +224,7 @@ begin
   insert into public.accounts (id, type, name, currency, kind) values ('inv-d', 'asset', 'หุ้น D', 'USD', 'investment');
   r := pg_temp.fails($q$ select public.import_ledger_investments('{"categories":[{"id":"x1","name":"X","targetBps":5000}],"assets":[{"id":"sd","name":"หุ้น D","kind":"stock","accountId":"inv-d","currency":"USD","categoryId":"x1","sector":"Utilities"}]}'::jsonb) $q$);
   if r is null or r not like '23514|%' then raise exception 'FAIL: T12a เป้ารวมผิดตอนนำเข้าต้อง 23514 (ได้ %)', r; end if;
-  if pg_temp.ac(ud, $q$ select count(*) from public.assets $q$) <> 0 then raise exception 'FAIL: T12a ล้มแล้วต้องย้อนกลับ (ไม่มีสินทรัพย์เหลือ)'; end if;
+  if pg_temp.ac(ud, format($q$ select count(*) from public.assets where user_id = %L $q$, ud)) <> 0 then raise exception 'FAIL: T12a ล้มแล้วต้องย้อนกลับ (ไม่มีสินทรัพย์เหลือ)'; end if;
   if (public.import_ledger_investments('{"categories":[{"id":"x1","name":"X","targetBps":10000}],"assets":[{"id":"sd","name":"หุ้น D","kind":"stock","accountId":"inv-d","currency":"USD","categoryId":"x1","sector":"Utilities"}]}'::jsonb)->>'categories')::integer <> 1 then raise exception 'FAIL: T12b นำเข้าหมวดต้องได้ 1'; end if;
   perform pg_temp.settle();
   if (select category_id || '/' || sector from public.assets where id = 'sd') is distinct from 'x1/Utilities' then raise exception 'FAIL: T12b สินทรัพย์ต้องมีหมวดและ sector'; end if;
