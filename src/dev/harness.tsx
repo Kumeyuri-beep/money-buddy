@@ -13,6 +13,7 @@ import { App } from '../ui/App';
 import { RepositoryProvider, localLedgerRepository } from '../ui/RepositoryContext';
 import { buildCashAdjustmentEntry } from '../domain/invest/cashAdjustment';
 import { categoriesDemoRepository } from './categoriesDemo';
+import { rebalanceDemoRepository, type RebalanceDemoKind } from './rebalanceDemo';
 import { demoCashLedger, demoInvestments, demoInvestmentsNoRate, demoInvestmentsWithHistory, demoTransactionsData, demoTransactionsLedger } from './investDemo';
 import { AccountContext } from '../ui/AuthContext';
 import { PasswordPromptProvider } from '../ui/PasswordPrompt';
@@ -67,7 +68,11 @@ function Harness() {
   return (
     <AccountContext.Provider value={{ username: 'ผู้ทดสอบ', signOut: async () => undefined, refresh: async () => undefined }}>
       <PasswordPromptProvider>
-        {params.get('investDemo') === 'cat' ? (
+        {params.get('investDemo') === 'rebal' || params.get('investDemo') === 'rebal-empty' || params.get('investDemo') === 'rebal-baht' ? (
+          <RepositoryProvider repository={rebalanceDemoRepository(params.get('investDemo') as RebalanceDemoKind)}>
+            <App />
+          </RepositoryProvider>
+        ) : params.get('investDemo') === 'cat' ? (
           <RepositoryProvider repository={categoriesDemoRepository()}>
             <App />
           </RepositoryProvider>
