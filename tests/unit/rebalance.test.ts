@@ -45,9 +45,12 @@ type Case = {
 };
 
 const cases = fixture.cases as unknown as Record<string, Case>;
+type BahtCase = { extraHolding: { id: string; category: string; currency: 'THB' | 'USD'; priceMicro: string; units: string }; sameAs?: string; deposit?: number; expectError?: string; categoryIds?: string[] };
+const bahtCases = fixture.cases as unknown as Record<string, BahtCase>;
+const withExtra = (e: BahtCase['extraHolding']): RebalanceHolding[] => [...HOLDINGS, { id: e.id, ticker: e.id, categoryId: e.category, currency: e.currency, units: BigInt(e.units), priceMicro: Number(e.priceMicro) }];
 
 describe('R29 ตัวอย่างมือจาก fixture', () => {
-  for (const [name, c] of Object.entries(cases)) {
+  for (const [name, c] of Object.entries(cases).filter(([, v]) => 'buys' in v)) {
     it(`ตัวอย่าง ${name} ตรงทุกค่า`, () => {
       const r = ok(
         rebalance(
@@ -428,6 +431,31 @@ describe('allocateLargestRemainder', () => {
       const out = allocateLargestRemainder(t, [3n, 0n, 7n, 11n]);
       expect(out.reduce((s, x) => s + x, 0n)).toBe(t);
       expect(out[1]).toBe(0n);
+    }
+  });
+});
+
+describe('R29 บาท 0 หน่วย / แถวซื้อ 0 เซนต์ (เจ้าของตัดสิน 23 พ.ย. 2569)', () => {
+  it('สินทรัพย์บาท 0 หน่วยในหมวดถูกข้าม ผลเหมือนเดิมทุกค่า และไม่ถูกเลือกเป็นแถวซื้อ', () => {
+    const c = bahtCases.G_bahtZeroUnits as BahtCase;
+    const ref = cases[c.sameAs as string] as Case;
+    const r = ok(rebalance(base({ holdings: withExtra(c.extraHolding), amountCents: ref.deposit ?? 0, fractional: ref.fractional })));
+    expect(simple(r.buys)).toEqual(ref.buys);
+    expect(r.leftOverCents).toBe(ref.leftOver);
+    expect(r.buys.some((b) => b.holdingId === c.extraHolding.id)).toBe(false);
+    expect(r.droppedRows.some((d) => d.holdingId === c.extraHolding.id)).toBe(false);
+  });
+  it('สินทรัพย์บาทที่ยังมีหน่วย > 0 ยังหยุดคำนวณ', () => {
+    const c = bahtCases.H_bahtWithUnits as BahtCase;
+    expect(rebalance(base({ holdings: withExtra(c.extraHolding), amountCents: c.deposit ?? 0 }))).toMatchObject({ ok: false, reason: c.expectError, categoryIds: c.categoryIds });
+  });
+  it('ทุกแถวซื้อมีเงิน >= 1 เซนต์ (แถวหน่วย > 0 เงิน 0 ถูกตัดเป็น belowMinOrder · เข้าถึงไม่ได้จริงจากการปัดลง) ทั้งชุดตัวอย่าง', () => {
+    for (const fractional of [true, false]) {
+      for (const a of [1, 2, 3, 5, 10, 99, 1000, 35_000]) {
+        const r = ok(rebalance(base({ amountCents: a, fractional })));
+        expect(r.buys.every((b) => b.units > 0n && b.cents >= 1)).toBe(true);
+        expect(r.buys.reduce((s, b) => s + b.cents, 0) + r.leftOverCents).toBe(r.buyFundsCents);
+      }
     }
   });
 });
