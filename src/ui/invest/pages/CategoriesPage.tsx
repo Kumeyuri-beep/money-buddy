@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { newId } from '../../../app/ids';
 import { CATEGORY_PROBLEM_TEXT } from '../../../domain/invest/categories';
+import { buildCategoriesCsv, buildCategoriesJson, categoriesCsvFilename, categoriesJsonFilename, IMPORT_PROBLEM_TEXT, parseCategoriesJson } from '../../../domain/invest/categoriesFile';
 import { buildCategoryTable, fromSectors, stateFromData, stateToSave, type CategoryState } from '../../../domain/invest/categoriesView';
 import { buildHoldingsView, totalsOf } from '../../../domain/invest/holdingsView';
 import { useRepository } from '../../RepositoryContext';
 import { CategoryEditor } from '../categories/CategoryEditor';
+import { downloadText } from '../categories/downloadText';
+import { downloadCsv } from '../downloadCsv';
 import { CategorySummary } from '../categories/CategorySummary';
 import '../categories/categories.css';
 import { useInvest } from '../InvestContext';
@@ -24,6 +27,7 @@ export function CategoriesPage(_props: { onHome?: () => void }) {
   const [notice, setNotice] = useState('');
   const [message, setMessage] = useState('');
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const editorWasOpen = useRef(false);
 
   const view = useMemo(() => (data ? buildHoldingsView(data, today, currency) : null), [data, today, currency]);
@@ -103,6 +107,38 @@ export function CategoriesPage(_props: { onHome?: () => void }) {
     setNotice('');
   };
 
+  const hasCategories = (data?.categories?.length ?? 0) > 0;
+
+  const exportFile = (kind: 'csv' | 'json') => {
+    if (!data || !hasCategories) return;
+    const cats = data.categories ?? [];
+    if (kind === 'csv') downloadCsv(buildCategoriesCsv(cats, data.assets), categoriesCsvFilename(today));
+    else downloadText(buildCategoriesJson(cats, data.assets), categoriesJsonFilename(today), 'application/json;charset=utf-8');
+  };
+
+  // นำเข้า JSON เป็นร่าง (ยังไม่บันทึก) ให้ผู้ใช้ตรวจ/แก้แล้วกด Save เอง · ตรวจรูปแบบและกฎหมวดก่อน (categoriesProblem ผ่าน draftsToCategories)
+  const importFile = async (file: File | undefined) => {
+    if (!data || !file) return;
+    let text = '';
+    try {
+      text = await file.text();
+    } catch {
+      setMessage('Could not read the file.');
+      return;
+    }
+    const r = parseCategoriesJson(text, data.assets, () => newId('cat'));
+    if (!r.ok) {
+      const msg = r.problem in IMPORT_PROBLEM_TEXT ? IMPORT_PROBLEM_TEXT[r.problem as keyof typeof IMPORT_PROBLEM_TEXT] : CATEGORY_PROBLEM_TEXT[r.problem as keyof typeof CATEGORY_PROBLEM_TEXT].en;
+      setMessage(`Import failed: ${msg}`);
+      return;
+    }
+    setState(r.state);
+    setError('');
+    setMessage('');
+    setNotice(`Imported ${r.state.drafts.length} ${r.state.drafts.length === 1 ? 'category' : 'categories'}${r.skippedTickers > 0 ? `; skipped ${r.skippedTickers} ${r.skippedTickers === 1 ? 'entry' : 'entries'} for stocks you do not have` : ''}. This replaces what is shown below until you press Save or Cancel.`);
+    setEditing(true);
+  };
+
   const noAssets = data !== null && data.assets.length === 0;
 
   return (
@@ -115,6 +151,16 @@ export function CategoriesPage(_props: { onHome?: () => void }) {
           <button type="button" className="iv-btn" onClick={createFromSectors} disabled={data === null || noAssets || busy}>
             Create categories from sectors
           </button>
+          <button type="button" className="iv-btn" disabled={data === null || !hasCategories || busy} onClick={() => exportFile('csv')} title="Export categories and targets to a CSV file">
+            Export CSV
+          </button>
+          <button type="button" className="iv-btn" disabled={data === null || !hasCategories || busy} onClick={() => exportFile('json')} title="Export categories, targets and stock assignments to a JSON file you can import later">
+            Export JSON
+          </button>
+          <button type="button" className="iv-btn" disabled={data === null || noAssets || busy} onClick={() => fileRef.current?.click()} title="Import a categories JSON file (nothing is saved until you press Save)">
+            Import
+          </button>
+          <input id="cg-import-file" ref={fileRef} type="file" accept=".json,application/json" className="sr-only" tabIndex={-1} aria-hidden="true" onChange={(e) => { void importFile(e.target.files?.[0]); e.target.value = ''; }} />
           <button type="button" className="iv-btn iv-btn-gold" onClick={startEdit} disabled={data === null || editing || busy}>
             Change
           </button>

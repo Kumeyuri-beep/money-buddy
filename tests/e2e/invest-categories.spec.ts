@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { obscured, overflowing, watch } from './helpers/layoutChecks';
+import { goInvest } from './helpers/investNav';
 
 /**
  * หน้า Portfolio → Categories ของ /invest (invest-v2 · แบบร่าง 25) บน harness ?investDemo=cat (src/dev/categoriesDemo.ts · เก็บใน sessionStorage จึงรีโหลดแล้วยังอยู่)
@@ -147,6 +148,104 @@ for (const w of WIDTHS) {
       await expect(page.getByText('Categories saved.')).toBeVisible();
       await expect(tableRow(page, 'Health Care')).toContainText('2 items');
       await expect(tableRow(page, 'Consumer Staples')).toHaveCount(0);
+    });
+
+    test('ช่อง Sector ในฟอร์มเพิ่มหุ้น: คอมมี (เลือกจากรายการหรือพิมพ์เอง) แล้วไปอยู่ในหมวดที่สร้างจาก sector · มือถือฟอร์มไม่เปลี่ยน (ไม่มีช่องนี้)', async ({ page }) => {
+      const seen = watch(page);
+      await page.route((url) => !/^(localhost|127.0.0.1)$/.test(url.hostname), (route) => route.abort());
+      await page.goto('/harness.html?seed=1&investDemo=cat#/invest/portfolio/holdings');
+      await expect(page.getByRole('heading', { name: 'Holdings', level: 2, exact: true })).toBeVisible({ timeout: 20_000 });
+      await page.getByRole('button', { name: 'Add', exact: true }).click();
+      await expect(page.getByRole('heading', { name: 'Add US stock' })).toBeVisible();
+      const sector = page.getByLabel('Sector (optional)');
+      if (w.width < 1024) {
+        await expect(sector).toHaveCount(0);
+        expect(seen.errors).toEqual([]);
+        return;
+      }
+      await page.getByLabel('Stock name').fill('Demo Zeta Energy');
+      await page.getByLabel('Ticker').fill('DEMZ');
+      await sector.fill('Energy ');
+      await page.getByRole('dialog').getByRole('button', { name: 'Add stock', exact: true }).click();
+      await expect(page.getByText('Stock added', { exact: false }).first()).toBeVisible();
+      await expect(page.getByText(/sector was not saved/)).toHaveCount(0);
+      await goInvest(page, 'Portfolio', 'Categories');
+      // หุ้นที่เพิ่งเพิ่ม (ยังไม่มีรายการซื้อ) ยังไม่ถือ จึงไม่ถูกนับในปุ่ม "Create categories from sectors" แต่ sector ถูกเก็บและเห็นในรายการจัดหมวด
+      await page.getByRole('button', { name: 'Change' }).click();
+      await expect(page.getByText('Sector: Energy', { exact: true })).toBeVisible();
+      expect(seen.errors).toEqual([]);
+    });
+
+    test('ช่อง Sector: ข้อความไม่ผ่านตรวจ (อักขระควบคุม) ถูกปฏิเสธก่อนบันทึก', async ({ page }) => {
+      test.skip(w.width < 1024, 'ช่อง Sector มีเฉพาะคอม');
+      await page.route((url) => !/^(localhost|127.0.0.1)$/.test(url.hostname), (route) => route.abort());
+      await page.goto('/harness.html?seed=1&investDemo=cat#/invest/portfolio/holdings');
+      await expect(page.getByRole('heading', { name: 'Holdings', level: 2, exact: true })).toBeVisible({ timeout: 20_000 });
+      await page.getByRole('button', { name: 'Add', exact: true }).click();
+      await page.getByLabel('Stock name').fill('Demo Eta');
+      await page.getByLabel('Ticker').fill('DEMH');
+      await page.getByLabel('Sector (optional)').fill('x'.repeat(61));
+      await page.getByRole('dialog').getByRole('button', { name: 'Add stock', exact: true }).click();
+      await expect(page.getByText(/Sector must be 1-60 characters/)).toBeVisible();
+    });
+
+    test('Export CSV/JSON + Import JSON: ส่งออกแล้วนำเข้ากลับเป็นร่าง (ยังไม่บันทึกจนกด Save) · ไฟล์ผิดถูกปฏิเสธด้วยข้อความ · ไม่มีหมวด = ปุ่ม Export ปิด', async ({ page }) => {
+      const seen = watch(page);
+      // เก็บไฟล์ที่แอปสร้างให้ดาวน์โหลด (Blob) ไว้อ่านในเทสต์
+      await page.addInitScript(() => {
+        const w = window as unknown as { __blobs: Blob[] };
+        w.__blobs = [];
+        const orig = URL.createObjectURL.bind(URL);
+        URL.createObjectURL = (b: Blob | MediaSource) => {
+          if (b instanceof Blob) w.__blobs.push(b);
+          return orig(b);
+        };
+      });
+      const lastBlobText = () => page.evaluate(() => (window as unknown as { __blobs: Blob[] }).__blobs.at(-1)!.text());
+      const importText = (text: string) =>
+        page.evaluate((content) => {
+          const input = document.querySelector('#cg-import-file') as HTMLInputElement;
+          const dt = new DataTransfer();
+          dt.items.add(new File([content], 'categories.json', { type: 'application/json' }));
+          input.files = dt.files;
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }, text);
+      await open(page);
+      await expect(page.getByRole('button', { name: 'Export CSV' })).toBeDisabled();
+      await expect(page.getByRole('button', { name: 'Export JSON' })).toBeDisabled();
+      await page.getByRole('button', { name: 'Create categories from sectors' }).click();
+      await page.getByRole('button', { name: 'Save', exact: true }).click();
+      await expect(page.getByText('Categories saved.')).toBeVisible();
+
+      const csvDl = page.waitForEvent('download');
+      await page.getByRole('button', { name: 'Export CSV' }).click();
+      expect((await csvDl).suggestedFilename()).toMatch(/^categories-[0-9]{4}-[0-9]{2}-[0-9]{2}[.]csv$/);
+      const csvRaw = await lastBlobText();
+      const csvText = csvRaw.charCodeAt(0) === 0xfeff ? csvRaw.slice(1) : csvRaw;
+      expect(csvText.startsWith('Category,Target (%),Stocks')).toBe(true);
+      expect(csvText).toContain('Health Care,,DEMB');
+
+      const jsonDl = page.waitForEvent('download');
+      await page.getByRole('button', { name: 'Export JSON' }).click();
+      await jsonDl;
+      const jsonText = await lastBlobText();
+      expect(JSON.parse(jsonText).format).toBe('money-buddy-categories');
+
+      // นำเข้าไฟล์เดิม → เข้าสู่ตัวแก้เป็นร่าง
+      await importText(jsonText);
+      await expect(page.getByRole('heading', { name: 'Edit categories' })).toBeVisible();
+      await expect(page.getByText(/Imported 5 categories/)).toBeVisible();
+      await page.getByRole('button', { name: 'Cancel' }).click();
+
+      // ไฟล์ผิด: ข้อความชัด ไม่เปิดตัวแก้ ไม่แสดงเนื้อหาไฟล์
+      await importText('{"secret":"do-not-echo"}');
+      await expect(page.getByText('Import failed: This is not a Money Buddy categories file.')).toBeVisible();
+      await expect(page.getByText('do-not-echo')).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: 'Edit categories' })).toHaveCount(0);
+      await importText(JSON.stringify({ format: 'money-buddy-categories', version: 1, categories: [{ name: 'A', target: '60' }, { name: 'B', target: '39.99' }], assignments: [] }));
+      await expect(page.getByText(/Import failed: .*100%/)).toBeVisible();
+      expect(seen.errors).toEqual([]);
+      expect(seen.external).toEqual([]);
     });
 
     test('คีย์บอร์ด: Tab ไปปุ่ม Change แล้วกด Enter เปิดตัวแก้ · เพิ่มหมวดแล้วโฟกัสไปที่ช่องชื่อใหม่', async ({ page }) => {
