@@ -6,7 +6,7 @@ import {
   buildRebalanceInput,
   buildRebalanceView,
   parseUsdCents,
-  REBALANCE_REASON_TEXT,
+  rebalanceReasonText,
   rebalanceCsvFilename,
   type AmountProblem,
   type RebalanceOptions,
@@ -23,6 +23,8 @@ import '../rebalance/rebalance.css';
  * ใช้ rebalance() (ฟังก์ชันล้วน BigInt) ผ่านตัวแปลงใน domain/invest/rebalanceView · ไม่มีสูตรเงินในหน้านี้ · ไม่สร้างรายการซื้อขาย ไม่เขียนสมุด/ฐานข้อมูล
  * คำนวณเป็น USD เสมอ (R26) แม้เลือกมุมมอง THB
  */
+const CATEGORY_FIXES: ReadonlySet<string> = new Set(['noTargets', 'targetsNotComplete', 'holdingWithoutCategory']);
+
 export function RebalancePage({ onOpenCategories }: { onOpenCategories: () => void }) {
   const { today, data, currency } = useInvest();
   const [settings, setSettings] = useRebalanceSettings();
@@ -38,16 +40,17 @@ export function RebalancePage({ onOpenCategories }: { onOpenCategories: () => vo
     if (submitted === null || data === null) return null;
     try {
       const built = buildRebalanceInput(data, today, submitted);
-      if (!built.ok) return { text: BUILD_FAILURE_TEXT[built.reason], view: null };
+      if (!built.ok) return { text: BUILD_FAILURE_TEXT[built.reason], view: null, fixInCategories: built.reason === 'noCategories' };
       const result = rebalance(built.input);
-      if (!result.ok) return { text: REBALANCE_REASON_TEXT[result.reason], view: null };
+      if (!result.ok) return { text: rebalanceReasonText(result.reason, submitted.mode), view: null, fixInCategories: CATEGORY_FIXES.has(result.reason) };
       const nameOf = new Map((data.categories ?? []).map((c) => [c.id, c.name]));
       return {
         text: null,
+        fixInCategories: false,
         view: buildRebalanceView(result, { assets: data.assets, categoryName: (id) => nameOf.get(id) ?? id, fractional: submitted.fractional }),
       };
     } catch {
-      return { text: 'The numbers are too large to calculate safely, so nothing was calculated.', view: null };
+      return { text: 'The numbers are too large to calculate safely, so nothing was calculated.', view: null, fixInCategories: false };
     }
   }, [submitted, data, today]);
 
@@ -68,6 +71,9 @@ export function RebalancePage({ onOpenCategories }: { onOpenCategories: () => vo
     setProblems({ amount: a.ok ? null : a.problem, min: m.ok ? null : m.problem });
     if (a.ok && m.ok) setSubmitted({ mode, amountCents: a.cents, allowSales: settings.allowSales, fractional: settings.fractional, minOrderCents: m.cents });
   };
+
+  // ประกาศผลให้โปรแกรมอ่านจอ: ช่องเดียวที่อยู่ตลอด (ไม่ครอบทั้งผลลัพธ์ ไม่ซ้อน role)
+  const announce = outcome === null ? '' : outcome.view === null ? 'Not calculated' : `Result updated: ${outcome.view.trades.length} ${outcome.view.trades.length === 1 ? 'trade' : 'trades'}`;
 
   const exportCsv = () => {
     if (outcome === null || outcome.view === null || submitted === null) return;
@@ -109,7 +115,20 @@ export function RebalancePage({ onOpenCategories }: { onOpenCategories: () => vo
             onSettings={setSettings}
             onSubmit={submit}
           />
-          {outcome !== null && <RebalanceResult notCalculated={outcome.text} view={outcome.view} allowSales={submitted?.allowSales ?? false} stale={stale} onExport={exportCsv} />}
+          <p className="sr-only" aria-live="polite">
+            {announce}
+          </p>
+          {outcome !== null && (
+            <RebalanceResult
+              notCalculated={outcome.text}
+              view={outcome.view}
+              allowSales={submitted?.allowSales ?? false}
+              stale={stale}
+              categoriesLink={outcome.fixInCategories}
+              onOpenCategories={onOpenCategories}
+              onExport={exportCsv}
+            />
+          )}
         </>
       )}
     </div>

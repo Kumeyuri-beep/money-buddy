@@ -4,7 +4,7 @@
 .rb-title { margin: 0; font-size: 28px; font-weight: 700; }
 .rb-lead, .rb-note { margin: 0; color: var(--muted); line-height: 1.5; max-width: 90ch; }
 .rb-note { color: var(--text); padding: 10px 14px; border-radius: 12px; border: 1px solid var(--ov-20); background: var(--ov-4); }
-.rb-link { display: inline; min-height: 0; padding: 0; border: 0; background: transparent; color: var(--gold); font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
+.rb-link { display: inline; min-height: 0; padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .rb-link:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
 .rb-form { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
@@ -29,7 +29,7 @@
 .rb-result-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
 .rb-result-head h3 { margin: 0; font-size: 22px; }
 .rb-sub { margin: 2px 0 0; color: var(--muted); }
-.rb-stale { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--warn); }
+.rb-stale { padding: 10px 14px; border-radius: 10px; border: 1px solid var(--warn); border-left-width: 4px; }
 .rb-notcalc { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--warn); line-height: 1.5; }
 .rb-warnings { margin: 0; padding: 10px 14px 10px 30px; border-radius: 12px; border: 1px solid var(--warn); display: grid; gap: 4px; }
 .rb-wrap { border-radius: 16px; background: var(--surface-fallback); border: 1px solid var(--ov-10); }
@@ -42,17 +42,22 @@
 .rb-table tfoot td { border-bottom: 0; }
 .rb-name { display: block; font-weight: 700; }
 .rb-subtext { display: block; font-size: 12px; color: var(--muted); font-weight: 400; }
+.rb-table .num { font-variant-numeric: tabular-nums; }
+.rb-body { display: grid; gap: 14px; min-width: 0; transition: opacity 0.15s ease; }
+.rb-body > * { min-width: 0; margin: 0; }
+.rb-body.is-stale { opacity: 0.55; }
+@media (prefers-reduced-motion: reduce) { .rb-body { transition: none; } }
 .rb-strong { font-weight: 700; }
 .rb-row.is-buy td:last-child { color: var(--income); }
 .rb-row.is-sell td:last-child { color: var(--expense); }
 .rb-cat-caption { padding: 10px; text-align: left; font-weight: 700; caption-side: top; }
 .rb-totals { margin: 0; display: flex; flex-wrap: wrap; gap: 12px; }
-.rb-totals > div { display: flex; gap: 10px; align-items: baseline; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--ov-14); background: var(--ov-4); }
+.rb-totals > div { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--ov-14); background: var(--ov-4); }
 .rb-totals dt { color: var(--muted); }
 .rb-totals dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
 .rb-dropped h4 { margin: 0 0 6px; font-size: 16px; }
 .rb-dropped ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
-.rb-disclaimer { color: var(--muted); font-size: 14px; line-height: 1.5; max-width: 100ch; }
+.rb-disclaimer { margin: 0; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--ov-20); border-left: 4px solid var(--gold); background: var(--ov-4); color: var(--text); font-size: 15px; line-height: 1.5; max-width: 100ch; }
 .rb-empty { display: grid; gap: 6px; }
 .rb-empty h3, .rb-empty p { margin: 0; }
 

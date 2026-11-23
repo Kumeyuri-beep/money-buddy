@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { REBALANCE_DISCLAIMER } from '../../src/domain/invest/rebalanceView';
+import { pageContrastFailures } from './helpers/contrast';
 import { obscured, overflowing, watch } from './helpers/layoutChecks';
 import { goInvest } from './helpers/investNav';
 
@@ -197,6 +198,54 @@ for (const w of WIDTHS) {
       expect(text.trimEnd().endsWith(`"${REBALANCE_DISCLAIMER}"`)).toBe(true);
     });
 
+    for (const theme of ['dark', 'light'] as const) {
+      test(`ตัวหนังสือผ่าน WCAG AA (${theme}) ตอนมี Result และ Set up เปิดอยู่`, async ({ page }) => {
+        await page.emulateMedia({ colorScheme: theme });
+        await open(page);
+        await openSetup(page);
+        await amountField(page).fill(DEPOSIT_A);
+        await seeResult(page).click();
+        await expect(tradeRow(page, 'CCC')).toBeVisible();
+        const { failures, checked } = await pageContrastFailures(page);
+        expect(checked).toBeGreaterThan(20);
+        expect(failures.slice(0, 12), 'low-contrast text').toEqual([]);
+      });
+    }
+
+    test('แก้อินพุตหลังกด See result: ผลจางลง + aria-busy + Export ปิด · ข้อความบังคับอยู่ใต้หัว Result ก่อนตาราง · ช่องประกาศผลเดียว', async ({ page }) => {
+      await open(page);
+      await amountField(page).fill(DEPOSIT_A);
+      await seeResult(page).click();
+      await expect(tradeRow(page, 'CCC')).toBeVisible();
+      await expect(page.locator('.rb-page [aria-live]')).toHaveCount(1);
+      await expect(page.locator('.rb-page [aria-live]')).toHaveText('Result updated: 2 trades');
+      await expect(page.locator('.rb-result [role="status"], .rb-result [aria-live]')).toHaveCount(0);
+      const order = await page.evaluate(() => {
+        const d = document.querySelector('.rb-disclaimer');
+        const t = document.querySelector('.rb-result table');
+        return !!d && !!t && (d.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+      });
+      expect(order).toBe(true);
+      await expect(page.getByRole('button', { name: 'Export CSV' })).toBeEnabled();
+      await amountField(page).fill('360');
+      await expect(page.getByText('Inputs changed. Press See result to update.')).toBeVisible();
+      await expect(page.locator('.rb-result')).toHaveAttribute('aria-busy', 'true');
+      await expect(page.locator('.rb-body.is-stale')).toHaveCount(1);
+      await expect(page.getByRole('button', { name: 'Export CSV' })).toBeDisabled();
+      await seeResult(page).click();
+      await expect(page.getByRole('button', { name: 'Export CSV' })).toBeEnabled();
+      await expect(page.locator('.rb-body.is-stale')).toHaveCount(0);
+    });
+
+    test('ยอดขั้นต่ำผิดรูป: เปิด Set up เองและแสดงข้อผิดพลาด', async ({ page }) => {
+      await open(page);
+      await openSetup(page);
+      await page.getByLabel('Minimum order amount (USD)').fill('1.234');
+      await page.getByRole('button', { name: /^Set up/ }).click(); // ปิด
+      await seeResult(page).click();
+      await expect(page.getByRole('alert').filter({ hasText: /at most 2 decimal places/ })).toBeVisible();
+    });
+
     test('คีย์บอร์ด: Tab ถึงฟิลด์ยอด กรอกแล้ว Enter ส่งฟอร์ม · ผลลัพธ์อยู่ใน aria-live สุภาพ', async ({ page }) => {
       await open(page);
       await expect(page.locator('.rb-form')).toBeVisible();
@@ -204,7 +253,7 @@ for (const w of WIDTHS) {
       await page.keyboard.type('350');
       await page.keyboard.press('Enter');
       await expect(tradeRow(page, 'CCC')).toContainText('2.187');
-      await expect(page.locator('.rb-result')).toHaveAttribute('aria-live', 'polite');
+      await expect(page.locator('.rb-page [aria-live="polite"]')).toHaveText('Result updated: 2 trades');
     });
   });
 }

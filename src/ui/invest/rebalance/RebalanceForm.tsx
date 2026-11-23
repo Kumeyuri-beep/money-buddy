@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from 'react';
+import { useEffect, useId, useState, type FormEvent } from 'react';
 import type { RebalanceMode } from '../../../domain/invest/rebalance';
 import { AMOUNT_PROBLEM_TEXT, type AmountProblem, type RebalanceSettings } from '../../../domain/invest/rebalanceView';
 
@@ -23,7 +23,11 @@ export function RebalanceForm({ mode, amount, settings, amountProblem, minOrderP
     onSubmit();
   };
   const label = mode === 'deposit' ? 'Deposit amount' : 'Withdrawal amount';
-  const setupVisible = setupOpen || minOrderProblem !== null;
+  // ข้อผิดพลาดของยอดขั้นต่ำต้องมองเห็นเสมอ: เปิด Set up ให้เองเมื่อเกิด error (ผู้ใช้ปิดทีหลังได้)
+  useEffect(() => {
+    if (minOrderProblem !== null) setSetupOpen(true);
+  }, [minOrderProblem]);
+  const setupVisible = setupOpen;
   return (
     <form className="iv-card rb-form" onSubmit={submit} noValidate aria-label="Rebalancing inputs">
       <div className="rb-controls">
@@ -57,7 +61,7 @@ export function RebalanceForm({ mode, amount, settings, amountProblem, minOrderP
           )}
         </div>
         <button type="button" className="iv-btn rb-setup-btn" aria-expanded={setupVisible} aria-controls={`${id}-setup`} onClick={() => setSetupOpen(!setupVisible)}>
-          Set up {setupVisible ? '▴' : '▾'}
+          Set up <span aria-hidden="true">{setupVisible ? '▴' : '▾'}</span>
         </button>
         <button type="submit" className="iv-btn rb-submit">
           See result

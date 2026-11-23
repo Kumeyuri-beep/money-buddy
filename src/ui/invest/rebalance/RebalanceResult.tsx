@@ -8,6 +8,9 @@ interface Props {
   allowSales: boolean;
   /** อินพุตเปลี่ยนไปจากตอนกด See result */
   stale: boolean;
+  /** เหตุผลที่ไม่คำนวณแก้ได้ในหน้า Categories → แสดงปุ่มไปหน้านั้น */
+  categoriesLink: boolean;
+  onOpenCategories: () => void;
   onExport: () => void;
 }
 
@@ -18,28 +21,42 @@ const mark = (bps: number | null): string => (bps === null ? '—' : `${bpsText(
  * ข้อความบังคับติดกับ Result ทุกครั้ง · ไม่มีปุ่มสร้างรายการซื้อขาย ไม่เขียนสมุด/ฐานข้อมูล
  * ตารางและรายการพื้นทึบ (ไม่ใช่กระจก)
  */
-export function RebalanceResult({ notCalculated, view, allowSales, stale, onExport }: Props) {
+export function RebalanceResult({ notCalculated, view, allowSales, stale, categoriesLink, onOpenCategories, onExport }: Props) {
   return (
-    <section className="iv-card rb-result" aria-labelledby="rb-result-title" aria-live="polite">
+    <section className="iv-card rb-result" aria-labelledby="rb-result-title" aria-busy={stale ? true : undefined}>
       <div className="rb-result-head">
         <div>
           <h3 id="rb-result-title">{REBALANCE_RESULT_TITLE}</h3>
           <p className="rb-sub">{REBALANCE_TRADES_TITLE}</p>
         </div>
         {view !== null && (
-          <button type="button" className="iv-btn" onClick={onExport}>
+          <button type="button" className="iv-btn" onClick={onExport} disabled={stale} title={stale ? 'Press See result first' : undefined}>
             Export CSV
           </button>
         )}
       </div>
-      {stale && <p className="rb-stale">Inputs changed. Press See result to update.</p>}
+      <p className="rb-disclaimer">{REBALANCE_DISCLAIMER}</p>
+      {stale && (
+        <p className="rb-stale">
+          <span aria-hidden="true">⚠ </span>
+          <strong>Inputs changed. Press See result to update.</strong>
+        </p>
+      )}
       {notCalculated !== null && (
-        <p className="rb-notcalc" role="status">
+        <p className="rb-notcalc">
           <strong>Not calculated.</strong> {notCalculated}
+          {categoriesLink && (
+            <>
+              {' '}
+              <button type="button" className="rb-link" onClick={onOpenCategories}>
+                Go to Categories
+              </button>
+            </>
+          )}
         </p>
       )}
       {view !== null && (
-        <>
+        <div className={`rb-body${stale ? ' is-stale' : ''}`}>
           {view.warnings.length > 0 && (
             <ul className="rb-warnings" aria-label="Notes">
               {view.warnings.map((w) => (
@@ -103,11 +120,13 @@ export function RebalanceResult({ notCalculated, view, allowSales, stale, onExpo
               <div>
                 <dt>Left over</dt>
                 <dd>{usd(view.leftOverCents)}</dd>
+                <dd className="rb-hint">Cash not used</dd>
               </div>
             ) : (
               <div>
                 <dt>Short by</dt>
                 <dd>{usd(view.shortByCents)}</dd>
+                <dd className="rb-hint">Withdrawal beyond what trades can cover</dd>
               </div>
             )}
           </dl>
@@ -155,9 +174,8 @@ export function RebalanceResult({ notCalculated, view, allowSales, stale, onExpo
               </tbody>
             </table>
           </div>
-        </>
+        </div>
       )}
-      <p className="rb-disclaimer">{REBALANCE_DISCLAIMER}</p>
     </section>
   );
 }
