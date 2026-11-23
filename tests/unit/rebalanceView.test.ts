@@ -9,6 +9,7 @@ import {
   formatShares,
   parseStoredSettings,
   parseUsdCents,
+  rebalanceReasonText,
   REBALANCE_DISCLAIMER,
   REBALANCE_REASON_TEXT,
   type RebalanceOptions,
@@ -114,9 +115,9 @@ describe('buildRebalanceInput: เหตุที่ไม่คำนวณ', (
   it('ไม่มีหมวด', () => {
     expect(buildRebalanceInput(data({ categories: [] }), TODAY, opts())).toMatchObject({ ok: false, reason: 'noCategories' });
   });
-  it('หุ้นสหรัฐมีรายการไม่มีเรต → ไม่คำนวณ (ไม่เดา)', () => {
+  it('หุ้นสหรัฐมีรายการไม่มีเรต: ไม่เป็นเหตุที่ไม่คำนวณ (R29 ไม่มีข้อนี้ · หน่วยไม่ขึ้นกับเรต)', () => {
     const t = trades.map((x) => (x.id === 'b-CCC' ? { ...x, fxRateMicro: undefined } : x)) as TradeRecord[];
-    expect(buildRebalanceInput(data({ trades: t }), TODAY, opts())).toMatchObject({ ok: false, reason: 'needsRate', holdingIds: ['CCC'] });
+    expect(buildRebalanceInput(data({ trades: t }), TODAY, opts()).ok).toBe(true);
   });
   it('หุ้นที่ถืออยู่ไม่มีหมวด → โดเมนบอก holdingWithoutCategory', () => {
     const a = assets.map((x) => (x.id === 'AAA' ? { ...x, categoryId: undefined } : x)) as Asset[];
@@ -138,6 +139,79 @@ describe('buildRebalanceInput: เหตุที่ไม่คำนวณ', (
     for (const k of ['invalidAmount', 'invalidOption', 'invalidHolding', 'noTargets', 'targetsNotComplete', 'holdingWithoutCategory', 'bahtAssetInCategory', 'needsPrice', 'nothingToDo', 'withdrawExceedsValue'] as const) {
       expect(REBALANCE_REASON_TEXT[k].length).toBeGreaterThan(10);
     }
+  });
+});
+
+describe('parseUsdCents: รูปแบบแปลกๆ', () => {
+  it('ปฏิเสธ', () => {
+    expect(parseUsdCents('-0')).toEqual({ ok: false, problem: 'negative' });
+    expect(parseUsdCents('0x10')).toEqual({ ok: false, problem: 'notNumber' });
+    expect(parseUsdCents('1 000')).toEqual({ ok: false, problem: 'notNumber' });
+    expect(parseUsdCents('\u0661\u0662\u0663')).toEqual({ ok: false, problem: 'notNumber' });
+    expect(parseUsdCents('\uFF11\uFF10')).toEqual({ ok: false, problem: 'notNumber' });
+    expect(parseUsdCents('0,001')).toEqual({ ok: false, problem: 'notNumber' });
+    expect(parseUsdCents('12,34')).toEqual({ ok: false, problem: 'notNumber' });
+  });
+  it('รับ', () => {
+    expect(parseUsdCents('$ 5')).toEqual({ ok: true, cents: 500, empty: false });
+    expect(parseUsdCents('1.')).toEqual({ ok: true, cents: 100, empty: false });
+    expect(parseUsdCents('1,000')).toEqual({ ok: true, cents: 100_000, empty: false });
+    expect(parseUsdCents('0.00')).toEqual({ ok: true, cents: 0, empty: false });
+  });
+});
+
+describe('หน่วยที่ไม่ใช่ทวีคูณของ step (ขายหมดทั้งตำแหน่ง) แสดงตามจริง (R29)', () => {
+  it('formatShares', () => {
+    expect(formatShares(123_456_789n, true)).toBe('1.23456789');
+    expect(formatShares(250_000_000n, false)).toBe('2.5');
+    expect(formatShares(100_000_001n, true)).toBe('1.00000001');
+    expect(formatShares(123_400_000n, true)).toBe('1.234');
+  });
+  const cats: AssetCategory[] = [{ id: 'Old', name: 'Old', targetBps: 0, sortOrder: 0 }, { id: 'Rest', name: 'Rest', targetBps: 10_000, sortOrder: 1 }];
+  const mk = (held: string, px = 10_000_000): InvestmentData => {
+    const as: Asset[] = [
+      { id: 'X', name: 'X Corp', kind: 'stock', accountId: 'inv-X', currency: 'USD', ticker: 'X', categoryId: 'Old' },
+      { id: 'Y', name: 'Y Corp', kind: 'stock', accountId: 'inv-Y', currency: 'USD', ticker: 'Y', categoryId: 'Rest' },
+    ];
+    const tr: TradeRecord[] = [
+      { id: 'bx', assetId: 'X', kind: 'buy', date: '2026-01-15', createdAt: '2026-01-15T03:00:00.000Z', units: held, priceMicro: px, amount: 1, fee: 0, withholding: 0, memo: '', fxRateMicro: 34_000_000 },
+      { id: 'by', assetId: 'Y', kind: 'buy', date: '2026-01-15', createdAt: '2026-01-15T03:00:00.000Z', units: '10000000000', priceMicro: 10_000_000, amount: 1, fee: 0, withholding: 0, memo: '', fxRateMicro: 34_000_000 },
+    ];
+    return { assets: as, trades: tr, prices: [{ assetId: 'X', date: '2026-11-20', priceMicro: px }, { assetId: 'Y', date: '2026-11-20', priceMicro: 10_000_000 }], categories: cats } as InvestmentData;
+  };
+  it('เปิดเศษหุ้น ถือ 1.23456789 ขายหมด → แสดง 1.23456789 ทั้งหน้าและ CSV', () => {
+    const { input, result } = run(mk('123456789'), opts({ amountCents: 0, allowSales: true }));
+    if (!result.ok) throw new Error('x');
+    const view = buildRebalanceView(result, { assets: input.holdings.length ? mk('1').assets : [], categoryName: (id) => id, fractional: true });
+    const sell = view.trades.find((t) => t.side === 'sell');
+    expect(sell?.sharesText).toBe('1.23456789');
+    expect(buildRebalanceCsv(view, { amountCents: 0, allowSales: true, fractional: true, minOrderCents: 0 })).toContain('Sell,X,X Corp,Old,1.23456789,');
+  });
+  it('ปิดเศษหุ้น ถือ 2.5 ขายหมด → แสดง 2.5', () => {
+    const { result } = run(mk('250000000', 10_000), opts({ amountCents: 0, allowSales: true, fractional: false }));
+    if (!result.ok) throw new Error('x');
+    const view = buildRebalanceView(result, { assets: mk('1').assets, categoryName: (id) => id, fractional: false });
+    expect(view.trades.find((t) => t.side === 'sell')?.sharesText).toBe('2.5');
+  });
+});
+
+describe('ตรงเป้าพอดี / 0 เซนต์ ใน view และ CSV', () => {
+  it('ไม่มีแถว · ยอดรวม 0.00 · Left over 0.00', () => {
+    const one: AssetCategory[] = [{ id: 'T', name: 'T', targetBps: 10_000, sortOrder: 0 }];
+    const d = { assets: [{ ...assets[0], categoryId: 'T' }], trades: [trades[0]], prices: [prices[0]], categories: one } as InvestmentData;
+    const { input, result } = run(d, opts({ amountCents: 0, allowSales: true }));
+    if (!result.ok) throw new Error('x');
+    const view = buildRebalanceView(result, { assets: d.assets, categoryName: (id) => id, fractional: input.fractional });
+    expect(view.noTrades).toBe(true);
+    expect(view.alreadyAtTargets).toBe(true);
+    expect(view.buyTotalCents + view.sellTotalCents + view.leftOverCents).toBe(0);
+    const csv = buildRebalanceCsv(view, { amountCents: 0, allowSales: true, fractional: true, minOrderCents: 0 });
+    expect(csv).toContain('Total buy (USD),0.00');
+    expect(csv).toContain('Left over (USD),0.00');
+  });
+  it('ข้อความ invalidAmount แยกตามโหมด', () => {
+    expect(rebalanceReasonText('invalidAmount', 'withdraw')).toMatch(/withdrawal/);
+    expect(rebalanceReasonText('invalidAmount', 'deposit')).toMatch(/deposit/);
   });
 });
 

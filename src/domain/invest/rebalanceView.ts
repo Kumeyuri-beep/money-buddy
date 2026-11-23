@@ -11,9 +11,9 @@ import { buildHoldingsView } from './holdingsView';
 import { type DroppedReason, type RebalanceErrorReason, type RebalanceInput, type RebalanceMode, type RebalanceResult, type RebalanceRow, type RebalanceWarning } from './rebalance';
 import { csvText, minorToDecimal } from './reportRows';
 import { toReplayTrades } from './rules';
-import { splitTradesByRate } from './tradesFx';
 import { replayTrades } from './costBasis';
 import { assetCurrency, type Asset, type InvestmentData } from './types';
+import { formatUnits, toSafeSatang } from './units';
 
 // ---------- ข้อความ (อังกฤษ ตามกติกาของโหมดนี้) ----------
 
@@ -37,7 +37,7 @@ export const AMOUNT_PROBLEM_TEXT: Record<AmountProblem, string> = {
 };
 
 const MAX_INT_DIGITS = 12;
-const PLAIN = /^(\d{1,3}(?:,\d{3})+|\d+)?(?:\.(\d*))?$/;
+const PLAIN = /^([1-9]\d{0,2}(?:,\d{3})+|\d+)?(?:\.(\d*))?$/;
 
 /** "1,234.5" -> 123450 เซนต์ · ว่าง = 0 (empty) · ลบ/ทศนิยมเกิน 2 ตำแหน่ง/ไม่ใช่ตัวเลข/เลขใหญ่เกิน = ปฏิเสธ */
 export function parseUsdCents(text: string): AmountParse {
@@ -89,7 +89,7 @@ export interface RebalanceOptions {
   minOrderCents: number;
 }
 
-export type BuildInputFailure = 'noCategories' | 'needsRate' | 'holdingError';
+export type BuildInputFailure = 'noCategories' | 'holdingError';
 export type BuildInputResult = { ok: true; input: RebalanceInput } | { ok: false; reason: BuildInputFailure; holdingIds: string[] };
 
 function latestPrice(data: InvestmentData, assetId: string, today: string): { priceMicro: number; date: string } | null {
@@ -108,7 +108,6 @@ export function buildRebalanceInput(data: InvestmentData, today: string, opts: R
   const view = buildHoldingsView(data, today, 'USD');
   const rowOf = new Map(view.rows.map((r) => [r.assetId, r]));
   const broken: string[] = [];
-  const noRate: string[] = [];
   const holdings: RebalanceInput['holdings'][number][] = [];
   for (const a of data.assets) {
     const cur = assetCurrency(a);
@@ -118,10 +117,6 @@ export function buildRebalanceInput(data: InvestmentData, today: string, opts: R
       const row = rowOf.get(a.id);
       if (row === undefined || row.missing === 'error') {
         broken.push(a.id);
-        continue;
-      }
-      if (splitTradesByRate(own).missingRate.length > 0) {
-        noRate.push(a.id);
         continue;
       }
       units = row.units;
@@ -146,7 +141,6 @@ export function buildRebalanceInput(data: InvestmentData, today: string, opts: R
     });
   }
   if (broken.length > 0) return { ok: false, reason: 'holdingError', holdingIds: broken };
-  if (noRate.length > 0) return { ok: false, reason: 'needsRate', holdingIds: noRate };
   return {
     ok: true,
     input: {
@@ -167,7 +161,7 @@ export const tickerOf = (a: Pick<Asset, 'ticker' | 'name'>): string => (a.ticker
 // ---------- ข้อความเหตุผล/คำเตือน ----------
 
 export const REBALANCE_REASON_TEXT: Record<RebalanceErrorReason, string> = {
-  invalidAmount: 'Enter an amount greater than 0 (withdrawal) or 0 or more (deposit).',
+  invalidAmount: 'Enter an amount greater than 0.',
   invalidOption: 'The minimum order amount must be 0 or more.',
   invalidHolding: 'A holding has an invalid number of shares, so nothing was calculated.',
   noTargets: 'No category targets are set yet. Set them in Categories first.',
@@ -181,7 +175,6 @@ export const REBALANCE_REASON_TEXT: Record<RebalanceErrorReason, string> = {
 
 export const BUILD_FAILURE_TEXT: Record<BuildInputFailure, string> = {
   noCategories: 'Set up categories and target allocations first.',
-  needsRate: 'A US holding has a trade without an exchange rate, so its share count may be wrong. Nothing was calculated.',
   holdingError: 'A holding could not be calculated from its trades, so nothing was calculated.',
 };
 
@@ -208,13 +201,24 @@ export function warningText(w: RebalanceWarning, nameOf: (id: string) => string)
 
 // ---------- รูปตัวเลข ----------
 
-/** หน่วย (x 10^8) -> ข้อความหุ้น: เปิดเศษหุ้น = 3 ทศนิยมตายตัว (ตรงกับหน่วยที่ปัดลงแล้ว) · ปิด = จำนวนเต็ม · แสดงจากหน่วยที่คำนวณจริงเท่านั้น */
+/**
+ * หน่วย (x 10^8) -> ข้อความหุ้นจากหน่วยที่คำนวณจริงเท่านั้น (ห้ามแสดงต่างจากที่คิด · R29)
+ * ปกติ: เปิดเศษหุ้น = 3 ทศนิยมตายตัว · ปิด = จำนวนเต็ม · ถ้าหน่วยไม่ใช่ทวีคูณของ step (เช่น ขายหมดทั้งตำแหน่งที่ถืออยู่ 1.23456789) แสดงเต็ม 8 ตำแหน่ง ตัดศูนย์ท้ายเฉพาะเมื่อค่าเท่าเดิมเป๊ะ
+ */
 export function formatShares(units: bigint, fractional: boolean): string {
   const SCALE = 100_000_000n;
+  const step = fractional ? 100_000n : SCALE;
+  if (units % step !== 0n) return formatUnits(units);
   const whole = units / SCALE;
   if (!fractional) return whole.toString();
   const milli = (units % SCALE) / 100_000n;
   return `${whole.toString()}.${milli.toString().padStart(3, '0')}`;
+}
+
+/** ข้อความเหตุผลที่ไม่คำนวณ (invalidAmount แยกตามโหมด) */
+export function rebalanceReasonText(reason: RebalanceErrorReason, mode: RebalanceMode): string {
+  if (reason === 'invalidAmount') return mode === 'withdraw' ? 'Enter a withdrawal amount greater than 0.' : 'Enter a deposit amount of 0 or more.';
+  return REBALANCE_REASON_TEXT[reason];
 }
 
 /** bps -> "45" / "7.5" / "12.34" (ไม่ใช้ float) */
@@ -281,7 +285,7 @@ export interface RebalanceView {
 }
 
 function sharesOfCents(rows: readonly { cents: number }[]): number {
-  return rows.reduce((s, r) => s + r.cents, 0);
+  return toSafeSatang(rows.reduce((t, r) => t + BigInt(r.cents), 0n));
 }
 
 function bpsOf(items: { key: string; cents: number }[]): Map<string, number> {
