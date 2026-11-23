@@ -57,7 +57,7 @@ describe('investRoute (เมนูย่อยของโหมด /invest)', 
         expect(['own', 'market']).toContain(p.source);
       }
     }
-    const live: InvestPageId[] = ['dashboard', 'analytics/common', 'analytics/growth', 'analytics/report', 'portfolio/holdings', 'portfolio/transactions', 'portfolio/goal', 'portfolio/cash', 'portfolio/categories'];
+    const live: InvestPageId[] = ['dashboard', 'analytics/common', 'analytics/growth', 'analytics/report', 'portfolio/holdings', 'portfolio/transactions', 'portfolio/goal', 'portfolio/cash', 'portfolio/categories', 'tools/rebalancing'];
     expect(INVEST_PAGES.filter((p) => p.status === 'live').map((p) => p.id).sort()).toEqual([...live].sort());
   });
   it('URL: path ปกติ และ harness (.html) ใช้ hash', () => {

@@ -62,7 +62,7 @@ export const INVEST_PAGES: readonly InvestPage[] = [
   live('portfolio/cash', 'Cash'),
   live('portfolio/categories', 'Categories'),
   soon('portfolio/corporate-actions', 'Corporate actions', 'Stock splits and similar events applied to your holdings.', 'Entering them by hand is not built yet; automatic detection needs market data.', 'own'),
-  soon('tools/rebalancing', 'Portfolio rebalancing', 'Compare your mix with a target mix and see what to buy or sell.', 'Needs current prices to suggest amounts.', 'market'),
+  live('tools/rebalancing', 'Portfolio rebalancing'),
   soon('tools/top-dividend-stocks', 'Top dividend stocks', 'Browse stocks ranked by dividend yield.', 'Needs automatic market data.', 'market'),
   soon('tools/find-the-dip', 'Find the Dip', 'Spot stocks that have fallen well below their recent highs.', 'Needs automatic market data.', 'market'),
 ];

@@ -14,6 +14,7 @@ import { InvestTopBar } from './InvestTopBar';
 import { CashPage } from './pages/CashPage';
 import { CategoriesPage } from './pages/CategoriesPage';
 import { GoalPage } from './pages/GoalPage';
+import { RebalancePage } from './pages/RebalancePage';
 import { HoldingsPage } from './pages/HoldingsPage';
 import { ReportPage } from './pages/ReportPage';
 import { TransactionsPage } from './pages/TransactionsPage';
@@ -188,6 +189,8 @@ export default function InvestMode({ today, accounts, entries, wallets, onLedger
             <GoalPage onHome={() => navigate(INVEST_HOME)} />
           ) : page === 'portfolio/categories' ? (
             <CategoriesPage />
+          ) : page === 'tools/rebalancing' ? (
+            <RebalancePage onOpenCategories={() => navigate('portfolio/categories')} />
           ) : page === 'portfolio/cash' ? (
             <CashPage onHome={() => navigate(INVEST_HOME)} />
           ) : (
