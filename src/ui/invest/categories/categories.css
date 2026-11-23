@@ -62,3 +62,9 @@
   .cg-merge-note { grid-column: 1 / -1; }
 }
 @media (prefers-reduced-motion: reduce) { .cg-row > * { transition: none; } }
+.cg-terr { font-size: 12px; }
+.cg-confirm { display: grid; gap: 8px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--expense); }
+.cg-confirm > p { margin: 0; }
+.cg-confirm-title { font-weight: 700; }
+.cg-confirm .cg-actions { justify-content: flex-start; }
+#cg-edit-title:focus { outline: none; }

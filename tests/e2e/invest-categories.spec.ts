@@ -236,6 +236,7 @@ for (const w of WIDTHS) {
       await expect(page.getByRole('heading', { name: 'Edit categories' })).toBeVisible();
       await expect(page.getByText(/Imported 5 categories/)).toBeVisible();
       await page.getByRole('button', { name: 'Cancel' }).click();
+      await page.getByRole('button', { name: 'Discard changes' }).click(); // นำเข้า = มีการแก้ค้าง ต้องยืนยันทิ้ง
 
       // ไฟล์ผิด: ข้อความชัด ไม่เปิดตัวแก้ ไม่แสดงเนื้อหาไฟล์
       await importText('{"secret":"do-not-echo"}');
@@ -260,7 +261,76 @@ for (const w of WIDTHS) {
       await expect(page.getByLabel('Name', { exact: true }).first()).toBeFocused();
       await page.getByRole('button', { name: 'Cancel' }).focus();
       await page.keyboard.press('Enter');
+      await expect(page.getByRole('alertdialog')).toBeVisible(); // มีการแก้ค้าง = ถามก่อนทิ้ง
+      await expect(page.getByRole('button', { name: 'Keep editing' })).toBeFocused();
+      await page.keyboard.press('Escape'); // Esc ตอนถามยืนยัน = กลับไปแก้ต่อ
+      await expect(page.getByRole('alertdialog')).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: 'Edit categories' })).toBeVisible();
+      await page.getByRole('button', { name: 'Cancel' }).focus();
+      await page.keyboard.press('Enter');
+      await page.getByRole('button', { name: 'Discard changes' }).focus();
+      await page.keyboard.press('Enter');
       await expect(page.getByRole('heading', { name: 'Categories', level: 2, exact: true })).toBeFocused();
+    });
+
+    test('Esc ปิดตัวแก้: ไม่มีการแก้ค้าง = ปิดทันที · มีการแก้ค้าง = ถามยืนยัน (Keep/Discard)', async ({ page }) => {
+      await open(page);
+      await page.getByRole('button', { name: 'Change' }).click();
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('heading', { name: 'Edit categories' })).toHaveCount(0);
+
+      await page.getByRole('button', { name: 'Change' }).click();
+      await page.getByRole('button', { name: 'Add category' }).click();
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('alertdialog')).toBeVisible();
+      await page.getByRole('button', { name: 'Discard changes' }).click();
+      await expect(page.getByRole('heading', { name: 'Edit categories' })).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: 'No categories yet' })).toBeVisible();
+    });
+
+    test('ช่อง Target %: ผิดรูปแบบได้ aria-invalid + ข้อความรายช่อง · ผลรวมเป้ามี live region แยก · ปุ่มขึ้น/ลงชนขอบใช้ aria-disabled และโฟกัสไม่หลุดหลังย้าย', async ({ page }) => {
+      await open(page);
+      await page.getByRole('button', { name: 'Create categories from sectors' }).click();
+      const t = page.getByLabel('Target %');
+      await t.nth(0).fill('4x');
+      await expect(t.nth(0)).toHaveAttribute('aria-invalid', 'true');
+      await expect(t.nth(1)).not.toHaveAttribute('aria-invalid', 'true');
+      const describedBy = await t.nth(0).getAttribute('aria-describedby');
+      expect(describedBy).toMatch(/^cg-terr-/);
+      await expect(page.locator('#' + describedBy)).toContainText('0 to 100');
+      await t.nth(0).fill('10');
+      await expect(t.nth(0)).not.toHaveAttribute('aria-invalid', 'true');
+      await expect(page.locator('#cg-total')).not.toHaveAttribute('role', 'status');
+      await expect(page.locator('[aria-live="polite"]').filter({ hasText: /Set a target for every category/ })).toHaveCount(1);
+
+      const names = page.locator('input[id^="cg-name-"]');
+      const firstName = await names.nth(0).inputValue();
+      const secondName = await names.nth(1).inputValue();
+      const up = page.getByRole('button', { name: 'Move ' + firstName + ' up' });
+      await expect(up).toHaveAttribute('aria-disabled', 'true');
+      await up.focus();
+      await expect(up).toBeFocused(); // aria-disabled ยังโฟกัสได้ (ไม่หายจากลำดับ Tab)
+      const down = page.getByRole('button', { name: 'Move ' + firstName + ' down' });
+      await down.click();
+      await expect(names.nth(1)).toHaveValue(firstName);
+      await expect(names.nth(0)).toHaveValue(secondName);
+      await expect(page.getByRole('button', { name: 'Move ' + firstName + ' down' })).toBeFocused();
+    });
+
+    test('โดนัท: แต่ละชิ้นมี <title> ชื่อ+เปอร์เซ็นต์ · หัวแถวมีแถบสี · แถบ vs. target ใช้สเกลจาก domain · "—" มีข้อความอ่านหน้าจอ', async ({ page }) => {
+      await open(page);
+      await page.getByRole('button', { name: 'Create categories from sectors' }).click();
+      await page.getByRole('button', { name: 'Save', exact: true }).click();
+      await expect(page.getByText('Categories saved.')).toBeVisible();
+      const titles = page.locator('.cg-donut circle.iv-slice > title');
+      await expect(titles).toHaveCount(6);
+      await expect(titles.first()).toHaveText(/^.+ [0-9.]+%$/);
+      await expect(page.locator('.cg-table tbody th').first()).toHaveCSS('box-shadow', /inset/);
+      const fill = await page.locator('.cg-fill').first().evaluate((el) => (el as HTMLElement).style.getPropertyValue('--w'));
+      expect(Number(fill)).toBeGreaterThan(0);
+      expect(Number(fill)).toBeLessThanOrEqual(10000);
+      // ยังไม่ตั้งเป้า: "—" ในช่องเทียบเป้ามีข้อความสำหรับโปรแกรมอ่านหน้าจอ
+      await expect(page.locator('.cg-status .sr-only').first()).toHaveText('No target set');
     });
   });
 }

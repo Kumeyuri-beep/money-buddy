@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { CATEGORY_PROBLEM_TEXT } from '../../../domain/invest/categories';
 import {
-  addDraftCategory, draftsToCategories, draftTotals, mergeCategories, moveCategory, removeCategory,
+  addDraftCategory, draftsToCategories, draftTotals, mergeCategories, moveCategory, percentTextToBps, removeCategory,
   type CategoryState, type DraftTotals,
 } from '../../../domain/invest/categoriesView';
 import { CATEGORY_NAME_MAX, MAX_CATEGORIES, type Asset } from '../../../domain/invest/types';
@@ -29,10 +29,15 @@ interface Props {
   error: string;
   notice: string;
   onSave: () => void;
+  /** ขอปิดตัวแก้ (ปุ่ม Cancel หรือ Esc) · หน้าหลักถามยืนยันถ้ามีการแก้ค้าง */
   onCancel: () => void;
+  /** กำลังถามยืนยันทิ้งการแก้ */
+  confirming: boolean;
+  onKeep: () => void;
+  onDiscard: () => void;
 }
 
-export function CategoryEditor({ state, onChange, assets, busy, error, notice, onSave, onCancel }: Props) {
+export function CategoryEditor({ state, onChange, assets, busy, error, notice, onSave, onCancel, confirming, onKeep, onDiscard }: Props) {
   const { drafts } = state;
   const totals = draftTotals(drafts);
   const result = draftsToCategories(drafts);
@@ -43,6 +48,19 @@ export function CategoryEditor({ state, onChange, assets, busy, error, notice, o
   const [mergeInto, setMergeInto] = useState('');
   const focusId = useRef<string | null>(null);
   const addRef = useRef<HTMLButtonElement>(null);
+  // ประกาศผลรวมเป้าให้โปรแกรมอ่านหน้าจอหลังหยุดพิมพ์ ไม่ใช่ทุกตัวอักษร (ข้อความที่เห็นบนจอยังเปลี่ยนทันที)
+  const message = totalsMessage(totals);
+  const [announce, setAnnounce] = useState('');
+  useEffect(() => {
+    const t = window.setTimeout(() => setAnnounce(message), 800);
+    return () => window.clearTimeout(t);
+  }, [message]);
+  const onEsc = (e: KeyboardEvent<HTMLElement>) => {
+    if (e.key !== 'Escape' || e.defaultPrevented || busy || e.target instanceof HTMLSelectElement) return;
+    e.preventDefault();
+    if (confirming) onKeep();
+    else onCancel();
+  };
 
   useEffect(() => {
     if (focusId.current !== null) {
@@ -64,8 +82,8 @@ export function CategoryEditor({ state, onChange, assets, busy, error, notice, o
   const mergeOk = mergeFrom !== '' && mergeInto !== '' && mergeFrom !== mergeInto;
 
   return (
-    <section className="solid card cg-editor" aria-labelledby="cg-edit-title">
-      <h3 id="cg-edit-title" className="cg-card-title">Edit categories</h3>
+    <section className="solid card cg-editor" aria-labelledby="cg-edit-title" onKeyDown={onEsc}>
+      <h3 id="cg-edit-title" className="cg-card-title" tabIndex={-1}>Edit categories</h3>
       <p className="muted cg-help">Name each category and give it a target %. Targets must total exactly 100% before you can save. Changes are saved together when you press Save.</p>
       <div role="status">{notice !== '' && <p className="muted">{notice}</p>}</div>
 
@@ -81,13 +99,50 @@ export function CategoryEditor({ state, onChange, assets, busy, error, notice, o
               </div>
               <div className="iv-field cg-f-target">
                 <label htmlFor={`cg-target-${d.id}`}>Target %</label>
-                <input id={`cg-target-${d.id}`} type="text" inputMode="decimal" autoComplete="off" placeholder="e.g. 7.5" value={d.targetText} onChange={(e) => setDraft(d.id, { targetText: e.target.value })} />
+                <input
+                  id={`cg-target-${d.id}`}
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  placeholder="e.g. 7.5"
+                  value={d.targetText}
+                  aria-invalid={percentTextToBps(d.targetText).kind === 'invalid' ? true : undefined}
+                  aria-describedby={percentTextToBps(d.targetText).kind === 'invalid' ? `cg-terr-${d.id}` : undefined}
+                  onChange={(e) => setDraft(d.id, { targetText: e.target.value })}
+                />
+                {percentTextToBps(d.targetText).kind === 'invalid' && (
+                  <span id={`cg-terr-${d.id}`} className="form-error cg-terr">
+                    Use a number from 0 to 100 with up to 2 decimals.
+                  </span>
+                )}
               </div>
               <div className="cg-tools">
-                <button type="button" className="iv-btn" disabled={i === 0} aria-label={`Move ${d.name} up`} onClick={() => onChange(moveCategory(state, d.id, -1))}>
+                <button
+                  id={`cg-up-${d.id}`}
+                  type="button"
+                  className="iv-btn"
+                  aria-disabled={i === 0 ? true : undefined}
+                  aria-label={`Move ${d.name} up`}
+                  onClick={() => {
+                    if (i === 0) return;
+                    focusId.current = `cg-up-${d.id}`;
+                    onChange(moveCategory(state, d.id, -1));
+                  }}
+                >
                   <span aria-hidden="true">↑</span>
                 </button>
-                <button type="button" className="iv-btn" disabled={i === drafts.length - 1} aria-label={`Move ${d.name} down`} onClick={() => onChange(moveCategory(state, d.id, 1))}>
+                <button
+                  id={`cg-down-${d.id}`}
+                  type="button"
+                  className="iv-btn"
+                  aria-disabled={i === drafts.length - 1 ? true : undefined}
+                  aria-label={`Move ${d.name} down`}
+                  onClick={() => {
+                    if (i === drafts.length - 1) return;
+                    focusId.current = `cg-down-${d.id}`;
+                    onChange(moveCategory(state, d.id, 1));
+                  }}
+                >
                   <span aria-hidden="true">↓</span>
                 </button>
                 <button
@@ -116,8 +171,11 @@ export function CategoryEditor({ state, onChange, assets, busy, error, notice, o
         {drafts.length >= MAX_CATEGORIES && <span className="muted small">Up to {MAX_CATEGORIES} categories.</span>}
       </div>
 
-      <p className={`cg-total is-${totals.status}`} role="status" id="cg-total">
-        {totalsMessage(totals)}
+      <p className={`cg-total is-${totals.status}`} id="cg-total">
+        {message}
+      </p>
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {announce}
       </p>
       {nameProblem !== '' && (
         <p className="form-error" role="alert">
@@ -210,6 +268,20 @@ export function CategoryEditor({ state, onChange, assets, busy, error, notice, o
       )}
 
       <div role="alert">{error !== '' && <p className="form-error">{error}</p>}</div>
+      {confirming && (
+        <div className="cg-confirm" role="alertdialog" aria-labelledby="cg-confirm-title" aria-describedby="cg-confirm-desc">
+          <p id="cg-confirm-title" className="cg-confirm-title">Discard your changes?</p>
+          <p id="cg-confirm-desc" className="muted">You have unsaved changes to your categories. They will be lost.</p>
+          <div className="cg-actions">
+            <button type="button" className="iv-btn" autoFocus onClick={onKeep}>
+              Keep editing
+            </button>
+            <button type="button" className="iv-btn iv-btn-danger" onClick={onDiscard}>
+              Discard changes
+            </button>
+          </div>
+        </div>
+      )}
       <div className="cg-actions">
         <button type="button" className="iv-btn" onClick={onCancel} disabled={busy}>
           Cancel

@@ -25,7 +25,8 @@ export function CategoriesPage(_props: { onHome?: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const editorWasOpen = useRef(false);
@@ -40,7 +41,9 @@ export function CategoriesPage(_props: { onHome?: () => void }) {
   useEffect(() => {
     if (editing) {
       editorWasOpen.current = true;
-      document.getElementById('cg-edit-title')?.scrollIntoView({ block: 'nearest' });
+      const h = document.getElementById('cg-edit-title');
+      h?.focus({ preventScroll: true });
+      h?.scrollIntoView({ block: 'nearest' });
     } else if (editorWasOpen.current) {
       editorWasOpen.current = false;
       titleRef.current?.focus();
@@ -52,7 +55,7 @@ export function CategoriesPage(_props: { onHome?: () => void }) {
     setState(stateFromData(data.assets, data.categories ?? []));
     setError('');
     setNotice('');
-    setMessage('');
+    setMessage(null);
     setEditing(true);
   };
 
@@ -63,13 +66,13 @@ export function CategoriesPage(_props: { onHome?: () => void }) {
     if (next === base) {
       const text = 'No stock you hold has a sector yet. Add a sector when you add a stock.';
       if (editing) setNotice(text);
-      else setMessage(text);
+      else setMessage({ kind: 'ok', text });
       return;
     }
     const added = next.drafts.length - base.drafts.length;
     setState(next);
     setError('');
-    setMessage('');
+    setMessage(null);
     setNotice(`${added > 0 ? `Created ${added} ${added === 1 ? 'category' : 'categories'} from sectors.` : 'Sorted your stocks into existing categories by sector.'} Set a target for each category if you want one, then press Save.`);
     setEditing(true);
   };
@@ -98,10 +101,17 @@ export function CategoriesPage(_props: { onHome?: () => void }) {
     setBusy(false);
     setEditing(false);
     setNotice('');
-    setMessage('Categories saved.');
+    setMessage({ kind: 'ok', text: 'Categories saved.' });
   };
 
+  // มีการแก้ค้างอยู่ไหม (เทียบกับที่บันทึกไว้) · ปิดด้วย Cancel/Esc ต้องถามยืนยันก่อนทิ้ง
+  const dirty = useMemo(() => editing && data !== null && JSON.stringify(state) !== JSON.stringify(stateFromData(data.assets, data.categories ?? [])), [editing, data, state]);
+  const requestCancel = () => {
+    if (dirty) setConfirming(true);
+    else cancel();
+  };
   const cancel = () => {
+    setConfirming(false);
     setEditing(false);
     setError('');
     setNotice('');
@@ -123,18 +133,18 @@ export function CategoriesPage(_props: { onHome?: () => void }) {
     try {
       text = await file.text();
     } catch {
-      setMessage('Could not read the file.');
+      setMessage({ kind: 'error', text: 'Could not read the file.' });
       return;
     }
     const r = parseCategoriesJson(text, data.assets, () => newId('cat'));
     if (!r.ok) {
       const msg = r.problem in IMPORT_PROBLEM_TEXT ? IMPORT_PROBLEM_TEXT[r.problem as keyof typeof IMPORT_PROBLEM_TEXT] : CATEGORY_PROBLEM_TEXT[r.problem as keyof typeof CATEGORY_PROBLEM_TEXT].en;
-      setMessage(`Import failed: ${msg}`);
+      setMessage({ kind: 'error', text: `Import failed: ${msg}` });
       return;
     }
     setState(r.state);
     setError('');
-    setMessage('');
+    setMessage(null);
     setNotice(`Imported ${r.state.drafts.length} ${r.state.drafts.length === 1 ? 'category' : 'categories'}${r.skippedTickers > 0 ? `; skipped ${r.skippedTickers} ${r.skippedTickers === 1 ? 'entry' : 'entries'} for stocks you do not have` : ''}. This replaces what is shown below until you press Save or Cancel.`);
     setEditing(true);
   };
@@ -167,7 +177,8 @@ export function CategoriesPage(_props: { onHome?: () => void }) {
         </div>
       </div>
       <p className="muted cg-lead">Group your stocks into your own categories and set a target % for each. Targets are for comparing with your actual allocation.</p>
-      <div role="status">{message !== '' && <p className="muted">{message}</p>}</div>
+      <div role="status">{message?.kind === 'ok' && <p className="muted">{message.text}</p>}</div>
+      <div role="alert">{message?.kind === 'error' && <p className="form-error">{message.text}</p>}</div>
 
       {loadError !== '' && data === null ? (
         <div role="alert">
@@ -197,7 +208,7 @@ export function CategoriesPage(_props: { onHome?: () => void }) {
           ) : (
             <CategorySummary rows={table} currency={currency} total={total} />
           )}
-          {editing && <CategoryEditor state={state} onChange={setState} assets={assets} busy={busy} error={error} notice={notice} onSave={() => void save()} onCancel={cancel} />}
+          {editing && <CategoryEditor state={state} onChange={setState} assets={assets} busy={busy} error={error} notice={notice} onSave={() => void save()} onCancel={requestCancel} confirming={confirming} onKeep={() => setConfirming(false)} onDiscard={cancel} />}
         </>
       )}
     </div>
