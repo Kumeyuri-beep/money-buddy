@@ -25,8 +25,8 @@ export const UNCATEGORIZED_NAME = 'Uncategorized';
 export const ON_TARGET_BPS = 150;
 
 const fmtBps = (bps: number): string => {
-  const whole = Math.floor(bps / 100);
   const frac = bps % 100;
+  const whole = (bps - frac) / 100;
   return frac === 0 ? String(whole) : `${whole}.${String(frac).padStart(2, '0').replace(/0$/, '')}`;
 };
 
