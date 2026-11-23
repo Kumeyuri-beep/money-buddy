@@ -2,7 +2,7 @@ import type { BackupData } from '../domain/backup/parseBackup';
 import type { FinanceSettings } from '../domain/bills/settings';
 import type { SettingsKey, SettingsPatch } from '../domain/bills/settingsPatch';
 import type { Bill } from '../domain/bills/types';
-import { emptyInvestments, type Asset, type AssetKind, type AssetPrice, type FxExchangeRecord, type FxRateRecord, type InvestmentData, type TradeRecord } from '../domain/invest/types';
+import { emptyInvestments, type Asset, type AssetCategory, type AssetKind, type AssetPrice, type FxExchangeRecord, type FxRateRecord, type InvestmentData, type TradeRecord } from '../domain/invest/types';
 import type { CashAdjustmentInput } from '../domain/invest/cashAdjustment';
 import type { Account, Entry, NewEntry } from '../domain/ledger/types';
 import type { MoneyDB } from './db';
@@ -17,6 +17,13 @@ import { StorageError, storeError, type Ledger, type PayBillOptions, type PayBil
  */
 /** รายงานความคืบหน้าการนำเข้า (รายการที่นำเข้าแล้ว, ทั้งหมด) */
 export type ImportProgress = (done: number, total: number) => void;
+
+/** การจัดหมวด/sector ของสินทรัพย์หนึ่งตัว (ส่งเฉพาะ key ที่ต้องการเปลี่ยน · null = ล้างค่า) */
+export interface CategoryAssignment {
+  assetId: string;
+  categoryId?: string | null;
+  sector?: string | null;
+}
 
 export interface LedgerRepository {
   loadLedger(): Promise<Ledger>;
@@ -64,6 +71,12 @@ export interface LedgerRepository {
 
   // ---- พอร์ตลงทุน (P3) · ออนไลน์เท่านั้น (ที่เก็บในเครื่องไม่รองรับ: อ่านได้ว่าง เขียนแล้วแจ้งข้อผิดพลาด) ----
   loadInvestments(): Promise<InvestmentData>;
+  /**
+   * บันทึกหมวด + การจัดหมวด/sector ของสินทรัพย์ในธุรกรรมเดียว (RPC save_categories · R2 Categories)
+   * categories = ทั้งชุด (หมวดที่ไม่อยู่ในชุดถูกลบ · สินทรัพย์ในหมวดนั้นกลับเป็นไม่มีหมวด) · assignments เฉพาะ key ที่ใส่มาเท่านั้นที่เปลี่ยน (null = ล้างค่า)
+   * ตรวจฝั่งเว็บก่อน (categoriesProblem) แล้วฐานข้อมูลตรวจซ้ำ · เป้ารวมต้อง 100% หรือไม่ตั้งเลย
+   */
+  saveCategories(categories: readonly AssetCategory[], assignments: readonly CategoryAssignment[]): Promise<void>;
   /** สร้างสินทรัพย์ + บัญชีลงทุน (kind = investment) ของมัน · ล้มกลางทางจะลบบัญชีที่สร้างทิ้ง */
   addAsset(input: { id: string; name: string; kind: AssetKind }): Promise<Asset>;
   /** สร้างกระเป๋าเงินสดบาท (บัญชี asset ไม่ใช่บัญชีลงทุน ยอดเริ่มต้น 0) · ใช้เมื่อยังไม่มีกระเป๋าให้ผูกรายการลงทุน */
@@ -157,6 +170,7 @@ export function createDexieRepository(db: MoneyDB): LedgerRepository {
     patchSettings: (patch) => dexie.patchSettings(db, patch),
     updateSettings: (keys, compute, options) => dexie.updateSettings(db, keys, compute, options),
     loadInvestments: () => Promise.resolve(emptyInvestments()),
+    saveCategories: () => Promise.reject(localInvestError()),
     addAsset: () => Promise.reject(localInvestError()),
     addWallet: () => Promise.reject(localInvestError()),
     setAccountKind: () => Promise.reject(localInvestError()),

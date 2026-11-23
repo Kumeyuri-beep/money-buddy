@@ -7,7 +7,8 @@ import { replayTradesFx } from '../domain/invest/costBasisFx';
 import { fxRateFromExchange } from '../domain/invest/fx';
 import { buildFxExchangeEntry, buildUsdTradeEntry, UsdLinkError } from '../domain/invest/ledgerLinkFx';
 import { toTradesFx } from '../domain/invest/tradesFx';
-import { INSTRUMENT_EXCHANGES, assetCurrency } from '../domain/invest/types';
+import { categoriesProblem } from '../domain/invest/categories';
+import { INSTRUMENT_EXCHANGES, assetCurrency, type AssetCategory } from '../domain/invest/types';
 import { lengthWithin, MAX_NAME_LENGTH } from '../domain/ledger/limits';
 import {
   ASSET_KINDS,
@@ -168,6 +169,16 @@ export interface AssetRow {
   instrument_currency?: string | null;
   ticker?: string | null;
   exchange?: string | null;
+  /** migration 20261121000100 */
+  sector?: string | null;
+  category_id?: string | null;
+}
+
+export interface CategoryRow {
+  id: string;
+  name: string;
+  target_bps: number | null;
+  sort_order: number;
 }
 
 export interface TradeRow {
@@ -222,7 +233,31 @@ export function rowToAsset(row: AssetRow): Asset {
   }
   if (typeof row.ticker === 'string' && row.ticker !== '') asset.ticker = row.ticker;
   if (typeof row.exchange === 'string' && row.exchange !== '') asset.exchange = row.exchange;
+  if (typeof row.sector === 'string' && row.sector !== '') asset.sector = row.sector;
+  if (typeof row.category_id === 'string' && row.category_id !== '') asset.categoryId = row.category_id;
   return asset;
+}
+
+/** ปัญหาของหมวด → รหัส error ของชั้น storage (ข้อความจากแม่แบบ th/en ใน storageMessages) */
+const CATEGORY_STORE_CODE = {
+  count: 'store.categoryCount',
+  id: 'store.categoryId',
+  name: 'store.categoryName',
+  sort: 'store.categorySort',
+  target: 'store.categoryTarget',
+  duplicateId: 'store.categoryDuplicateId',
+  duplicateName: 'store.categoryDuplicateName',
+  targetTotal: 'store.categoryTargetTotal',
+} as const;
+
+export function rowToCategory(row: CategoryRow): AssetCategory {
+  return { id: row.id, name: row.name, targetBps: row.target_bps === null ? null : safeInt(row.target_bps, 'categoryTarget'), sortOrder: safeInt(row.sort_order, 'categorySort') };
+}
+
+export function categoryToJson(c: AssetCategory): Record<string, unknown> {
+  const out: Record<string, unknown> = { id: c.id, name: c.name, sortOrder: c.sortOrder };
+  if (c.targetBps !== null) out.targetBps = c.targetBps;
+  return out;
 }
 
 /** เวลาจากฐานข้อมูล → ISO · ค่าที่แปลงไม่ได้ (เช่น infinity) = StorageError ไม่ใช่ RangeError ที่ทำให้ส่งออกไม่ได้เงียบๆ */
@@ -286,6 +321,8 @@ export function assetToJson(a: Asset): Record<string, unknown> {
   if (a.currency === 'USD') out.currency = 'USD';
   if (a.ticker !== undefined) out.ticker = a.ticker;
   if (a.exchange !== undefined) out.exchange = a.exchange;
+  if (a.sector !== undefined) out.sector = a.sector;
+  if (a.categoryId !== undefined) out.categoryId = a.categoryId;
   return out;
 }
 
@@ -312,6 +349,7 @@ export function investmentsToJson(d: InvestmentData): Record<string, unknown> {
   };
   if ((d.fxRates?.length ?? 0) > 0) out.fxRates = (d.fxRates ?? []).map((r) => ({ accountId: r.accountId, date: r.date, rateMicro: r.rateMicro }));
   if ((d.fxExchanges?.length ?? 0) > 0) out.fxExchanges = (d.fxExchanges ?? []).map(fxExchangeToJson);
+  if ((d.categories?.length ?? 0) > 0) out.categories = (d.categories ?? []).map(categoryToJson);
   return out;
 }
 
@@ -534,7 +572,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
 
   /** ข้อมูลลงทุนของผู้ใช้ (RLS กรองเฉพาะของตัวเอง) · เรียงให้ผลคงที่ */
   async function loadInvestments(): Promise<InvestmentData> {
-    const [assets, trades, prices, fxRates, fxExchanges] = await Promise.all([
+    const [assets, trades, prices, fxRates, fxExchanges, categories] = await Promise.all([
       fetchAll<AssetRow>('assets', (from, to) => client.from('assets').select('*').order('id').range(from, to)),
       fetchAll<TradeRow>('trades', (from, to) => client.from('trades').select('*').order('date').order('created_at').order('id').range(from, to)),
       fetchAll<PriceRow>(
@@ -550,10 +588,12 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
         'account_id',
       ),
       fetchAll<FxExchangeRow>('fx_exchanges', (from, to) => client.from('fx_exchanges').select('*').order('date').order('created_at').order('id').range(from, to)),
+      fetchAll<CategoryRow>('asset_categories', (from, to) => client.from('asset_categories').select('id,name,target_bps,sort_order').order('sort_order').order('id').range(from, to)),
     ]);
     const data: InvestmentData = { assets: assets.map(rowToAsset), trades: trades.map(rowToTrade), prices: prices.map(rowToPrice) };
     if (fxRates.length > 0) data.fxRates = fxRates.map(rowToFxRate);
     if (fxExchanges.length > 0) data.fxExchanges = fxExchanges.map(rowToFxExchange);
+    if (categories.length > 0) data.categories = categories.map(rowToCategory);
     return data;
   }
 
@@ -819,6 +859,11 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
     loadSettings,
 
     loadInvestments,
+    async saveCategories(categories, assignments) {
+      const problem = categoriesProblem(categories);
+      if (problem !== null) throw storeError(CATEGORY_STORE_CODE[problem]);
+      await rpc('save_categories', { p_categories: categories.map(categoryToJson), p_assignments: assignments });
+    },
 
     async addAsset(input) {
       const id = String(input.id ?? '').trim();

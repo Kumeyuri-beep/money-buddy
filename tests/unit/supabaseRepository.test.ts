@@ -404,3 +404,51 @@ describe('การป้องกันอื่น', () => {
     expect(calls).toHaveLength(0);
   });
 });
+
+describe('saveCategories (R2 Categories): ตรวจก่อนส่ง แล้วเรียก RPC เดียว', () => {
+  const cats = [
+    { id: 'c1', name: 'Tech', targetBps: 6000, sortOrder: 1 },
+    { id: 'c2', name: 'Funds', targetBps: 4000, sortOrder: 2 },
+  ];
+  it('ส่ง save_categories ครั้งเดียว: หมวดทั้งชุด + การจัดหมวดเฉพาะ key ที่ใส่ (null = ล้าง) · เป้าที่ไม่ตั้งไม่ส่งคีย์', async () => {
+    const { client, calls } = fakeClient(() => ({ data: { categories: 2, assignments: 2 } }));
+    const repo = createSupabaseRepository(client, 'u');
+    await repo.saveCategories(cats, [{ assetId: 'a1', categoryId: 'c1', sector: 'Utilities' }, { assetId: 'a2', categoryId: null }]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.kind).toBe('rpc');
+    expect(calls[0]!.name).toBe('save_categories');
+    expect(calls[0]!.args).toEqual({
+      p_categories: [
+        { id: 'c1', name: 'Tech', sortOrder: 1, targetBps: 6000 },
+        { id: 'c2', name: 'Funds', sortOrder: 2, targetBps: 4000 },
+      ],
+      p_assignments: [{ assetId: 'a1', categoryId: 'c1', sector: 'Utilities' }, { assetId: 'a2', categoryId: null }],
+    });
+    const none = fakeClient(() => ({ data: {} }));
+    await createSupabaseRepository(none.client, 'u').saveCategories([{ id: 'c', name: 'X', targetBps: null, sortOrder: 0 }], []);
+    expect((none.calls[0]!.args as { p_categories: unknown[] }).p_categories).toEqual([{ id: 'c', name: 'X', sortOrder: 0 }]);
+  });
+  it('ข้อมูลผิดกติกา (เป้ารวมไม่ครบ · ชื่อซ้ำ · ชื่อมีช่องว่างนำหน้า) ถูกปฏิเสธก่อนส่ง ไม่เรียกเครือข่าย พร้อมรหัสข้อผิดพลาด', async () => {
+    const { client, calls } = fakeClient(() => ({ data: {} }));
+    const repo = createSupabaseRepository(client, 'u');
+    const reason = async (c: typeof cats): Promise<string> => {
+      try {
+        await repo.saveCategories(c, []);
+      } catch (e) {
+        expect(e).toBeInstanceOf(StorageError);
+        return String((e as { code?: string }).code);
+      }
+      return 'no-error';
+    };
+    expect(await reason([{ ...cats[0]!, targetBps: 5999 }, cats[1]!])).toBe('store.categoryTargetTotal');
+    expect(await reason([cats[0]!, { ...cats[1]!, name: 'tech' }])).toBe('store.categoryDuplicateName');
+    expect(await reason([{ ...cats[0]!, name: ' Tech' }, cats[1]!])).toBe('store.categoryName');
+    expect(calls).toHaveLength(0);
+  });
+  it('ฐานข้อมูลปฏิเสธ (เช่น เป้ารวมผิดที่ฐานข้อมูล) = StorageError ไม่รั่วรายละเอียดภายใน', async () => {
+    const { client } = fakeClient(() => ({ error: { message: 'internal detail user_id=secret', code: '23514' } }));
+    const repo = createSupabaseRepository(client, 'u');
+    await expect(repo.saveCategories(cats, [])).rejects.toThrow(StorageError);
+    await expect(repo.saveCategories(cats, [])).rejects.not.toThrow(/secret/);
+  });
+});
