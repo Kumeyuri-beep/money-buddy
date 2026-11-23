@@ -10,7 +10,7 @@
  */
 
 import { floorDivBig } from '../money/round';
-import { SATANG_DIVISOR, UNIT_SCALE, valueInSatang } from './units';
+import { SATANG_DIVISOR, UNIT_SCALE, toSafeSatang, valueInSatang } from './units';
 
 export const REBALANCE_BPS_TOTAL = 10_000;
 /** ราคาเก่ากว่านี้ (วัน) ขึ้นคำเตือน (เหมือน R26) */
@@ -297,6 +297,10 @@ const toRow = (h: RebalanceHolding, side: 'buy' | 'sell', units: bigint): Rebala
 
 // ---------- ตัวคำนวณหลัก ----------
 
+/**
+ * สมมติฐานของอินพุต (ผู้เรียกรับผิดชอบ): id ของหมวดและหุ้นต้องไม่ซ้ำ · priceDate ต้องเป็น YYYY-MM-DD · ผลที่เป็นเซนต์ทุกตัวเกิน 2^53-1 โยน RangeError
+ * ข้อสังเกตที่รอเจ้าของตัดสิน: แถวซื้อที่หน่วย > 0 แต่ cents = 0 ยังไม่ถูกตัด
+ */
 export function rebalance(input: RebalanceInput): RebalanceResult {
   const prep = validate(input);
   if (!isPrepared(prep)) return prep;
@@ -431,25 +435,25 @@ export function rebalance(input: RebalanceInput): RebalanceResult {
       categoryId: c.id,
       name: c.name,
       targetBps: c.targetBps as number,
-      nowCents: Number(catValue.get(c.id)),
-      afterCents: Number(after),
-      allocatedCents: Number(allocated.get(c.id) ?? 0n),
-      sellBudgetCents: Number(sellBudget.get(c.id) ?? 0n),
+      nowCents: toSafeSatang(catValue.get(c.id) as bigint),
+      afterCents: toSafeSatang(after),
+      allocatedCents: toSafeSatang(allocated.get(c.id) ?? 0n),
+      sellBudgetCents: toSafeSatang(sellBudget.get(c.id) ?? 0n),
     };
   });
 
   return {
     ok: true,
     mode: input.mode,
-    totalNowCents: Number(V),
-    totalAfterCents: Number(totalAfter),
-    buyFundsCents: Number(buyFunds),
-    saleProceedsCents: Number(proceeds),
+    totalNowCents: toSafeSatang(V),
+    totalAfterCents: toSafeSatang(totalAfter),
+    buyFundsCents: toSafeSatang(buyFunds),
+    saleProceedsCents: toSafeSatang(proceeds),
     buys,
     sells,
     droppedRows: dropped,
-    leftOverCents: Number(leftOver),
-    shortByCents: Number(shortBy),
+    leftOverCents: toSafeSatang(leftOver),
+    shortByCents: toSafeSatang(shortBy),
     categoryRows,
     warnings,
   };

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fixture from '../fixtures/r29-examples.json';
 import rebalanceSource from '../../src/domain/invest/rebalance.ts?raw';
-import { rebalance, type RebalanceCategory, type RebalanceHolding, type RebalanceInput, type RebalanceResult, type RebalanceRow } from '../../src/domain/invest/rebalance';
+import { allocateLargestRemainder, rebalance, type RebalanceCategory, type RebalanceHolding, type RebalanceInput, type RebalanceResult, type RebalanceRow } from '../../src/domain/invest/rebalance';
 
 // ตัวอย่างทั้งหมดอ่านจาก tests/fixtures/r29-examples.json ไฟล์เดียว (ห้ามคัดลอกตัวเลข)
 const CATS: RebalanceCategory[] = Object.entries(fixture.targetsBps).map(([name, bps], i) => ({ id: name, name, sortOrder: i, targetBps: bps }));
@@ -330,5 +330,104 @@ describe('R29 กรณีขอบของการคำนวณ', () => {
     const health = r.categoryRows.find((c) => c.categoryId === 'Health');
     expect(health?.afterCents).toBe(30_000 + 12_000);
     expect(r.totalAfterCents).toBe(r.categoryRows.reduce((s, c) => s + c.afterCents, 0));
+  });
+});
+
+// ---------- เพิ่มตามผล money-auditor ----------
+
+describe('R29 ช่วงปลอดภัยของเซนต์', () => {
+  const big = (id: string, cat: string, cents: bigint): RebalanceHolding => ({
+    id,
+    ticker: id,
+    categoryId: cat,
+    currency: 'USD',
+    units: (cents * 1_000_000_000_000n) / 1_000_000_000n, // ราคา 1,000 USD ต่อหุ้น
+    priceMicro: 1_000_000_000,
+  });
+  const halves: RebalanceCategory[] = [
+    { id: 'A', name: 'A', sortOrder: 0, targetBps: 5000 },
+    { id: 'B', name: 'B', sortOrder: 1, targetBps: 5000 },
+  ];
+
+  it('สองหุ้นที่แต่ละตัวปลอดภัยแต่ผลรวมเกิน 2^53-1 โยน RangeError', () => {
+    const each = 6_000_000_000_000_000n; // < 9.007e15 แต่สองตัวรวมเกิน
+    expect(each < BigInt(Number.MAX_SAFE_INTEGER)).toBe(true);
+    const hs = [big('H1', 'A', each), big('H2', 'B', each)];
+    expect(() => rebalance(base({ categories: halves, holdings: hs, amountCents: 100 }))).toThrow(RangeError);
+  });
+
+  it('ตัวเลขใหญ่ ~10^15 เซนต์ที่ไม่ล้น ผลถูกและ invariant ผ่าน', () => {
+    const hs = [big('H1', 'A', 10n ** 15n), big('H2', 'B', 10n ** 15n)];
+    const input = base({ categories: halves, holdings: hs, amountCents: 1_000_000 });
+    const r = checkInvariants(input);
+    expect(r.totalNowCents).toBe(2 * 10 ** 15);
+    expect(r.buys.map((b) => b.cents)).toEqual([500_000, 500_000]);
+    expect(r.leftOverCents).toBe(0);
+  });
+});
+
+describe('R29 กรณีเพิ่มเติม', () => {
+  it('ถอนเท่ามูลค่าทั้งพอร์ตแบบปิดเศษหุ้น: ขายหมดทุกตำแหน่ง Short by 0', () => {
+    const r = ok(rebalance(base({ mode: 'withdraw', amountCents: fixture.valueCents.total, fractional: false })));
+    expect(r.shortByCents).toBe(0);
+    expect(r.saleProceedsCents).toBe(fixture.valueCents.total);
+    expect(r.sells.length).toBe(HOLDINGS.length);
+    expect(r.buys).toEqual([]);
+    expect(r.warnings.map((w) => w.code)).toContain('sellsWholePosition');
+  });
+
+  it('หมวดที่มีแต่หุ้นมูลค่า 0: เงินเป็น Left over + noHoldingToBuy', () => {
+    const hs = [...HOLDINGS.filter((h) => h.id !== 'DDD'), { id: 'TINY', ticker: 'TINY', categoryId: 'Funds', currency: 'USD' as const, units: 1n, priceMicro: 1_000_000 }];
+    const r = ok(rebalance(base({ holdings: hs, amountCents: 35_000 })));
+    expect(r.warnings).toContainEqual({ code: 'noHoldingToBuy', categoryIds: ['Funds'] });
+    expect(r.buys.map((b) => b.holdingId)).toEqual(['CCC']);
+  });
+
+  it('หน่วยขาย = min(คำนวณ, ที่ถือ) เมื่อมูลค่าแถวปัดขึ้น', () => {
+    const cats: RebalanceCategory[] = [{ id: 'K', name: 'K', sortOrder: 0, targetBps: 10_000 }];
+    const hs: RebalanceHolding[] = [{ id: 'U', ticker: 'U', categoryId: 'K', currency: 'USD', units: 499_999n, priceMicro: 1_000_000_000 }];
+    const r = ok(rebalance(base({ categories: cats, holdings: hs, mode: 'withdraw', amountCents: 500 })));
+    expect(r.sells).toHaveLength(1);
+    expect(r.sells[0]?.units).toBe(499_999n); // คำนวณได้ 500,000 แต่ถืออยู่ 499,999
+    expect(r.warnings.map((w) => w.code)).toContain('sellsWholePosition');
+  });
+
+  it('droppedRows ทั้ง unitsZero และ belowMinOrder ในพอร์ตเดียว', () => {
+    const hs = [...HOLDINGS, { id: 'EEE', ticker: 'EEE', categoryId: 'Funds', currency: 'USD' as const, units: 100_000_000n, priceMicro: 1_000_000_000 }];
+    const r = ok(rebalance(base({ holdings: hs, amountCents: 35_000, fractional: false, minOrderCents: 12_500 })));
+    const reasons = new Set(r.droppedRows.map((d) => d.reason));
+    expect(reasons.has('unitsZero')).toBe(true);
+    expect(reasons.has('belowMinOrder')).toBe(true);
+    const buyTotal = r.buys.reduce((s, b) => s + b.cents, 0);
+    expect(buyTotal + r.leftOverCents).toBe(r.buyFundsCents);
+  });
+
+  it('sellsWholeCategory ในโหมดถอน', () => {
+    const cats = CATS.map((c) => (c.id === 'Tech' ? { ...c, targetBps: 0 } : { ...c, targetBps: 5000 }));
+    const r = ok(rebalance(base({ categories: cats, mode: 'withdraw', amountCents: 80_000, fractional: false })));
+    expect(r.sells.map((s) => s.holdingId).sort()).toEqual(['AAA', 'BBB']);
+    expect(r.warnings).toContainEqual({ code: 'sellsWholeCategory', categoryIds: ['Tech'] });
+  });
+});
+
+describe('allocateLargestRemainder', () => {
+  it('ผลรวมน้ำหนัก 0 โยน RangeError', () => {
+    expect(() => allocateLargestRemainder(10n, [0n, 0n])).toThrow(RangeError);
+    expect(() => allocateLargestRemainder(10n, [])).toThrow(RangeError);
+  });
+  it('น้ำหนักติดลบโยน RangeError', () => {
+    expect(() => allocateLargestRemainder(10n, [-1n, 5n])).toThrow(RangeError);
+  });
+  it('total = 0 ได้ศูนย์ทั้งหมด', () => {
+    expect(allocateLargestRemainder(0n, [3n, 5n])).toEqual([0n, 0n]);
+  });
+  it('ผลรวม = total เสมอ และเศษเท่ากันให้ตัวก่อน', () => {
+    expect(allocateLargestRemainder(1n, [1n, 1n, 1n])).toEqual([1n, 0n, 0n]);
+    expect(allocateLargestRemainder(2n, [1n, 1n, 1n])).toEqual([1n, 1n, 0n]);
+    for (let t = 0n; t < 40n; t += 1n) {
+      const out = allocateLargestRemainder(t, [3n, 0n, 7n, 11n]);
+      expect(out.reduce((s, x) => s + x, 0n)).toBe(t);
+      expect(out[1]).toBe(0n);
+    }
   });
 });
