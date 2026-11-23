@@ -1,0 +1,70 @@
+/* หน้า Portfolio → Categories ของ /invest (แบบร่าง 25) · ใช้สีจากตัวแปรกลางเท่านั้น · ตาราง/ตัวแก้พื้นทึบ · เลย์เอาต์สองคอลัมน์เฉพาะคอม ≥1024px */
+.cg-page { display: grid; gap: 14px; min-width: 0; }
+.cg-page > * { min-width: 0; }
+.cg-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.cg-head h2 { margin: 0; }
+.cg-head-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.cg-lead { margin: 0; }
+.cg-page h2:focus { outline: none; }
+.cg-body { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.cg-card-title { margin: 0 0 8px; font-size: 18px; }
+.cg-donut { overflow: visible; }
+.cg-wrap { border-radius: 16px; background: var(--surface-fallback); border: 1px solid var(--ov-10); }
+.cg-wrap:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.cg-table { min-width: 640px; }
+.cg-table th, .cg-table td { vertical-align: middle; }
+.cg-table tbody th { background: var(--surface-fallback); white-space: nowrap; }
+.cg-name { display: block; font-weight: 700; }
+.cg-strong { display: block; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cg-sub { display: block; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cg-sub.is-pos, .cg-table .is-pos { color: var(--income); }
+.cg-sub.is-neg, .cg-table .is-neg { color: var(--expense); }
+.cg-vs { min-width: 150px; }
+.cg-track { position: relative; display: block; height: 8px; border-radius: 99px; background: var(--ov-10); }
+.cg-fill { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--w, 0) * 0.01%); border-radius: 99px; background: var(--bar, var(--ov-35)); }
+.cg-mark { position: absolute; top: -3px; bottom: -3px; left: calc(var(--w, 0) * 0.01%); width: 2px; margin-left: -1px; background: var(--text); }
+.cg-status { display: block; margin-top: 6px; font-size: 12px; font-weight: 600; color: var(--muted); text-align: right; }
+.cg-status.is-over, .cg-status.is-under { color: var(--warn); }
+.cg-status.is-on { color: var(--income); }
+.cg-row.s1 { --bar: var(--chart-slice1); } .cg-row.s2 { --bar: var(--chart-slice2); } .cg-row.s3 { --bar: var(--chart-slice3); } .cg-row.s4 { --bar: var(--chart-slice4); }
+.cg-row.s5 { --bar: var(--chart-slice5); } .cg-row.s6 { --bar: var(--chart-slice6); } .cg-row.s7 { --bar: var(--chart-slice7); } .cg-row.sother { --bar: var(--chart-slice-other); }
+.cg-table tbody th { padding-left: 16px; box-shadow: inset 4px 0 0 var(--bar, var(--ov-20)); } /* แถบสีหัวแถว = สีชิ้นโดนัท (ชื่อ/% อยู่ข้างสีเสมอ) */
+.cg-row.is-active > * { background: var(--ov-8); }
+
+/* ตัวแก้ */
+.cg-editor { display: grid; gap: 12px; }
+.cg-editor > * { min-width: 0; margin: 0; }
+.cg-help { font-size: 14px; }
+.cg-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.cg-item { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 120px); gap: 8px 12px; align-items: end; padding: 10px; border-radius: 14px; border: 1px solid var(--ov-14); background: var(--ov-4); }
+.cg-item .cg-tools { grid-column: 1 / -1; }
+.cg-item-asset { grid-template-columns: minmax(0, 1fr); }
+.cg-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.cg-add-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.cg-total { padding: 10px 14px; border-radius: 12px; border: 1px solid var(--ov-20); font-weight: 600; }
+.cg-total.is-ok { border-color: var(--income); }
+.cg-total.is-under, .cg-total.is-over, .cg-total.is-partial, .cg-total.is-invalid { border-color: var(--warn); }
+.cg-merge { display: grid; gap: 10px; padding: 12px; border-radius: 14px; border: 1px solid var(--ov-14); }
+.cg-merge legend { padding: 0 6px; font-weight: 700; }
+.cg-merge-note { margin: 0; }
+.cg-sub-title { margin: 0 0 8px; font-size: 16px; }
+.cg-asset { min-width: 0; }
+.cg-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.cg-f-name input, .cg-f-target input, .cg-f-cat select { width: 100%; box-sizing: border-box; }
+
+@media (min-width: 1024px) {
+  .cg-body { grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.7fr); }
+  .cg-item { grid-template-columns: minmax(0, 1fr) 140px auto; }
+  .cg-item .cg-tools { grid-column: auto; }
+  .cg-item-asset { grid-template-columns: minmax(0, 1fr) minmax(0, 260px); }
+  .cg-merge { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; }
+  .cg-merge legend { grid-column: 1 / -1; }
+  .cg-merge-note { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: reduce) { .cg-row > * { transition: none; } }
+.cg-terr { font-size: 12px; }
+.cg-confirm { display: grid; gap: 8px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--expense); }
+.cg-confirm > p { margin: 0; }
+.cg-confirm-title { font-weight: 700; }
+.cg-confirm .cg-actions { justify-content: flex-start; }
+#cg-edit-title:focus { outline: none; }

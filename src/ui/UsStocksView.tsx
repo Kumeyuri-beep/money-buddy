@@ -8,6 +8,8 @@ import { buildFxExchange, buildUsTradeRecord, emptyFxExchangeForm, emptyUsTradeF
 import { fxRateText, usd, usdPrice, usdSigned } from '../app/usdFormat';
 import { buildUsPortfolio, type UsStockRow } from '../app/usPortfolio';
 import { formatBps } from '../domain/invest/allocation';
+import { validSector } from '../domain/invest/categories';
+import { GICS_SECTORS } from '../domain/invest/categoriesView';
 import { suggestWithholding } from '../domain/invest/fx';
 import { INSTRUMENT_EXCHANGES, assetCurrency, emptyInvestments, type InvestmentData } from '../domain/invest/types';
 import { formatUnits, parsePriceMicro } from '../domain/invest/units';
@@ -142,7 +144,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
   const [exErrors, setExErrors] = useState<UsFormError<keyof FxExchangeForm>[]>([]);
   const [walletId, setWalletId] = useState('');
   const [cashId, setCashId] = useState('');
-  const [stockForm, setStockForm] = useState({ name: '', ticker: '', exchange: 'NASDAQ' });
+  const [stockForm, setStockForm] = useState({ name: '', ticker: '', exchange: 'NASDAQ', sector: '' });
   const [stockError, setStockError] = useState('');
   const [cashName, setCashName] = useState('USD cash');
   const [cashError, setCashError] = useState('');
@@ -240,12 +242,24 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
     e.preventDefault();
     if (busy) return;
     if (stockForm.name.trim() === '' || stockForm.ticker.trim() === '') return setStockError('Enter the stock name and ticker (for example, AAPL)');
+    const sector = stockForm.sector.trim();
+    if (sector !== '' && !validSector(sector)) return setStockError('Sector must be 1-60 characters without control characters (leave it empty if you are not sure)');
     setStockError('');
     setBusy(true);
     try {
-      await repo.addUsdStock({ id: newId('usstock'), name: stockForm.name, ticker: stockForm.ticker, exchange: stockForm.exchange });
-      setStockForm({ name: '', ticker: '', exchange: stockForm.exchange });
-      await finish('Stock added');
+      const asset = await repo.addUsdStock({ id: newId('usstock'), name: stockForm.name, ticker: stockForm.ticker, exchange: stockForm.exchange });
+      setStockForm({ name: '', ticker: '', exchange: stockForm.exchange, sector: '' });
+      let text = 'Stock added';
+      if (sector !== '') {
+        // sector (ไม่บังคับ) เก็บผ่าน saveCategories: อ่านหมวดล่าสุดมาส่งกลับตามเดิม (ไม่ให้ทับหมวดที่แก้จากที่อื่น) · บันทึกไม่ได้ = หุ้นยังอยู่ แจ้งผู้ใช้
+        try {
+          const latest = await repo.loadInvestments();
+          await repo.saveCategories(latest.categories ?? [], [{ assetId: asset.id, sector }]);
+        } catch (e) {
+          text = `Stock added, but the sector was not saved: ${investError(e)}`;
+        }
+      }
+      await finish(text);
     } catch (err) {
       fail(err);
     } finally {
@@ -534,6 +548,26 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
                 </select>
               </div>
             </div>
+            {desktop && (
+              <div className="field">
+                <label htmlFor="us-stock-sector">Sector (optional)</label>
+                <input
+                  id="us-stock-sector"
+                  type="text"
+                  list="us-stock-sector-list"
+                  autoComplete="off"
+                  placeholder="Choose or type, e.g. Information Technology"
+                  value={stockForm.sector}
+                  onChange={(e) => setStockForm((f) => ({ ...f, sector: e.target.value }))}
+                />
+                <datalist id="us-stock-sector-list">
+                  {GICS_SECTORS.map((x) => (
+                    <option key={x} value={x} />
+                  ))}
+                </datalist>
+                <p className="muted small">Used by Portfolio → Categories to group your stocks.</p>
+              </div>
+            )}
             {stockError && <p className="avg-err">{stockError}</p>}
             <div className="dialog-actions">
               <button type="button" className="btn btn-ghost btn-small" onClick={close}>

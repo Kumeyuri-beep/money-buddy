@@ -56,7 +56,6 @@ for (const w of WIDTHS) {
       await expect(page.getByRole('heading', { name: 'Analytics', level: 2 })).toBeVisible();
       await goInvest(page, 'Tools', 'Find the Dip');
       await expect(page.getByRole('heading', { name: 'Find the Dip', level: 2 })).toBeVisible();
-      await expect(page.getByText('Coming soon', { exact: true })).toBeVisible();
       await page.getByRole('button', { name: 'Back to Dashboard' }).click();
       await expect(nav.getByRole('link', { name: 'Dashboard', exact: true })).toHaveAttribute('aria-current', 'page');
 
@@ -137,8 +136,7 @@ for (const w of WIDTHS) {
       await goInvest(page, 'Portfolio', 'Categories');
       expect(hash()).toBe('#/invest/portfolio/categories');
       await expect(page.getByRole('heading', { name: 'Categories', level: 2 })).toBeVisible();
-      await expect(page.getByText('Coming soon', { exact: true })).toBeVisible();
-      await expect(page.getByText(/Needs a place to store your labels/)).toBeVisible();
+      await expect(page.getByText('Coming soon', { exact: true })).toHaveCount(0); // Categories เป็นหน้าจริงแล้ว
       await goInvest(page, 'Tools', 'Find the Dip');
       expect(hash()).toBe('#/invest/tools/find-the-dip');
       await expect(page.getByText(/Needs automatic market data/)).toBeVisible();
