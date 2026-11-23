@@ -21,7 +21,8 @@ begin
   perform pg_temp.login(p_user);
   return n;
 end $$;
-grant execute on function pg_temp.settle(), pg_temp.fails(text), pg_temp.logout(), pg_temp.login(uuid), pg_temp.ac(uuid, text) to public;
+create function pg_temp.need(p_ids text[]) returns jsonb language sql as $$ select coalesce(jsonb_agg(jsonb_build_object('id', i)), '[]'::jsonb) from unnest(p_ids) i where not exists (select 1 from public.accounts a where a.id = i) $$;
+grant execute on function pg_temp.settle(), pg_temp.fails(text), pg_temp.logout(), pg_temp.login(uuid), pg_temp.ac(uuid, text), pg_temp.need(text[]) to public;
 
 do $t$
 declare
@@ -197,12 +198,140 @@ begin
   perform pg_temp.logout();
   delete from private.import_sessions where user_id = ua;
 
-  -- T11 สิทธิ์ในแคตตาล็อก: authenticated เท่านั้น · security invoker + search_path ว่าง
+  -- ===== เทสต์เพิ่มตามข้อแนะนำผู้ตรวจ (§102.2 ข้อ 3) T12-T17 · ใช้สินทรัพย์ใหม่ a3 a4 a5 us2 ไม่ยุ่งกับข้อมูลของ T1-T11 =====
+  perform pg_temp.login(ua);
+  insert into public.accounts (id, type, name, currency, kind) values ('inv3', 'asset', 'กองทุน ค', 'THB', 'investment'), ('inv4', 'asset', 'กองทุน ง', 'THB', 'investment'), ('inv5', 'asset', 'กองทุน จ', 'THB', 'investment');
+  insert into public.assets (id, name, kind, account_id) values ('a3', 'กองทุน ค', 'fund', 'inv3'), ('a4', 'กองทุน ง', 'fund', 'inv4'), ('a5', 'กองทุน จ', 'fund', 'inv5');
+  perform pg_temp.settle();
+
+  -- T12 ย้ายวันที่ซื้อข้ามวันขาย: ซื้อ 10 หน่วย (ต้นทุน 50100) · ขาย 4 หน่วยวันที่ 11-10 (ตัดต้นทุน 20040 ขาดทุน 17640) · ซื้อเพิ่มวันที่ 11-12
+  perform public.record_trade('{"id":"m-b1","assetId":"a3","kind":"buy","date":"2026-11-01","units":"1000000000","priceMicro":5000000,"amount":50000,"fee":100}'::jsonb,
+    '{"id":"m-b1-e","date":"2026-11-01","memo":"b","source":"manual","lines":[{"accountId":"inv3","amount":50100},{"accountId":"w1","amount":-50100}]}'::jsonb, '[]'::jsonb);
+  perform public.record_trade('{"id":"m-s1","assetId":"a3","kind":"sell","date":"2026-11-10","units":"400000000","priceMicro":6000000,"fee":0}'::jsonb,
+    '{"id":"m-s1-e","date":"2026-11-10","memo":"s","source":"manual","lines":[{"accountId":"w1","amount":2400},{"accountId":"inv3","amount":-20040},{"accountId":"inv-loss","amount":17640}]}'::jsonb, pg_temp.need(array['inv-loss']));
+  perform public.record_trade('{"id":"m-b2","assetId":"a3","kind":"buy","date":"2026-11-12","units":"500000000","priceMicro":5000000,"amount":25000,"fee":0}'::jsonb,
+    '{"id":"m-b2-e","date":"2026-11-12","memo":"b","source":"manual","lines":[{"accountId":"inv3","amount":25000},{"accountId":"w1","amount":-25000}]}'::jsonb, '[]'::jsonb);
+  perform pg_temp.settle();
+  r := pg_temp.fails($q$ select public.replace_trade('m-b2',
+    '{"id":"m-b2x","assetId":"a3","kind":"buy","date":"2026-11-05","units":"500000000","priceMicro":5000000,"amount":25000,"fee":0}'::jsonb,
+    '{"id":"m-b2x-e","date":"2026-11-05","source":"manual","lines":[{"accountId":"inv3","amount":25000},{"accountId":"w1","amount":-25000}]}'::jsonb) $q$);
+  if r is null or r not like '23514|%หลังรายการขายล่าสุด%' then raise exception 'FAIL: T12 ย้ายวันที่ซื้อไปก่อนวันขายต้อง 23514 (ได้ %)', r; end if;
+  if pg_temp.ac(ua, format($q$ select (select count(*) from public.trades where id = 'm-b2' and user_id = %L) + (select count(*) from public.entries where id = 'm-b2-e' and user_id = %L) + (select count(*) from public.trades where id = 'm-b2x' and user_id = %L) * 100 $q$, ua, ua, ua)) <> 2 then raise exception 'FAIL: T12 ล้มแล้วรายการเดิมหาย/รายการใหม่เข้า'; end if;
+  perform public.replace_trade('m-b2',
+    '{"id":"m-b2y","assetId":"a3","kind":"buy","date":"2026-11-15","units":"500000000","priceMicro":5000000,"amount":25000,"fee":0}'::jsonb,
+    '{"id":"m-b2y-e","date":"2026-11-15","source":"manual","lines":[{"accountId":"inv3","amount":25000},{"accountId":"w1","amount":-25000}]}'::jsonb);
+  perform pg_temp.settle();
+  if pg_temp.ac(ua, format($q$ select count(*) from public.trades where id = 'm-b2y' and user_id = %L and date = '2026-11-15' $q$, ua)) <> 1 then raise exception 'FAIL: T12 ย้ายซื้อไปหลังวันขายต้องผ่าน'; end if;
+
+  -- T13 แก้ซื้อที่มีปันผลเงินสดและปันผลลงทุนต่อตามหลัง (ไม่มีรายการขาย): แก้ได้ · ปันผลทั้งสองยังอยู่ · จำนวนหน่วยรวมตรงรายการใหม่
+  perform public.record_trade('{"id":"c1","assetId":"a4","kind":"buy","date":"2026-11-01","units":"1000000000","priceMicro":5000000,"amount":50000,"fee":0}'::jsonb,
+    '{"id":"c1-e","date":"2026-11-01","memo":"b","source":"manual","lines":[{"accountId":"inv4","amount":50000},{"accountId":"w1","amount":-50000}]}'::jsonb, '[]'::jsonb);
+  perform public.record_trade('{"id":"d1","assetId":"a4","kind":"dividend","date":"2026-11-03","amount":1000,"withholding":100}'::jsonb,
+    '{"id":"d1-e","date":"2026-11-03","memo":"d","source":"manual","lines":[{"accountId":"w1","amount":900},{"accountId":"inv-wht","amount":100},{"accountId":"inv-dividend","amount":-1000}]}'::jsonb, pg_temp.need(array['inv-dividend', 'inv-wht']));
+  perform public.record_trade('{"id":"r1","assetId":"a4","kind":"reinvest","date":"2026-11-04","units":"10000000","amount":500}'::jsonb,
+    '{"id":"r1-e","date":"2026-11-04","memo":"r","source":"manual","lines":[{"accountId":"inv4","amount":500},{"accountId":"inv-dividend","amount":-500}]}'::jsonb, '[]'::jsonb);
+  perform pg_temp.settle();
+  perform public.replace_trade('c1',
+    '{"id":"c1b","assetId":"a4","kind":"buy","date":"2026-11-01","units":"2000000000","priceMicro":5000000,"amount":100000,"fee":0}'::jsonb,
+    '{"id":"c1b-e","date":"2026-11-01","memo":"b2","source":"manual","lines":[{"accountId":"inv4","amount":100000},{"accountId":"w1","amount":-100000}]}'::jsonb);
+  perform pg_temp.settle();
+  if pg_temp.ac(ua, format($q$ select (select count(*) from public.trades where id in ('d1', 'r1', 'c1b') and user_id = %L) + (select count(*) from public.trades where id = 'c1' and user_id = %L) * 100 + (select count(*) from public.entries where id in ('d1-e', 'r1-e', 'c1b-e') and user_id = %L) * 10 $q$, ua, ua, ua)) <> 33 then raise exception 'FAIL: T13 แก้ซื้อแล้วปันผล/รายการใหม่ไม่ครบ หรือรายการเดิมไม่หาย'; end if;
+  if pg_temp.ac(ua, format($q$ select coalesce(sum(units::numeric), 0)::bigint from public.trades where asset_id = 'a4' and kind in ('buy', 'reinvest') and user_id = %L $q$, ua)) <> 2010000000 then raise exception 'FAIL: T13 หน่วยรวมของ a4 ไม่ตรง'; end if;
+
+  -- T14 แก้ปันผลลงทุนต่อ (reinvest) ได้ตราบที่ยังไม่มีรายการขาย · หลังมีรายการขาย: แก้ reinvest ที่วันที่ ≤ วันขายถูกปฏิเสธ แต่แก้ปันผลเงินสดได้
+  perform public.replace_trade('r1',
+    '{"id":"r1b","assetId":"a4","kind":"reinvest","date":"2026-11-04","units":"20000000","amount":1000}'::jsonb,
+    '{"id":"r1b-e","date":"2026-11-04","memo":"r2","source":"manual","lines":[{"accountId":"inv4","amount":1000},{"accountId":"inv-dividend","amount":-1000}]}'::jsonb);
+  perform pg_temp.settle();
+  if pg_temp.ac(ua, format($q$ select count(*) from public.trades where id = 'r1b' and user_id = %L and kind = 'reinvest' and units = '20000000' and amount = 1000 $q$, ua)) <> 1 then raise exception 'FAIL: T14 รายการ reinvest ใหม่ไม่ตรง'; end if;
+  if pg_temp.ac(ua, format($q$ select count(*) from public.trades where id = 'r1' and user_id = %L $q$, ua)) <> 0 then raise exception 'FAIL: T14 reinvest เดิมไม่หาย'; end if;
+  if pg_temp.ac(ua, format($q$ select coalesce(sum(amount), 0)::bigint from public.lines where account_id = 'inv4' and user_id = %L $q$, ua)) <> 101000 then raise exception 'FAIL: T14 ยอดบัญชีต้นทุน a4 ไม่ตรง'; end if;
+  -- ขาย 5 หน่วยจากที่ถือ 20.2 หน่วย: ตัดต้นทุน 101000 × 5 / 20.2 = 25000 พอดี · ขาดทุน 22000
+  perform public.record_trade('{"id":"s4","assetId":"a4","kind":"sell","date":"2026-11-10","units":"500000000","priceMicro":6000000,"fee":0}'::jsonb,
+    '{"id":"s4-e","date":"2026-11-10","memo":"s","source":"manual","lines":[{"accountId":"w1","amount":3000},{"accountId":"inv4","amount":-25000},{"accountId":"inv-loss","amount":22000}]}'::jsonb, '[]'::jsonb);
+  perform pg_temp.settle();
+  r := pg_temp.fails($q$ select public.replace_trade('r1b',
+    '{"id":"r1c","assetId":"a4","kind":"reinvest","date":"2026-11-04","units":"20000000","amount":1000}'::jsonb,
+    '{"id":"r1c-e","date":"2026-11-04","source":"manual","lines":[{"accountId":"inv4","amount":1000},{"accountId":"inv-dividend","amount":-1000}]}'::jsonb) $q$);
+  if r is null or r not like '23514|%ขายล่าสุด%' then raise exception 'FAIL: T14 แก้ reinvest ที่อยู่ก่อนวันขายต้อง 23514 (ได้ %)', r; end if;
+  perform public.replace_trade('d1',
+    '{"id":"d1b","assetId":"a4","kind":"dividend","date":"2026-11-03","amount":2000,"withholding":200}'::jsonb,
+    '{"id":"d1b-e","date":"2026-11-03","memo":"d2","source":"manual","lines":[{"accountId":"w1","amount":1800},{"accountId":"inv-wht","amount":200},{"accountId":"inv-dividend","amount":-2000}]}'::jsonb);
+  perform pg_temp.settle();
+  if pg_temp.ac(ua, format($q$ select (select count(*) from public.trades where id in ('d1b', 'r1b', 's4') and user_id = %L) + (select count(*) from public.trades where id in ('d1', 'r1c') and user_id = %L) * 100 $q$, ua, ua)) <> 3 then raise exception 'FAIL: T14 หลังแก้/ปฏิเสธ รายการไม่ตรง'; end if;
+
+  -- T15 USD: แก้รายการขายและปันผลของหุ้น USD (ต้นทุนเฉลี่ยและสมุด USD ยังสมดุล) · ตัดต้นทุนผิด 1 เซนต์ถูกปฏิเสธและย้อนกลับ
+  insert into public.accounts (id, type, name, currency, kind) values ('usd-c2', 'asset', 'เงินสด USD 2', 'USD', 'investment'), ('inv-us2', 'asset', 'หุ้นสหรัฐ ข', 'USD', 'investment');
+  insert into public.assets (id, name, kind, account_id, instrument_currency, ticker, exchange) values ('us2', 'หุ้นสหรัฐ ข', 'stock', 'inv-us2', 'USD', 'XYZ', 'NASDAQ');
+  perform pg_temp.settle();
+  perform public.record_fx_exchange(
+    '{"id":"fx2","date":"2026-11-02","direction":"thb_to_usd","thbSatang":7000000,"usdCents":200000,"memo":"แลก"}'::jsonb,
+    '{"id":"fx2-e","date":"2026-11-02","memo":"แลกเงิน","source":"manual","lines":[{"accountId":"w1","amount":-7000000},{"accountId":"fx-suspense-thb","amount":7000000},{"accountId":"usd-c2","amount":200000},{"accountId":"fx-suspense-usd","amount":-200000}]}'::jsonb,
+    pg_temp.need(array['fx-suspense-thb', 'fx-suspense-usd']));
+  perform public.record_trade_fx('{"id":"u-b1","assetId":"us2","kind":"buy","date":"2026-11-03","units":"1000000000","priceMicro":100000000,"amount":100000,"fee":100,"fxRateMicro":35000000}'::jsonb,
+    '{"id":"u-b1-e","date":"2026-11-03","memo":"buy","source":"manual","lines":[{"accountId":"inv-us2","amount":100100},{"accountId":"usd-c2","amount":-100100}]}'::jsonb, '[]'::jsonb);
+  perform public.record_trade_fx('{"id":"u-s1","assetId":"us2","kind":"sell","date":"2026-11-10","units":"400000000","priceMicro":120000000,"fee":100,"fxRateMicro":33000000}'::jsonb,
+    '{"id":"u-s1-e","date":"2026-11-10","memo":"sell","source":"manual","lines":[{"accountId":"usd-c2","amount":47900},{"accountId":"inv-us2","amount":-40040},{"accountId":"inv-gain-usd","amount":-7860}]}'::jsonb, pg_temp.need(array['inv-gain-usd']));
+  perform public.record_trade_fx('{"id":"u-d1","assetId":"us2","kind":"dividend","date":"2026-11-12","amount":5000,"withholding":750,"fxRateMicro":34567891}'::jsonb,
+    '{"id":"u-d1-e","date":"2026-11-12","memo":"div","source":"manual","lines":[{"accountId":"usd-c2","amount":4250},{"accountId":"inv-wht-usd","amount":750},{"accountId":"inv-dividend-usd","amount":-5000}]}'::jsonb, pg_temp.need(array['inv-dividend-usd', 'inv-wht-usd']));
+  perform pg_temp.settle();
+  r := pg_temp.fails($q$ select public.replace_trade('u-s1',
+    '{"id":"u-s1x","assetId":"us2","kind":"sell","date":"2026-11-10","units":"300000000","priceMicro":120000000,"fee":100,"fxRateMicro":33000000}'::jsonb,
+    '{"id":"u-s1x-e","date":"2026-11-10","source":"manual","lines":[{"accountId":"usd-c2","amount":35900},{"accountId":"inv-us2","amount":-30029},{"accountId":"inv-gain-usd","amount":-5870}]}'::jsonb) $q$);
+  if r is null or r not like '23514|%' then raise exception 'FAIL: T15 สมุดไม่สมดุล 1 เซนต์ต้องถูกปฏิเสธ (ได้ %)', r; end if;
+  if pg_temp.ac(ua, format($q$ select (select count(*) from public.trades where id = 'u-s1' and user_id = %L) + (select count(*) from public.entries where id = 'u-s1-e' and user_id = %L) + (select count(*) from public.trades where id = 'u-s1x' and user_id = %L) * 100 $q$, ua, ua, ua)) <> 2 then raise exception 'FAIL: T15 ล้มแล้วไม่ย้อนกลับ'; end if;
+  -- ขาย 3 หน่วย: net 35,900 · ตัดต้นทุน 30,030 · กำไร 5,870
+  perform public.replace_trade('u-s1',
+    '{"id":"u-s1b","assetId":"us2","kind":"sell","date":"2026-11-10","units":"300000000","priceMicro":120000000,"fee":100,"fxRateMicro":33000000}'::jsonb,
+    '{"id":"u-s1b-e","date":"2026-11-10","memo":"sell2","source":"manual","lines":[{"accountId":"usd-c2","amount":35900},{"accountId":"inv-us2","amount":-30030},{"accountId":"inv-gain-usd","amount":-5870}]}'::jsonb);
+  perform public.replace_trade('u-d1',
+    '{"id":"u-d1b","assetId":"us2","kind":"dividend","date":"2026-11-12","amount":6000,"withholding":900,"fxRateMicro":34567891}'::jsonb,
+    '{"id":"u-d1b-e","date":"2026-11-12","memo":"div2","source":"manual","lines":[{"accountId":"usd-c2","amount":5100},{"accountId":"inv-wht-usd","amount":900},{"accountId":"inv-dividend-usd","amount":-6000}]}'::jsonb);
+  perform pg_temp.settle();
+  -- เงินสด USD = 200,000 − 100,100 + 35,900 + 5,100 = 140,900
+  if pg_temp.ac(ua, format($q$ select coalesce(sum(amount), 0)::bigint from public.lines where account_id = 'usd-c2' and user_id = %L $q$, ua)) <> 140900 then raise exception 'FAIL: T15 ยอดเงินสด USD หลังแก้ไม่ตรง'; end if;
+  if pg_temp.ac(ua, format($q$ select coalesce(sum(l.amount), 0)::bigint from public.lines l join public.accounts a on a.user_id = l.user_id and a.id = l.account_id where a.currency = 'USD' and l.user_id = %L $q$, ua)) <> 0 then raise exception 'FAIL: T15 สมุด USD ไม่สมดุลหลังแก้'; end if;
+  if pg_temp.ac(ua, format($q$ select coalesce(sum(l.amount), 0)::bigint from public.lines l join public.accounts a on a.user_id = l.user_id and a.id = l.account_id where a.currency = 'THB' and l.user_id = %L $q$, ua)) <> 0 then raise exception 'FAIL: T15 สมุดบาทไม่สมดุลหลังแก้'; end if;
+  if pg_temp.ac(ua, format($q$ select count(*) from public.trades where id in ('u-s1b', 'u-d1b') and user_id = %L and fx_rate_micro in (33000000, 34567891) $q$, ua)) <> 2 then raise exception 'FAIL: T15 อัตราแลกเปลี่ยนของรายการใหม่ไม่ตรง'; end if;
+
+  -- T16 ลำดับ created_at ในวันเดียวกัน: ซื้อสองรายการวันเดียวกัน (03:00 และ 04:00) แก้ทีละรายการวันเดิม ลำดับต้องไม่สลับ
+  perform public.record_trade('{"id":"x1","assetId":"a5","kind":"buy","date":"2026-11-02","createdAt":"2026-11-02T03:00:00.000Z","units":"100000000","priceMicro":5000000,"amount":5000,"fee":0}'::jsonb,
+    '{"id":"x1-e","date":"2026-11-02","memo":"b","source":"manual","lines":[{"accountId":"inv5","amount":5000},{"accountId":"w1","amount":-5000}]}'::jsonb, '[]'::jsonb);
+  perform public.record_trade('{"id":"x2","assetId":"a5","kind":"buy","date":"2026-11-02","createdAt":"2026-11-02T04:00:00.000Z","units":"100000000","priceMicro":5000000,"amount":6000,"fee":0}'::jsonb,
+    '{"id":"x2-e","date":"2026-11-02","memo":"b","source":"manual","lines":[{"accountId":"inv5","amount":6000},{"accountId":"w1","amount":-6000}]}'::jsonb, '[]'::jsonb);
+  perform pg_temp.settle();
+  perform public.replace_trade('x1',
+    '{"id":"x1b","assetId":"a5","kind":"buy","date":"2026-11-02","units":"100000000","priceMicro":5000000,"amount":5500,"fee":0}'::jsonb,
+    '{"id":"x1b-e","date":"2026-11-02","memo":"b","source":"manual","lines":[{"accountId":"inv5","amount":5500},{"accountId":"w1","amount":-5500}]}'::jsonb);
+  perform public.replace_trade('x2',
+    '{"id":"x2b","assetId":"a5","kind":"buy","date":"2026-11-02","units":"100000000","priceMicro":5000000,"amount":6500,"fee":0}'::jsonb,
+    '{"id":"x2b-e","date":"2026-11-02","memo":"b","source":"manual","lines":[{"accountId":"inv5","amount":6500},{"accountId":"w1","amount":-6500}]}'::jsonb);
+  perform pg_temp.settle();
+  if pg_temp.ac(ua, format($q$ select count(*) from public.trades where asset_id = 'a5' and user_id = %L and ((id = 'x1b' and created_at = timestamptz '2026-11-02T03:00:00Z') or (id = 'x2b' and created_at = timestamptz '2026-11-02T04:00:00Z')) $q$, ua)) <> 2 then raise exception 'FAIL: T16 created_at ของสองรายการวันเดียวกันไม่คงเดิม'; end if;
+
+  -- T17 ค่าขอบ: ขายได้ 0 สตางค์ถูกปฏิเสธ · ค่าธรรมเนียมเกินเงินขาย 1 สตางค์ถูกปฏิเสธ · ค่าธรรมเนียมเท่าเงินขายพอดี (เงินเข้า 0) ผ่านและขาดทุน = ต้นทุนที่ตัดออกทั้งก้อน
+  r := pg_temp.fails($q$ select public.replace_trade('m-s1',
+    '{"id":"m-s1x","assetId":"a3","kind":"sell","date":"2026-11-10","units":"1","priceMicro":1,"fee":0}'::jsonb,
+    '{"id":"m-s1x-e","date":"2026-11-10","source":"manual","lines":[{"accountId":"inv3","amount":-1},{"accountId":"inv-loss","amount":1}]}'::jsonb) $q$);
+  if r is null or r not like '23514|%0 สตางค์%' then raise exception 'FAIL: T17 ขายได้ 0 สตางค์ต้อง 23514 (ได้ %)', r; end if;
+  r := pg_temp.fails($q$ select public.replace_trade('m-s1',
+    '{"id":"m-s1x","assetId":"a3","kind":"sell","date":"2026-11-10","units":"400000000","priceMicro":6000000,"fee":2401}'::jsonb,
+    '{"id":"m-s1x-e","date":"2026-11-10","source":"manual","lines":[{"accountId":"inv3","amount":-20040},{"accountId":"inv-loss","amount":20040}]}'::jsonb) $q$);
+  if r is null or r not like '23514|%ค่าธรรมเนียม%' then raise exception 'FAIL: T17 ค่าธรรมเนียมเกินเงินขายต้อง 23514 (ได้ %)', r; end if;
+  if pg_temp.ac(ua, format($q$ select (select count(*) from public.trades where id = 'm-s1' and user_id = %L) + (select count(*) from public.entries where id = 'm-s1-e' and user_id = %L) + (select count(*) from public.trades where id = 'm-s1x' and user_id = %L) * 100 $q$, ua, ua, ua)) <> 2 then raise exception 'FAIL: T17 ล้มแล้วไม่ย้อนกลับ'; end if;
+  perform public.replace_trade('m-s1',
+    '{"id":"m-s1y","assetId":"a3","kind":"sell","date":"2026-11-10","units":"400000000","priceMicro":6000000,"fee":2400}'::jsonb,
+    '{"id":"m-s1y-e","date":"2026-11-10","source":"manual","lines":[{"accountId":"inv3","amount":-20040},{"accountId":"inv-loss","amount":20040}]}'::jsonb);
+  perform pg_temp.settle();
+  if pg_temp.ac(ua, format($q$ select count(*) from public.trades where id = 'm-s1y' and user_id = %L and fee = 2400 $q$, ua)) <> 1 then raise exception 'FAIL: T17 ค่าธรรมเนียมเท่าเงินขายพอดีต้องผ่าน'; end if;
+  perform pg_temp.logout();
+
+  -- T18 สิทธิ์ในแคตตาล็อก: authenticated เท่านั้น · security invoker + search_path ว่าง
   if (select count(*) from pg_proc p join pg_namespace s on s.oid = p.pronamespace
        where s.nspname = 'public' and p.proname = 'replace_trade' and has_function_privilege('authenticated', p.oid, 'execute')
          and not has_function_privilege('anon', p.oid, 'execute') and not has_function_privilege('public', p.oid, 'execute')
          and not p.prosecdef and exists (select 1 from unnest(p.proconfig) c where c like 'search_path=%')) <> 1 then
-    raise exception 'FAIL: T11 สิทธิ์/ชนิดฟังก์ชันไม่ตรง';
+    raise exception 'FAIL: T18 สิทธิ์/ชนิดฟังก์ชันไม่ตรง';
   end if;
 
   raise exception 'TESTS_PASSED (rollback แล้ว ไม่มีข้อมูลทดสอบเหลือ)';

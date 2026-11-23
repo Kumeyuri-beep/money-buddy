@@ -20,7 +20,8 @@ begin
   perform pg_temp.login(p_user);
   return n;
 end $$;
-grant execute on function pg_temp.settle(), pg_temp.fails(text), pg_temp.logout(), pg_temp.login(uuid), pg_temp.ac(uuid, text) to public;
+create function pg_temp.need(p_ids text[]) returns jsonb language sql as $$ select coalesce(jsonb_agg(jsonb_build_object('id', i)), '[]'::jsonb) from unnest(p_ids) i where not exists (select 1 from public.accounts a where a.id = i) $$;
+grant execute on function pg_temp.settle(), pg_temp.fails(text), pg_temp.logout(), pg_temp.login(uuid), pg_temp.ac(uuid, text), pg_temp.need(text[]) to public;
 
 do $t$
 declare
@@ -132,12 +133,64 @@ begin
   perform pg_temp.logout();
   if (select count(*) from public.accounts where id = 'inv3' and user_id = ua) <> 0 then raise exception 'FAIL: T7 หลังนำเข้าเสร็จลบ a3 แล้วบัญชีต้นทุนต้องหาย'; end if;
 
-  -- T8 สิทธิ์ในแคตตาล็อก: authenticated เท่านั้น · security invoker + search_path ว่าง
+  -- ===== เทสต์เพิ่มตามข้อแนะนำผู้ตรวจ (§102.2 ข้อ 3) T9-T11 · ใช้สินทรัพย์ใหม่ b1 b2 us9 us8 =====
+  perform pg_temp.login(ua);
+  insert into public.accounts (id, type, name, currency, kind) values
+    ('invb1', 'asset', 'กองทุน บ1', 'THB', 'investment'), ('invb2', 'asset', 'กองทุน บ2', 'THB', 'investment'),
+    ('usd-c9', 'asset', 'เงินสด USD 9', 'USD', 'investment'), ('inv-us9', 'asset', 'หุ้นสหรัฐ 9', 'USD', 'investment'), ('inv-us8', 'asset', 'หุ้นสหรัฐ 8', 'USD', 'investment');
+  insert into public.assets (id, name, kind, account_id) values ('b1', 'กองทุน บ1', 'fund', 'invb1'), ('b2', 'กองทุน บ2', 'fund', 'invb2');
+  insert into public.assets (id, name, kind, account_id, instrument_currency, ticker, exchange) values
+    ('us9', 'หุ้นสหรัฐ 9', 'stock', 'inv-us9', 'USD', 'NIN', 'NASDAQ'), ('us8', 'หุ้นสหรัฐ 8', 'stock', 'inv-us8', 'USD', 'EIG', 'NASDAQ');
+  perform pg_temp.settle();
+
+  -- T9 ลบสินทรัพย์ b1 (ปันผลถูกลบก่อน) แล้วกระเป๋า/บัญชีปันผล/บัญชีภาษีที่ใช้ร่วมกันยังอยู่ · ปันผลของ b2 ไม่ถูกแตะ
+  perform public.record_trade('{"id":"db1","assetId":"b1","kind":"dividend","date":"2026-11-02","amount":1000,"withholding":100}'::jsonb,
+    '{"id":"db1-e","date":"2026-11-02","memo":"d","source":"manual","lines":[{"accountId":"w1","amount":900},{"accountId":"inv-wht","amount":100},{"accountId":"inv-dividend","amount":-1000}]}'::jsonb, pg_temp.need(array['inv-dividend', 'inv-wht']));
+  perform public.record_trade('{"id":"db2","assetId":"b2","kind":"dividend","date":"2026-11-03","amount":2000,"withholding":200}'::jsonb,
+    '{"id":"db2-e","date":"2026-11-03","memo":"d","source":"manual","lines":[{"accountId":"w1","amount":1800},{"accountId":"inv-wht","amount":200},{"accountId":"inv-dividend","amount":-2000}]}'::jsonb, pg_temp.need(array['inv-dividend', 'inv-wht']));
+  perform pg_temp.settle();
+  delete from public.entries where id = 'db1-e';
+  perform pg_temp.settle();
+  v := public.delete_asset('b1');
+  perform pg_temp.settle();
+  if v->>'assetId' <> 'b1' or v->>'accountId' <> 'invb1' then raise exception 'FAIL: T9 ผลที่คืนไม่ตรง (%)', v; end if;
+  if pg_temp.ac(ua, format($q$ select (select count(*) from public.accounts where id in ('w1', 'inv-dividend', 'inv-wht', 'invb2') and user_id = %L) + (select count(*) from public.trades where id = 'db2' and user_id = %L) * 10 + (select count(*) from public.lines where entry_id = 'db2-e' and user_id = %L) * 100 + (select count(*) from public.assets where id in ('b1', 'b2') and user_id = %L) * 1000 + (select count(*) from public.accounts where id = 'invb1' and user_id = %L) * 10000 $q$, ua, ua, ua, ua, ua)) <> 4 + 10 + 300 + 1000 then raise exception 'FAIL: T9 บัญชีที่ใช้ร่วมกัน/ปันผลของสินทรัพย์อื่นถูกกระทบ หรือ b1 ไม่หาย'; end if;
+
+  -- T10 หุ้น USD: ลบสินทรัพย์หลังลบรายการซื้อและปันผล แล้วเงินสด USD (ยอดแลกเงินยังอยู่) บัญชีปันผล/ภาษี USD และ Entry แลกเงินยังอยู่
+  perform public.record_fx_exchange(
+    '{"id":"fx9","date":"2026-11-02","direction":"thb_to_usd","thbSatang":700000,"usdCents":20000,"memo":"แลก"}'::jsonb,
+    '{"id":"fx9-e","date":"2026-11-02","memo":"แลกเงิน","source":"manual","lines":[{"accountId":"w1","amount":-700000},{"accountId":"fx-suspense-thb","amount":700000},{"accountId":"usd-c9","amount":20000},{"accountId":"fx-suspense-usd","amount":-20000}]}'::jsonb,
+    pg_temp.need(array['fx-suspense-thb', 'fx-suspense-usd']));
+  perform public.record_trade_fx('{"id":"ub9","assetId":"us9","kind":"buy","date":"2026-11-03","units":"500000000","priceMicro":20000000,"amount":10000,"fee":10,"fxRateMicro":35000000}'::jsonb,
+    '{"id":"ub9-e","date":"2026-11-03","memo":"buy","source":"manual","lines":[{"accountId":"inv-us9","amount":10010},{"accountId":"usd-c9","amount":-10010}]}'::jsonb, '[]'::jsonb);
+  perform public.record_trade_fx('{"id":"ud9","assetId":"us9","kind":"dividend","date":"2026-11-12","amount":500,"withholding":75,"fxRateMicro":34567891}'::jsonb,
+    '{"id":"ud9-e","date":"2026-11-12","memo":"div","source":"manual","lines":[{"accountId":"usd-c9","amount":425},{"accountId":"inv-wht-usd","amount":75},{"accountId":"inv-dividend-usd","amount":-500}]}'::jsonb, pg_temp.need(array['inv-dividend-usd', 'inv-wht-usd']));
+  perform pg_temp.settle();
+  r := pg_temp.fails($q$ select public.delete_asset('us9') $q$);
+  if r is null or r not like '23514|%ยังมีรายการ%' then raise exception 'FAIL: T10 หุ้น USD ที่ยังมีรายการต้องลบไม่ได้ (ได้ %)', r; end if;
+  delete from public.entries where id = 'ud9-e';
+  delete from public.entries where id = 'ub9-e';
+  perform pg_temp.settle();
+  v := public.delete_asset('us9');
+  perform pg_temp.settle();
+  if v->>'assetId' <> 'us9' or v->>'accountId' <> 'inv-us9' then raise exception 'FAIL: T10 ผลที่คืนไม่ตรง (%)', v; end if;
+  if pg_temp.ac(ua, format($q$ select (select count(*) from public.assets where id = 'us9' and user_id = %L) + (select count(*) from public.accounts where id = 'inv-us9' and user_id = %L) $q$, ua, ua)) <> 0 then raise exception 'FAIL: T10 สินทรัพย์/บัญชีต้นทุน USD ไม่หาย'; end if;
+  if pg_temp.ac(ua, format($q$ select (select count(*) from public.accounts where id in ('usd-c9', 'inv-dividend-usd', 'inv-wht-usd', 'fx-suspense-thb', 'fx-suspense-usd') and user_id = %L) + (select count(*) from public.entries where id = 'fx9-e' and user_id = %L) * 10 $q$, ua, ua)) <> 5 + 10 then raise exception 'FAIL: T10 เงินสด USD/บัญชีปันผล-ภาษี USD/Entry แลกเงินถูกกระทบ'; end if;
+  if pg_temp.ac(ua, format($q$ select coalesce(sum(amount), 0)::bigint from public.lines where account_id = 'usd-c9' and user_id = %L $q$, ua)) <> 20000 then raise exception 'FAIL: T10 ยอดเงินสด USD ต้องเหลือเท่ายอดแลกเงิน'; end if;
+
+  -- T11 หุ้น USD ที่ไม่เคยมีรายการ: ลบได้ทันที (สินทรัพย์ + บัญชีต้นทุน USD) · ไม่กระทบเงินสด USD
+  v := public.delete_asset('us8');
+  perform pg_temp.settle();
+  if v->>'assetId' <> 'us8' or v->>'accountId' <> 'inv-us8' then raise exception 'FAIL: T11 ผลที่คืนไม่ตรง (%)', v; end if;
+  if pg_temp.ac(ua, format($q$ select (select count(*) from public.assets where id = 'us8' and user_id = %L) + (select count(*) from public.accounts where id = 'inv-us8' and user_id = %L) + (select count(*) from public.accounts where id = 'usd-c9' and user_id = %L) * 10 $q$, ua, ua, ua)) <> 10 then raise exception 'FAIL: T11 ลบหุ้น USD ว่างไม่ถูกต้อง'; end if;
+  perform pg_temp.logout();
+
+  -- T12 สิทธิ์ในแคตตาล็อก: authenticated เท่านั้น · security invoker + search_path ว่าง
   if (select count(*) from pg_proc p join pg_namespace s on s.oid = p.pronamespace
        where s.nspname = 'public' and p.proname = 'delete_asset' and has_function_privilege('authenticated', p.oid, 'execute')
          and not has_function_privilege('anon', p.oid, 'execute') and not has_function_privilege('public', p.oid, 'execute')
          and not p.prosecdef and exists (select 1 from unnest(p.proconfig) c where c like 'search_path=%')) <> 1 then
-    raise exception 'FAIL: T8 สิทธิ์/ชนิดฟังก์ชันไม่ตรง';
+    raise exception 'FAIL: T12 สิทธิ์/ชนิดฟังก์ชันไม่ตรง';
   end if;
 
   raise exception 'TESTS_PASSED (rollback แล้ว ไม่มีข้อมูลทดสอบเหลือ)';
