@@ -45,3 +45,13 @@ export function ceilDivBig(numerator: bigint, denominator: bigint): bigint {
   if (numerator < 0n) throw new RangeError('ceilDivBig: ตัวตั้งต้องไม่ติดลบ');
   return (numerator + denominator - 1n) / denominator;
 }
+
+/**
+ * ปัดลง (floor) ของ numerator / denominator สำหรับตัวตั้งไม่ติดลบและตัวหารบวก (กฎ R29 · ข้อยกเว้นการปัดเศษของ R8 เฉพาะ Rebalancing)
+ * `/` ของ BigInt ปัดเข้าหาศูนย์ จึงต้องจำกัดอินพุตให้ไม่ติดลบ ห้ามใช้ `Math.floor` หรือ `/` ตรงๆ ในโค้ด R29
+ */
+export function floorDivBig(numerator: bigint, denominator: bigint): bigint {
+  if (denominator <= 0n) throw new RangeError('floorDivBig: ตัวหารต้องเป็นบวก');
+  if (numerator < 0n) throw new RangeError('floorDivBig: ตัวตั้งต้องไม่ติดลบ');
+  return numerator / denominator;
+}
