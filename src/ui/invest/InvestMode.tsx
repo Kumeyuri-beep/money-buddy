@@ -12,6 +12,7 @@ import { DEFAULT_PORTFOLIO_NAME, InvestContext, type InvestCurrency, type Portfo
 import { ComingSoonPage } from './ComingSoonPage';
 import { InvestTopBar } from './InvestTopBar';
 import { CashPage } from './pages/CashPage';
+import { CategoriesPage } from './pages/CategoriesPage';
 import { GoalPage } from './pages/GoalPage';
 import { HoldingsPage } from './pages/HoldingsPage';
 import { ReportPage } from './pages/ReportPage';
@@ -185,6 +186,8 @@ export default function InvestMode({ today, accounts, entries, wallets, onLedger
             <ReportPage onHome={() => navigate(INVEST_HOME)} />
           ) : page === 'portfolio/goal' ? (
             <GoalPage onHome={() => navigate(INVEST_HOME)} />
+          ) : page === 'portfolio/categories' ? (
+            <CategoriesPage />
           ) : page === 'portfolio/cash' ? (
             <CashPage onHome={() => navigate(INVEST_HOME)} />
           ) : (
