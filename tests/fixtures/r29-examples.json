@@ -1,5 +1,5 @@
 {
-  "_comment": "ตัวอย่างคำนวณมือ R29 (ข้อมูลสมมติ · USD เซนต์) · ผลจากสคริปต์อ้างอิง BigInt (21 พ.ย. 2569) · unit test ของ rebalance ต้องอ่านไฟล์นี้ไฟล์เดียว ห้ามคัดลอกตัวเลขไปใส่ในเทสต์",
+  "_comment": "G/H (23 พ.ย. 2569): บาท 0 หน่วยข้ามได้ / บาทมีหน่วยยังหยุด · แถวซื้อเงิน 0 เซนต์เข้าถึงไม่ได้จริงจากการปัดลง จึงตรวจเป็น invariant (ทุกแถวซื้อ cents >= 1) · ตัวอย่างคำนวณมือ R29 (ข้อมูลสมมติ · USD เซนต์) · ผลจากสคริปต์อ้างอิง BigInt (21 พ.ย. 2569) · unit test ของ rebalance ต้องอ่านไฟล์นี้ไฟล์เดียว ห้ามคัดลอกตัวเลขไปใส่ในเทสต์",
   "holdings": [
     { "id": "AAA", "category": "Tech", "priceMicro": "100000000", "units": "600000000" },
     { "id": "BBB", "category": "Tech", "priceMicro": "50000000", "units": "400000000" },
@@ -36,6 +36,8 @@
     "E_fractional": { "deposit": 100000, "allowSales": false, "fractional": true,
       "categoryMoney": { "Tech": 27500, "Health": 34500, "Funds": 38000 },
       "buys": [ { "id": "AAA", "units": "206200000", "cents": 20620 }, { "id": "BBB", "units": "137500000", "cents": 6875 }, { "id": "CCC", "units": "575000000", "cents": 34500 }, { "id": "DDD", "units": "1520000000", "cents": 38000 } ],
-      "sells": [], "leftOver": 5, "shortBy": 0 }
+      "sells": [], "leftOver": 5, "shortBy": 0 },
+    "G_bahtZeroUnits": { "_comment": "สินทรัพย์บาท 0 หน่วยในหมวด Funds ถูกข้าม ผลต้องเหมือน A_fractional ทุกค่า", "extraHolding": { "id": "THB1", "category": "Funds", "currency": "THB", "priceMicro": "10000000", "units": "0" }, "sameAs": "A_fractional" },
+    "H_bahtWithUnits": { "_comment": "สินทรัพย์บาทที่ยังมี 1 หน่วยในหมวด Funds ยังหยุดคำนวณ", "extraHolding": { "id": "THB1", "category": "Funds", "currency": "THB", "priceMicro": "10000000", "units": "100000000" }, "deposit": 35000, "expectError": "bahtAssetInCategory", "categoryIds": ["Funds"] }
   }
 }

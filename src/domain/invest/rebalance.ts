@@ -236,7 +236,7 @@ function validate(input: RebalanceInput): RebalanceResult | Prepared {
   if (orphans.length > 0) return { ok: false, reason: 'holdingWithoutCategory', holdingIds: orphans.map((h) => h.id) };
   // สินทรัพย์สกุลบาทในหมวด (ห้ามบวกข้ามสกุล R20)
   const baht = new Set<string>();
-  for (const h of input.holdings) if (h.currency === 'THB' && h.categoryId !== null && catIds.has(h.categoryId)) baht.add(h.categoryId);
+  for (const h of input.holdings) if (h.currency === 'THB' && h.units > 0n && h.categoryId !== null && catIds.has(h.categoryId)) baht.add(h.categoryId);
   if (baht.size > 0) return { ok: false, reason: 'bahtAssetInCategory', categoryIds: cats.filter((c) => baht.has(c.id)).map((c) => c.id) };
   // หุ้นที่ถืออยู่ไม่มีราคา
   const noPrice = input.holdings.filter((h) => h.units > 0n && (h.priceMicro === null || !Number.isSafeInteger(h.priceMicro) || h.priceMicro <= 0));
@@ -299,7 +299,6 @@ const toRow = (h: RebalanceHolding, side: 'buy' | 'sell', units: bigint): Rebala
 
 /**
  * สมมติฐานของอินพุต (ผู้เรียกรับผิดชอบ): id ของหมวดและหุ้นต้องไม่ซ้ำ · priceDate ต้องเป็น YYYY-MM-DD · ผลที่เป็นเซนต์ทุกตัวเกิน 2^53-1 โยน RangeError
- * ข้อสังเกตที่รอเจ้าของตัดสิน: แถวซื้อที่หน่วย > 0 แต่ cents = 0 ยังไม่ถูกตัด
  */
 export function rebalance(input: RebalanceInput): RebalanceResult {
   const prep = validate(input);
@@ -386,8 +385,9 @@ export function rebalance(input: RebalanceInput): RebalanceResult {
             dropped.push({ holdingId: h.id, ticker: h.ticker, categoryId: c.id, reason: 'unitsZero' });
             return;
           }
+          // หน่วย > 0 แต่เงินปัดเป็น 0 เซนต์ -> ตัดเป็น belowMinOrder (R29 · เงินกลับเป็น Left over) · ตรวจ unitsZero ก่อนเสมอ
           const row = toRow(h, 'buy', units);
-          if (row.cents < input.minOrderCents) {
+          if (row.cents <= 0 || row.cents < input.minOrderCents) {
             dropped.push({ holdingId: h.id, ticker: h.ticker, categoryId: c.id, reason: 'belowMinOrder' });
             return;
           }
