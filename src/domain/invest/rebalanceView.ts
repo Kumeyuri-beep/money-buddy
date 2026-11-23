@@ -219,9 +219,10 @@ export function formatShares(units: bigint, fractional: boolean): string {
 
 /** bps -> "45" / "7.5" / "12.34" (ไม่ใช้ float) */
 export function bpsText(bps: number): string {
-  const whole = Math.trunc(bps / 100);
-  const frac = String(Math.abs(bps % 100)).padStart(2, '0').replace(/0+$/, '');
-  return frac === '' ? String(whole) : `${whole}.${frac}`;
+  const abs = Math.abs(bps);
+  const whole = (abs - (abs % 100)) / 100;
+  const frac = String(abs % 100).padStart(2, '0').replace(/0+$/, '');
+  return `${bps < 0 ? '-' : ''}${whole}${frac === '' ? '' : `.${frac}`}`;
 }
 
 // ---------- แถวแสดงผล ----------
@@ -337,7 +338,7 @@ export function buildRebalanceView(result: Extract<RebalanceResult, { ok: true }
 // ---------- ส่งออก CSV ----------
 
 const priceText = (micro: number): string => {
-  const whole = Math.floor(micro / 1_000_000);
+  const whole = (micro - (micro % 1_000_000)) / 1_000_000;
   const frac = String(micro % 1_000_000).padStart(6, '0').replace(/0+$/, '').padEnd(2, '0');
   return `${whole}.${frac}`;
 };
