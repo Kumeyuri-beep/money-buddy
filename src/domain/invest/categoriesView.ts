@@ -224,7 +224,15 @@ export interface CategoryTableRow {
   diffBps: number | null;
   status: TargetCompare;
   complete: boolean;
+  /** ความยาวแถบ vs. target (หน่วย 1/10,000 ของความกว้างราง) · สเกลเดียวกันทั้งตาราง = ค่ามากสุดของสัดส่วน/เป้า · สัดส่วน > 0 แต่เล็กมากได้ไม่ต่ำกว่า MIN_BAR_BPS · null = ไม่มีสัดส่วน */
+  barBps: number | null;
+  /** ตำแหน่งขีดเป้าบนรางเดียวกัน · null = ไม่มีเป้า */
+  markBps: number | null;
 }
+
+/** แถบที่มีสัดส่วนจริงแต่เล็กมากยังต้องมองเห็น (2.5% ของราง) */
+export const MIN_BAR_BPS = 250;
+const divInt = (a: number, b: number): number => (a - (a % b)) / b;
 
 /** ตารางสรุปต่อหมวด (ข้อมูลที่บันทึกแล้ว) · rows = แถวถือครองจาก buildHoldingsView ในสกุลที่แสดง */
 export function buildCategoryTable(rows: readonly HoldingRow[], assets: readonly Asset[], categories: readonly AssetCategory[], currency: DisplayCurrency): CategoryTableRow[] {
@@ -248,6 +256,11 @@ export function buildCategoryTable(rows: readonly HoldingRow[], assets: readonly
     weights = new Map(shares.map((s) => [s.key, s.bps]));
     if (shares.length === 0) weights = null;
   }
+  let scale = 1;
+  for (const g of groups) {
+    const w = weights?.get(g.id) ?? 0;
+    scale = Math.max(scale, w, g.targetBps ?? 0);
+  }
   return groups.map((g, i) => {
     const t = totals[i]!;
     const weightBps = weights === null ? null : (weights.get(g.id) ?? 0);
@@ -256,6 +269,8 @@ export function buildCategoryTable(rows: readonly HoldingRow[], assets: readonly
     return {
       id: g.id, name: g.name, count: g.rows.length, value: t.value, cost: t.cost, unrealized: t.unrealized, unrealizedBps: t.unrealizedBps,
       weightBps, targetBps: g.targetBps, diffBps, status, complete: t.complete,
+      barBps: weightBps === null ? null : weightBps === 0 ? 0 : Math.max(MIN_BAR_BPS, divInt(weightBps * CATEGORY_TARGET_TOTAL_BPS, scale)),
+      markBps: g.targetBps === null ? null : divInt(g.targetBps * CATEGORY_TARGET_TOTAL_BPS, scale),
     };
   });
 }

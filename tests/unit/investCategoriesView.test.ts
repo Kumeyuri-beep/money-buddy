@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   addDraftCategory, buildCategoryTable, bpsToPercentText, draftTotals, draftsToCategories, fromSectors, mergeCategories, moveCategory,
-  percentTextToBps, removeCategory, stateFromData, stateToSave, UNCATEGORIZED_ID, type CategoryState,
+  MIN_BAR_BPS, percentTextToBps, removeCategory, stateFromData, stateToSave, UNCATEGORIZED_ID, type CategoryState,
 } from '../../src/domain/invest/categoriesView';
 import { MAX_CATEGORIES, type Asset, type AssetCategory } from '../../src/domain/invest/types';
 import type { HoldingRow } from '../../src/domain/invest/holdingsView';
@@ -239,5 +239,30 @@ describe('buildCategoryTable (ตารางสรุปต่อหมวด �
   });
   it('ไม่มีหมวดและไม่มีสินทรัพย์ = ตารางว่าง', () => {
     expect(buildCategoryTable([], [], [], 'USD')).toEqual([]);
+  });
+});
+
+describe('buildCategoryTable: สเกลแถบ vs. target (คำนวณใน domain)', () => {
+  const two = (a: number, b: number, ta: number | null, tb: number | null) =>
+    buildCategoryTable([row('a', { value: a }), row('c', { value: b })], [asset('a', { categoryId: 'c1' }), asset('c', { categoryId: 'c2' })], [cat('c1', 'T', ta), cat('c2', 'H', tb)], 'USD');
+  it('สเกลเดียวกันทั้งตาราง = ค่ามากสุดของสัดส่วน/เป้า · ขีดเป้าและแถบอยู่บนรางเดียวกัน', () => {
+    const t = two(5000, 5000, 6000, 4000); // สัดส่วน 50/50 เป้า 60/40 → สเกล 60%
+    expect(t[0]).toMatchObject({ barBps: 8333, markBps: 10_000 });
+    expect(t[1]).toMatchObject({ barBps: 8333, markBps: 6666 });
+  });
+  it('ไม่มีเป้า: สเกล = สัดส่วนมากสุด · markBps null', () => {
+    const t = two(7500, 2500, null, null);
+    expect(t[0]).toMatchObject({ barBps: 10_000, markBps: null });
+    expect(t[1]).toMatchObject({ barBps: 3333 });
+  });
+  it('สัดส่วนน้อยมากแต่ > 0 ได้แถบอย่างน้อย MIN_BAR_BPS · สัดส่วน 0 = 0 · 0.01% ก็มองเห็น', () => {
+    const t = two(1, 9999, null, null); // 0.01% / 99.99%
+    expect(t[0]!.barBps).toBe(MIN_BAR_BPS);
+    expect(t[1]!.barBps).toBe(10_000);
+    expect(two(0, 100, null, null)[0]!.barBps).toBe(0);
+  });
+  it('สัดส่วนไม่ครบ (ไม่มีราคา) = barBps null แต่ขีดเป้ายังมี · เป้า 0% = ขีดที่ 0', () => {
+    const t = buildCategoryTable([row('a', { value: null, missing: 'price' })], [asset('a', { categoryId: 'c1' })], [cat('c1', 'T', 0)], 'USD');
+    expect(t[0]).toMatchObject({ barBps: null, markBps: 0 });
   });
 });

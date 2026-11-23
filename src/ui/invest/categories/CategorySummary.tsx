@@ -1,9 +1,9 @@
-import { useState, type ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import { formatBps } from '../../../domain/invest/allocation';
 import { UNCATEGORIZED_ID, type CategoryTableRow } from '../../../domain/invest/categoriesView';
 import type { DisplayCurrency } from '../../../domain/invest/displayCurrency';
 import { bpsText } from '../dashboard/dashboardView';
-import { money, moneySigned, NoData, signClass } from '../holdings/format';
+import { money, moneySigned, signClass } from '../holdings/format';
 import '../dashboard/dashboard.css';
 
 /** ตาราง + โดนัทสรุปต่อหมวด (แบบร่าง 25) · แสดงผลอย่างเดียว ตัวเลขทั้งหมดมาจาก buildCategoryTable (domain) */
@@ -15,6 +15,14 @@ const sliceClass = (r: CategoryTableRow, i: number): string => (r.id === UNCATEG
 
 const STATUS_TEXT = (r: CategoryTableRow): string =>
   r.status === 'none' || r.diffBps === null ? '—' : r.status === 'on' ? 'on target' : `${r.status === 'over' ? 'over' : 'under'} by ${bpsText(Math.abs(r.diffBps))}`;
+
+/** "—" ที่มีข้อความสำหรับโปรแกรมอ่านหน้าจอเสมอ */
+const dash = (reason: string): ReactNode => (
+  <>
+    <span aria-hidden="true">—</span>
+    <span className="sr-only">{reason}</span>
+  </>
+);
 
 const flag = (text: string): ReactNode => (
   <span className="hd-flag">
@@ -50,7 +58,9 @@ function Donut({ rows, active, onActive, total, currency }: { rows: readonly Cat
             strokeDasharray={`${Math.max(p.len - (parts.length > 1 ? GAP : 0), 0.01)} ${CIRC}`}
             strokeDashoffset={-p.off}
             onMouseEnter={() => onActive(p.r.id)}
-          />
+          >
+            <title>{`${p.r.name} ${formatBps(p.bps)}`}</title>
+          </circle>
         ))}
       </g>
       {parts.map((p) => {
@@ -114,11 +124,11 @@ export function CategorySummary({ rows, currency, total }: { rows: readonly Cate
                   </th>
                   <td className="num">
                     <span className="cg-strong">{r.value === null ? flag('No price') : money(currency, r.value)}</span>
-                    <span className="cg-sub">{r.cost === null ? <NoData kind={null} /> : money(currency, r.cost)}</span>
+                    <span className="cg-sub">{r.cost === null ? dash('No cost (a price or rate is missing)') : money(currency, r.cost)}</span>
                   </td>
                   <td className="num">
                     {r.unrealized === null ? (
-                      <NoData kind={null} />
+                      dash('No gain (a price is missing)')
                     ) : (
                       <>
                         <span className={signClass(r.unrealized)}>{moneySigned(currency, r.unrealized)}</span>
@@ -127,15 +137,15 @@ export function CategorySummary({ rows, currency, total }: { rows: readonly Cate
                     )}
                   </td>
                   <td className="num">
-                    <span className="cg-strong">{r.weightBps === null ? <NoData kind={null} /> : bpsText(r.weightBps)}</span>
+                    <span className="cg-strong">{r.weightBps === null ? dash('No allocation (a price is missing)') : bpsText(r.weightBps)}</span>
                     <span className="cg-sub">{r.targetBps === null ? 'no target' : `target ${bpsText(r.targetBps)}`}</span>
                   </td>
                   <td className="cg-vs">
                     <span className="cg-track" aria-hidden="true">
-                      <span className="cg-fill" style={{ width: `${r.weightBps === null ? 0 : r.weightBps / 100}%` }} />
-                      {r.targetBps !== null && <span className="cg-mark" style={{ left: `${r.targetBps / 100}%` }} />}
+                      <span className="cg-fill" style={{ '--w': r.barBps ?? 0 } as CSSProperties} />
+                      {r.markBps !== null && <span className="cg-mark" style={{ '--w': r.markBps } as CSSProperties} />}
                     </span>
-                    <span className={`cg-status is-${r.status}`}>{STATUS_TEXT(r)}</span>
+                    <span className={`cg-status is-${r.status}`}>{r.status === 'none' || r.diffBps === null ? dash(r.targetBps === null ? 'No target set' : 'No allocation to compare') : STATUS_TEXT(r)}</span>
                   </td>
                 </tr>
               ))}

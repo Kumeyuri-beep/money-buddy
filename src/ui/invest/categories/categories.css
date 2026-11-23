@@ -21,13 +21,14 @@
 .cg-sub.is-neg, .cg-table .is-neg { color: var(--expense); }
 .cg-vs { min-width: 150px; }
 .cg-track { position: relative; display: block; height: 8px; border-radius: 99px; background: var(--ov-10); }
-.cg-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; background: var(--bar, var(--ov-35)); }
-.cg-mark { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--text); }
+.cg-fill { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--w, 0) * 0.01%); border-radius: 99px; background: var(--bar, var(--ov-35)); }
+.cg-mark { position: absolute; top: -3px; bottom: -3px; left: calc(var(--w, 0) * 0.01%); width: 2px; margin-left: -1px; background: var(--text); }
 .cg-status { display: block; margin-top: 6px; font-size: 12px; font-weight: 600; color: var(--muted); text-align: right; }
 .cg-status.is-over, .cg-status.is-under { color: var(--warn); }
 .cg-status.is-on { color: var(--income); }
 .cg-row.s1 { --bar: var(--chart-slice1); } .cg-row.s2 { --bar: var(--chart-slice2); } .cg-row.s3 { --bar: var(--chart-slice3); } .cg-row.s4 { --bar: var(--chart-slice4); }
 .cg-row.s5 { --bar: var(--chart-slice5); } .cg-row.s6 { --bar: var(--chart-slice6); } .cg-row.s7 { --bar: var(--chart-slice7); } .cg-row.sother { --bar: var(--chart-slice-other); }
+.cg-table tbody th { padding-left: 16px; box-shadow: inset 4px 0 0 var(--bar, var(--ov-20)); } /* แถบสีหัวแถว = สีชิ้นโดนัท (ชื่อ/% อยู่ข้างสีเสมอ) */
 .cg-row.is-active > * { background: var(--ov-8); }
 
 /* ตัวแก้ */
