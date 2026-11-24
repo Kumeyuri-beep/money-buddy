@@ -58,6 +58,9 @@ describe('golden ข้อความไทยของ storage (ก่อน�
     expect(storageErrorFrom({ message: 'Failed to fetch' }).message).toBe('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง');
     expect(storageErrorFrom({ message: 'boom' }).message).toBe('บันทึกหรืออ่านข้อมูลไม่สำเร็จ ลองใหม่อีกครั้ง');
     expect(storageErrorFrom({ message: 'ข้อความจากฐานข้อมูล', code: '23514' }).message).toBe('ข้อความจากฐานข้อมูล');
+    // รหัสชนกันของเรา = PT409 (ข้อความไทยส่งต่อได้) · 40001 ไม่ใช่รหัสของเราแล้ว (PostgREST ลองซ้ำเอง) จึงไม่ส่งข้อความไทยต่อ
+    expect(storageErrorFrom({ message: 'สถานะบิลเปลี่ยนไปแล้ว (lastPaidMonth ไม่ตรง) โหลดใหม่แล้วลองอีกครั้ง', code: 'PT409' }).message).toBe('สถานะบิลเปลี่ยนไปแล้ว (lastPaidMonth ไม่ตรง) โหลดใหม่แล้วลองอีกครั้ง');
+    expect(storageErrorFrom({ message: 'สถานะบิลเปลี่ยนไปแล้ว', code: '40001' }).message).toBe('บันทึกหรืออ่านข้อมูลไม่สำเร็จ ลองใหม่อีกครั้ง');
     expect(storageErrorFrom({ message: 'bill_cycle_once' }).message).toBe('รอบนี้จ่ายแล้ว (อาจจ่ายจากอีกหน้าต่างหนึ่งไปก่อนแล้ว) โหลดใหม่เพื่อดูสถานะล่าสุด');
   });
 
