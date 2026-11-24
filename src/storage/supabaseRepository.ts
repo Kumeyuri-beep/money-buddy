@@ -503,6 +503,17 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
   }
 
   /**
+   * RPC ของรายการลงทุน (record_trade, record_trade_fx, replace_trade, delete_asset): ข้อมูลของสินทรัพย์เปลี่ยนระหว่างทำรายการ (PT409 ลายนิ้วมือไม่ตรง ·
+   * 40P01 deadlock กับการลบรายการตรงๆ · 40001 ของเดิม) = store.dataChanged ข้อความเดียว ("Data changed — reload and try again.") ไม่รั่วรายละเอียดภายใน
+   */
+  async function tradeRpc(name: string, args: Record<string, unknown>): Promise<unknown> {
+    const { data, error } = await client.rpc(name, args);
+    if (error && (error.code === 'PT409' || error.code === '40P01' || error.code === '40001')) throw storeError('store.dataChanged');
+    check(error);
+    return data;
+  }
+
+  /**
    * ไฟล์ใหญ่ (เกิน SINGLE_IMPORT_MAX_ENTRIES): แบ่งเป็นหลายคำสั่งเพื่อไม่ชนเพดานเวลา · ไม่อะตอมมิกทั้งไฟล์
    * ฐานข้อมูลจำ "เซสชันนำเข้า" ไว้ (import_ledger_begin เปิด ครบจำนวนที่ประกาศจึงปิด) ถ้าก้อนใดล้ม: สั่งล้างส่วนที่ค้างทันที
    * ล้างไม่ได้ (เช่นเน็ตหลุด) = เซสชันยังเปิด แอปจะพาไปหน้าล้างตอนเปิดครั้งหน้า ไม่ปล่อยเข้าใช้งานด้วยข้อมูลครึ่งเดียว
@@ -975,7 +986,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       }
       const linked: TradeRecord = { ...trade, entryId };
       // ครั้งเดียว: ฐานข้อมูลสร้างรายการในสมุด + รายการลงทุนในธุรกรรมเดียว · trigger ตรวจลำดับ/ขายเกินซ้ำ (กันสองแท็บ)
-      await rpc('record_trade', {
+      await tradeRpc('record_trade', {
         p_trade: {
           id: linked.id, assetId: linked.assetId, kind: linked.kind, date: linked.date, createdAt: linked.createdAt,
           units: linked.units, priceMicro: linked.priceMicro, amount: linked.amount, fee: linked.fee,
@@ -1047,7 +1058,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
         throw e;
       }
       const linked: TradeRecord = { ...trade, entryId };
-      await rpc('record_trade_fx', {
+      await tradeRpc('record_trade_fx', {
         p_trade: {
           id: linked.id, assetId: linked.assetId, kind: linked.kind, date: linked.date, createdAt: linked.createdAt,
           units: linked.units, priceMicro: linked.priceMicro, amount: linked.amount, fee: linked.fee,
@@ -1112,6 +1123,73 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
         .from('fx_rates')
         .upsert({ user_id: userId, account_id: rate.accountId, date: rate.date, rate_micro: rate.rateMicro }, { onConflict: 'user_id,account_id,date' });
       check(error);
+    },
+
+    async replaceTrade({ oldId, trade, walletId, cashAccountId }) {
+      if (oldId === '') throw storeError('store.tradeNotFound');
+      const found = await client.from('trades').select('*').eq('id', oldId).maybeSingle();
+      check(found.error);
+      if (!found.data) throw storeError('store.tradeNotFound');
+      const old = rowToTrade(found.data as TradeRow);
+      if (trade.assetId !== old.assetId || trade.kind !== old.kind) throw storeError('store.tradeNoRetype');
+      const foundAsset = await client.from('assets').select('*').eq('id', old.assetId).maybeSingle();
+      check(foundAsset.error);
+      if (!foundAsset.data) throw storeError('store.assetNotFound');
+      const asset = rowToAsset(foundAsset.data as AssetRow);
+      const siblings = await fetchAll<TradeRow>(
+        'trades',
+        (from, to) => client.from('trades').select('*').eq('asset_id', old.assetId).order('id').range(from, to),
+        (row) => row.id,
+        'id',
+        { column: 'asset_id', value: old.assetId },
+      );
+      const all = siblings.map(rowToTrade);
+      const coded = (problem: { message: string; code?: string; params?: Record<string, string | number> }) =>
+        problem.code ? withCode(new StorageError(problem.message), problem.code, problem.params ?? {}) : new StorageError(problem.message);
+      // แก้ได้เฉพาะรายการที่กติกาอนุญาต (เหมือนลบ) แล้วตรวจรายการใหม่เทียบกับรายการที่เหลือ (ซื้อ/ขายก่อนหลัง · ขายเกิน · ย้ายวันที่ขายไปก่อนวันซื้อ)
+      const editProblem = checkTradeDeleteCoded(all, oldId);
+      if (editProblem) throw coded(editProblem);
+      const rest = all.filter((t) => t.id !== oldId);
+      const addProblem = checkTradeAddCoded(rest, trade);
+      if (addProblem) throw coded(addProblem);
+      const usd = assetCurrency(asset) === 'USD';
+      if (usd && trade.fxRateMicro === undefined) throw storeError('store.fxRateRequired');
+      const entryId = `${trade.id}-entry`;
+      let built;
+      try {
+        if (usd) {
+          if (cashAccountId === undefined || cashAccountId === '') throw storeError('store.walletIdInvalid');
+          const replay = replayTradesFx(toTradesFx([...rest, trade]));
+          const sell = trade.kind === 'sell' ? replay.sells.find((x) => x.id === trade.id)?.result : undefined;
+          built = buildUsdTradeEntry({ trade, assetName: asset.name, assetAccountId: asset.accountId, cashAccountId, entryId, sell });
+        } else {
+          // ต้นทุนที่ตัดออกของรายการขาย: เล่นซ้ำรายการที่เหลือ + รายการใหม่ (ไม่รวมรายการเดิมที่กำลังแก้)
+          const sell = trade.kind === 'sell' ? replayRecords([...rest, trade]).sells.find((x) => x.id === trade.id)?.result : undefined;
+          built = buildTradeEntry({ trade, assetName: asset.name, assetAccountId: asset.accountId, walletId, entryId, sell });
+        }
+      } catch (e) {
+        if (e instanceof TradeLinkError || e instanceof UsdLinkError || e instanceof RangeError) throw carryCode(new StorageError(e.message), e);
+        throw e;
+      }
+      const linked: TradeRecord = { ...trade, entryId };
+      await tradeRpc('replace_trade', {
+        p_old_id: oldId,
+        p_trade: {
+          id: linked.id, assetId: linked.assetId, kind: linked.kind, date: linked.date, createdAt: linked.createdAt,
+          units: linked.units, priceMicro: linked.priceMicro, amount: linked.amount, fee: linked.fee,
+          withholding: linked.withholding, memo: linked.memo, fxRateMicro: linked.fxRateMicro,
+          // ลายนิ้วมือของรายการทั้งหมดของสินทรัพย์ ณ ตอนอ่าน (รวมรายการที่กำลังแก้) · ฐานข้อมูลเทียบหลังล็อก
+          basedOn: await tradesFingerprint(siblings),
+        },
+        p_entry: entryToJson(built.entry),
+        p_accounts: built.resultAccountIds.map((id) => ({ id })),
+      });
+      return linked;
+    },
+
+    async deleteAsset(id) {
+      if (id === '' || id.length > 90) throw storeError('store.assetIdInvalid');
+      await tradeRpc('delete_asset', { p_asset_id: id });
     },
 
     async deleteTrade(id) {
