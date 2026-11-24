@@ -168,7 +168,7 @@ begin
   r := pg_temp.fails($q$ select public.record_trade(
     '{"id":"t-a2x","assetId":"a2","kind":"buy","date":"2026-11-13","units":"1","priceMicro":1,"amount":1,"fee":0,"basedOn":0}'::jsonb,
     '{"id":"e-a2x","date":"2026-11-13","memo":"b","source":"manual","lines":[{"accountId":"inv2","amount":1},{"accountId":"w1","amount":-1}]}'::jsonb, '[]') $q$);
-  if r is null or r not like '40001|%' then raise exception 'FAIL: T9 basedOn ไม่ตรงผ่านได้ (%)', r; end if;
+  if r is null or r not like 'PT409|%' then raise exception 'FAIL: T9 basedOn ไม่ตรงผ่านได้ (%)', r; end if;
   -- เศษ .4999… ต้องปัดลง: units x price = 123456499999999999 → 123456.499999999999 สตางค์ = 123456 (ไม่ปัดสองรอบเป็น 123457)
   perform public.record_trade('{"id":"t-rd","assetId":"a2","kind":"sell","date":"2026-11-14","units":"123456499999999999","priceMicro":1,"fee":0,"basedOn":1}',
     '{"id":"e-rd","date":"2026-11-14","memo":"s","source":"manual","lines":[{"accountId":"w1","amount":123456},{"accountId":"inv2","amount":-617},{"accountId":"inv-gain","amount":-122839}]}', '[{"id":"inv-gain"}]');

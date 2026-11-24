@@ -1,6 +1,6 @@
 -- ทดสอบ migration 20261123000100_replace_trade_delete_asset: public.replace_trade (แก้รายการที่บันทึกแล้ว: กลับรายการเดิม + ลงรายการใหม่ในธุรกรรมเดียว)
 -- วิธีรัน: วางทั้งไฟล์ใน Supabase SQL Editor (หรือ execute_sql) **หลังใส่ migration** · จบด้วย rollback: TESTS_PASSED · ข้อมูลสมมติล้วน
--- หมายเหตุ: กรณี "สองเซสชันแก้รายการเดียวกันพร้อมกัน" พิสูจน์ในธุรกรรมเดียวไม่ได้ · ตรวจแทนด้วยกรณีเทียบเท่า: รายการเดิมถูกแก้ไปแล้ว (แก้ซ้ำรอบสองต้องได้ 23503 ไม่เกิดรายการซ้ำ) + basedOn ไม่ตรง 40001
+-- หมายเหตุ: กรณี "สองเซสชันแก้รายการเดียวกันพร้อมกัน" พิสูจน์ในธุรกรรมเดียวไม่ได้ · ตรวจแทนด้วยกรณีเทียบเท่า: รายการเดิมถูกแก้ไปแล้ว (แก้ซ้ำรอบสองต้องได้ 23503 ไม่เกิดรายการซ้ำ) + basedOn ไม่ตรง PT409
 
 create function pg_temp.settle() returns void language plpgsql as $$ begin execute 'set constraints all immediate'; execute 'set constraints all deferred'; end $$;
 create function pg_temp.fails(p_sql text) returns text language plpgsql as $$ begin execute p_sql; perform pg_temp.settle(); return null; exception when others then return sqlstate || '|' || sqlerrm; end $$;
@@ -126,7 +126,7 @@ begin
   if r is null or r not like '23514|%' then raise exception 'FAIL: T6 Entry ไม่ตรงรายการต้อง 23514 (ได้ %)', r; end if;
   if pg_temp.ac(ua, format($q$ select (select count(*) from public.trades where id = 't-div2' and user_id = %L) + (select count(*) from public.entries where id = 'e-div2' and user_id = %L) + (select count(*) from public.trades where id = 't-div3' and user_id = %L) * 100 $q$, ua, ua, ua)) <> 2 then raise exception 'FAIL: T6 ล้มแล้วไม่ย้อนกลับ'; end if;
 
-  -- T7 เปลี่ยนชนิด/ย้ายสินทรัพย์ไม่ได้ · basedOn ไม่ตรง 40001 · basedOn ใน p_trade 22023 · ไม่พบรายการ 23503 · รูปแบบผิด 22023
+  -- T7 เปลี่ยนชนิด/ย้ายสินทรัพย์ไม่ได้ · basedOn ไม่ตรง PT409 · basedOn ใน p_trade 22023 · ไม่พบรายการ 23503 · รูปแบบผิด 22023
   r := pg_temp.fails($q$ select public.replace_trade('t-div2', '{"id":"x1","assetId":"a1","kind":"buy","date":"2026-11-13","units":"100000000","priceMicro":5000000,"amount":500,"fee":0}'::jsonb,
     '{"id":"ex1","date":"2026-11-13","source":"manual","lines":[{"accountId":"inv1","amount":500},{"accountId":"w1","amount":-500}]}'::jsonb) $q$);
   if r is null or r not like '23514|%เปลี่ยนชนิด%' then raise exception 'FAIL: T7 เปลี่ยนชนิดต้อง 23514 (ได้ %)', r; end if;
@@ -135,7 +135,7 @@ begin
   if r is null or r not like '23514|%ย้ายรายการ%' then raise exception 'FAIL: T7 ย้ายสินทรัพย์ต้อง 23514 (ได้ %)', r; end if;
   r := pg_temp.fails($q$ select public.replace_trade('t-div2', '{"id":"x3","assetId":"a1","kind":"dividend","date":"2026-11-02","amount":2000,"withholding":200}'::jsonb,
     '{"id":"ex3","date":"2026-11-02","source":"manual","lines":[{"accountId":"w1","amount":1800},{"accountId":"inv-wht","amount":200},{"accountId":"inv-dividend","amount":-2000}]}'::jsonb, '[]'::jsonb, 99) $q$);
-  if r is null or r not like '40001|%' then raise exception 'FAIL: T7 basedOn ไม่ตรงต้อง 40001 (ได้ %)', r; end if;
+  if r is null or r not like 'PT409|%' then raise exception 'FAIL: T7 basedOn ไม่ตรงต้อง PT409 (ได้ %)', r; end if;
   r := pg_temp.fails($q$ select public.replace_trade('t-div2', '{"id":"x4","assetId":"a1","kind":"dividend","date":"2026-11-02","amount":2000,"withholding":200,"basedOn":0}'::jsonb,
     '{"id":"ex4","date":"2026-11-02","source":"manual","lines":[{"accountId":"w1","amount":1800},{"accountId":"inv-wht","amount":200},{"accountId":"inv-dividend","amount":-2000}]}'::jsonb) $q$);
   if r is null or r not like '22023|%' then raise exception 'FAIL: T7 basedOn ใน p_trade ต้อง 22023 (ได้ %)', r; end if;
