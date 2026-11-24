@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { chunkEntries } from '../domain/backup/chunk';
 import { buildTradeEntry, TradeLinkError } from '../domain/invest/ledgerLink';
 import { checkTradeAddCoded, checkTradeDeleteCoded, replayRecords } from '../domain/invest/rules';
+import { tradesFingerprint } from '../domain/invest/tradesFingerprint';
 import { withCode } from '../domain/errors/coded';
 import { replayTradesFx } from '../domain/invest/costBasisFx';
 import { fxRateFromExchange } from '../domain/invest/fx';
@@ -979,7 +980,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
           id: linked.id, assetId: linked.assetId, kind: linked.kind, date: linked.date, createdAt: linked.createdAt,
           units: linked.units, priceMicro: linked.priceMicro, amount: linked.amount, fee: linked.fee,
           withholding: linked.withholding, memo: linked.memo,
-          basedOn: existing.length, // จำนวนรายการเดิมที่ใช้คำนวณต้นทุน · ฐานข้อมูลเทียบหลังล็อก (กันสองแท็บ)
+          basedOn: await tradesFingerprint(siblings), // ลายนิ้วมือรายการเดิมที่ใช้คำนวณต้นทุน · ฐานข้อมูลเทียบหลังล็อก (กันสองแท็บ รวมกรณีแก้รายการจำนวนเท่าเดิม)
         },
         p_entry: entryToJson(built.entry),
         p_accounts: built.resultAccountIds.map((id) => ({ id })),
@@ -1051,7 +1052,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
           id: linked.id, assetId: linked.assetId, kind: linked.kind, date: linked.date, createdAt: linked.createdAt,
           units: linked.units, priceMicro: linked.priceMicro, amount: linked.amount, fee: linked.fee,
           withholding: linked.withholding, memo: linked.memo, fxRateMicro: linked.fxRateMicro,
-          basedOn: existing.length,
+          basedOn: await tradesFingerprint(siblings),
         },
         p_entry: entryToJson(built.entry),
         p_accounts: built.resultAccountIds.map((id) => ({ id })),

@@ -97,9 +97,9 @@ begin
   if r is null or r not like '23514|%' then raise exception 'FAIL: T4a ช่องว่างนำหน้าต้องล้ม (ได้ %)', r; end if;
   r := pg_temp.fails(format($q$ select public.save_categories(%L::jsonb) $q$, jsonb_build_array(jsonb_build_object('id', 'c1', 'name', repeat('x', 61)))::text));
   if r is null or r not like '23514|%' then raise exception 'FAIL: T4b ยาวเกิน 60 ต้องล้ม (ได้ %)', r; end if;
-  r := pg_temp.fails($q$ select public.save_categories('[{"id":"c1","name":"Te​ch"}]'::jsonb) $q$);
+  r := pg_temp.fails($q$ select public.save_categories('[{"id":"c1","name":"Te\u200Bch"}]'::jsonb) $q$);
   if r is null or r not like '23514|%' then raise exception 'FAIL: T4c อักขระศูนย์ความกว้างต้องล้ม (ได้ %)', r; end if;
-  r := pg_temp.fails($q$ select public.save_categories('[{"id":"c1","name":"Te‮ch"}]'::jsonb) $q$);
+  r := pg_temp.fails($q$ select public.save_categories('[{"id":"c1","name":"Te\u202Ech"}]'::jsonb) $q$);
   if r is null or r not like '23514|%' then raise exception 'FAIL: T4d ตัวกลับทิศต้องล้ม (ได้ %)', r; end if;
   r := pg_temp.fails($q$ select public.save_categories('[{"id":"c1","name":""}]'::jsonb) $q$);
   if r is null or r not like '23514|%' then raise exception 'FAIL: T4e ชื่อว่างต้องล้ม (ได้ %)', r; end if;
