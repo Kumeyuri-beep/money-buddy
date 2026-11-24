@@ -291,7 +291,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
     setReview(null);
     setEditProblemText('');
     const linked = linkedCashAccountId(entries.find((en) => en.id === old.entryId), asset.accountId, accounts);
-    if (linked) setCashId(linked);
+    setCashId(linked ?? ''); // ไม่พบบัญชีเดิม: ไม่ใช้ค่าที่ค้างจากฟอร์มอื่น (activeCash ใช้บัญชีแรก ผู้ใช้เลือกเองได้)
     open({ type: 'trade', assetId: old.assetId, kind: old.kind as UsTradeKind, editId: old.id }, opener);
   };
 

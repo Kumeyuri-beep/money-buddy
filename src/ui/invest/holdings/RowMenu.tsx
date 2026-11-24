@@ -111,7 +111,7 @@ export function RowMenu({ label, onPick, deleteAsset }: { label: string; onPick:
             >
               Delete asset
               {deleteAsset.reason !== null && (
-                <span id="hd-da-why" className="hd-menuhint">
+                <span id="hd-da-why" className="hd-menuhint" aria-hidden="true">
                   {deleteAsset.reason}
                 </span>
               )}

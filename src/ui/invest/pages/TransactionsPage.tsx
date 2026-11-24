@@ -117,6 +117,7 @@ export function TransactionsPage() {
     opener.current = from;
     if (entry.reason !== null || !entry.plan.ok) {
       setMessage({ kind: 'error', text: entry.reason ?? DESKTOP_ONLY_TEXT });
+      titleRef.current?.scrollIntoView?.({ block: 'nearest' }); // ข้อความอยู่ใต้หัวข้อหน้า: เลื่อนให้เห็นเมื่อกดแถวล่าง
       return;
     }
     setMessage(null);

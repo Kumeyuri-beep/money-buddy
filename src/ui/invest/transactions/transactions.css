@@ -62,5 +62,5 @@
   .edit-impact-table th.num, .edit-impact-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
   .edit-impact-table tr.is-changed th, .edit-impact-table tr.is-changed td { font-weight: 700; }
   .edit-changed { font-weight: 400; font-size: 12px; color: var(--muted); }
-  .edit-actions-note { margin: 0; }
+  .edit-review-title { margin: 0; font-size: 16px; }
 }
