@@ -1534,3 +1534,25 @@ money-auditor ตรวจ 5 ตัวที่เกี่ยวกับเง
 ### 102.5 เส้นทางทดสอบบนคอม (ไม่ต้องทดสอบมือถือ ตามกติกา)
 - Categories: `/harness.html?seed=1&investDemo=cat#/invest/portfolio/categories` (ข้อมูลสมมติ) · Rebalancing: `/harness.html?seed=1&investDemo=rebal#/invest/tools/rebalancing` ใส่ 350 กด See result (ตัวอย่าง A: CCC 2.187 หุ้น = $131.22, DDD 8.750 = $218.75, Left over $0.03)
 - ของจริง: `npm run dev` ล็อกอิน → โหมด Invest → Portfolio → Categories (ตั้งหมวด/เป้า/ย้ายหุ้น/สร้างจาก sector) → Tools → Rebalancing
+
+## 103. ต่อจาก §102 (24 พ.ย. 2569): #259/#263 merge · basedOn ลายนิ้วมือ + PT409 (PR #264) · กรณียกเว้นลบผู้ใช้ทดสอบ
+
+**สถานะ**
+- #259 (replace_trade + delete_asset ฐานข้อมูล) merge แล้ว · เทสต์ SQL ครบ 28 ไฟล์ + live-contract 66/66 ทั้ง branch และ main
+- #263 (แก้ `categories_test.sql` ใช้รหัสหนี `​`/`‮`) merge แล้ว
+- **PR #264** `auto/r2-basedon-fingerprint`: migration 20261124000100 (basedOn เป็นลายนิ้วมือ sha256 ของรายการทั้งหมดของสินทรัพย์ รวม created_at) + 20261124000200 (รหัสชนกัน 40001 → PT409) **ใส่ในฐานข้อมูลจริงแล้วทั้งคู่** · money-auditor/security-auditor ผ่าน · dry-run rollback ผ่าน · live-contract บน branch 67/67 · รอ CI + live-contract บน main หลัง merge
+- SQL หลัง 000100: ครบ 29 ไฟล์ผ่าน · หลัง 000200: รันซ้ำ invest_ledger, basedon_fingerprint (T1–T11), replace_trade (T1–T14) ผ่าน · **ยังไม่ได้รันซ้ำ**: replace_trade T15–T18, delete_asset, invest_schema, usd_phase_a, usd_fx_entry_lock และไฟล์อื่น (ตรรกะไม่เปลี่ยน · ถ้าต้องการให้ครบ 29 ให้สั่ง)
+
+**ทำไม 40001 → PT409** (สาเหตุที่ live-contract ค้าง ~60 วินาที): PostgREST ถือ 40001 ที่ raise เองใน RPC ว่า "ลองใหม่ได้" แล้วรันซ้ำเองจนกว่าจะเปลี่ยนผล ([Supabase KB](https://supabase.com/docs/guides/troubleshooting/high-cpu-and-infinite-transaction-retries-when-using-custom-error-codes-in-rpc-functions-77326b)) · ฝั่งฐานข้อมูลตอบ 19 ms ถูกต้อง · ค้นพบจากเทสต์ live ข้อใหม่ `tradesFingerprint.live.ts` (ข้อแรกที่ยิง 40001 ผ่าน RPC) · หลังแก้ใช้ 1.7 วินาที · เคยเจอกับ merge_settings_if มาก่อน (20261113000400) · **กฎ: ห้าม raise รหัส 40001 ใน RPC ใหม่ ใช้ PT409**
+- **ข้อควรทำภายหลัง (backlog):** ถอด `'40001'` ออกจาก `OWN_CODES` ใน `supabaseRepository.ts` เมื่อไม่มีฟังก์ชันไหนส่งแล้ว · บันทึกการรัน live-contract ที่ล้มก่อนแก้: ข้อ `tradesFingerprint.live.ts > ซื้อสองครั้ง…` หมดเวลา 60 วินาทีทุกรอบ (ซ้ำ 4 รอบ ไม่ใช่ไม่นิ่ง) สาเหตุตามข้างบน (ดู `.live-logs/` และ `live-requests.log`: `POST record_trade 409` ~59 วินาที)
+
+**กรณียกเว้นครั้งเดียว (เจ้าของอนุญาต 24 พ.ย. 2569):** ลบผู้ใช้ทดสอบ `…fe01` (ที่ผู้ช่วยสร้างผ่าน SQL หลายธุรกรรมบนฐานข้อมูลจริงเพื่อไล่ปัญหา 40001) ด้วย `delete from auth.users where id = …` ธุรกรรมเดียว เพราะผู้ใช้นั้นขาด `auth.identities`/metadata/token ที่ Dashboard ต้องใช้ จึงลบผ่าน Dashboard ไม่ได้ ("Database error loading user") · ตรวจก่อน commit ในธุรกรรมเดียวกัน: users 3, fx_exchanges 2, trades 4, แถวของ fe01 = 0 ทุกตาราง (ผ่าน) · **กรณีนี้ไม่ใช่ใบอนุญาตถาวร**
+
+**กฎใหม่ (เจ้าของสั่ง 24 พ.ย. 2569):**
+1. ห้ามทดลองบนฐานข้อมูลจริงด้วยหลายธุรกรรมที่ commit ข้อมูลสมมติ · การทดลองต้องอยู่ใน transaction เดียวที่ rollback ทุกครั้ง
+2. ห้ามสร้างผู้ใช้ทดสอบผ่าน SQL บนฐานข้อมูลจริงนอก transaction ที่ rollback
+3. ห้าม `delete from auth.users` ตรงๆ (นอกจากกรณียกเว้นข้างบน)
+4. ปัญหาที่ต้องไล่ ให้หาจากโค้ด/log ก่อน; จะแตะฐานข้อมูลจริงต้องอยู่ใน rollback
+
+**งานถัดไป (รอเจ้าของสั่ง):** หน้าแก้รายการที่บันทึกแล้ว + ปุ่ม Delete asset (§102.2 ข้อ 4) · หมายเหตุ: หน้าแก้ต้องคำนวณลายนิ้วมือจาก **ทุกแถวรวมแถวที่กำลังแก้** แล้วส่งใน `p_trade.basedOn` · จับ PT409 และ 40P01 (deadlock) เป็น "โหลดใหม่แล้วลองอีกครั้ง"
+- backlog จากผู้ตรวจ: บังคับ basedOn สำหรับ sell ในฐานข้อมูล · ถอดแบบตัวเลข (ตอบ 22023 "โหลดหน้าใหม่") หลังเว็บใหม่ขึ้นแล้ว · escape ตัวคั่น/length-prefix ในสูตรลายนิ้วมือ · เทสต์ SQL รายฟิลด์ว่าลายนิ้วมือเปลี่ยน
