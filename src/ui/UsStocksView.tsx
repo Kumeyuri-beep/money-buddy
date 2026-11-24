@@ -4,14 +4,17 @@ import { useDesktop } from './useDesktop';
 import { baht, signed } from '../app/bahtFormat';
 import { formatDateEn } from '../app/dateEn';
 import { newId } from '../app/ids';
+import { linkedCashAccountId, usTradeToForm } from '../app/tradeEditForm';
 import { buildFxExchange, buildUsTradeRecord, emptyFxExchangeForm, emptyUsTradeForm, parseFxRate, type FxExchangeForm, type UsFormError, type UsTradeForm, type UsTradeKind } from '../app/usForms';
 import { fxRateText, usd, usdPrice, usdSigned } from '../app/usdFormat';
+import { EditImpact } from './invest/transactions/EditImpact';
 import { buildUsPortfolio, type UsStockRow } from '../app/usPortfolio';
 import { formatBps } from '../domain/invest/allocation';
 import { validSector } from '../domain/invest/categories';
 import { GICS_SECTORS } from '../domain/invest/categoriesView';
+import { previewTradeEdit, type EditSide, type TradeEditPreview } from '../domain/invest/editImpact';
 import { suggestWithholding } from '../domain/invest/fx';
-import { INSTRUMENT_EXCHANGES, assetCurrency, emptyInvestments, type InvestmentData } from '../domain/invest/types';
+import { INSTRUMENT_EXCHANGES, assetCurrency, emptyInvestments, type InvestmentData, type TradeRecord } from '../domain/invest/types';
 import { formatUnits, parsePriceMicro } from '../domain/invest/units';
 import type { Account, Entry } from '../domain/ledger/types';
 import { formatMicro } from '../domain/money/micro';
@@ -33,17 +36,17 @@ interface Props {
   formsOnly?: boolean;
 }
 
-export type UsStocksRequest = { nonce: number } & ({ panel: 'stock' } | { panel: 'exchange' } | { panel: 'cash' } |{ panel: 'trade'; assetId: string; kind?: UsTradeKind } | { panel: 'price'; assetId: string });
+export type UsStocksRequest = { nonce: number } & ({ panel: 'stock' } | { panel: 'exchange' } | { panel: 'cash' } |{ panel: 'trade'; assetId: string; kind?: UsTradeKind } | { panel: 'price'; assetId: string } | { panel: 'edit'; tradeId: string });
 
 type Panel =
   | { type: 'exchange' }
   | { type: 'stock' }
   | { type: 'cash' }
-  | { type: 'trade'; assetId: string; kind: UsTradeKind }
+  | { type: 'trade'; assetId: string; kind: UsTradeKind; /** มี = กำลังแก้รายการนี้ (ฟอร์มเดียวกับ Add เติมค่าเดิม · บันทึกผ่าน replaceTrade) */ editId?: string }
   | { type: 'price'; assetId: string }
   | null;
 
-function StockShell({ desktop, onClose, children }: { desktop: boolean; onClose: () => void; children: ReactNode }) {
+function StockShell({ desktop, onClose, children, labelledBy = 'us-stock-title' }: { desktop: boolean; onClose: () => void; children: ReactNode; labelledBy?: string }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const d = ref.current;
@@ -51,7 +54,7 @@ function StockShell({ desktop, onClose, children }: { desktop: boolean; onClose:
   }, []);
   if (!desktop) {
     return (
-      <section className="solid card" aria-labelledby="us-stock-title">
+      <section className="solid card" aria-labelledby={labelledBy}>
         {children}
       </section>
     );
@@ -60,7 +63,7 @@ function StockShell({ desktop, onClose, children }: { desktop: boolean; onClose:
     <dialog
       ref={ref}
       className="entry-dialog"
-      aria-labelledby="us-stock-title"
+      aria-labelledby={labelledBy}
       onCancel={(e) => {
         e.preventDefault();
         onClose();
@@ -152,6 +155,9 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
   const [tradeErrors, setTradeErrors] = useState<UsFormError<keyof UsTradeForm>[]>([]);
   const [priceForm, setPriceForm] = useState({ date: today, price: '', fxRate: '' });
   const [priceError, setPriceError] = useState('');
+  /** ขั้น "ตรวจผลกระทบ" ของการแก้รายการ: รายการใหม่ที่สร้างจากฟอร์ม + ตัวเลขก่อน→หลัง (ยังไม่บันทึกจนกว่าจะกดยืนยัน) */
+  const [review, setReview] = useState<{ trade: TradeRecord; before: EditSide; after: EditSide } | null>(null);
+  const [editProblemText, setEditProblemText] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -190,6 +196,8 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
   };
   const close = () => {
     setPanel(null);
+    setReview(null);
+    setEditProblemText('');
     const el = openerRef.current;
     if (el && el.isConnected) window.setTimeout(() => el.focus(), 0);
   };
@@ -273,18 +281,53 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
     open({ type: 'trade', assetId: row.assetId, kind }, opener);
   };
 
+  /** เปิดฟอร์มแก้รายการที่บันทึกแล้ว: ฟอร์มเดียวกับ Add เติมค่าเดิม · เงินสด USD เริ่มที่บัญชีที่รายการเดิมใช้ */
+  const openEdit = (tradeId: string, opener?: HTMLElement) => {
+    const old = data?.trades.find((t) => t.id === tradeId);
+    const asset = old ? data?.assets.find((a) => a.id === old.assetId) : undefined;
+    if (!old || !asset) return setMessage({ text: 'This transaction no longer exists. Reload the page and try again.', kind: 'error' });
+    setTradeForm(usTradeToForm(old));
+    setTradeErrors([]);
+    setReview(null);
+    setEditProblemText('');
+    const linked = linkedCashAccountId(entries.find((en) => en.id === old.entryId), asset.accountId, accounts);
+    if (linked) setCashId(linked);
+    open({ type: 'trade', assetId: old.assetId, kind: old.kind as UsTradeKind, editId: old.id }, opener);
+  };
+
   const submitTrade = async (e: FormEvent) => {
     e.preventDefault();
     if (busy) return;
     const r = buildUsTradeRecord(tradeForm, newId('trade'), nextCreatedAt(), today);
     if (!r.ok) return setTradeErrors(r.errors);
     setTradeErrors([]);
+    if (panel?.type === 'trade' && panel.editId !== undefined) {
+      // แก้รายการ: ตรวจกติกาและแสดงผลกระทบก่อน-หลัง ยังไม่บันทึก (กดยืนยันในขั้นถัดไป)
+      const preview: TradeEditPreview = previewTradeEdit({ trades: (data?.trades ?? []).filter((t) => t.assetId === panel.assetId), oldId: panel.editId, next: r.trade, usd: true });
+      if (!preview.ok) return setEditProblemText(investProblem(preview.problem));
+      setEditProblemText('');
+      return setReview({ trade: r.trade, before: preview.before, after: preview.after });
+    }
     setBusy(true);
     try {
       await repo.recordTradeFx({ trade: r.trade, cashAccountId: activeCash });
       await finish(`${KIND_LABEL[tradeForm.kind as UsTradeKind]} saved`);
     } catch (err) {
       fail(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmEdit = async () => {
+    if (busy || !review || panel?.type !== 'trade' || panel.editId === undefined) return;
+    setBusy(true);
+    try {
+      await repo.replaceTrade({ oldId: panel.editId, trade: review.trade, cashAccountId: activeCash });
+      await finish('Transaction updated');
+    } catch (err) {
+      setReview(null); // ชนกัน/ผิดกติกาจากฐานข้อมูล: กลับไปฟอร์มพร้อมข้อความ
+      setEditProblemText(investError(err));
     } finally {
       setBusy(false);
     }
@@ -351,6 +394,10 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
     handledRequest.current = request.nonce;
     if (request.panel === 'stock' || request.panel === 'exchange' || request.panel === 'cash') {
       open({ type: request.panel });
+      return;
+    }
+    if (request.panel === 'edit') {
+      openEdit(request.tradeId, document.activeElement instanceof HTMLElement ? document.activeElement : undefined);
       return;
     }
     const row = view.rows.find((r) => r.assetId === request.assetId);
@@ -581,11 +628,27 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
         </StockShell>
       )}
 
-      {panel?.type === 'trade' && (
-        <section className="solid card" aria-labelledby="us-trade-title">
+      {panel?.type === 'trade' && (() => {
+        const editing = panel.editId !== undefined;
+        const body = (
+        <>
           <h2 id="us-trade-title" ref={headingRef} tabIndex={-1}>
-            {KIND_LABEL[tradeKind]} {stockRow(panel.assetId)?.ticker}
+            {editing ? `Edit ${KIND_LABEL[tradeKind].toLowerCase()}` : KIND_LABEL[tradeKind]} {stockRow(panel.assetId)?.ticker}
           </h2>
+          {review ? (
+            <div className="settings-form" onKeyDown={closeOnEscape}>
+              <h3 className="edit-review-title">Check the change before you save</h3>
+              <EditImpact before={review.before} after={review.after} currency="USD" />
+              <div className="dialog-actions">
+                <button type="button" className="btn btn-ghost btn-small" onClick={() => setReview(null)} disabled={busy}>
+                  Back
+                </button>
+                <button type="button" className="btn btn-primary btn-small" onClick={() => void confirmEdit()} disabled={busy}>
+                  {busy ? 'Saving…' : 'Save changes'}
+                </button>
+              </div>
+            </div>
+          ) : (
           <form onSubmit={submitTrade} onKeyDown={closeOnEscape} className="settings-form" noValidate>
             <div className="field-row">
               <Field id="us-t-date" label="Date" type="date" value={form.date} onChange={(v) => setT({ date: v })} error={errOf(tradeErrors, 'date')} />
@@ -645,17 +708,33 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
             )}
             <Field id="us-t-memo" text label="Note (optional)" value={form.memo} onChange={(v) => setT({ memo: v })} error={errOf(tradeErrors, 'memo')} />
             {activeCash === '' && <p className="avg-err">Create a USD cash account and exchange some baht first before you can record entries</p>}
+            {editProblemText !== '' && (
+              <p className="avg-err" role="alert" data-testid="edit-problem">
+                {editProblemText}
+              </p>
+            )}
             <div className="dialog-actions">
               <button type="button" className="btn btn-ghost btn-small" onClick={close}>
                 Cancel
               </button>
               <button type="submit" className="btn btn-primary btn-small" disabled={busy || activeCash === ''}>
-                {busy ? 'Saving…' : `Save ${KIND_LABEL[tradeKind].toLowerCase()}`}
+                {busy ? 'Saving…' : editing ? 'Review change' : `Save ${KIND_LABEL[tradeKind].toLowerCase()}`}
               </button>
             </div>
           </form>
-        </section>
-      )}
+          )}
+        </>
+        );
+        return editing ? (
+          <StockShell desktop={desktop} onClose={close} labelledBy="us-trade-title">
+            {body}
+          </StockShell>
+        ) : (
+          <section className="solid card" aria-labelledby="us-trade-title">
+            {body}
+          </section>
+        );
+      })()}
 
       {panel?.type === 'price' && (
         <section className="solid card" aria-labelledby="us-price-title">

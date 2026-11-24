@@ -178,19 +178,20 @@ for (const w of WIDTHS) {
       await expect(page.getByRole('row', { name: /Cash withdrawal/ }).locator('td').nth(4)).toContainText(/^\u2212\$/);
     });
 
-    test('Edit กดแล้วมีข้อความบอก (role=status) · confirm ลบบอกว่าลบอะไร', async ({ page }) => {
+    test('Edit ที่ปิดกดแล้วมีข้อความบอกเหตุผล (มือถือ: Available on desktop) · confirm ลบบอกว่าลบอะไร', async ({ page }) => {
       await openTx(page);
-      await page.getByRole('button', { name: /^Edit Sell DEMB/ }).click({ force: true });
-      await expect(page.getByText('Editing is not available yet. Delete and add it again.').first()).toBeVisible();
+      // ซื้อ DEMB อยู่ก่อนรายการขายล่าสุด: คอม = ปิดเพราะกติกา R17 · มือถือ = ปิดเพราะแก้ได้เฉพาะบนคอม
+      await page.getByRole('button', { name: /^Edit Buy DEMB/ }).click({ force: true }); // aria-disabled: Playwright ถือว่ากดไม่ได้ แต่ผู้ใช้กดได้และต้องเห็นเหตุผล
+      await expect(page.getByRole('alert').filter({ hasText: w.width >= 1024 ? 'Delete the later sale first' : 'Available on desktop' })).toBeVisible();
       await page.getByRole('button', { name: /^Delete Sell DEMB/ }).click();
       await expect(page.getByRole('alertdialog')).toContainText('Sell DEMB · 10 Jun 2026 · 5 shares');
     });
 
-    test('ปุ่ม Edit ปิดพร้อมคำอธิบาย (ยังไม่มีการแก้รายการที่บันทึกแล้ว)', async ({ page }) => {
+    test('ปุ่ม Edit ที่ปิดมีคำอธิบายให้โปรแกรมอ่านหน้าจอ (ซื้อก่อนรายการขาย / มือถือ)', async ({ page }) => {
       await openTx(page);
-      const edit = page.getByRole('button', { name: /^Edit Sell DEMB/ });
+      const edit = page.getByRole('button', { name: /^Edit Buy DEMB/ });
       await expect(edit).toHaveAttribute('aria-disabled', 'true');
-      await expect(edit).toHaveAccessibleDescription(/not available yet/);
+      await expect(edit).toHaveAccessibleDescription(w.width >= 1024 ? /Delete the later sale first/ : /Available on desktop/);
     });
   });
 }

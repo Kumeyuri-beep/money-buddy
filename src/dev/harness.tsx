@@ -12,6 +12,8 @@ import { createDexieRepository } from '../storage/ledgerRepository';
 import { App } from '../ui/App';
 import { RepositoryProvider, localLedgerRepository } from '../ui/RepositoryContext';
 import { buildCashAdjustmentEntry } from '../domain/invest/cashAdjustment';
+import { editedTradeOf } from '../domain/invest/editImpact';
+import type { TradeRecord } from '../domain/invest/types';
 import { categoriesDemoRepository } from './categoriesDemo';
 import { rebalanceDemoRepository, type RebalanceDemoKind } from './rebalanceDemo';
 import { demoCashLedger, demoInvestments, demoInvestmentsNoRate, demoInvestmentsWithHistory, demoTransactionsData, demoTransactionsLedger } from './investDemo';
@@ -127,6 +129,14 @@ function makeTxRepository() {
     deleteFxExchange: (id: string) => {
       demo.fxExchanges = (demo.fxExchanges ?? []).filter((x) => x.id !== id);
       return Promise.resolve();
+    },
+    // แก้รายการสมมติในหน่วยความจำ (กติกาจริงตรวจที่ฟอร์มด้วย previewTradeEdit ก่อนถึงตรงนี้ · ฐานข้อมูลจริงทดสอบด้วย live-contract)
+    replaceTrade: ({ oldId, trade }: { oldId: string; trade: TradeRecord }) => {
+      const old = demo.trades.find((t) => t.id === oldId);
+      if (!old) return Promise.reject(new Error('missing'));
+      const next = editedTradeOf(old, trade);
+      demo.trades = demo.trades.map((t) => (t.id === oldId ? next : t));
+      return Promise.resolve(next);
     },
     deleteEntry: (id: string) => {
       if (extra.entries.some((e) => e.id === id)) {

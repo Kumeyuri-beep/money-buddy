@@ -78,3 +78,29 @@ export function previewTradeEdit(input: { trades: readonly TradeRecord[]; oldId:
     return { ok: false, problem: problemOfError(e, problem('rules.replayFallback')) };
   }
 }
+
+/** แถวของตาราง Transactions ที่ใช้ตัดสินว่าแก้ได้ไหม (ชนิดย่อยของ TxRow) */
+export interface EditableRowRef {
+  source: 'trade' | 'fx' | 'entry';
+  sourceId: string;
+  assetId: string | null;
+  kind: string;
+}
+
+export type TransactionEditPlan =
+  | { ok: true; usd: boolean; tradeId: string; assetId: string }
+  | { ok: false; why: 'notTrade' | 'unsupported' }
+  | { ok: false; why: 'rule'; problem: CodedProblem };
+
+/**
+ * แถวนี้แก้ได้ไหม · แก้ได้เฉพาะรายการลงทุน (ซื้อ/ขาย/ปันผล/ปันผลลงทุนต่อ) ที่กติกา R17 อนุญาต
+ * แลกเงิน/โอน/ปรับยอดเงินสด = notTrade (ยังไม่มีการแก้ ให้ลบแล้วเพิ่มใหม่) · ปันผลลงทุนต่อของสินทรัพย์ USD ไม่มีฟอร์ม = unsupported
+ */
+export function planTransactionEdit(row: EditableRowRef, trades: readonly TradeRecord[], usdAssetIds: ReadonlySet<string>): TransactionEditPlan {
+  if (row.source !== 'trade' || row.assetId === null) return { ok: false, why: 'notTrade' };
+  const usd = usdAssetIds.has(row.assetId);
+  if (usd && row.kind === 'reinvest') return { ok: false, why: 'unsupported' };
+  const problemOf = tradeEditProblem(trades.filter((t) => t.assetId === row.assetId), row.sourceId);
+  if (problemOf) return { ok: false, why: 'rule', problem: problemOf };
+  return { ok: true, usd, tradeId: row.sourceId, assetId: row.assetId };
+}

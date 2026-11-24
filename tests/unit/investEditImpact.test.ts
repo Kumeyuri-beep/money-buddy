@@ -132,3 +132,27 @@ describe('previewTradeEdit · สินทรัพย์ USD (R20)', () => {
     expect(r.ok).toBe(false);
   });
 });
+
+import { planTransactionEdit } from '../../src/domain/invest/editImpact';
+
+describe('planTransactionEdit (ปุ่ม Edit ของตาราง Transactions)', () => {
+  const trades = [buy('b1', '2026-01-02', 10, 100000), sell('s1', '2026-01-10', 4, 150_000_000)];
+  const row = (over: Partial<{ source: 'trade' | 'fx' | 'entry'; sourceId: string; assetId: string | null; kind: string }> = {}) => ({ source: 'trade' as const, sourceId: 'b1', assetId: 'a1', kind: 'buy', ...over });
+  it('แลกเงิน/เงินสด = แก้ไม่ได้ (notTrade)', () => {
+    expect(planTransactionEdit(row({ source: 'fx', assetId: null }), trades, new Set())).toEqual({ ok: false, why: 'notTrade' });
+    expect(planTransactionEdit(row({ source: 'entry', assetId: null }), trades, new Set())).toEqual({ ok: false, why: 'notTrade' });
+  });
+  it('ซื้อก่อนรายการขาย = แก้ไม่ได้ พร้อมปัญหาจากกติกา', () => {
+    const p = planTransactionEdit(row(), trades, new Set());
+    expect(p.ok).toBe(false);
+    if (!p.ok && p.why === 'rule') expect(p.problem.code).toBe('rules.deleteBeforeLastSell');
+    else throw new Error('ควรเป็น rule');
+  });
+  it('ขายล่าสุด = แก้ได้ และบอกว่าเป็นสินทรัพย์บาทหรือ USD', () => {
+    expect(planTransactionEdit(row({ sourceId: 's1', kind: 'sell' }), trades, new Set())).toEqual({ ok: true, usd: false, tradeId: 's1', assetId: 'a1' });
+    expect(planTransactionEdit(row({ sourceId: 's1', kind: 'sell' }), trades, new Set(['a1']))).toMatchObject({ ok: true, usd: true });
+  });
+  it('ปันผลลงทุนต่อของสินทรัพย์ USD = unsupported', () => {
+    expect(planTransactionEdit(row({ kind: 'reinvest' }), trades, new Set(['a1']))).toEqual({ ok: false, why: 'unsupported' });
+  });
+});
