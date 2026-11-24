@@ -114,6 +114,15 @@ export interface LedgerRepository {
   recordTrade(input: { trade: TradeRecord; walletId?: string }): Promise<TradeRecord>;
   /** รายการที่ผูกสมุด = ลบรายการในสมุด (รายการลงทุนถูกลบตาม) · รายการเก่าที่ยังไม่ผูก = ลบตรงๆ ตามกติกาเดียวกัน */
   deleteTrade(id: string): Promise<void>;
+  /**
+   * แก้รายการลงทุนที่บันทึกแล้ว (R2 · RPC replace_trade ธุรกรรมเดียว: กลับรายการเดิม + ลงรายการใหม่) · ออนไลน์เท่านั้น
+   * input.trade = รายการใหม่ (รหัสใหม่ · assetId/kind ต้องเท่าเดิม) · THB ใช้ walletId · USD (หุ้นสหรัฐ) ใช้ cashAccountId + fxRateMicro ในรายการ
+   * ตรวจก่อนส่ง: แก้ได้เฉพาะรายการที่กติกาอนุญาต (ซื้อ/ปันผลลงทุนต่อต้องหลังรายการขายล่าสุด · ขายต้องเป็นล่าสุด) · ต้นทุนที่ตัดออกของรายการขายคำนวณด้วย replay ที่ไม่รวมรายการเดิม ·
+   * basedOn = ลายนิ้วมือของรายการทั้งหมดของสินทรัพย์ (ชนกัน PT409/40P01/40001 = store.dataChanged)
+   */
+  replaceTrade(input: { oldId: string; trade: TradeRecord; walletId?: string; cashAccountId?: string }): Promise<TradeRecord>;
+  /** ลบสินทรัพย์ที่ไม่เหลือรายการ + บัญชีต้นทุนของมัน (RPC delete_asset) · ยังมีรายการ/บัญชีต้นทุนมีบรรทัด = StorageError ไม่ลบอะไร */
+  deleteAsset(id: string): Promise<void>;
   /** ราคาล่าสุดที่ผู้ใช้กรอกเอง (หนึ่งราคาต่อสินทรัพย์ต่อวัน · กรอกซ้ำวันเดิม = แก้ราคา) */
   savePrice(price: AssetPrice): Promise<void>;
 
@@ -180,6 +189,8 @@ export function createDexieRepository(db: MoneyDB): LedgerRepository {
     setCategoryHidden: (id, hidden) => dexie.setCategoryHidden(db, id, hidden),
     recordTrade: () => Promise.reject(localInvestError()),
     deleteTrade: () => Promise.reject(localInvestError()),
+    replaceTrade: () => Promise.reject(localInvestError()),
+    deleteAsset: () => Promise.reject(localInvestError()),
     savePrice: () => Promise.reject(localInvestError()),
     addUsdCash: () => Promise.reject(localInvestError()),
     addUsdStock: () => Promise.reject(localInvestError()),

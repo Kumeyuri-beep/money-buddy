@@ -88,6 +88,12 @@ export const storeMsg = defineMessages({
     en: () => 'Currency exchange not found. It may already have been deleted.',
   },
   'store.tradeNotFound': { th: () => 'ไม่พบรายการนี้ อาจถูกลบไปแล้ว', en: () => 'Transaction not found. It may already have been deleted.' },
+  // ข้อมูลของสินทรัพย์เปลี่ยนระหว่างแก้/บันทึก (อีกแท็บ/อุปกรณ์ หรือฐานข้อมูลชนกัน PT409/40P01/40001) · ข้อความเดียว ไม่รั่วรายละเอียดภายใน
+  'store.dataChanged': { th: () => 'ข้อมูลเปลี่ยนไปแล้ว โหลดใหม่แล้วลองอีกครั้ง', en: () => 'Data changed — reload and try again.' },
+  'store.tradeNoRetype': {
+    th: () => 'แก้ชนิดรายการหรือย้ายไปสินทรัพย์อื่นไม่ได้ (ลบแล้วบันทึกใหม่)',
+    en: () => 'You cannot change the type of a saved transaction or move it to another stock. Delete it and add a new one.',
+  },
   'store.tradeDeleteFailed': { th: () => 'ลบรายการไม่สำเร็จ (ไม่พบรายการ)', en: () => 'Could not delete the transaction (not found).' },
   'store.fxRateInvalid': {
     th: () => 'อัตราแลกเปลี่ยนต้องเป็นจำนวนเต็ม micro ที่มากกว่า 0',

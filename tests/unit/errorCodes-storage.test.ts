@@ -142,7 +142,7 @@ describe('รหัส + อังกฤษ ของ storage', () => {
     ['store.assetIdInvalid', {}], ['store.assetNameLength', { max: 200 }], ['store.assetKindInvalid', {}], ['store.walletIdInvalid', {}], ['store.walletNameLength', { max: 200 }],
     ['store.usdAccountIdInvalid', {}], ['store.usdAccountNameLength', { max: 200 }], ['store.stockNameLength', { max: 200 }], ['store.tickerLength', { max: 20 }],
     ['store.exchangeUnsupported', {}], ['store.assetNotFound', {}], ['store.usdOnly', {}], ['store.fxRateRequired', {}], ['store.fxExchangeNotFound', {}],
-    ['store.tradeNotFound', {}], ['store.tradeDeleteFailed', {}], ['store.fxRateInvalid', {}], ['store.priceInvalid', {}], ['store.settingsConflict', {}], ['store.localInvestUnsupported', {}],
+    ['store.tradeNotFound', {}], ['store.dataChanged', {}], ['store.tradeNoRetype', {}], ['store.tradeDeleteFailed', {}], ['store.fxRateInvalid', {}], ['store.priceInvalid', {}], ['store.settingsConflict', {}], ['store.localInvestUnsupported', {}],
     ['store.categoryCount', {}], ['store.categoryId', {}], ['store.categoryName', {}], ['store.categorySort', {}], ['store.categoryTarget', {}], ['store.categoryDuplicateId', {}], ['store.categoryDuplicateName', {}], ['store.categoryTargetTotal', {}],
     ...(['fee', 'withholding', 'unitPrice', 'tradeValue', 'fxRate', 'thbExchanged', 'usdExchanged', 'price', 'lineAmount', 'billAmount'] as const).map((field): [string, P] => ['store.badNumber', { field }]),
   ];
