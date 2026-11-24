@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildHoldingsView, columnsFor, DEFAULT_HOLDINGS_QUERY, filterAndSort, HOLDINGS_TABS, perShareMinor, planHoldingDelete, pricePerShareMinor, totalsOf, type HoldingRow,
+  buildHoldingsView, columnsFor, DEFAULT_HOLDINGS_QUERY, filterAndSort, HOLDINGS_TABS, perShareMinor, planAssetDelete, planHoldingDelete, pricePerShareMinor, totalsOf, type HoldingRow,
 } from '../../src/domain/invest/holdingsView';
 import type { Asset, InvestmentData, TradeRecord } from '../../src/domain/invest/types';
 
@@ -359,5 +359,18 @@ describe('planHoldingDelete: กรณีขอบ', () => {
     ];
     const r = planHoldingDelete(tr, 'x');
     expect(r.ok && r.ids).toEqual(['s', 'd', 'b']);
+  });
+});
+
+describe('planAssetDelete: ลบสินทรัพย์ได้เฉพาะที่ไม่เหลือรายการ', () => {
+  const tr = (id: string, assetId: string): TradeRecord => ({ id, assetId, kind: 'buy', date: '2026-01-02', createdAt: '2026-01-02T01:00:00.000Z', units: '100000000', amount: 100, fee: 0, withholding: 0, memo: '' });
+  it('ไม่มีรายการ = ลบได้', () => {
+    expect(planAssetDelete([], 'x')).toEqual({ ok: true });
+  });
+  it('มีรายการของสินทรัพย์อื่นเท่านั้น = ลบได้', () => {
+    expect(planAssetDelete([tr('a', 'y')], 'x')).toEqual({ ok: true });
+  });
+  it('ยังมีรายการ = ลบไม่ได้ และบอกจำนวนที่เหลือ', () => {
+    expect(planAssetDelete([tr('a', 'x'), tr('b', 'x'), tr('c', 'y')], 'x')).toEqual({ ok: false, count: 2 });
   });
 });

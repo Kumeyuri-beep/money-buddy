@@ -2,11 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import { formatDateEn } from '../../../app/dateEn';
 import { fxRateText } from '../../../app/usdFormat';
 import {
-  buildHoldingsView, columnsFor, DEFAULT_HOLDINGS_QUERY, filterAndSort, HOLDINGS_TABS, planHoldingDelete, SORT_KEYS, totalsOf,
+  buildHoldingsView, columnsFor, DEFAULT_HOLDINGS_QUERY, filterAndSort, HOLDINGS_TABS, planAssetDelete, planHoldingDelete, SORT_KEYS, totalsOf,
   type ColumnId, type HoldingRow, type HoldingsQuery, type HoldingsTab, type SortKey,
 } from '../../../domain/invest/holdingsView';
 import { buildHoldingsCsv, holdingsCsvFilename } from '../../../domain/invest/holdingsCsv';
 import { useRepository } from '../../RepositoryContext';
+import { useDesktop } from '../../useDesktop';
 import { UsStocksView, type UsStocksRequest } from '../../UsStocksView';
 import { usdMissingRate } from '../../../domain/invest/metrics';
 import { MissingRateNotice } from '../MissingRateNotice';
@@ -23,10 +24,11 @@ type WithoutNonce<T> = T extends unknown ? Omit<T, 'nonce'> : never;
 export function HoldingsPage({ addSignal }: { addSignal: number }) {
   const { today, accounts, entries, wallets, onLedgerChanged, reload, data, loadError, currency } = useInvest();
   const repo = useRepository();
+  const desktop = useDesktop();
   const [tab, setTab] = useState<HoldingsTab>('holdings');
   const [q, setQ] = useState<HoldingsQuery>(DEFAULT_HOLDINGS_QUERY);
   const [openId, setOpenId] = useState('');
-  const [confirm, setConfirm] = useState<{ row: HoldingRow; from: HTMLElement } | null>(null);
+  const [confirm, setConfirm] = useState<{ row: HoldingRow; from: HTMLElement; kind: 'records' | 'asset' } | null>(null);
   const [busy, setBusy] = useState(false);
   const [formsKey, setFormsKey] = useState(0); // ลบแล้วให้ฟอร์ม/รายการด้านล่าง (UsStocksView โหลดข้อมูลเอง) โหลดใหม่
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
@@ -60,11 +62,42 @@ export function HoldingsPage({ addSignal }: { addSignal: number }) {
     if (a === 'add') ask({ panel: 'trade', assetId: row.assetId });
     else if (a === 'edit') ask({ panel: 'price', assetId: row.assetId });
     else if (a === 'open') setOpenId((id) => (id === row.assetId ? '' : row.assetId));
-    else setConfirm({ row, from });
+    else if (a === 'deleteAsset') {
+      if (data && planAssetDelete(data.trades, row.assetId).ok) setConfirm({ row, from, kind: 'asset' });
+    } else setConfirm({ row, from, kind: 'records' });
+  };
+
+  /** ลบสินทรัพย์ที่ไม่เหลือรายการ (RPC delete_asset ตรวจซ้ำที่ฐานข้อมูล: ยังมีรายการ/ต้นทุนไม่เป็นศูนย์ = ปฏิเสธ ไม่ลบอะไร) */
+  const doDeleteAsset = async () => {
+    if (!confirm || confirm.kind !== 'asset' || busy) return;
+    const { row, from } = confirm;
+    setBusy(true);
+    let ok = false;
+    try {
+      await repo.deleteAsset(row.assetId);
+      ok = true;
+      setMessage({ kind: 'ok', text: `Deleted asset ${row.ticker || row.name}` });
+    } catch (e) {
+      setMessage({ kind: 'error', text: `Could not delete the asset: ${investError(e)}` });
+    } finally {
+      setBusy(false);
+      setConfirm(null);
+      try {
+        await reload();
+      } catch (e) {
+        setMessage((m) => m ?? { kind: 'error', text: `Could not refresh holdings: ${investError(e)}` });
+      } finally {
+        onLedgerChanged();
+        if (ok) {
+          setFormsKey((k) => k + 1);
+          titleRef.current?.focus(); // แถวที่กดลบหายไปแล้ว: โฟกัสไปที่หัวข้อหน้า
+        } else from.focus();
+      }
+    }
   };
 
   const doDelete = async () => {
-    if (!confirm || !data || busy) return;
+    if (!confirm || confirm.kind !== 'records' || !data || busy) return;
     const { row, from } = confirm;
     const plan = planHoldingDelete(data.trades, row.assetId);
     if (!plan.ok) {
@@ -256,7 +289,7 @@ export function HoldingsPage({ addSignal }: { addSignal: number }) {
                       </thead>
                       <tbody>
                         {shown.map((r) => (
-                          <HoldingTr key={r.assetId} needsRate={needsRateIds.has(r.assetId)} r={r} cols={cols} currency={currency} open={openId === r.assetId} onPick={onPick} />
+                          <HoldingTr key={r.assetId} needsRate={needsRateIds.has(r.assetId)} deleteAsset={desktop ? { reason: deleteAssetReason(data?.trades ?? [], r.assetId) } : undefined} r={r} cols={cols} currency={currency} open={openId === r.assetId} onPick={onPick} />
                         ))}
                       </tbody>
                       <tfoot>
@@ -290,9 +323,11 @@ export function HoldingsPage({ addSignal }: { addSignal: number }) {
 
         {confirm && (
           <section ref={confirmRef} onKeyDown={confirmKey} className="solid card hd-confirm" role="alertdialog" aria-labelledby="hd-del-title" aria-describedby="hd-del-desc">
-            <h2 id="hd-del-title">Delete {confirm.row.ticker || confirm.row.name}?</h2>
+            <h2 id="hd-del-title">{confirm.kind === 'asset' ? 'Delete asset ' : 'Delete '}{confirm.row.ticker || confirm.row.name}?</h2>
             <p id="hd-del-desc" className="muted">
-              This deletes every record of this holding (buys, sells and dividends) and reverses the matching ledger entries. It cannot be undone. If one record can't be deleted, nothing is deleted.
+              {confirm.kind === 'asset'
+                ? 'This removes the asset and its cost account from your portfolio. It has no transactions left, so no money changes. It cannot be undone; to track it again you add it as a new asset.'
+                : "This deletes every record of this holding (buys, sells and dividends) and reverses the matching ledger entries. It cannot be undone. If one record can't be deleted, nothing is deleted."}
             </p>
             <div className="dialog-actions">
               <button
@@ -303,8 +338,8 @@ export function HoldingsPage({ addSignal }: { addSignal: number }) {
               >
                 Keep
               </button>
-              <button type="button" className="iv-btn iv-btn-danger" disabled={busy} onClick={() => void doDelete()}>
-                {busy ? 'Deleting…' : `Delete ${deleteCount} ${deleteCount === 1 ? 'record' : 'records'}`}
+              <button type="button" className="iv-btn iv-btn-danger" disabled={busy} onClick={() => void (confirm.kind === 'asset' ? doDeleteAsset() : doDelete())}>
+                {busy ? 'Deleting…' : confirm.kind === 'asset' ? 'Delete asset' : `Delete ${deleteCount} ${deleteCount === 1 ? 'record' : 'records'}`}
               </button>
             </div>
           </section>
@@ -328,8 +363,14 @@ export function HoldingsPage({ addSignal }: { addSignal: number }) {
   );
 }
 
-function HoldingTr(props: { needsRate: boolean; r: HoldingRow; cols: ColumnId[]; currency: 'USD' | 'THB'; open: boolean; onPick: (r: HoldingRow, a: RowAction, from: HTMLElement) => void }) {
-  const { r, cols, currency, open, onPick, needsRate } = props;
+/** เหตุผลที่ปุ่ม Delete asset ปิด (null = ลบได้) · จำนวนรายการที่เหลือมาจาก domain (planAssetDelete) */
+function deleteAssetReason(trades: Parameters<typeof planAssetDelete>[0], assetId: string): string | null {
+  const plan = planAssetDelete(trades, assetId);
+  return plan.ok ? null : `Delete its ${plan.count} ${plan.count === 1 ? 'transaction' : 'transactions'} first`;
+}
+
+function HoldingTr(props: { needsRate: boolean; deleteAsset?: { reason: string | null }; r: HoldingRow; cols: ColumnId[]; currency: 'USD' | 'THB'; open: boolean; onPick: (r: HoldingRow, a: RowAction, from: HTMLElement) => void }) {
+  const { r, cols, currency, open, onPick, needsRate, deleteAsset } = props;
   const label = r.ticker || r.name;
   return (
     <>
@@ -350,7 +391,7 @@ function HoldingTr(props: { needsRate: boolean; r: HoldingRow; cols: ColumnId[];
           </td>
         ))}
         <td className="hd-actions">
-          <RowMenu label={`Actions for ${label}`} onPick={(a, from) => onPick(r, a, from)} />
+          <RowMenu label={`Actions for ${label}`} onPick={(a, from) => onPick(r, a, from)} deleteAsset={deleteAsset} />
         </td>
       </tr>
       {open && (

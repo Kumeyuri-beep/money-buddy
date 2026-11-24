@@ -102,6 +102,12 @@ function makeDemoRepository() {
       demo.trades = demo.trades.filter((t) => t.id !== id);
       return Promise.resolve();
     },
+    // ลบสินทรัพย์สมมติ: ฐานข้อมูลจริงปฏิเสธเมื่อยังมีรายการ (ที่นี่ทำแบบเดียวกันเพื่อให้ทดสอบหน้าจอได้ตรง)
+    deleteAsset: (id: string) => {
+      if (demo.trades.some((t) => t.assetId === id)) return Promise.reject(new Error('asset still has transactions'));
+      demo.assets = demo.assets.filter((a) => a.id !== id);
+      return Promise.resolve();
+    },
   };
 }
 

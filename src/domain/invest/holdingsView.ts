@@ -399,3 +399,11 @@ export function planHoldingDelete(trades: readonly TradeRecord[], assetId: strin
   }
   return { ok: true, ids: order.map((t) => t.id) };
 }
+
+/** ลบสินทรัพย์ได้เฉพาะตัวที่ไม่เหลือรายการลงทุนเลย (R2 ข้อ 4) · count = จำนวนรายการที่ยังเหลือ (ใช้บอกผู้ใช้ว่าต้องลบกี่รายการก่อน) */
+export type AssetDeletePlan = { ok: true } | { ok: false; count: number };
+
+export function planAssetDelete(trades: readonly TradeRecord[], assetId: string): AssetDeletePlan {
+  const count = trades.filter((t) => t.assetId === assetId).length;
+  return count === 0 ? { ok: true } : { ok: false, count };
+}
