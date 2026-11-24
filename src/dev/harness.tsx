@@ -16,7 +16,7 @@ import { editedTradeOf } from '../domain/invest/editImpact';
 import type { TradeRecord } from '../domain/invest/types';
 import { categoriesDemoRepository } from './categoriesDemo';
 import { rebalanceDemoRepository, type RebalanceDemoKind } from './rebalanceDemo';
-import { demoCashLedger, demoInvestments, demoInvestmentsNoRate, demoInvestmentsWithHistory, demoTransactionsData, demoTransactionsLedger } from './investDemo';
+import { demoCashLedger, demoInvestments, demoInvestmentsNoRate, demoInvestmentsWithHistory, demoTransactionsData, demoTransactionsDataWithThai, demoTransactionsLedger } from './investDemo';
 import { AccountContext } from '../ui/AuthContext';
 import { PasswordPromptProvider } from '../ui/PasswordPrompt';
 import '@fontsource/ibm-plex-sans-thai/400.css';
@@ -78,8 +78,8 @@ function Harness() {
           <RepositoryProvider repository={categoriesDemoRepository()}>
             <App />
           </RepositoryProvider>
-        ) : params.get('investDemo') === '1' || params.get('investDemo') === 'report' || params.get('investDemo') === 'norate' || params.get('investDemo') === 'cash' || params.get('investDemo') === 'cashneg' || params.get('investDemo') === 'tx' ? (
-          <RepositoryProvider repository={params.get('investDemo') === 'report' ? { ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestmentsWithHistory()) } : params.get('investDemo') === 'norate' ? { ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestmentsNoRate()) } : params.get('investDemo') === 'cash' || params.get('investDemo') === 'cashneg' ? cashDemoRepository(params.get('investDemo') === 'cashneg') : params.get('investDemo') === 'tx' ? txRepository() : demoRepository()}>
+        ) : params.get('investDemo') === '1' || params.get('investDemo') === 'report' || params.get('investDemo') === 'norate' || params.get('investDemo') === 'cash' || params.get('investDemo') === 'cashneg' || params.get('investDemo') === 'tx' || params.get('investDemo') === 'txthb' ? (
+          <RepositoryProvider repository={params.get('investDemo') === 'report' ? { ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestmentsWithHistory()) } : params.get('investDemo') === 'norate' ? { ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestmentsNoRate()) } : params.get('investDemo') === 'cash' || params.get('investDemo') === 'cashneg' ? cashDemoRepository(params.get('investDemo') === 'cashneg') : params.get('investDemo') === 'tx' ? txRepository() : params.get('investDemo') === 'txthb' ? txRepository(true) : demoRepository()}>
             <App />
           </RepositoryProvider>
         ) : (
@@ -106,11 +106,11 @@ function makeDemoRepository() {
 }
 
 /** ที่เก็บสมมติของหน้า Transactions (?investDemo=tx): ข้อมูลลงทุน + บัญชี/รายการสมุดเพิ่ม · ลบ trade/แลกเงิน/รายการสมุดสมมติได้ในหน่วยความจำ (ไม่เขียนฐานข้อมูล) */
-let txRepo: ReturnType<typeof makeTxRepository> | null = null;
-const txRepository = () => (txRepo ??= makeTxRepository());
-function makeTxRepository() {
+const txRepos: { plain?: ReturnType<typeof makeTxRepository>; thai?: ReturnType<typeof makeTxRepository> } = {};
+const txRepository = (thai = false) => (thai ? (txRepos.thai ??= makeTxRepository(true)) : (txRepos.plain ??= makeTxRepository(false)));
+function makeTxRepository(thai: boolean) {
   const base = localLedgerRepository();
-  const demo = demoTransactionsData();
+  const demo = thai ? demoTransactionsDataWithThai() : demoTransactionsData();
   const extra = demoTransactionsLedger();
   const gone = new Set<string>();
   return {

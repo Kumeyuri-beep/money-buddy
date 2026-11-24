@@ -21,13 +21,14 @@ import { investError, investProblem } from '../investError';
 import { IncompleteTag } from '../MissingRateNotice';
 import { AddMenu, type AddAction } from '../transactions/AddMenu';
 import { CashAdjustForm } from '../transactions/CashAdjustForm';
+import { ThaiTradeEdit } from '../transactions/ThaiTradeEdit';
 import { DESKTOP_ONLY_TEXT, editDisabledReason } from '../transactions/editReason';
 import { AmountCell, amountText, NoValue, signedAmountText } from '../transactions/format';
 import { StockPicker } from '../transactions/StockPicker';
 import '../transactions/transactions.css';
 
 type WithoutNonce<T> = T extends unknown ? Omit<T, 'nonce'> : never;
-type Panel = { type: 'pick'; kind: UsTradeKind } | { type: 'cash' } | { type: 'transfer' } | { type: 'thai' } | { type: 'needCash' } | null;
+type Panel = { type: 'pick'; kind: UsTradeKind } | { type: 'cash' } | { type: 'transfer' } | { type: 'thai' } | { type: 'needCash' } | { type: 'thaiEdit'; tradeId: string } | null;
 
 /** ข้อความของปุ่ม Edit ที่ปิด (แถวไหนปิดเพราะอะไร): คลิกแล้วอ่านเหตุผลได้ · โปรแกรมอ่านหน้าจออ่านผ่าน aria-describedby */
 const EDIT_NOTE = 'Edit changes a saved transaction and recalculates your average cost. Buttons that are off explain why when you select them.';
@@ -75,9 +76,7 @@ export function TransactionsPage() {
     const usdIds = new Set(data.assets.filter((a) => assetCurrency(a) === 'USD').map((a) => a.id));
     for (const r of view.rows) {
       const plan = planTransactionEdit(r, data.trades, usdIds);
-      // ชั่วคราว (ชิ้นถัดไปของ PR นี้ทำฟอร์มสินทรัพย์บาท): ยังแก้สินทรัพย์บาทไม่ได้
-      const reason = plan.ok && !plan.usd ? 'Editing Thai fund / Thai stock transactions is not available yet. Delete it and add it again.' : editDisabledReason(plan, desktop);
-      m.set(r.key, { plan, reason });
+      m.set(r.key, { plan, reason: editDisabledReason(plan, desktop) });
     }
     return m;
   }, [data, view, desktop]);
@@ -121,8 +120,12 @@ export function TransactionsPage() {
       return;
     }
     setMessage(null);
-    setPanel(null);
-    ask({ panel: 'edit', tradeId: entry.plan.tradeId });
+    if (entry.plan.usd) {
+      setPanel(null);
+      ask({ panel: 'edit', tradeId: entry.plan.tradeId });
+    } else {
+      setPanel({ type: 'thaiEdit', tradeId: entry.plan.tradeId });
+    }
   };
 
   const refresh = async (text: string) => {
@@ -462,6 +465,27 @@ export function TransactionsPage() {
             }}
           />
         )}
+        {panel?.type === 'thaiEdit' && data && (() => {
+          const trade = data.trades.find((t) => t.id === panel.tradeId);
+          const asset = trade ? data.assets.find((a) => a.id === trade.assetId) : undefined;
+          if (!trade || !asset) return null;
+          return (
+            <ThaiTradeEdit
+              trade={trade}
+              asset={asset}
+              assetTrades={data.trades.filter((t) => t.assetId === asset.id)}
+              accounts={accounts}
+              entries={entries}
+              wallets={wallets}
+              today={today}
+              onClose={closePanel}
+              onSaved={(text) => {
+                closePanel();
+                void refresh(text);
+              }}
+            />
+          );
+        })()}
         {panel?.type === 'needCash' && (
           <section className="solid card tx-panel" aria-labelledby="tx-need-title" onKeyDown={(e) => e.key === 'Escape' && closePanel()}>
             <h2 id="tx-need-title" tabIndex={-1} ref={needRef}>

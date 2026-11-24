@@ -6,9 +6,9 @@ import { obscured, overflowing, watch } from './helpers/layoutChecks';
  * คอม: ปุ่ม Edit เปิดฟอร์มเดียวกับ Add เติมค่าเดิม → ตรวจผลกระทบก่อน→หลัง → ยืนยัน · ปุ่มที่แก้ไม่ได้ปิดพร้อมเหตุผล
  * มือถือ (<1024px): ปุ่ม Edit ปิดพร้อม "Available on desktop" กดแล้วไม่เปิดอะไรและไม่พัง
  */
-async function openTx(page: Page): Promise<void> {
+async function openTx(page: Page, demo: 'tx' | 'txthb' = 'tx'): Promise<void> {
   await page.route((url) => !/^(localhost|127\.0\.0\.1)$/.test(url.hostname), (route) => route.abort());
-  await page.goto('/harness.html?seed=1&investDemo=tx#/invest/portfolio/transactions');
+  await page.goto(`/harness.html?seed=1&investDemo=${demo}#/invest/portfolio/transactions`);
   await expect(page.getByRole('heading', { name: 'Transactions', level: 2, exact: true })).toBeVisible({ timeout: 20_000 });
   await expect(page.locator('.tx-table')).toBeVisible();
 }
@@ -98,6 +98,40 @@ for (const w of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
       await expect(edit).toBeFocused();
     });
 
+    test('แก้ยอดซื้อกองทุนไทย: ต้องเลือกกระเป๋า → ตรวจก่อน→หลัง (ต้นทุนเฉลี่ย ฿10.00 → ฿12.00) → ยืนยัน', async ({ page }) => {
+      const seen = watch(page);
+      await openTx(page, 'txthb');
+      await page.getByRole('button', { name: /^Edit Buy Demo Thai Fund/ }).click();
+      const dialog = page.getByRole('dialog', { name: /Edit buy: Demo Thai Fund/ });
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByLabel('Amount invested (THB)')).toHaveValue('1000.00');
+      await expect(dialog.getByLabel('Units', { exact: true })).toHaveValue('100');
+      await dialog.getByLabel('Amount invested (THB)').fill('1200.00');
+      // ยังไม่เลือกกระเป๋า: ไม่ให้ไปขั้นตรวจผลกระทบ
+      await dialog.getByRole('button', { name: 'Review change' }).click();
+      await expect(dialog.getByRole('alert').filter({ hasText: 'Choose the wallet' })).toBeVisible();
+      await dialog.getByLabel('Pay from wallet').selectOption({ index: 1 });
+      await dialog.getByRole('button', { name: 'Review change' }).click();
+      const avg = dialog.getByTestId('edit-impact').getByRole('row', { name: /Average cost per share/ });
+      await expect(avg).toContainText('฿10.00');
+      await expect(avg).toContainText('฿12.00');
+      await dialog.getByRole('button', { name: 'Save changes' }).click();
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await expect(page.getByText('Transaction updated')).toBeVisible();
+      await expect(page.getByRole('row', { name: /Buy.*Demo Thai Fund/ })).toContainText('฿1,200.00');
+      expect(await overflowing(page), 'ล้นจอ').toEqual([]);
+      expect(seen.errors).toEqual([]);
+    });
+
+    test('ปันผลกองทุนไทย: เติมค่าเดิม · ชนิดรายการเปลี่ยนไม่ได้ (ไม่มีช่อง Trade type)', async ({ page }) => {
+      await openTx(page, 'txthb');
+      await page.getByRole('button', { name: /^Edit Dividend Demo Thai Fund/ }).click();
+      const dialog = page.getByRole('dialog', { name: /Edit cash dividend: Demo Thai Fund/ });
+      await expect(dialog.getByLabel('Dividend amount (THB)')).toHaveValue('50.00');
+      await expect(dialog.getByLabel('Withholding tax (THB)')).toHaveValue('5.00');
+      await expect(dialog.getByLabel('Trade type')).toHaveCount(0);
+    });
+
     test('แลกเงิน/เงินสด: ปุ่ม Edit ปิดพร้อมเหตุผล', async ({ page }) => {
       await openTx(page);
       const edit = page.getByRole('button', { name: /^Edit Currency exchange/ });
@@ -110,6 +144,15 @@ for (const w of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
 for (const w of [{ width: 360, height: 740 }, { width: 390, height: 844 }]) {
   test.describe(`แก้รายการ (มือถือ ${w.width}px: ปิดพร้อม Available on desktop)`, () => {
     test.use({ viewport: w, locale: 'en-US', timezoneId: 'Asia/Bangkok' });
+
+    test('กองทุนไทย: ปุ่ม Edit ปิดเหมือนกัน กดแล้วไม่เปิดฟอร์ม', async ({ page }) => {
+      await openTx(page, 'txthb');
+      const edit = page.getByRole('button', { name: /^Edit Buy Demo Thai Fund/ });
+      await expect(edit).toHaveAttribute('aria-disabled', 'true');
+      await edit.click({ force: true });
+      await expect(page.getByRole('alert').filter({ hasText: 'Available on desktop' })).toBeVisible();
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+    });
 
     test('ปุ่ม Edit ทุกแถวปิด กดแล้วขึ้นข้อความ ไม่เปิดฟอร์ม ไม่ล้นจอ', async ({ page }) => {
       const seen = watch(page);
