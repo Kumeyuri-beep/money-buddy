@@ -164,6 +164,26 @@ describe('replaceTrade (บาท)', () => {
   });
 });
 
+describe('replaceTrade: วันที่ไม่เปลี่ยน = คงลำดับเวลาเดิม (เหมือนฐานข้อมูล)', () => {
+  it('ซื้อ 10:00 ขาย 09:00 วันเดียวกันไม่ได้อยู่แล้ว · ขายวัน 11-10 เวลาเช้า ซื้อ 11-10 เวลาสาย (ซื้อหลังขาย) ส่ง createdAt ใหม่แล้ว replay ต้องใช้เวลาเดิมของรายการเดิม', async () => {
+    const buyEarly = row({ id: 'b0', kind: 'buy', date: '2026-11-01', units: '1000000000', price_micro: 5000000, amount: 50000, fee: 100 });
+    const s1 = row({ id: 's9', kind: 'sell', date: '2026-11-10', created_at: '2026-11-10T03:00:00+00:00', units: '500000000', price_micro: 6000000, fee: 10 });
+    const { repo, calls } = repoWith(thbAsset, withOldFirst(s1, [buyEarly, s1]));
+    const next: TradeRecord = { ...asRecord(s1), id: 's9-new', createdAt: '2030-01-01T00:00:00.000Z', units: '400000000' };
+    await repo.replaceTrade({ oldId: 's9', trade: next, walletId: 'w1' });
+    const args = calls.find((c) => c.kind === 'rpc')!.args as { p_trade: { createdAt: string } };
+    expect(args.p_trade.createdAt).toBe('2026-11-10T03:00:00.000Z');
+  });
+  it('วันที่เปลี่ยน = ใช้เวลาใหม่ที่ส่งมา · รายการบาทไม่ส่ง fxRateMicro', async () => {
+    const { repo, calls } = repoWith(thbAsset, withOldFirst(buy, [buy]));
+    const next: TradeRecord = { ...asRecord(buy), id: 'b1-new', date: '2026-11-06', createdAt: '2026-11-06T05:00:00.000Z', fxRateMicro: 35000000 };
+    await repo.replaceTrade({ oldId: 'b1', trade: next, walletId: 'w1' });
+    const args = calls.find((c) => c.kind === 'rpc')!.args as { p_trade: { createdAt: string; fxRateMicro?: number } };
+    expect(args.p_trade.createdAt).toBe('2026-11-06T05:00:00.000Z');
+    expect(args.p_trade.fxRateMicro).toBeUndefined();
+  });
+});
+
 describe('replaceTrade (USD)', () => {
   const usdBuy = row({ id: 'ub', asset_id: 'u1', kind: 'buy', date: '2026-11-03', units: '1000000000', price_micro: 100000000, amount: 100000, fee: 100, fx_rate_micro: 35000000 });
   it('แก้ซื้อหุ้น USD ผ่าน record_trade_fx path: ส่ง replace_trade พร้อม fxRateMicro และ Entry เงินสด USD', async () => {

@@ -1126,7 +1126,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
     },
 
     async replaceTrade({ oldId, trade, walletId, cashAccountId }) {
-      if (oldId === '') throw storeError('store.tradeNotFound');
+      if (oldId === '' || oldId.length > 100) throw storeError('store.tradeNotFound');
       const found = await client.from('trades').select('*').eq('id', oldId).maybeSingle();
       check(found.error);
       if (!found.data) throw storeError('store.tradeNotFound');
@@ -1150,34 +1150,36 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       const editProblem = checkTradeDeleteCoded(all, oldId);
       if (editProblem) throw coded(editProblem);
       const rest = all.filter((t) => t.id !== oldId);
-      const addProblem = checkTradeAddCoded(rest, trade);
+      // เหมือนฐานข้อมูล: วันที่ไม่เปลี่ยน = คงลำดับเวลาเดิมในวันนั้น (ไม่งั้นเว็บ replay ต่างจากฐานข้อมูล ต้นทุนที่ตัดออกอาจไม่ตรง)
+      const edited: TradeRecord = trade.date === old.date ? { ...trade, createdAt: old.createdAt } : trade;
+      const addProblem = checkTradeAddCoded(rest, edited);
       if (addProblem) throw coded(addProblem);
       const usd = assetCurrency(asset) === 'USD';
-      if (usd && trade.fxRateMicro === undefined) throw storeError('store.fxRateRequired');
-      const entryId = `${trade.id}-entry`;
+      if (usd && edited.fxRateMicro === undefined) throw storeError('store.fxRateRequired');
+      const entryId = `${edited.id}-entry`;
       let built;
       try {
         if (usd) {
           if (cashAccountId === undefined || cashAccountId === '') throw storeError('store.walletIdInvalid');
-          const replay = replayTradesFx(toTradesFx([...rest, trade]));
-          const sell = trade.kind === 'sell' ? replay.sells.find((x) => x.id === trade.id)?.result : undefined;
-          built = buildUsdTradeEntry({ trade, assetName: asset.name, assetAccountId: asset.accountId, cashAccountId, entryId, sell });
+          const replay = replayTradesFx(toTradesFx([...rest, edited]));
+          const sell = edited.kind === 'sell' ? replay.sells.find((x) => x.id === edited.id)?.result : undefined;
+          built = buildUsdTradeEntry({ trade: edited, assetName: asset.name, assetAccountId: asset.accountId, cashAccountId, entryId, sell });
         } else {
           // ต้นทุนที่ตัดออกของรายการขาย: เล่นซ้ำรายการที่เหลือ + รายการใหม่ (ไม่รวมรายการเดิมที่กำลังแก้)
-          const sell = trade.kind === 'sell' ? replayRecords([...rest, trade]).sells.find((x) => x.id === trade.id)?.result : undefined;
-          built = buildTradeEntry({ trade, assetName: asset.name, assetAccountId: asset.accountId, walletId, entryId, sell });
+          const sell = edited.kind === 'sell' ? replayRecords([...rest, edited]).sells.find((x) => x.id === edited.id)?.result : undefined;
+          built = buildTradeEntry({ trade: edited, assetName: asset.name, assetAccountId: asset.accountId, walletId, entryId, sell });
         }
       } catch (e) {
         if (e instanceof TradeLinkError || e instanceof UsdLinkError || e instanceof RangeError) throw carryCode(new StorageError(e.message), e);
         throw e;
       }
-      const linked: TradeRecord = { ...trade, entryId };
+      const linked: TradeRecord = { ...edited, entryId };
       await tradeRpc('replace_trade', {
         p_old_id: oldId,
         p_trade: {
           id: linked.id, assetId: linked.assetId, kind: linked.kind, date: linked.date, createdAt: linked.createdAt,
           units: linked.units, priceMicro: linked.priceMicro, amount: linked.amount, fee: linked.fee,
-          withholding: linked.withholding, memo: linked.memo, fxRateMicro: linked.fxRateMicro,
+          withholding: linked.withholding, memo: linked.memo, fxRateMicro: usd ? linked.fxRateMicro : undefined,
           // ลายนิ้วมือของรายการทั้งหมดของสินทรัพย์ ณ ตอนอ่าน (รวมรายการที่กำลังแก้) · ฐานข้อมูลเทียบหลังล็อก
           basedOn: await tradesFingerprint(siblings),
         },
