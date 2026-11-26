@@ -151,6 +151,25 @@ for (const w of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
         await expect(page.getByText('Transaction updated')).toHaveCount(0);
       });
 
+      test(`บันทึกล้มบนจอเตี้ย: ข้อความผิดพลาดอยู่ในจอและไม่ถูกแถบปุ่มบัง · ${c.name}`, async ({ page }) => {
+        await page.setViewportSize({ width: w.width, height: 560 });
+        await openTx(page, c.demo, '&replaceFail=1');
+        await page.getByRole('button', { name: c.edit }).click();
+        const dialog = page.getByRole('dialog', { name: c.title });
+        await dialog.getByLabel(c.field).fill(c.value);
+        if (c.wallet) await dialog.getByLabel('Pay from wallet').selectOption({ index: 1 });
+        await dialog.getByRole('button', { name: 'Review change' }).click();
+        await dialog.getByRole('button', { name: 'Save changes' }).click();
+        const problem = dialog.getByTestId('edit-problem');
+        await expect(problem).toBeInViewport({ ratio: 1 });
+        const uncovered = await problem.evaluate((el) => {
+          const r = el.getBoundingClientRect();
+          return [r.top + 2, r.bottom - 2].every((y) => el.contains(document.elementFromPoint(r.left + r.width / 2, y)));
+        });
+        expect(uncovered, 'ข้อความถูกบัง').toBe(true);
+        await expect(dialog.getByRole('heading', { level: 2 })).toBeFocused(); // เลื่อนแล้วโฟกัสยังอยู่ที่หัวข้อ
+      });
+
       test(`Esc ที่หน้าตรวจผลกระทบถอยกลับฟอร์ม (ค่าที่กรอกยังอยู่) กด Esc อีกครั้งจึงปิด · ${c.name}`, async ({ page }) => {
         await openTx(page, c.demo);
         const edit = page.getByRole('button', { name: c.edit });

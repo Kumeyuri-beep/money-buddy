@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { newId } from '../../../app/ids';
 import { linkedCashAccountId, tradeToForm } from '../../../app/tradeEditForm';
 import { buildTradeRecord, type TradeField, type TradeForm, type TradeFormError } from '../../../app/tradeForm';
@@ -72,6 +72,8 @@ export function ThaiTradeEdit({ trade, asset, assetTrades, accounts, entries, wa
   const [problem, setProblem] = useState('');
   const [review, setReview] = useState<{ trade: TradeRecord; before: EditSide; after: EditSide } | null>(null);
   const [busy, setBusy] = useState(false);
+  /** ข้อความผิดพลาดอยู่ท้ายฟอร์ม: จอเตี้ยอาจอยู่ใต้ขอบหรือถูกแถบปุ่มบัง จึงเลื่อนเข้ากลาง dialog เมื่อแสดง (ref คงที่ ไม่เลื่อนซ้ำตอนพิมพ์ · ไม่ย้ายโฟกัส) */
+  const showProblem = useCallback((el: HTMLElement | null) => el?.scrollIntoView?.({ block: 'center' }), []);
   const needWallet = tradeNeedsWallet(trade.kind);
 
   // กระเป๋าที่รายการเดิมใช้ (ถ้าเป็นบัญชีที่ไม่อยู่ในรายการกระเป๋า เช่น บัญชีเงินสดที่พักกับโบรกเกอร์ ก็ยังเลือกได้)
@@ -229,7 +231,7 @@ export function ThaiTradeEdit({ trade, asset, assetTrades, accounts, entries, wa
             )}
             <Field id="th-e-memo" label="Note (optional)" text value={form.memo} onChange={(v) => set({ memo: v })} errors={errors} field="memo" />
             {problem !== '' && (
-              <p className="avg-err" role="alert" data-testid="edit-problem">
+              <p ref={showProblem} className="avg-err" role="alert" data-testid="edit-problem">
                 {problem}
               </p>
             )}

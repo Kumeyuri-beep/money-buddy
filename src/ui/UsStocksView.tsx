@@ -158,6 +158,8 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
   /** ขั้น "ตรวจผลกระทบ" ของการแก้รายการ: รายการใหม่ที่สร้างจากฟอร์ม + ตัวเลขก่อน→หลัง (ยังไม่บันทึกจนกว่าจะกดยืนยัน) */
   const [review, setReview] = useState<{ trade: TradeRecord; before: EditSide; after: EditSide } | null>(null);
   const [editProblemText, setEditProblemText] = useState('');
+  /** ข้อความผิดพลาดอยู่ท้ายฟอร์ม: จอเตี้ยอาจอยู่ใต้ขอบหรือถูกแถบปุ่มบัง จึงเลื่อนเข้ากลาง dialog เมื่อแสดง (ref คงที่ ไม่เลื่อนซ้ำตอนพิมพ์ · ไม่ย้ายโฟกัส) */
+  const showProblem = useCallback((el: HTMLElement | null) => el?.scrollIntoView?.({ block: 'center' }), []);
 
   const load = useCallback(async () => {
     try {
@@ -717,7 +719,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
             <Field id="us-t-memo" text label="Note (optional)" value={form.memo} onChange={(v) => setT({ memo: v })} error={errOf(tradeErrors, 'memo')} />
             {activeCash === '' && <p className="avg-err">Create a USD cash account and exchange some baht first before you can record entries</p>}
             {editProblemText !== '' && (
-              <p className="avg-err" role="alert" data-testid="edit-problem">
+              <p ref={showProblem} className="avg-err" role="alert" data-testid="edit-problem">
                 {editProblemText}
               </p>
             )}
