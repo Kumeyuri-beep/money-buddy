@@ -115,6 +115,12 @@ for (const w of WIDTHS) {
       await expect(cal).toHaveAttribute('target', '_blank');
       expect(await cal.getAttribute('rel')).toContain('noopener');
       await expect(cal).toContainText('↗');
+      // Top dividend stocks: ลิงก์ภายนอกแบบเดียวกัน
+      const top = nav.getByRole('link', { name: /^Top dividend stocks/ });
+      await expect(top).toHaveAttribute('href', 'https://snowball-analytics.com/tools/investing-ideas/stocks/dividend-stocks');
+      await expect(top).toHaveAttribute('target', '_blank');
+      expect(await top.getAttribute('rel')).toContain('noopener');
+      await expect(top).toContainText('↗');
       await page.keyboard.press('Escape');
 
       await goInvest(page, 'Portfolio', 'My goal');

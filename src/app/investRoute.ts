@@ -29,7 +29,6 @@ export type InvestPageId =
   | 'portfolio/categories'
   | 'portfolio/corporate-actions'
   | 'tools/rebalancing'
-  | 'tools/top-dividend-stocks'
   | 'tools/find-the-dip';
 
 export interface InvestPage {
@@ -63,7 +62,6 @@ export const INVEST_PAGES: readonly InvestPage[] = [
   live('portfolio/categories', 'Categories'),
   soon('portfolio/corporate-actions', 'Corporate actions', 'Stock splits and similar events applied to your holdings.', 'Entering them by hand is not built yet; automatic detection needs market data.', 'own'),
   live('tools/rebalancing', 'Portfolio rebalancing'),
-  soon('tools/top-dividend-stocks', 'Top dividend stocks', 'Browse stocks ranked by dividend yield.', 'Needs automatic market data.', 'market'),
   soon('tools/find-the-dip', 'Find the Dip', 'Spot stocks that have fallen well below their recent highs.', 'Needs automatic market data.', 'market'),
 ];
 
@@ -91,6 +89,8 @@ const pg = (label: string, page: InvestPageId): InvestMenuItem => ({ kind: 'page
 
 /** ปฏิทินปันผลภายนอก (เปิดแท็บใหม่ · ไม่ใช่หน้าของโหมดนี้ จึงไม่มี route และไม่ส่งข้อมูลของผู้ใช้ไปด้วย) */
 export const DIVIDEND_PAYOUT_CALENDAR_URL = 'https://snowball-analytics.com/calendars/dividend-calendar';
+/** อันดับหุ้นปันผลภายนอก (เจ้าของเลือก 26 พ.ย. 2569 แทนการทำหน้ารายชื่อหุ้นเอง ซึ่งจะขัดกติกาห้ามคำแนะนำ) · เปิดแท็บใหม่ ไม่ส่งข้อมูลของผู้ใช้ */
+export const TOP_DIVIDEND_STOCKS_URL = 'https://snowball-analytics.com/tools/investing-ideas/stocks/dividend-stocks';
 const ext = (label: string, href: string): InvestMenuItem => ({ kind: 'external', label, href });
 
 export const INVEST_GROUPS: readonly InvestMenuGroup[] = [
@@ -118,7 +118,7 @@ export const INVEST_GROUPS: readonly InvestMenuGroup[] = [
       {
         items: [
           pg('Portfolio rebalancing', 'tools/rebalancing'),
-          pg('Top dividend stocks', 'tools/top-dividend-stocks'),
+          ext('Top dividend stocks', TOP_DIVIDEND_STOCKS_URL),
           ext('Dividend payout calendar', DIVIDEND_PAYOUT_CALENDAR_URL),
           pg('Find the Dip', 'tools/find-the-dip'),
         ],
