@@ -1605,3 +1605,9 @@ money-auditor ตรวจ 5 ตัวที่เกี่ยวกับเง
 - branch นี้ (`auto/r2-followup-270` ยังไม่เปิด PR): เมนู ⋯ ของ Holdings หลุดจอบนมือถือ/แท็บเล็ตจริง (360/390/768) แก้แล้ว + `tests/e2e/invest-holdings-menu.spec.ts` · ข้อเก็บตก #270 อื่นยังไม่ทำ
 - backlog ข้อ 1: แผนอยู่ branch `auto/import-categories-plan` (`docs/plans/2026-11-26-import-categories-guard.md`) รอเจ้าของอนุมัติ
 - Top dividend stocks: เสนอเว็บแล้ว รอเจ้าของเลือก
+
+## 108. e2e ระหว่างงานเก็บตก #270 (26 พ.ย. 2569 · branch `auto/r2-followup-270`)
+- ชุดเต็ม (4 workers) ล้ม 13 ข้อ ใช้ 29 นาที (ปกติราว 6): `dock.spec.ts` 2 (จอเตี้ย 800/900) · `invest-analysis` 1 และ `invest-dashboard` 1 (360px สถานะว่าง) · `invest-edit-trade` 4 · `invest-mode` 4 · `invest-nav-scroll` 1
+- `invest-edit-trade` 4 ข้อ = regex ในเทสต์ไม่ escape วงเล็บ (บั๊กของเทสต์) แก้แล้ว รันไฟล์เดียว worker เดียวผ่าน 24/24
+- ที่เหลือ: รันไฟล์ที่ล้มด้วย `--workers=1` ผ่านทั้งหมด · `invest-mode` รันเดี่ยว worker เดียวผ่าน 28 (ข้าม 2) ข้อ 390px ใช้ 0.4-2.8 วินาที · ตอนล้มหน้าค้างที่ "กำลังโหลดหน้า…" เกิน 5 วินาที → ตามเกณฑ์เจ้าของถือว่าเครื่องช้า **สาเหตุที่เครื่องช้ารอบนั้นยังพิสูจน์ไม่ได้** · ไม่ได้เพิ่ม retry/เวลารอ
+- ยังต้องทำก่อนเปิด PR: e2e ชุดเต็มอีกรอบ · money-auditor + design-critic · live-contract บน branch (แตะ `src/storage/`)
