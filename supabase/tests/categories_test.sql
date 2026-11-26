@@ -197,7 +197,7 @@ begin
   if pg_temp.ac(ua, format($q$ select count(*) from public.asset_categories where user_id = %L $q$, ua)) <> 0 then raise exception 'FAIL: T10 ล้างข้อมูลแล้วหมวดของ A ต้องหมด'; end if;
   if pg_temp.ac(ub, format($q$ select count(*) from public.asset_categories where user_id = %L $q$, ub)) <> 1 then raise exception 'FAIL: T10 หมวดของ B ต้องไม่ถูกแตะ'; end if;
 
-  -- T11 ล้างข้อมูลแบบเป็นชุด + ยกเลิกนำเข้า ล้างหมวดด้วย
+  -- T11 ล้างข้อมูลแบบเป็นชุดล้างหมวดด้วย · ยกเลิกนำเข้า **ไม่** ลบหมวด (20261127000100 · เจ้าของอนุมัติ 27 พ.ย. 2569)
   perform pg_temp.login(ua);
   perform public.setup_ledger(acc, ent);
   perform pg_temp.settle();
@@ -215,7 +215,7 @@ begin
   insert into private.import_sessions (user_id, expected_entries, received_entries) values (ua, 5000, 1200);
   perform pg_temp.login(ua);
   while public.import_ledger_abort() = 'more' loop null; end loop;
-  if pg_temp.ac(ua, format($q$ select count(*) from public.asset_categories where user_id = %L $q$, ua)) <> 0 then raise exception 'FAIL: T11b import_ledger_abort ต้องล้างหมวด'; end if;
+  if pg_temp.ac(ua, format($q$ select count(*) from public.asset_categories where user_id = %L $q$, ua)) <> 1 then raise exception 'FAIL: T11b import_ledger_abort ต้องไม่ลบหมวด (หมวดต้องยังอยู่)'; end if;
 
   -- T12 นำเข้าข้อมูลลงทุนพร้อมหมวด (ผู้ใช้ D สมุดใหม่) · เป้ารวมผิดล้มตอน commit · ไฟล์รุ่นเก่าไม่มีหมวดนำเข้าได้
   perform pg_temp.login(ud);
