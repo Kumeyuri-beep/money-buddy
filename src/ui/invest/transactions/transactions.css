@@ -53,3 +53,14 @@
   .tx-tools .iv-field { flex: 1 1 100%; }
 }
 .tx-del-what { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+
+/* แก้รายการ (R2 ข้อ 4 ส่วน B) · เฉพาะคอม ≥1024px: ฟอร์มแก้เปิดได้เฉพาะบนคอม (มือถือปุ่ม Edit ปิดพร้อมข้อความ) */
+@media (min-width: 1024px) {
+  .edit-impact { display: grid; gap: 8px; }
+  .edit-impact-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .edit-impact-table th, .edit-impact-table td { padding: 8px 10px; border-bottom: 1px solid var(--ov-12); text-align: left; }
+  .edit-impact-table th.num, .edit-impact-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .edit-impact-table tr.is-changed th, .edit-impact-table tr.is-changed td { font-weight: 700; }
+  .edit-changed { font-weight: 400; font-size: 12px; color: var(--muted); }
+  .edit-review-title { margin: 0; font-size: 16px; }
+}

@@ -68,6 +68,15 @@ export function demoTransactionsData(): InvestmentData {
   } as InvestmentData;
 }
 
+/** ชุดของ ?investDemo=txthb: ชุด tx + กองทุนไทยสมมติ 1 ตัว (ซื้อ 1 · ปันผล 1) ไว้ทดสอบแก้รายการของสินทรัพย์บาท */
+export function demoTransactionsDataWithThai(): InvestmentData {
+  const d = demoTransactionsData();
+  const asset = { id: 'th1', name: 'Demo Thai Fund', kind: 'fund', accountId: 'inv-th1' } as Asset;
+  const buy = { id: 'buy-th1', assetId: 'th1', kind: 'buy', date: '2026-02-01', createdAt: '2026-02-01T03:00:00.000Z', units: String(100 * 100_000_000), priceMicro: 10_000_000, amount: 100_000, fee: 0, withholding: 0, memo: '' } as TradeRecord;
+  const div = { id: 'div-th1', assetId: 'th1', kind: 'dividend', date: '2026-03-01', createdAt: '2026-03-01T03:00:00.000Z', amount: 5_000, fee: 0, withholding: 500, memo: '' } as TradeRecord;
+  return { ...d, assets: [...d.assets, asset], trades: [...d.trades, buy, div] } as InvestmentData;
+}
+
 /** บัญชีและรายการสมุดสมมติของ ?investDemo=tx: โอนเข้าพอร์ตบาท + เงินเข้า/ออก USD (ถอนมากกว่าฝาก = เงินสด USD ติดลบ เพื่อทดสอบคำเตือน) */
 export function demoTransactionsLedger() {
   const accounts = [

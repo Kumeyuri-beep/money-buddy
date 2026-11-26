@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { useDesktop } from '../../useDesktop';
 
-export type RowAction = 'add' | 'open' | 'edit' | 'delete';
-const MENU_H = 4 * 44 + 20; // ความสูงเมนูโดยประมาณ (4 รายการ × 44px + ขอบ)
+export type RowAction = 'add' | 'open' | 'edit' | 'delete' | 'deleteAsset';
+const MENU_H = 5 * 44 + 40; // ความสูงเมนูโดยประมาณ (สูงสุด 5 รายการ × 44px + บรรทัดเหตุผล + ขอบ)
 const ITEMS: { id: RowAction; label: string; hint?: string }[] = [
   { id: 'add', label: 'Add a transaction' },
   { id: 'open', label: 'Open holding' },
@@ -10,8 +12,15 @@ const ITEMS: { id: RowAction; label: string; hint?: string }[] = [
 ];
 
 /** เมนู ⋯ ของแถว: คีย์บอร์ดใช้ได้ (ลูกศรขึ้น/ลง · Esc ปิดแล้วโฟกัสกลับปุ่ม) · วางตำแหน่งแบบ fixed ไม่ถูกตารางเลื่อนตัด */
-export function RowMenu({ label, onPick }: { label: string; onPick: (a: RowAction, from: HTMLElement) => void }) {
+/**
+ * deleteAsset: ไม่ส่ง = ไม่แสดงรายการ "Delete asset" (มือถือ) · reason = null แปลว่ากดได้ · มีข้อความ = ปิดและแสดงเหตุผลใต้ชื่อรายการ
+ */
+export function RowMenu({ label, onPick, deleteAsset }: { label: string; onPick: (a: RowAction, from: HTMLElement) => void; deleteAsset?: { reason: string | null } }) {
   const [open, setOpen] = useState<{ top: number; right: number; up: boolean } | null>(null);
+  // คอม: วางเมนูใน body เพราะการ์ดกระจก (backdrop-filter) ทำให้ position: fixed ของลูกอิงกรอบการ์ด ไม่ใช่หน้าจอ เมนูจึงเลื่อนลงไปนอกจอ (พบตอนทำ Delete asset)
+  // มือถือไม่แตะ (ตามกติกาคอมก่อน) · ถ้ามือถือมีอาการเดียวกันจดไว้ใน HANDOFF หัวข้อ "รอปรับมือถือ"
+  const desktop = useDesktop();
+  const inBody = (node: ReactNode): ReactNode => (desktop && typeof document !== 'undefined' ? createPortal(node, document.body) : node);
   const btn = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
 
@@ -70,7 +79,7 @@ export function RowMenu({ label, onPick }: { label: string; onPick: (a: RowActio
       <button ref={btn} type="button" className="hd-more" aria-haspopup="menu" aria-expanded={open !== null} aria-label={label} onClick={toggle}>
         <span aria-hidden="true">⋯</span>
       </button>
-      {open && (
+      {open && inBody(
         <div ref={menu} role="menu" aria-label={label} className="hd-menu" style={{ top: open.top, right: open.right, transform: open.up ? 'translateY(-100%)' : undefined }} onKeyDown={onKey}>
           {ITEMS.map((it) => (
             <button
@@ -87,6 +96,27 @@ export function RowMenu({ label, onPick }: { label: string; onPick: (a: RowActio
               {it.label}
             </button>
           ))}
+          {deleteAsset && (
+            <button
+              type="button"
+              role="menuitem"
+              className="hd-menuitem is-danger-next"
+              aria-disabled={deleteAsset.reason !== null ? 'true' : undefined}
+              aria-describedby={deleteAsset.reason !== null ? 'hd-da-why' : undefined}
+              onClick={() => {
+                if (deleteAsset.reason !== null) return; // ปิดอยู่: ไม่ทำอะไร เหตุผลแสดงอยู่ใต้ชื่อรายการ
+                setOpen(null);
+                onPick('deleteAsset', btn.current as HTMLElement);
+              }}
+            >
+              Delete asset
+              {deleteAsset.reason !== null && (
+                <span id="hd-da-why" className="hd-menuhint" aria-hidden="true">
+                  {deleteAsset.reason}
+                </span>
+              )}
+            </button>
+          )}
         </div>
       )}
     </>

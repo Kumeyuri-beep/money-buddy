@@ -75,3 +75,11 @@
   /* บรรทัดล่างในเซลล์ (ต่อหุ้น) */
   .hd-persub { display: block; font-size: 12px; font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
 }
+
+/* รายการ "Delete asset" ในเมนู ⋯ (R2 ข้อ 4 · เฉพาะคอม ≥1024px: มือถือไม่แสดงรายการนี้เลย) */
+@media (min-width: 1024px) {
+  .hd-menuitem.is-danger-next { color: var(--expense); }
+  .hd-menuitem[aria-disabled='true'] { opacity: 1; color: var(--muted); cursor: not-allowed; }
+  .hd-menuitem[aria-disabled='true']:hover { background: transparent; }
+  .hd-menuhint { display: block; font-size: 13px; line-height: 1.3; padding-bottom: 6px; color: var(--muted); }
+}

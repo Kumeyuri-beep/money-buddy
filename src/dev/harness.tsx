@@ -12,9 +12,11 @@ import { createDexieRepository } from '../storage/ledgerRepository';
 import { App } from '../ui/App';
 import { RepositoryProvider, localLedgerRepository } from '../ui/RepositoryContext';
 import { buildCashAdjustmentEntry } from '../domain/invest/cashAdjustment';
+import { editedTradeOf } from '../domain/invest/editImpact';
+import type { TradeRecord } from '../domain/invest/types';
 import { categoriesDemoRepository } from './categoriesDemo';
 import { rebalanceDemoRepository, type RebalanceDemoKind } from './rebalanceDemo';
-import { demoCashLedger, demoInvestments, demoInvestmentsNoRate, demoInvestmentsWithHistory, demoTransactionsData, demoTransactionsLedger } from './investDemo';
+import { demoCashLedger, demoInvestments, demoInvestmentsNoRate, demoInvestmentsWithHistory, demoTransactionsData, demoTransactionsDataWithThai, demoTransactionsLedger } from './investDemo';
 import { AccountContext } from '../ui/AuthContext';
 import { PasswordPromptProvider } from '../ui/PasswordPrompt';
 import '@fontsource/ibm-plex-sans-thai/400.css';
@@ -76,8 +78,8 @@ function Harness() {
           <RepositoryProvider repository={categoriesDemoRepository()}>
             <App />
           </RepositoryProvider>
-        ) : params.get('investDemo') === '1' || params.get('investDemo') === 'report' || params.get('investDemo') === 'norate' || params.get('investDemo') === 'cash' || params.get('investDemo') === 'cashneg' || params.get('investDemo') === 'tx' ? (
-          <RepositoryProvider repository={params.get('investDemo') === 'report' ? { ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestmentsWithHistory()) } : params.get('investDemo') === 'norate' ? { ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestmentsNoRate()) } : params.get('investDemo') === 'cash' || params.get('investDemo') === 'cashneg' ? cashDemoRepository(params.get('investDemo') === 'cashneg') : params.get('investDemo') === 'tx' ? txRepository() : demoRepository()}>
+        ) : params.get('investDemo') === '1' || params.get('investDemo') === 'report' || params.get('investDemo') === 'norate' || params.get('investDemo') === 'cash' || params.get('investDemo') === 'cashneg' || params.get('investDemo') === 'tx' || params.get('investDemo') === 'txthb' ? (
+          <RepositoryProvider repository={params.get('investDemo') === 'report' ? { ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestmentsWithHistory()) } : params.get('investDemo') === 'norate' ? { ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestmentsNoRate()) } : params.get('investDemo') === 'cash' || params.get('investDemo') === 'cashneg' ? cashDemoRepository(params.get('investDemo') === 'cashneg') : params.get('investDemo') === 'tx' ? txRepository() : params.get('investDemo') === 'txthb' ? txRepository(true) : demoRepository()}>
             <App />
           </RepositoryProvider>
         ) : (
@@ -100,15 +102,21 @@ function makeDemoRepository() {
       demo.trades = demo.trades.filter((t) => t.id !== id);
       return Promise.resolve();
     },
+    // ลบสินทรัพย์สมมติ: ฐานข้อมูลจริงปฏิเสธเมื่อยังมีรายการ (ที่นี่ทำแบบเดียวกันเพื่อให้ทดสอบหน้าจอได้ตรง)
+    deleteAsset: (id: string) => {
+      if (demo.trades.some((t) => t.assetId === id)) return Promise.reject(new Error('asset still has transactions'));
+      demo.assets = demo.assets.filter((a) => a.id !== id);
+      return Promise.resolve();
+    },
   };
 }
 
 /** ที่เก็บสมมติของหน้า Transactions (?investDemo=tx): ข้อมูลลงทุน + บัญชี/รายการสมุดเพิ่ม · ลบ trade/แลกเงิน/รายการสมุดสมมติได้ในหน่วยความจำ (ไม่เขียนฐานข้อมูล) */
-let txRepo: ReturnType<typeof makeTxRepository> | null = null;
-const txRepository = () => (txRepo ??= makeTxRepository());
-function makeTxRepository() {
+const txRepos: { plain?: ReturnType<typeof makeTxRepository>; thai?: ReturnType<typeof makeTxRepository> } = {};
+const txRepository = (thai = false) => (thai ? (txRepos.thai ??= makeTxRepository(true)) : (txRepos.plain ??= makeTxRepository(false)));
+function makeTxRepository(thai: boolean) {
   const base = localLedgerRepository();
-  const demo = demoTransactionsData();
+  const demo = thai ? demoTransactionsDataWithThai() : demoTransactionsData();
   const extra = demoTransactionsLedger();
   const gone = new Set<string>();
   return {
@@ -127,6 +135,14 @@ function makeTxRepository() {
     deleteFxExchange: (id: string) => {
       demo.fxExchanges = (demo.fxExchanges ?? []).filter((x) => x.id !== id);
       return Promise.resolve();
+    },
+    // แก้รายการสมมติในหน่วยความจำ (กติกาจริงตรวจที่ฟอร์มด้วย previewTradeEdit ก่อนถึงตรงนี้ · ฐานข้อมูลจริงทดสอบด้วย live-contract)
+    replaceTrade: ({ oldId, trade }: { oldId: string; trade: TradeRecord }) => {
+      const old = demo.trades.find((t) => t.id === oldId);
+      if (!old) return Promise.reject(new Error('missing'));
+      const next = editedTradeOf(old, trade);
+      demo.trades = demo.trades.map((t) => (t.id === oldId ? next : t));
+      return Promise.resolve(next);
     },
     deleteEntry: (id: string) => {
       if (extra.entries.some((e) => e.id === id)) {

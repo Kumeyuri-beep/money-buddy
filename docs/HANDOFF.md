@@ -1580,3 +1580,12 @@ money-auditor ตรวจ 5 ตัวที่เกี่ยวกับเง
 - กฎ 24 พ.ย. 2569 ยังมีผล: ห้ามทดลองบนฐานข้อมูลจริงนอก transaction ที่ rollback · ห้ามสร้างผู้ใช้ทดสอบผ่าน SQL นอก rollback · ห้าม `delete from auth.users` ตรงๆ
 - ห้ามเพิ่มรหัส 40001 ใน RPC ใหม่ ใช้ PT409
 - **รอปรับมือถือ:** (ไม่มีรายการใหม่จาก PR A) ฟอร์มแก้/ปุ่ม Delete asset บนมือถือยังไม่ออกแบบ ตามลำดับความสำคัญคอมก่อน
+
+## 105. PR B (หน้าจอแก้รายการ + Delete asset) · branch `auto/r2-edit-trade-web` · ยังไม่เปิด PR (24 พ.ย. 2569)
+
+**ผลตรวจ #268 (เจ้าของแจ้ง):** money-auditor ผ่านแบบมีเงื่อนไข เจอ 1 ข้อเรื่องลำดับเวลาตอน replay แก้แล้วพร้อมเทสต์ · security-auditor ผ่าน ข้อแนะนำ `basedOn` อยู่ใน backlog (ที่มา: คำบอกเจ้าของ ไม่ได้ตรวจซ้ำ)
+
+**สถานะ:** โค้ด 4 ชิ้น push แล้ว (domain/helper · Edit หุ้นสหรัฐ · Edit สินทรัพย์บาท · Delete asset) · `npm test` 3080 ผ่าน · typecheck/build ผ่าน · e2e เฉพาะไฟล์ที่เกี่ยวผ่านที่ 1280/1440/360/390 · e2e ทั้งชุดผ่าน 706 (ข้าม 34 = visual) · **money-auditor ผ่าน** (ข้อต่ำ 2 ข้อ: setCashId ค้างค่า แก้แล้ว · เทสต์ round-trip เลขใหญ่ยังไม่มี → backlog) · **design-critic ไม่มีข้อบล็อก** แก้แล้ว: เลื่อนข้อความเหตุผลเข้าจอ, aria-hidden ที่ข้อความซ้ำ, ขนาด 13px, สไตล์ .edit-review-title · backlog: เปลี่ยนป้าย Delete→"Delete all records"+ย้ายเส้นคั่นเมนู, Esc ที่หน้า review ถอยกลับฟอร์มก่อน, ย่อป้ายตาราง EditImpact
+**นอกโจทย์ที่แก้:** เมนู ⋯ ของ Holdings บนคอมหลุดจอ (มีบน main) → portal ลง body เฉพาะคอม
+**backlog:** เมนู ⋯ บนมือถืออาจมีอาการเดียวกัน (รอปรับมือถือ) · `editedTradeOf` ซ้ำกับ logic ใน `supabaseRepository.replaceTrade` ควรให้ repository เรียกตัวเดียวกันภายหลัง · ฟอร์มแก้แลกเงิน/เงินสดยังไม่มี
+**ต้องลองบนคอม:** Transactions → Edit ซื้อ/ขาย/ปันผล (USD และกองทุนไทย) ดูตารางก่อน→หลัง · Edit ที่ปิดกดแล้วมีเหตุผล · Holdings ⋯ → Delete asset (ลบรายการให้หมดก่อน)

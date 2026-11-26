@@ -161,7 +161,7 @@ for (const w of WIDTHS) {
       await openHoldings(page);
       const more = page.getByRole('button', { name: 'Actions for DEMB' });
       await more.click();
-      await page.getByRole('menuitem', { name: 'Delete' }).click();
+      await page.getByRole('menuitem', { name: 'Delete', exact: true }).click();
       const dialog = page.getByRole('alertdialog', { name: /Delete DEMB/ });
       await expect(dialog).toBeVisible();
       await expect(dialog.getByRole('button', { name: 'Delete 1 record' })).toBeVisible(); // DEMB มี 1 รายการซื้อ
@@ -173,7 +173,7 @@ for (const w of WIDTHS) {
       await expect(more).toBeFocused();
 
       await more.click();
-      await page.getByRole('menuitem', { name: 'Delete' }).click();
+      await page.getByRole('menuitem', { name: 'Delete', exact: true }).click();
       await page.getByRole('button', { name: 'Delete 1 record' }).click();
       await expect(page.getByText('Deleted DEMB: 1 record')).toBeVisible();
       await expect(page.getByRole('heading', { name: 'Holdings', level: 2, exact: true })).toBeFocused();
@@ -187,7 +187,8 @@ for (const w of WIDTHS) {
       const more = page.getByRole('button', { name: 'Actions for DEMA' });
       await more.click();
       const menu = page.getByRole('menu', { name: 'Actions for DEMA' });
-      await expect(menu.getByRole('menuitem')).toHaveText(['Add a transaction', 'Open holding', 'Edit', 'Delete']);
+      // คอม: มีรายการที่ 5 'Delete asset' (ปิดเพราะ DEMA ยังมีรายการ · เหตุผลอยู่ในข้อความ) · มือถือ: ไม่มีรายการนี้เลย (หน้าตาเหมือนเดิม)
+      await expect(menu.getByRole('menuitem')).toHaveText(w.width >= 1024 ? ['Add a transaction', 'Open holding', 'Edit', 'Delete', /^Delete asset/] : ['Add a transaction', 'Open holding', 'Edit', 'Delete']);
       await expect(menu.getByRole('menuitem').first()).toBeFocused();
       await page.keyboard.press('Escape');
       await expect(menu).toHaveCount(0);
@@ -198,7 +199,7 @@ for (const w of WIDTHS) {
       await expect(page.locator('dl[aria-label="Details of DEMA"]')).toBeVisible();
 
       await more.click();
-      await menu.getByRole('menuitem', { name: 'Delete' }).click();
+      await menu.getByRole('menuitem', { name: 'Delete', exact: true }).click();
       const dialog = page.getByRole('alertdialog', { name: /Delete DEMA/ });
       await expect(dialog).toBeVisible();
       await expect(dialog.getByRole('button', { name: 'Keep' })).toBeFocused();

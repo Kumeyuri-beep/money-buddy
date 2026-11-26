@@ -6,12 +6,14 @@ import {
   buildTransactionsView, dateRangeReversed, DEFAULT_TX_QUERY, filterTransactions, hasActiveFilters, planTransactionDelete, totalsOf, TX_KIND_LABEL, TX_KINDS, TX_TABS,
   type TxKind, type TxQuery, type TxRow, type TxTab,
 } from '../../../domain/invest/transactionsView';
+import { planTransactionEdit, type TransactionEditPlan } from '../../../domain/invest/editImpact';
 import { assetCurrency } from '../../../domain/invest/types';
 import { formatUnits } from '../../../domain/invest/units';
 import { usdCashBalances } from '../../../domain/invest/usdIntegrity';
 import { PortfolioTransfer } from '../../PortfolioTransfer';
 import { PortfolioView } from '../../PortfolioView';
 import { useRepository } from '../../RepositoryContext';
+import { useDesktop } from '../../useDesktop';
 import { UsStocksView, type UsStocksRequest } from '../../UsStocksView';
 import { InfoTip } from '../Tip';
 import { useInvest } from '../InvestContext';
@@ -19,19 +21,23 @@ import { investError, investProblem } from '../investError';
 import { IncompleteTag } from '../MissingRateNotice';
 import { AddMenu, type AddAction } from '../transactions/AddMenu';
 import { CashAdjustForm } from '../transactions/CashAdjustForm';
+import { ThaiTradeEdit } from '../transactions/ThaiTradeEdit';
+import { DESKTOP_ONLY_TEXT, editDisabledReason } from '../transactions/editReason';
 import { AmountCell, amountText, NoValue, signedAmountText } from '../transactions/format';
 import { StockPicker } from '../transactions/StockPicker';
 import '../transactions/transactions.css';
 
 type WithoutNonce<T> = T extends unknown ? Omit<T, 'nonce'> : never;
-type Panel = { type: 'pick'; kind: UsTradeKind } | { type: 'cash' } | { type: 'transfer' } | { type: 'thai' } | { type: 'needCash' } | null;
+type Panel = { type: 'pick'; kind: UsTradeKind } | { type: 'cash' } | { type: 'transfer' } | { type: 'thai' } | { type: 'needCash' } | { type: 'thaiEdit'; tradeId: string } | null;
 
-const EDIT_NOTE = 'Editing is not available yet. Delete and add it again.';
+/** ข้อความของปุ่ม Edit ที่ปิด (แถวไหนปิดเพราะอะไร): คลิกแล้วอ่านเหตุผลได้ · โปรแกรมอ่านหน้าจออ่านผ่าน aria-describedby */
+const EDIT_NOTE = 'Edit changes a saved transaction and recalculates your average cost. Buttons that are off explain why when you select them.';
 
 /** Portfolio → Transactions (แบบร่าง 21): ตารางรายการทุกชนิด + Filters + เมนู Add + ลบพร้อม confirm · ตัวเลขทั้งหมดมาจาก src/domain/invest/transactionsView */
 export function TransactionsPage() {
   const { today, accounts, entries, wallets, onLedgerChanged, reload, data, loadError, currency } = useInvest();
   const repo = useRepository();
+  const desktop = useDesktop();
   const [q, setQ] = useState<TxQuery>(DEFAULT_TX_QUERY);
   const [showFilters, setShowFilters] = useState(false);
   const [panel, setPanel] = useState<Panel>(null);
@@ -63,6 +69,17 @@ export function TransactionsPage() {
     const bound = new Set(data.assets.map((a) => a.accountId));
     return accounts.some((a) => a.type === 'asset' && a.currency === 'THB' && a.kind === 'investment' && !a.archived && !bound.has(a.id));
   }, [data, accounts]);
+  // แถวไหนแก้ได้ (กติกา R17 + ชนิด) และเหตุผลที่ปิด · คำนวณจาก domain ทั้งหมด
+  const editPlans = useMemo(() => {
+    const m = new Map<string, { plan: TransactionEditPlan; reason: string | null }>();
+    if (!data || !view) return m;
+    const usdIds = new Set(data.assets.filter((a) => assetCurrency(a) === 'USD').map((a) => a.id));
+    for (const r of view.rows) {
+      const plan = planTransactionEdit(r, data.trades, usdIds);
+      m.set(r.key, { plan, reason: editDisabledReason(plan, desktop) });
+    }
+    return m;
+  }, [data, view, desktop]);
   const filtered = hasActiveFilters(q);
   const reversed = dateRangeReversed(q);
   const activeCount = [q.kind !== '', q.assetId !== '', q.from !== '' || q.to !== ''].filter(Boolean).length;
@@ -91,6 +108,24 @@ export function TransactionsPage() {
     else {
       setPanel(null);
       ask({ panel: 'exchange' });
+    }
+  };
+
+  const onEdit = (row: TxRow, from: HTMLElement) => {
+    const entry = editPlans.get(row.key);
+    if (!entry) return;
+    opener.current = from;
+    if (entry.reason !== null || !entry.plan.ok) {
+      setMessage({ kind: 'error', text: entry.reason ?? DESKTOP_ONLY_TEXT });
+      titleRef.current?.scrollIntoView?.({ block: 'nearest' }); // ข้อความอยู่ใต้หัวข้อหน้า: เลื่อนให้เห็นเมื่อกดแถวล่าง
+      return;
+    }
+    setMessage(null);
+    if (entry.plan.usd) {
+      setPanel(null);
+      ask({ panel: 'edit', tradeId: entry.plan.tradeId });
+    } else {
+      setPanel({ type: 'thaiEdit', tradeId: entry.plan.tradeId });
     }
   };
 
@@ -353,7 +388,7 @@ export function TransactionsPage() {
                       </thead>
                       <tbody>
                         {shown.map((r) => (
-                          <TxTr key={r.key} r={r} onDelete={(row, from) => setConfirm({ row, from })} onEdit={() => setMessage({ kind: 'ok', text: EDIT_NOTE })} />
+                          <TxTr key={r.key} r={r} reason={editPlans.get(r.key)?.reason ?? null} onDelete={(row, from) => setConfirm({ row, from })} onEdit={onEdit} />
                         ))}
                       </tbody>
                     </table>
@@ -431,6 +466,27 @@ export function TransactionsPage() {
             }}
           />
         )}
+        {panel?.type === 'thaiEdit' && data && (() => {
+          const trade = data.trades.find((t) => t.id === panel.tradeId);
+          const asset = trade ? data.assets.find((a) => a.id === trade.assetId) : undefined;
+          if (!trade || !asset) return null;
+          return (
+            <ThaiTradeEdit
+              trade={trade}
+              asset={asset}
+              assetTrades={data.trades.filter((t) => t.assetId === asset.id)}
+              accounts={accounts}
+              entries={entries}
+              wallets={wallets}
+              today={today}
+              onClose={closePanel}
+              onSaved={(text) => {
+                closePanel();
+                void refresh(text);
+              }}
+            />
+          );
+        })()}
         {panel?.type === 'needCash' && (
           <section className="solid card tx-panel" aria-labelledby="tx-need-title" onKeyDown={(e) => e.key === 'Escape' && closePanel()}>
             <h2 id="tx-need-title" tabIndex={-1} ref={needRef}>
@@ -584,7 +640,7 @@ function IncompleteChip() {
   );
 }
 
-function TxTr({ r, onDelete, onEdit }: { r: TxRow; onDelete: (r: TxRow, from: HTMLElement) => void; onEdit: () => void }) {
+function TxTr({ r, reason, onDelete, onEdit }: { r: TxRow; reason: string | null; onDelete: (r: TxRow, from: HTMLElement) => void; onEdit: (r: TxRow, from: HTMLElement) => void }) {
   const desc = `${TX_KIND_LABEL[r.kind]} ${r.label} on ${formatDateEn(r.date)}`;
   return (
     <tr>
@@ -617,12 +673,22 @@ function TxTr({ r, onDelete, onEdit }: { r: TxRow; onDelete: (r: TxRow, from: HT
       </td>
       <td>{r.sourceCurrency}</td>
       <td className="tx-actions">
-        <button type="button" className="tx-act" aria-disabled="true" aria-label={`Edit ${desc}`} aria-describedby="tx-edit-note" onClick={(e) => {
-            e.preventDefault();
-            onEdit();
-          }}>
+        <button
+          type="button"
+          className="tx-act"
+          aria-disabled={reason !== null ? 'true' : undefined}
+          aria-label={`Edit ${desc}`}
+          aria-describedby={reason !== null ? `tx-edit-why-${r.key}` : 'tx-edit-note'}
+          title={reason ?? undefined}
+          onClick={(e) => onEdit(r, e.currentTarget)}
+        >
           Edit
         </button>
+        {reason !== null && (
+          <span id={`tx-edit-why-${r.key}`} className="sr-only">
+            {reason}
+          </span>
+        )}
         <button type="button" className="tx-act tx-act-del" aria-label={`Delete ${desc}`} onClick={(e) => onDelete(r, e.currentTarget)}>
           Delete
         </button>
