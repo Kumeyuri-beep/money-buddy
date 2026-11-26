@@ -7,7 +7,7 @@ const ITEMS: { id: RowAction; label: string; hint?: string }[] = [
   { id: 'add', label: 'Add a transaction' },
   { id: 'open', label: 'Open holding' },
   { id: 'edit', label: 'Edit', hint: 'Edit the latest price and exchange rate' },
-  { id: 'delete', label: 'Delete' },
+  { id: 'delete', label: 'Delete all records' },
 ];
 
 /** เมนู ⋯ ของแถว: คีย์บอร์ดใช้ได้ (ลูกศรขึ้น/ลง · Esc ปิดแล้วโฟกัสกลับปุ่ม) · วางตำแหน่งแบบ fixed ไม่ถูกตารางเลื่อนตัด */

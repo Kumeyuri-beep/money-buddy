@@ -31,7 +31,7 @@ for (const w of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
       await expect(menu).toBeVisible(); // ปิดอยู่: กดแล้วเมนูไม่ปิดและไม่ทำอะไร
 
       // ลบรายการทั้งหมดของ DEMF ก่อน (ปุ่ม Delete เดิม) สินทรัพย์ยังอยู่ในตารางโดยไม่มีรายการ
-      await menu.getByRole('menuitem', { name: 'Delete', exact: true }).click();
+      await menu.getByRole('menuitem', { name: 'Delete all records', exact: true }).click();
       await page.getByRole('button', { name: 'Delete 1 record' }).click();
       await expect(page.getByText('Deleted DEMF: 1 record')).toBeVisible();
       await expect(page.getByRole('row', { name: /Demo Foxtrot Income ETF/ })).toBeVisible();

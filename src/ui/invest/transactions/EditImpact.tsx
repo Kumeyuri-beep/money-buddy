@@ -27,12 +27,12 @@ function rowsOf(before: EditSide, after: EditSide, currency: 'USD' | 'THB'): Row
     { key: 'units', label: 'Shares held', before: formatUnits(before.units), after: formatUnits(after.units) },
     { key: 'avg', label: 'Average cost per share', before: before.avgCostMicro === null ? none : price(before.avgCostMicro), after: after.avgCostMicro === null ? none : price(after.avgCostMicro) },
     { key: 'cost', label: currency === 'USD' ? 'Cost of holdings (USD)' : 'Cost of holdings', before: money(before.costMinor), after: money(after.costMinor) },
-    { key: 'realized', label: currency === 'USD' ? 'Profit already realised from price (USD)' : 'Profit already realised', before: profit(before.realizedMinor), after: profit(after.realizedMinor) },
+    { key: 'realized', label: currency === 'USD' ? 'Realized profit (price, USD)' : 'Realized profit', before: profit(before.realizedMinor), after: profit(after.realizedMinor) },
   ];
   if (currency === 'USD' && before.costThb !== null && after.costThb !== null && before.realizedThb !== null && after.realizedThb !== null) {
     rows.push(
       { key: 'costThb', label: 'Cost of holdings (THB)', before: baht(before.costThb), after: baht(after.costThb) },
-      { key: 'realizedThb', label: 'Total realised profit incl. exchange rate (THB)', before: signed(before.realizedThb), after: signed(after.realizedThb) },
+      { key: 'realizedThb', label: 'Realized profit incl. FX (THB)', before: signed(before.realizedThb), after: signed(after.realizedThb) },
     );
   }
   return rows;

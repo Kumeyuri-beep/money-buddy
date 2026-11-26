@@ -115,6 +115,12 @@ export function ThaiTradeEdit({ trade, asset, assetTrades, accounts, entries, wa
     setReview({ trade: built.trade, before: preview.before, after: preview.after });
   };
 
+  /** ขั้นตรวจผลกระทบ → กลับฟอร์ม (ปุ่ม Back และ Esc) ค่าที่กรอกยังอยู่ */
+  const backToForm = () => {
+    setReview(null);
+    heading.current?.focus();
+  };
+
   const confirm = async () => {
     if (busy || !review) return;
     setBusy(true);
@@ -138,7 +144,9 @@ export function ThaiTradeEdit({ trade, asset, assetTrades, accounts, entries, wa
       aria-labelledby="th-edit-title"
       onCancel={(e) => {
         e.preventDefault();
-        if (!busy) onClose();
+        if (busy) return;
+        if (review) backToForm();
+        else onClose();
       }}
     >
       <div className="entry-form">
@@ -150,7 +158,7 @@ export function ThaiTradeEdit({ trade, asset, assetTrades, accounts, entries, wa
             <h3 className="edit-review-title">Check the change before you save</h3>
             <EditImpact before={review.before} after={review.after} currency="THB" />
             <div className="dialog-actions">
-              <button type="button" className="btn btn-ghost btn-small" onClick={() => setReview(null)} disabled={busy}>
+              <button type="button" className="btn btn-ghost btn-small" autoFocus onClick={backToForm} disabled={busy}>
                 Back
               </button>
               <button type="button" className="btn btn-primary btn-small" onClick={() => void confirm()} disabled={busy}>

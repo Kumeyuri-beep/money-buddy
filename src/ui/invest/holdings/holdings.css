@@ -78,7 +78,9 @@
 
 /* รายการ "Delete asset" ในเมนู ⋯ (R2 ข้อ 4 · เฉพาะคอม ≥1024px: มือถือไม่แสดงรายการนี้เลย) */
 @media (min-width: 1024px) {
-  .hd-menuitem.is-danger-next { color: var(--expense); }
+  /* เส้นคั่นอยู่เหนือรายการแดงตัวแรกเท่านั้น มุมโค้งล่างย้ายไปรายการสุดท้าย */
+  .hd-menuitem.is-danger { border-radius: 0; }
+  .hd-menuitem.is-danger-next { color: var(--expense); border-radius: 0 0 10px 10px; }
   .hd-menuitem[aria-disabled='true'] { opacity: 1; color: var(--muted); cursor: not-allowed; }
   .hd-menuitem[aria-disabled='true']:hover { background: transparent; }
   .hd-menuhint { display: block; font-size: 13px; line-height: 1.3; padding-bottom: 6px; color: var(--muted); }
