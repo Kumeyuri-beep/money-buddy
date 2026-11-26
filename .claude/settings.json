@@ -211,8 +211,8 @@
       "Bash(MONEY_BUDDY_LIVE_TESTS=yes npm run admin:live-contract)",
       "PowerShell(npm run admin:live-contract)",
       "PowerShell($env:MONEY_BUDDY_LIVE_TESTS='yes'; npm run admin:live-contract)",
-      "mcp__claude_ai_Supabase__apply_migration",
-      "mcp__claude_ai_Supabase__execute_sql"
+      "Bash(MONEY_BUDDY_SQL_TESTS=yes npm run admin:sql-tests)",
+      "PowerShell($env:MONEY_BUDDY_SQL_TESTS='yes'; npm run admin:sql-tests)"
     ]
-  }
-}
+   }	
+ }
