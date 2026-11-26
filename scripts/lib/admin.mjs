@@ -78,3 +78,14 @@ export function loadAdmin() {
   });
   return { client, url, safeMessage: makeSafeMessage([key, url]) };
 }
+
+/** เฉพาะ admin:sql-tests: ตรวจไฟล์แบบเดียวกับ loadAdmin แต่คืนแค่ URL โปรเจกต์กับค่าเชื่อมต่อฐานข้อมูล ไม่คืน key และไม่สร้าง client */
+export function loadDbUrl() {
+  if (process.env.SUPABASE_DB_URL) {
+    fail('ปฏิเสธ: พบ SUPABASE_DB_URL ใน environment ของ shell ให้ลบออก (ต้องอ่านจาก admin.env เท่านั้น)');
+  }
+  const file = resolve(adminEnvPath(homedir(), '/'));
+  checkAdminFile(file);
+  const values = parseEnv(readFileSync(file, 'utf8'));
+  return { url: values.SUPABASE_URL ?? '', dbUrl: values.SUPABASE_DB_URL };
+}

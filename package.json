@@ -17,6 +17,7 @@
     "admin:spike": "node scripts/spike-auth.mjs",
     "e2e": "playwright test",
     "admin:live-contract": "vitest run --config vitest.live.config.ts",
+    "admin:sql-tests": "node scripts/sql-tests.mjs",
     "preview": "vite preview"
   },
   "keywords": [],
@@ -40,6 +41,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "fake-indexeddb": "^6.2.7",
+    "pg": "8.23.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",
     "vitest": "^5.0.5"
