@@ -129,6 +129,7 @@ export function ThaiTradeEdit({ trade, asset, assetTrades, accounts, entries, wa
       onSaved('Transaction updated');
     } catch (err) {
       setReview(null); // ชนกัน/ผิดกติกาจากฐานข้อมูล: กลับไปฟอร์มพร้อมข้อความ
+      heading.current?.focus(); // ปุ่มที่โฟกัสอยู่หายไปกับขั้นตรวจผลกระทบ
       setProblem(investError(err));
     } finally {
       setBusy(false);

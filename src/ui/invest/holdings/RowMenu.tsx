@@ -69,7 +69,11 @@ export function RowMenu({ label, onPick, deleteAsset }: { label: string; onPick:
     } else if (e.key === 'End') {
       e.preventDefault();
       items[items.length - 1]?.focus();
-    } else if (e.key === 'Tab') setOpen(null);
+    } else if (e.key === 'Tab') {
+      // เมนูอยู่ท้าย body: คืนโฟกัสให้ปุ่มของแถวก่อน แล้วปล่อยให้ Tab ทำงานตามปกติต่อจากปุ่มนั้น (ไม่ preventDefault)
+      btn.current?.focus();
+      setOpen(null);
+    }
   };
 
   return (

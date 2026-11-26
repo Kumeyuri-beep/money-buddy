@@ -334,6 +334,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
       await finish('Transaction updated');
     } catch (err) {
       setReview(null); // ชนกัน/ผิดกติกาจากฐานข้อมูล: กลับไปฟอร์มพร้อมข้อความ
+      headingRef.current?.focus(); // ปุ่มที่โฟกัสอยู่หายไปกับขั้นตรวจผลกระทบ
       setEditProblemText(investError(err));
     } finally {
       setBusy(false);

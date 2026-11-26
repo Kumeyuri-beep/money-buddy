@@ -45,3 +45,28 @@ for (const vp of [{ width: 360, height: 740 }, { width: 390, height: 844 }, { wi
     });
   });
 }
+
+for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 800 }]) {
+  test.describe(`เมนูแถว Holdings คีย์บอร์ด ${vp.width}px`, () => {
+    test.use({ viewport: vp, locale: 'en-US', timezoneId: 'Asia/Bangkok' });
+
+    test('Tab / Shift+Tab ปิดเมนูแล้วโฟกัสไปต่อจากปุ่ม ⋯ ของแถวเดิม (ไม่หลุดไปท้ายหน้า)', async ({ page }) => {
+      await page.route((url) => !/^(localhost|127\.0\.0\.1)$/.test(url.hostname), (route) => route.abort());
+      await page.goto('/harness.html?seed=1&investDemo=1#/invest/portfolio/holdings');
+      await expect(page.getByRole('row', { name: /Demo Alpha Tech/ })).toBeVisible({ timeout: 20_000 });
+      const first = page.getByRole('button', { name: 'Actions for DEMA' });
+      await first.click();
+      await expect(page.getByRole('menu')).toBeVisible();
+      await page.keyboard.press('Tab');
+      await expect(page.getByRole('menu')).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Actions for DEMB' })).toBeFocused();
+
+      const second = page.getByRole('button', { name: 'Actions for DEMB' });
+      await second.press('Enter');
+      await expect(page.getByRole('menu')).toBeVisible();
+      await page.keyboard.press('Shift+Tab');
+      await expect(page.getByRole('menu')).toHaveCount(0);
+      await expect(first).toBeFocused();
+    });
+  });
+}
