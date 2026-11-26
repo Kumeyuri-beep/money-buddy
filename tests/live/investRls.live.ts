@@ -372,6 +372,7 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     if (!parsed.ok) throw new Error(parsed.problems.join(' | '));
     const { id } = await signedIn(1);
     await wipe(1);
+    assertTestUser(id);
     await wipeUserTables(admin, id, ['asset_categories']);
     await b.saveCategories([{ id: 'cat-old', name: 'หมวดเดิม', targetBps: 10_000, sortOrder: 1 }], []);
     expect(await b.countCategories()).toBe(1);
@@ -380,8 +381,11 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     expect((await b.loadInvestments()).assets).toEqual([]);
 
     await wipe(1); // wipe ไม่แตะหมวด: หมวดเดิมยังค้างเหมือนสถานการณ์จริง
-    await b.importBackup(parsed.data, undefined, { replaceCategories: 1 });
-    expect(await b.countCategories()).toBe(0); // ไฟล์ของ A ไม่มีหมวด
-    expect((await b.loadInvestments()).assets).toEqual(snapshot.investments?.assets);
+    const categories = [{ id: 'cat-new', name: 'หมวดจากไฟล์', targetBps: 10_000, sortOrder: 1 }];
+    await b.importBackup({ ...parsed.data, investments: { ...parsed.data.investments!, categories } }, undefined, { replaceCategories: 1 });
+    const restored = await b.loadInvestments();
+    expect(restored.categories).toEqual(categories);
+    expect(restored.assets).toEqual(snapshot.investments?.assets);
+    await wipeUserTables(admin, id, ['asset_categories']); // หลัง assertTestUser(id) ข้างบน
   });
 });

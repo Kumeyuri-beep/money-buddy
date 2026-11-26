@@ -320,7 +320,8 @@ export function parseBackup(text: string, today: string): ParseResult {
       investments.trades.length > 0 ||
       investments.prices.length > 0 ||
       (investments.fxRates?.length ?? 0) > 0 ||
-      (investments.fxExchanges?.length ?? 0) > 0);
+      (investments.fxExchanges?.length ?? 0) > 0 ||
+      (investments.categories?.length ?? 0) > 0);
 
   const rawSettings = isObject(root.settings) ? root.settings : {};
   const settings: FinanceSettings = {};

@@ -48,7 +48,7 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
     }
   };
 
-  const { guard, dialog } = useCategoryGuard(repo, (e) => setStep({ name: 'error', message: friendly(e) }));
+  const { guard, checking, dialog } = useCategoryGuard(repo, (e) => setStep({ name: 'error', message: friendly(e) }));
 
   const doImport = async (read: Extract<BackupFileRead, { ok: true }>, options?: ImportOptions) => {
     setStep({ name: 'importing' });
@@ -163,7 +163,10 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
             const read = step.read as Extract<BackupFileRead, { ok: true }>;
             void guard(read.data.investments?.categories?.length ?? 0, (options) => void doImport(read, options));
           }}
-          onBack={() => setStep({ name: 'pick' })}
+          checking={checking}
+          onBack={() => {
+            if (!checking) setStep({ name: 'pick' });
+          }}
         />
       )}
       {dialog}
@@ -235,7 +238,7 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
   );
 }
 
-function ReviewBody({ read, onImport, onBack }: { read: Extract<BackupFileRead, { ok: true }>; onImport: () => void; onBack: () => void }) {
+function ReviewBody({ read, checking, onImport, onBack }: { read: Extract<BackupFileRead, { ok: true }>; checking: boolean; onImport: () => void; onBack: () => void }) {
   return (
     <div className="migrate-body">
       <p>
@@ -252,13 +255,14 @@ function ReviewBody({ read, onImport, onBack }: { read: Extract<BackupFileRead, 
         </div>
       )}
       <div className="actions">
-        <button className="btn btn-primary" type="button" onClick={onImport}>
+        <button className="btn btn-primary" type="button" onClick={onImport} aria-disabled={checking || undefined}>
           นำเข้า
         </button>
-        <button className="btn btn-ghost" type="button" onClick={onBack}>
+        <button className="btn btn-ghost" type="button" onClick={onBack} aria-disabled={checking || undefined}>
           เลือกไฟล์อื่น
         </button>
       </div>
+      <p role="status" className="muted">{checking ? 'กำลังตรวจหมวดเดิม...' : ''}</p>
     </div>
   );
 }

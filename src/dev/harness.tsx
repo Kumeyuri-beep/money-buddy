@@ -101,7 +101,7 @@ function importDemoRepository(count: number) {
   const local = localLedgerRepository();
   importDemo = {
     ...local,
-    countCategories: () => Promise.resolve(count),
+    countCategories: () => new Promise<number>((resolve) => window.setTimeout(() => resolve(count), Number(params.get('countDelay') ?? 0))),
     importBackup: (data, onProgress, options) => {
       const w = window as unknown as { __importOptions?: unknown[] };
       (w.__importOptions ??= []).push(options ?? null);

@@ -117,7 +117,7 @@ export function MigrationWizard({ userId, online, mode, onDone }: Props) {
     }
   };
 
-  const { guard, dialog } = useCategoryGuard(online, (e) => setStep({ name: 'error', message: friendly(e) }));
+  const { guard, checking, dialog } = useCategoryGuard(online, (e) => setStep({ name: 'error', message: friendly(e) }));
 
   const doImport = async (read: Extract<LocalRead, { ok: true }>, options?: ImportOptions) => {
     setStep({ name: 'importing' });
@@ -234,7 +234,10 @@ export function MigrationWizard({ userId, online, mode, onDone }: Props) {
               const read = step.read as Extract<LocalRead, { ok: true }>;
               void guard(read.data.investments?.categories?.length ?? 0, (options) => void doImport(read, options));
             }}
-            onBack={() => setStep({ name: 'backup' })}
+            checking={checking}
+            onBack={() => {
+              if (!checking) setStep({ name: 'backup' });
+            }}
           />
         )}
         {dialog}
@@ -319,7 +322,7 @@ export function MigrationWizard({ userId, online, mode, onDone }: Props) {
   );
 }
 
-function ReviewBody({ read, onImport, onBack }: { read: Extract<LocalRead, { ok: true }>; onImport: () => void; onBack: () => void }) {
+function ReviewBody({ read, checking, onImport, onBack }: { read: Extract<LocalRead, { ok: true }>; checking: boolean; onImport: () => void; onBack: () => void }) {
   return (
     <div className="migrate-body">
       <p>
@@ -336,13 +339,14 @@ function ReviewBody({ read, onImport, onBack }: { read: Extract<LocalRead, { ok:
         </div>
       )}
       <div className="actions">
-        <button className="btn btn-primary" type="button" onClick={onImport}>
+        <button className="btn btn-primary" type="button" onClick={onImport} aria-disabled={checking || undefined}>
           นำเข้าขึ้นบัญชีออนไลน์
         </button>
-        <button className="btn btn-ghost" type="button" onClick={onBack}>
+        <button className="btn btn-ghost" type="button" onClick={onBack} aria-disabled={checking || undefined}>
           ย้อนกลับ
         </button>
       </div>
+      <p role="status" className="muted">{checking ? 'กำลังตรวจหมวดเดิม...' : ''}</p>
     </div>
   );
 }

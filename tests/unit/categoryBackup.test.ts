@@ -43,4 +43,17 @@ describe('ไฟล์สำรองกับหมวดใหม่/หมว
     // นำเข้าแล้วเปิดกลับ/ซ่อนต่อได้ตามปกติ
     await expect(b.setCategoryHidden(food.id, false)).resolves.toMatchObject({ id: food.id });
   });
+
+  it('ไฟล์ที่ข้อมูลลงทุนมีแต่หมวดสินทรัพย์ (ยังไม่มีสินทรัพย์): หมวดต้องไม่หายตอนตรวจไฟล์', async () => {
+    const a = fresh();
+    await a.saveInitialLedger(buildInitialLedger([{ name: 'เงินสด', opening: '1000' }], '2026-11-01'));
+    const categories = [
+      { id: 'c1', name: 'หมวดหนึ่ง', targetBps: 6000, sortOrder: 1 },
+      { id: 'c2', name: 'หมวดสอง', targetBps: 4000, sortOrder: 2 },
+    ];
+    const file = { ...(await a.exportSnapshot()), investments: { assets: [], trades: [], prices: [], categories } };
+    const parsed = parseBackup(JSON.stringify(file), '2026-11-14');
+    if (!parsed.ok) throw new Error(parsed.problems.join('\n'));
+    expect(parsed.data.investments?.categories).toEqual(categories);
+  });
 });
