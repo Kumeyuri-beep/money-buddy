@@ -141,7 +141,7 @@ Commit ต้องระบุกฎที่แตะ เช่น `[R1,R8,R16
 - money-auditor: หลังแก้โค้ดเงิน/บัญชี/SQL ที่คำนวณยอด
 - security-auditor: หลังแตะล็อกอิน, Supabase, RLS, `.env`, นำเข้า/ส่งออก
 - design-critic: หลังแก้หน้าจอ
-Skill: `/grill-me` ซักแผนก่อนลงมือ, `money-rules` ใช้อัตโนมัติเมื่อแตะเงิน, `/ship` ตรวจแล้วรอยืนยันก่อน push
+Skill: `/grill-me` ซักแผนก่อนลงมือ, `money-rules` ใช้อัตโนมัติเมื่อแตะเงิน, `/mb-ship` ตรวจแล้วรอยืนยันก่อน push
 
 ## กติกา GM/ลูกน้อง (เจ้าของสั่ง 16 พ.ย. 2569)
 
@@ -168,5 +168,5 @@ Skill: `/grill-me` ซักแผนก่อนลงมือ, `money-rules` 
 - เขียนโค้ด: ใช้ `test-driven-development` และ `executing-plans` (ทำเองใน session นี้)
   **ห้ามใช้ `subagent-driven-development` / `dispatching-parallel-agents`** เว้นแต่เจ้าของสั่ง เพราะกินโควตามาก
 - บั๊ก: ใช้ `systematic-debugging` · ก่อนบอกว่าเสร็จ: `verification-before-completion`
-- Git: ทำงานบน branch `main` ไม่ต้องสร้าง worktree · ห้าม merge, push หรือเปิด PR เอง ใช้ `/ship` แล้วรอเจ้าของยืนยัน
+- Git: ทำงานบน branch `main` ไม่ต้องสร้าง worktree · ห้าม merge, push หรือเปิด PR เอง ใช้ `/mb-ship` แล้วรอเจ้าของยืนยัน
 - แผนที่เขียนให้เก็บไว้ที่ `docs/plans/` (เปิดดูใน Obsidian ได้)
