@@ -1589,3 +1589,10 @@ money-auditor ตรวจ 5 ตัวที่เกี่ยวกับเง
 **นอกโจทย์ที่แก้:** เมนู ⋯ ของ Holdings บนคอมหลุดจอ (มีบน main) → portal ลง body เฉพาะคอม
 **backlog:** เมนู ⋯ บนมือถืออาจมีอาการเดียวกัน (รอปรับมือถือ) · `editedTradeOf` ซ้ำกับ logic ใน `supabaseRepository.replaceTrade` ควรให้ repository เรียกตัวเดียวกันภายหลัง · ฟอร์มแก้แลกเงิน/เงินสดยังไม่มี
 **ต้องลองบนคอม:** Transactions → Edit ซื้อ/ขาย/ปันผล (USD และกองทุนไทย) ดูตารางก่อน→หลัง · Edit ที่ปิดกดแล้วมีเหตุผล · Holdings ⋯ → Delete asset (ลบรายการให้หมดก่อน)
+
+## 107. ต่อจาก §106 (26 พ.ย. 2569)
+- #271 (HANDOFF §105-§106) merge แล้ว · CI บน main (`6508e40`) ผ่าน
+- #272 (`money-rules.md` 2 ประโยค) เปิดแล้ว money-auditor ผ่าน · **รอเจ้าของยืนยันถ้อยคำก่อน merge** · ข้อสังเกตเดิมของผู้ตรวจ: R29 "เป้า 0% + Allow sales ขายหมด" ไม่ตรงกรณีเศษหุ้นต่ำกว่าขั้น · `RebalanceForm.tsx`/CSV ยังเขียน "whole shares" แม้แถวขายหมดแสดงทศนิยมได้
+- branch นี้ (`auto/r2-followup-270` ยังไม่เปิด PR): เมนู ⋯ ของ Holdings หลุดจอบนมือถือ/แท็บเล็ตจริง (360/390/768) แก้แล้ว + `tests/e2e/invest-holdings-menu.spec.ts` · ข้อเก็บตก #270 อื่นยังไม่ทำ
+- backlog ข้อ 1: แผนอยู่ branch `auto/import-categories-plan` (`docs/plans/2026-11-26-import-categories-guard.md`) รอเจ้าของอนุมัติ
+- Top dividend stocks: เสนอเว็บแล้ว รอเจ้าของเลือก
