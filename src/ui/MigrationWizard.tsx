@@ -3,11 +3,12 @@ import { thaiIsoDate } from '../app/dates';
 import { writeMigrationFlag } from '../app/dataSource';
 import { importAndVerify, readLocalForMigration, RESET_CANCELLED_MESSAGE, verifyOnline, type LocalRead } from '../app/migrate';
 import type { VerifyReport } from '../app/importVerify';
-import type { LedgerRepository } from '../storage/ledgerRepository';
+import type { ImportOptions, LedgerRepository } from '../storage/ledgerRepository';
 import { StorageError } from '../storage/repository';
 import { useAccount } from './AuthContext';
 import { downloadLocalData } from './backup';
 import { BalanceTable } from './ImportReportTable';
+import { useCategoryGuard } from './ReplaceCategoriesDialog';
 import { localLedgerRepository } from './RepositoryContext';
 
 interface Props {
@@ -116,13 +117,15 @@ export function MigrationWizard({ userId, online, mode, onDone }: Props) {
     }
   };
 
-  const doImport = async (read: Extract<LocalRead, { ok: true }>) => {
+  const { guard, checking, dialog } = useCategoryGuard(online, (e) => setStep({ name: 'error', message: friendly(e) }));
+
+  const doImport = async (read: Extract<LocalRead, { ok: true }>, options?: ImportOptions) => {
     setStep({ name: 'importing' });
     setProgress(null);
     // ตั้งธง "รอยืนยัน" ก่อนนำเข้า: ถ้าปิดแท็บกลางทางแล้วเปิดใหม่ จะเห็นหน้าตรวจยอดต่อ ไม่ข้ามเข้าแอปเงียบๆ
     writeMigrationFlag(window.localStorage, userId, 'pending');
     try {
-      const result = await importAndVerify(read.data, online, (done, total) => setProgress([done, total]));
+      const result = await importAndVerify(read.data, online, (done, total) => setProgress([done, total]), options);
       setAck(false);
       setWipeNote('');
       setStep({ name: 'result', report: result.report, counts: result.counts });
@@ -227,10 +230,17 @@ export function MigrationWizard({ userId, online, mode, onDone }: Props) {
         {step.name === 'review' && step.read.ok && (
           <ReviewBody
             read={step.read}
-            onImport={() => void doImport(step.read as Extract<LocalRead, { ok: true }>)}
-            onBack={() => setStep({ name: 'backup' })}
+            onImport={() => {
+              const read = step.read as Extract<LocalRead, { ok: true }>;
+              void guard(read.data.investments?.categories?.length ?? 0, (options) => void doImport(read, options));
+            }}
+            checking={checking}
+            onBack={() => {
+              if (!checking) setStep({ name: 'backup' });
+            }}
           />
         )}
+        {dialog}
 
         {step.name === 'result' && (
           <div className="migrate-body">
@@ -312,7 +322,7 @@ export function MigrationWizard({ userId, online, mode, onDone }: Props) {
   );
 }
 
-function ReviewBody({ read, onImport, onBack }: { read: Extract<LocalRead, { ok: true }>; onImport: () => void; onBack: () => void }) {
+function ReviewBody({ read, checking, onImport, onBack }: { read: Extract<LocalRead, { ok: true }>; checking: boolean; onImport: () => void; onBack: () => void }) {
   return (
     <div className="migrate-body">
       <p>
@@ -329,13 +339,14 @@ function ReviewBody({ read, onImport, onBack }: { read: Extract<LocalRead, { ok:
         </div>
       )}
       <div className="actions">
-        <button className="btn btn-primary" type="button" onClick={onImport}>
+        <button className="btn btn-primary" type="button" onClick={onImport} aria-disabled={checking || undefined}>
           นำเข้าขึ้นบัญชีออนไลน์
         </button>
-        <button className="btn btn-ghost" type="button" onClick={onBack}>
+        <button className="btn btn-ghost" type="button" onClick={onBack} aria-disabled={checking || undefined}>
           ย้อนกลับ
         </button>
       </div>
+      <p role="status" className="muted">{checking ? 'กำลังตรวจหมวดเดิม...' : ''}</p>
     </div>
   );
 }

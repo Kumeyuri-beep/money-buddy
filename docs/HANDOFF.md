@@ -1615,6 +1615,21 @@ money-auditor ตรวจ 5 ตัวที่เกี่ยวกับเง
 - backlog จากผู้ตรวจ (ยังไม่ทำ): Esc สองครั้งขณะกำลังบันทึก Chrome อาจปิด dialog เอง (ยังไม่ทดสอบ) · Esc ที่หน้าตรวจเมื่อย่อจอ <1024px ไม่ทำอะไร (Back ใช้ได้) · เมนูแถวดึงโฟกัสกลับรายการแรกเมื่อเลื่อนหน้า · ลิงก์เก่า `/invest/tools/top-dividend-stocks` ตกไปหน้าเริ่มต้น · เทสต์ว่าคลิกลิงก์ภายนอกเปิดแท็บใหม่จริง · แบบร่าง `docs/design/invest-v2/31-*` ยังสื่อว่าเป็นหน้าในแอป
 - **รอปรับมือถือ:** มือถือแนวนอน เมนูแถว Holdings อาจพ้นจอด้านล่าง
 
+## 109. 27 พ.ย. 2569: #274 merge · เริ่มงานนำเข้าหลังมีหมวด (PR draft)
+- #274 merge แล้ว (`754a5de`) หลังเพิ่มเทสต์บันทึกล้ม + แก้ข้อความผิดพลาดหลุดจอเตี้ย · design-critic ผ่าน · e2e 724 · live-contract บน branch (`6894d54`) และบน main 68/68
+- backlog จากผู้ตรวจ: ตรวจกติกาไม่ผ่านซ้ำแล้วข้อความไม่เลื่อนเข้าจออีก (ใส่ key นับครั้ง) และล้างข้อความกติกาเก่าเมื่อล้มที่ตัวตรวจช่อง (`UsStocksView.tsx`, `ThaiTradeEdit.tsx`)
+- #275 (`/mb-ship`) รอเจ้าของ merge เอง (แตะ `CLAUDE.md`)
+- branch `auto/import-replace-categories`: migration `20261127000100` **ยังไม่ใส่ · ยังไม่ dry-run** · รอเจ้าของดูคำสั่ง delete ทุกจุด · ลำดับต่อ: dry-run rollback → money-auditor + security-auditor → ใส่จริง → เทสต์ SQL ครบทุกไฟล์ → เว็บ → live-contract branch/main
+- **งานถัดไปทันทีหลังข้อนี้ (เจ้าของสั่ง):** ปุ่มลองขั้นสุดท้ายใหม่ ลองได้โดยไม่ต้องล้างข้อมูลและไม่ลบหมวด
+
+## 110. migration นำเข้าหมวดใส่ฐานข้อมูลแล้ว · เทสต์ SQL ยังรันไม่ครบ (27 พ.ย. 2569 · branch `auto/import-replace-categories` · PR draft #276)
+- เจ้าของยืนยันเงื่อนไข (v_user จาก `auth.uid()` · definer มี `search_path=''`) → dry-run rollback (migration + เทสต์ใหม่) ผ่าน → money-auditor ผ่าน · security-auditor ผ่าน → **ใส่ `20261127000100` แล้ว** (ชื่อในประวัติ `import_replace_categories`)
+- หลังใส่: สิทธิ์ถูก (anon เรียกไม่ได้) · abort ไม่ลบหมวด · จำนวนแถวหลังเทสต์เท่าตัวตั้งต้น (users 3, accounts 35, entries 18, lines 42, trades 4, assets 1, settings 2, profiles 3, fx_exchanges 2, categories 0) ไม่มีผู้ใช้ทดสอบเหลือ · live-contract บน branch (`165d37d`) 68/68
+- **เทสต์ SQL รันแล้ว 2/31:** `import_replace_categories_test`, `categories_test` = TESTS_PASSED (ส่งผ่าน `execute_sql` ย่อ/ตัดคอมเมนต์บางบรรทัด ตรรกะตามไฟล์) · **เหลือ 29 ไฟล์ ห้าม merge จนครบ** (กฎลำดับสูงสุด): account_kind_switch, accounts_name_check, accounts_name_only, basedon_fingerprint, batched_delete, bill_link_conflict_code, cash_adjustment, category_archive, consent_version, delete_asset, import_chunked, import_fx_verify, import_invest, invest_ledger, invest_schema, m2a_schema, m2b_admin_sessions, m2c_admin_delete, m2c_reset_ledger, m2d_import_ledger, m2d_import_limits, m2f_cooldown, m2g_bill_lock, merge_settings, merge_settings_if, replace_trade, usd_backup_import, usd_fx_entry_lock, usd_phase_a
+- **ช่วงที่ฐานข้อมูลใหม่แต่เว็บเก่า (money-auditor กลาง-ต่ำ):** ถ้ามีหมวดค้างและนำเข้าแบ่งก้อนล้ม การลองใหม่ด้วยเว็บเก่าจะได้ครึ่งเดียว (ตอนนี้ไม่มีผู้ใช้ที่มีหมวด) → ทำ dialog เว็บต่อโดยเร็ว
+- backlog ผู้ตรวจ: ตรวจจำนวนหมวด ไม่ใช่ลายนิ้วมือ · เทสต์เสริม (T4 ระบุรหัส, fx ล้ม, มีแค่ fx_rates, `has_function_privilege`, 28000) · live-contract ข้อของ RPC ใหม่ (ทำกับงานเว็บ) · header migration อ้างแผนที่อยู่อีก branch
+- ลำดับที่เหลือ: เทสต์ SQL 29 ไฟล์ → dialog เว็บ (Cancel เป็นค่าเริ่มต้น บอกจำนวนหมวด · เรียก RPC ใหม่แม้ไฟล์ไม่มีข้อมูลลงทุน · PT409) → live-contract branch/main → ปุ่มลองขั้นสุดท้ายใหม่ · #275 รอเจ้าของ merge
+
 ## 111. admin:sql-tests (#277) หยุดรอเจ้าของ (27 พ.ย. 2569)
 - เจ้าของเลือกวิธี ข (สคริปต์) · เปิด #277 แล้ว **security-auditor ไม่ผ่าน (ระดับสูง 2 ข้อ: ด่านตรวจไฟล์ SQL หลบได้ จึงอาจทำให้ข้อมูลค้างจริง)** → เปลี่ยนเป็น draft · ห้าม merge ห้ามรันกับฐานข้อมูลจริง จนแก้และตรวจซ้ำผ่าน
 - ยังไม่เปิด PR แก้ CLAUDE.md (รอด่านผ่าน) · เทสต์ SQL ค้าง 29 ไฟล์ (§110 บน branch `auto/import-replace-categories`) · ห้ามใส่ migration ใหม่จนรันครบ
@@ -1624,3 +1639,17 @@ money-auditor ตรวจ 5 ตัวที่เกี่ยวกับเง
 - security-auditor รอบ 2 **ผ่าน** (ไม่มีระดับสูง) · แก้ข้อต่ำ 2-4 หลังตรวจ (เพิ่มข้อห้าม/ข้อพิสูจน์/query_timeout เป็นการเข้มขึ้น ไม่ได้ส่งตรวจซ้ำ) · npm audit 0 · ข้อกลางที่เหลือ: ชื่อคำสั่งที่ประกอบจากชิ้นสตริงยังเลี่ยงด่านข้อความได้ → รันเฉพาะไฟล์ของโปรเจกต์ที่ตรวจแล้วเท่านั้น
 - **ยังไม่ได้พิสูจน์กับ Postgres จริง:** คำสั่งรันตัวพิสูจน์ (Postgres จำลองใน scratchpad) ถูกระบบสิทธิ์ของ Claude Code ปฏิเสธ ไม่ได้หาทางอ้อม · มีแค่ unit test กับฐานข้อมูลปลอม · query ลายนิ้วมือ/ส่วนขยายรันอ่านอย่างเดียวบนฐานข้อมูลจริงได้
 - รอเจ้าของ: ใส่ `SUPABASE_DB_URL` · merge PR กฎ CLAUDE.md · เพิ่มกฎ allow · รัน/ให้รัน `--prove-only` ก่อน แล้วค่อยรันครบ (บน #276 หลัง merge main ที่มีสคริปต์)
+
+## 113. เทสต์ SQL ครบ 31/31 ผ่าน (27 พ.ย. 2569 · branch `auto/import-replace-categories` · #276)
+- เจ้าของใส่ค่าเชื่อมต่อและใบรับรอง รัน `--prove-only` ผ่านครบ 9 ข้อ (พิสูจน์กับฐานข้อมูลจริงแล้ว ทับ §112) · merge #275 #278 · #277 merge ตามกฎระดับ 2 (`6c61174`)
+- เจ้าของถอน `apply_migration` / `execute_sql` ออกจาก allow: แตะฐานข้อมูลตรงๆ ต้องผ่านกล่องยืนยัน · เทสต์ SQL ใช้ `admin:sql-tests` · allow เฉพาะแบบไม่มีพารามิเตอร์ **ถ้าจะส่งพารามิเตอร์ต้องถามเจ้าของทุกครั้ง**
+- รัน `admin:sql-tests` (ไม่มีพารามิเตอร์) บน `661ba4d` หลังใส่ `20261127000100`: ข้อพิสูจน์ 9/9 · **TESTS_PASSED 31/31 ล้ม 0** (ทุกไฟล์ใน `supabase/tests/`) · จำนวนแถวและโครงสร้างเท่าก่อนรัน → ค้าง 29 ไฟล์ใน §110 ปิดแล้ว ข้อห้ามใส่ migration ใหม่ระหว่างรอครบเงื่อนไข
+- เล็กน้อย (ยังไม่แก้): ข้อพิสูจน์ข้อแรกพิมพ์รหัสเป็น `P***` เพราะตัวปิดบังเลข 4 หลักทับรหัส `P0001`
+- #276 ยัง draft: เหลือ dialog เว็บ → ผู้ตรวจ → live-contract branch → merge → live-contract main → ปุ่มลองขั้นสุดท้ายใหม่
+
+## 114. กล่องยืนยันก่อนลบหมวดเดิม + ตรวจครบ (27 พ.ย. 2569 · #276)
+- หน้านำเข้าไฟล์และตัวย้ายข้อมูลนับหมวดก่อน > 0 → กล่องยืนยัน (ค่าเริ่มต้น/Esc = ยกเลิก) → ขั้นท้ายเรียก `import_ledger_investments_replacing_categories`
+- money-auditor รอบแรก **ไม่ผ่าน (สูง 1, บั๊กเดิม): `parseBackup` ไม่นับ `categories` ไฟล์ที่มีแต่หมวดถูกทิ้งหมวดเงียบๆ** → แก้พร้อมเทสต์ ตรวจซ้ำผ่าน · security-auditor ผ่าน · design-critic ไม่มีข้อบล็อก (แก้: บอกว่าเป็นหมวดพอร์ตลงทุน · ปิดปุ่มระหว่างนับ)
+- `npm test` 3207 · typecheck · build · e2e 744 (ข้าม 34) · **live-contract บน branch (`8747cba`) 69/69**
+- backlog จากผู้ตรวจ (ของเดิม ยังไม่แก้): ทางเดิม (ไม่มีหมวดค้าง) เน็ตหลุดยังอ้างว่า "ข้อมูลลงทุนยังไม่เข้า" · ทางแบ่งก้อน ถ้าคำตอบก้อนสุดท้ายหายหลังบันทึก อาจบอกว่า "ล้างส่วนค้างให้แล้ว" ทั้งที่สมุดเข้าครบ · e2e ยังไม่ครอบ MigrationWizard และไฟล์ที่ไม่มีหมวด (M = 0)
+- **งานถัดไป:** ปุ่มลองขั้นสุดท้ายใหม่

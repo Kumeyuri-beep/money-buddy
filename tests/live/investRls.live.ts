@@ -365,4 +365,27 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     const inv = await b.loadInvestments();
     expect(inv).toEqual({ assets: [], trades: [], prices: [] });
   });
+
+  it('นำเข้าเมื่อมีหมวดเดิมค้าง: จำนวนยืนยันไม่ตรง = ไม่ลบหมวด · ตรง = หมวดเดิมถูกแทนด้วยของไฟล์ในธุรกรรมเดียว', async () => {
+    const snapshot = await a.exportSnapshot(new Date('2026-11-12T00:00:00.000Z'));
+    const parsed = parseBackup(JSON.stringify(snapshot), '2026-11-12');
+    if (!parsed.ok) throw new Error(parsed.problems.join(' | '));
+    const { id } = await signedIn(1);
+    await wipe(1);
+    assertTestUser(id);
+    await wipeUserTables(admin, id, ['asset_categories']);
+    await b.saveCategories([{ id: 'cat-old', name: 'หมวดเดิม', targetBps: 10_000, sortOrder: 1 }], []);
+    expect(await b.countCategories()).toBe(1);
+    await expect(b.importBackup(parsed.data, undefined, { replaceCategories: 2 })).rejects.toThrow(/ไม่ได้ลบหมวด/);
+    expect(await adminCount('asset_categories', { user_id: id })).toBe(1);
+    expect((await b.loadInvestments()).assets).toEqual([]);
+
+    await wipe(1); // wipe ไม่แตะหมวด: หมวดเดิมยังค้างเหมือนสถานการณ์จริง
+    const categories = [{ id: 'cat-new', name: 'หมวดจากไฟล์', targetBps: 10_000, sortOrder: 1 }];
+    await b.importBackup({ ...parsed.data, investments: { ...parsed.data.investments!, categories } }, undefined, { replaceCategories: 1 });
+    const restored = await b.loadInvestments();
+    expect(restored.categories).toEqual(categories);
+    expect(restored.assets).toEqual(snapshot.investments?.assets);
+    await wipeUserTables(admin, id, ['asset_categories']); // หลัง assertTestUser(id) ข้างบน
+  });
 });

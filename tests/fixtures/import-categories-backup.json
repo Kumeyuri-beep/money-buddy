@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 2,
+  "exportedAt": "2026-11-09T00:00:00.000Z",
+  "accounts": [
+    { "id": "a", "type": "asset", "name": "กระเป๋า (สมมติ)", "currency": "THB" },
+    { "id": "b", "type": "equity", "name": "ยอดตั้งต้น (สมมติ)", "currency": "THB" }
+  ],
+  "entries": [
+    {
+      "id": "e",
+      "date": "2026-11-01",
+      "memo": "",
+      "source": "system",
+      "lines": [
+        { "accountId": "a", "amount": 1000 },
+        { "accountId": "b", "amount": -1000 }
+      ]
+    }
+  ],
+  "bills": [],
+  "settings": {}
+}

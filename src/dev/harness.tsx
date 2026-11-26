@@ -82,12 +82,33 @@ function Harness() {
           <RepositoryProvider repository={params.get('investDemo') === 'report' ? { ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestmentsWithHistory()) } : params.get('investDemo') === 'norate' ? { ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestmentsNoRate()) } : params.get('investDemo') === 'cash' || params.get('investDemo') === 'cashneg' ? cashDemoRepository(params.get('investDemo') === 'cashneg') : params.get('investDemo') === 'tx' ? txRepository() : params.get('investDemo') === 'txthb' ? txRepository(true) : demoRepository()}>
             <App />
           </RepositoryProvider>
+        ) : params.get('importCategories') !== null ? (
+          <RepositoryProvider repository={importDemoRepository(Number(params.get('importCategories')))}>
+            <App />
+          </RepositoryProvider>
         ) : (
           <App />
         )}
       </PasswordPromptProvider>
     </AccountContext.Provider>
   );
+}
+
+/** นำเข้าไฟล์สำรองเมื่อ "มีหมวดเดิม" (?importCategories=N) · จดตัวเลือกที่หน้าจอส่งมาให้ e2e ตรวจ */
+let importDemo: ReturnType<typeof localLedgerRepository> | null = null;
+function importDemoRepository(count: number) {
+  if (importDemo) return importDemo;
+  const local = localLedgerRepository();
+  importDemo = {
+    ...local,
+    countCategories: () => new Promise<number>((resolve) => window.setTimeout(() => resolve(count), Number(params.get('countDelay') ?? 0))),
+    importBackup: (data, onProgress, options) => {
+      const w = window as unknown as { __importOptions?: unknown[] };
+      (w.__importOptions ??= []).push(options ?? null);
+      return local.importBackup(data, onProgress);
+    },
+  };
+  return importDemo;
 }
 
 /** ที่เก็บข้อมูลลงทุนสมมติที่ลบรายการได้ (เฉพาะ ?investDemo=1 · ใช้ทดสอบปุ่ม Delete ของหน้า Holdings) */

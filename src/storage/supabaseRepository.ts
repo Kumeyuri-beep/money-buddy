@@ -50,7 +50,7 @@ import type { Account, AccountType, Entry, EntrySource, NewEntry } from '../doma
 import { SCHEMA_VERSION } from './db';
 import { buildCashAdjustmentEntry, CashAdjustmentError } from '../domain/invest/cashAdjustment';
 import { carryCode, type NumberField } from './storageMessages';
-import type { ImportProgress, LedgerRepository } from './ledgerRepository';
+import type { ImportOptions, ImportProgress, LedgerRepository } from './ledgerRepository';
 import {
   assertBillWritableWith,
   assertNotFuture,
@@ -610,8 +610,23 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
     return data;
   }
 
-  /** นำเข้าข้อมูลลงทุนหลังสมุดบัญชีนำเข้าเสร็จ (ฟังก์ชันฐานข้อมูลเดียว อะตอมมิก) · ล้ม = สมุดนำเข้าแล้วแต่ข้อมูลลงทุนยังไม่เข้า */
-  async function importInvestments(d: InvestmentData | undefined): Promise<void> {
+  /**
+   * นำเข้าข้อมูลลงทุนหลังสมุดบัญชีนำเข้าเสร็จ (ฟังก์ชันฐานข้อมูลเดียว อะตอมมิก) · ล้ม = สมุดนำเข้าแล้วแต่ข้อมูลลงทุนยังไม่เข้า
+   * replaceCategories > 0 (ผู้ใช้ยืนยันแล้ว) = ลบหมวดเดิมแล้วนำเข้าในธุรกรรมเดียว เรียกแม้ไฟล์ไม่มีข้อมูลลงทุน
+   */
+  async function importInvestments(d: InvestmentData | undefined, replaceCategories = 0): Promise<void> {
+    if (replaceCategories > 0) {
+      const { error } = await client.rpc('import_ledger_investments_replacing_categories', {
+        p_data: investmentsToJson(d ?? emptyInvestments()),
+        p_expected_categories: replaceCategories,
+      });
+      if (!error) return;
+      const head = 'นำเข้าสมุดบัญชีสำเร็จแล้ว แต่';
+      if (error.code === 'PT409') throw new StorageError(`${head}ข้อมูลลงทุนยังไม่เข้า เพราะหมวดเปลี่ยนหลังคุณกดยืนยัน ระบบจึงไม่ได้ลบหมวดใดๆ แจ้งผู้ดูแลระบบ`);
+      // ไม่มีรหัส = ไม่ได้คำตอบจากฐานข้อมูล อาจบันทึกสำเร็จแล้วก็ได้ ห้ามอ้างว่าหมวดเดิมยังอยู่
+      if (!error.code) throw new StorageError(`${head}ยืนยันผลไม่ได้ว่าข้อมูลลงทุนเข้าหรือไม่ (การเชื่อมต่อมีปัญหา) โหลดหน้าใหม่แล้วตรวจสินทรัพย์และหมวดก่อนทำอย่างอื่น`);
+      throw new StorageError(`${head}นำเข้าข้อมูลลงทุนไม่สำเร็จ (${storageErrorFrom(error).message}) ข้อมูลลงทุนยังไม่เข้า หมวดเดิมยังอยู่ครบ แจ้งผู้ดูแลระบบ`);
+    }
     if (isEmptyInvestments(d)) return;
     try {
       await rpc('import_ledger_investments', { p_data: investmentsToJson(d ?? emptyInvestments()) });
@@ -1227,7 +1242,14 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       check(error);
     },
 
-    async importBackup(data: BackupData, onProgress?: ImportProgress) {
+    async countCategories() {
+      const { count, error } = await client.from('asset_categories').select('id', { count: 'exact', head: true });
+      check(error);
+      if (typeof count !== 'number') throw storeError('store.readIncomplete');
+      return count;
+    },
+
+    async importBackup(data: BackupData, onProgress?: ImportProgress, options?: ImportOptions) {
       const report = runIntegrityCheck(data.accounts, data.entries);
       if (!report.ok) throw new StorageError(`ข้อมูลนำเข้าไม่ผ่านการตรวจ: ${report.issues[0]?.message ?? ''}`);
       const settingsIssue = settingsProblem(data.settings);
@@ -1235,7 +1257,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       const totalLines = data.entries.reduce((n, e) => n + e.lines.length, 0);
       if (data.entries.length > SINGLE_IMPORT_MAX_ENTRIES || totalLines > SINGLE_IMPORT_MAX_LINES) {
         const chunked = await importChunked(data, onProgress);
-        await importInvestments(data.investments);
+        await importInvestments(data.investments, options?.replaceCategories);
         return chunked;
       }
       // ครั้งเดียว: ฐานข้อมูลเขียนทุกส่วนในธุรกรรมเดียว ผิดข้อใด = ย้อนกลับทั้งก้อน · มีข้อมูลอยู่แล้ว = ปฏิเสธ
@@ -1248,7 +1270,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
         },
       })) as { accounts?: number; entries?: number; bills?: number } | null;
       onProgress?.(data.entries.length, data.entries.length);
-      await importInvestments(data.investments);
+      await importInvestments(data.investments, options?.replaceCategories);
       return { accounts: out?.accounts ?? 0, entries: out?.entries ?? 0, bills: out?.bills ?? 0 };
     },
 

@@ -1,5 +1,5 @@
 import { parseBackup, type BackupData, type BackupSummary } from '../domain/backup/parseBackup';
-import type { ImportProgress, LedgerRepository } from '../storage/ledgerRepository';
+import type { ImportOptions, ImportProgress, LedgerRepository } from '../storage/ledgerRepository';
 import { verifyImport, type VerifyReport } from './importVerify';
 
 /**
@@ -37,8 +37,8 @@ export interface ImportResult {
  * นำเข้า (ธุรกรรมเดียวที่ฐานข้อมูล · มีข้อมูลออนไลน์อยู่แล้ว = ปฏิเสธ ไม่ทับ) แล้วอ่านกลับมาตรวจยอด
  * report.ok = false ไม่ได้ย้อนกลับการนำเข้า (ข้อมูลออนไลน์ถูกเขียนแล้ว) · ผู้เรียกต้องแสดงผลให้เจ้าของเห็นและห้ามไปต่อ
  */
-export async function importAndVerify(source: BackupData, online: LedgerRepository, onProgress?: ImportProgress): Promise<ImportResult> {
-  const counts = await online.importBackup(source, onProgress);
+export async function importAndVerify(source: BackupData, online: LedgerRepository, onProgress?: ImportProgress, options?: ImportOptions): Promise<ImportResult> {
+  const counts = await online.importBackup(source, onProgress, options);
   const report = await verifyOnline(source, online);
   return { counts, report };
 }

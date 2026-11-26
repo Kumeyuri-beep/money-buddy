@@ -3,8 +3,10 @@ import { thaiIsoDate } from '../app/dates';
 import { readBackupFile, type BackupFileRead } from '../app/importFile';
 import type { VerifyReport } from '../app/importVerify';
 import { importAndVerify, RESET_CANCELLED_MESSAGE } from '../app/migrate';
+import type { ImportOptions } from '../storage/ledgerRepository';
 import { StorageError } from '../storage/repository';
 import { BalanceTable } from './ImportReportTable';
+import { useCategoryGuard } from './ReplaceCategoriesDialog';
 import { useRepository } from './RepositoryContext';
 
 type Step =
@@ -46,11 +48,13 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
     }
   };
 
-  const doImport = async (read: Extract<BackupFileRead, { ok: true }>) => {
+  const { guard, checking, dialog } = useCategoryGuard(repo, (e) => setStep({ name: 'error', message: friendly(e) }));
+
+  const doImport = async (read: Extract<BackupFileRead, { ok: true }>, options?: ImportOptions) => {
     setStep({ name: 'importing' });
     setProgress(null);
     try {
-      const result = await importAndVerify(read.data, repo, (done, total) => setProgress([done, total]));
+      const result = await importAndVerify(read.data, repo, (done, total) => setProgress([done, total]), options);
       setAck(false);
       setWipeNote('');
       setStep({ name: 'result', report: result.report, counts: result.counts });
@@ -153,8 +157,19 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
       )}
 
       {step.name === 'review' && step.read.ok && (
-        <ReviewBody read={step.read} onImport={() => void doImport(step.read as Extract<BackupFileRead, { ok: true }>)} onBack={() => setStep({ name: 'pick' })} />
+        <ReviewBody
+          read={step.read}
+          onImport={() => {
+            const read = step.read as Extract<BackupFileRead, { ok: true }>;
+            void guard(read.data.investments?.categories?.length ?? 0, (options) => void doImport(read, options));
+          }}
+          checking={checking}
+          onBack={() => {
+            if (!checking) setStep({ name: 'pick' });
+          }}
+        />
       )}
+      {dialog}
 
       {step.name === 'result' && (
         <div className="migrate-body">
@@ -223,7 +238,7 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
   );
 }
 
-function ReviewBody({ read, onImport, onBack }: { read: Extract<BackupFileRead, { ok: true }>; onImport: () => void; onBack: () => void }) {
+function ReviewBody({ read, checking, onImport, onBack }: { read: Extract<BackupFileRead, { ok: true }>; checking: boolean; onImport: () => void; onBack: () => void }) {
   return (
     <div className="migrate-body">
       <p>
@@ -240,13 +255,14 @@ function ReviewBody({ read, onImport, onBack }: { read: Extract<BackupFileRead, 
         </div>
       )}
       <div className="actions">
-        <button className="btn btn-primary" type="button" onClick={onImport}>
+        <button className="btn btn-primary" type="button" onClick={onImport} aria-disabled={checking || undefined}>
           นำเข้า
         </button>
-        <button className="btn btn-ghost" type="button" onClick={onBack}>
+        <button className="btn btn-ghost" type="button" onClick={onBack} aria-disabled={checking || undefined}>
           เลือกไฟล์อื่น
         </button>
       </div>
+      <p role="status" className="muted">{checking ? 'กำลังตรวจหมวดเดิม...' : ''}</p>
     </div>
   );
 }
