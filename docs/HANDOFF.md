@@ -109,7 +109,7 @@ npm run build
 
 - หัวหน้า = session หลักของ Claude Code (คุยกับเจ้าของ เขียนโค้ด รอยืนยันก่อน push)
 - ผู้ช่วยอ่านอย่างเดียว: `product-advisor` (opus), `security-auditor` (opus), `design-critic` (sonnet), `money-auditor` (sonnet)
-- Skill: `/grill-me` ซักแผน · `money-rules` ใช้อัตโนมัติเมื่อแตะเงิน · `/ship` ตรวจแล้วรอยืนยันก่อน push
+- Skill: `/grill-me` ซักแผน · `money-rules` ใช้อัตโนมัติเมื่อแตะเงิน · `/mb-ship` ตรวจแล้วรอยืนยันก่อน push
 - ⚠️ ยังไม่ยืนยันว่าเจ้าของวางไฟล์ `.claude/` ลงเครื่องแล้ว → ถามก่อน
 - ประหยัดโควตา: Sonnet เป็นค่าเริ่มต้น, Opus เฉพาะตัดสินใจใหญ่/ความปลอดภัย, `/clear` เมื่อเริ่ม Ticket ใหม่, เรียกผู้ช่วยเฉพาะตอนจำเป็น
 
