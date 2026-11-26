@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  classifyOutcome, parseDbUrl, pgEnvProblem, PROBES, projectRefProblem, reportDetail, runOne, runProbes, safeText,
+  classifyOutcome, OUTSIDE_TX_EXTENSIONS, parseDbUrl, pgEnvProblem, PROBES,projectRefProblem, reportDetail, runOne, runProbes, safeText,
   selectFiles, serverProblem, snapshotChanges, sqlProblems,
 } from '../../scripts/lib/sqlTests.mjs';
 
@@ -80,6 +80,10 @@ describe('sqlProblems: ปฏิเสธไฟล์ที่ทำให้ข
     'select pg_cancel_backend(1);',
     'select pg_reload_conf();',
     'select U&"d!0062link" uescape \'!\';',
+    "select pg_create_physical_replication_slot('s');",
+    'select pg_stat_reset();',
+    'set statement_timeout = 0;',
+    "do $t$ begin set local lock_timeout = 0; end $t$;",
   ])('ปฏิเสธคำสั่งที่ ROLLBACK ย้อนไม่ถึง: %s', (sql) => {
     expect(bad(sql).length).toBeGreaterThan(0);
   });
@@ -185,10 +189,17 @@ describe('runOne: ครอบทั้งไฟล์ด้วย execute ใ�
 
 describe('runProbes: พิสูจน์กับฐานข้อมูลก่อนรันไฟล์จริง (เขียนเฉพาะ temp table)', () => {
   const behave = (file: string) => {
-    if (/do \$p\$ begin commit/i.test(file)) throw pgError('2D000', 'invalid transaction termination');
-    if (/;\s*(commit|end|rollback);/i.test(file)) throw pgError('0A000', 'EXECUTE of transaction commands is not implemented');
+    if (/(do \$p\$|as \$p\$) begin commit/i.test(file)) throw pgError('2D000', 'invalid transaction termination');
+    if (/;\s*(commit|end|rollback|release savepoint \w+|rollback to savepoint \w+|prepare transaction '\w+');$/i.test(file)) {
+      throw pgError('0A000', 'EXECUTE of transaction commands is not implemented');
+    }
     throw pgError('P0001', 'TESTS_PASSED probe');
   };
+  it('พิสูจน์คำสั่งที่ตัวกันพึ่งอยู่ด้วย: savepoint, prepare transaction และ call procedure ที่ commit', () => {
+    for (const [re, code] of [[/release savepoint/i, '0A000'], [/rollback to savepoint/i, '0A000'], [/prepare transaction/i, '0A000'], [/call pg_temp\./i, '2D000']] as const) {
+      expect(PROBES.some((p) => re.test(p.sql) && p.expect === code), String(re)).toBe(true);
+    }
+  });
   const connectTo = (f: ReturnType<typeof fake>) => () => Promise.resolve({ ...f.client, end: () => Promise.resolve() });
   it('ทุกข้อเขียนเฉพาะ temp table และมีข้อที่สั่ง COMMIT', () => {
     expect(PROBES.some((p) => /commit;/i.test(p.sql) && p.expect === '0A000')).toBe(true);
@@ -287,6 +298,7 @@ describe('ด่านฝั่งสภาพแวดล้อม เซิร
     expect(serverProblem({ extensions: [], foreignServers: 0 })).toBeNull();
     expect(serverProblem({ extensions: ['dblink'], foreignServers: 0 })).toContain('dblink');
     expect(serverProblem({ extensions: [], foreignServers: 1 })).not.toBeNull();
+    expect(OUTSIDE_TX_EXTENSIONS).toEqual(expect.arrayContaining(['dblink', 'postgres_fdw', 'pg_net', 'wrappers']));
   });
   it('snapshotChanges: บอกชื่อรายการที่เปลี่ยน หาย หรือเพิ่ม', () => {
     const before = new Map([['a', '1'], ['b', '2'], ['c', '3']]);
@@ -313,6 +325,7 @@ describe('ตัวสคริปต์', () => {
     expect(runnerSrc).toContain('loadDbUrl()');
     expect(runnerSrc).not.toContain('loadAdmin');
     expect(runnerSrc).toContain('rejectUnauthorized: true');
+    expect(runnerSrc).toContain('query_timeout: STATEMENT_TIMEOUT_MS + 30_000');
     expect(runnerSrc).not.toMatch(/rejectUnauthorized:\s*false/);
     expect(runnerSrc).not.toMatch(/['"]\.env['"]|loadEnvFile/);
     expect(runnerSrc).not.toMatch(/console\.\w+\([^;]*(dbUrl|password|connectionString)/);

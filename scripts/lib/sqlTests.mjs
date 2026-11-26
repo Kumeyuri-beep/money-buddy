@@ -104,6 +104,9 @@ const OUTSIDE_TX = [
   /\b(lo_import|lo_export|setval|pg_terminate_backend|pg_cancel_backend|pg_reload_conf)\b/i,
   /\bhttp(_[a-z]+)?\s*\(/i,
   /\bu&['"]/i,
+  /replication_slot|pg_stat_reset/i,
+  // ไฟล์ปิดตัวจับเวลาเองไม่ได้
+  /\b(statement_timeout|lock_timeout)\b/i,
 ];
 
 /**
@@ -191,6 +194,10 @@ export const PROBES = [
   { name: 'END ถูกปฏิเสธ', expect: '0A000', sql: `${PROBE_HEAD} end;` },
   { name: 'ROLLBACK ถูกปฏิเสธ', expect: '0A000', sql: `${PROBE_HEAD} rollback;` },
   { name: 'COMMIT ในบล็อกซ้อนถูกปฏิเสธ', expect: '2D000', sql: `${PROBE_HEAD} do $p$ begin commit; end $p$;` },
+  { name: 'RELEASE SAVEPOINT ถูกปฏิเสธ', expect: '0A000', sql: `${PROBE_HEAD} release savepoint mb_x;` },
+  { name: 'ROLLBACK TO SAVEPOINT ถูกปฏิเสธ', expect: '0A000', sql: `${PROBE_HEAD} rollback to savepoint mb_x;` },
+  { name: 'PREPARE TRANSACTION ถูกปฏิเสธ', expect: '0A000', sql: `${PROBE_HEAD} prepare transaction 'mb_x';` },
+  { name: 'COMMIT ใน procedure ถูกปฏิเสธ', expect: '2D000', sql: `${PROBE_HEAD} create procedure pg_temp.mb_commit() language plpgsql as $p$ begin commit; end $p$; call pg_temp.mb_commit();` },
 ];
 
 /** connect() ต้องคืนการเชื่อมต่อใหม่ (มี query และ end) · ok เมื่อทุกข้อได้รหัสตามคาด ยังอยู่ในธุรกรรมเดิม และ temp table ไม่ค้าง */
@@ -222,7 +229,7 @@ export function pgEnvProblem(env) {
 }
 
 /** ส่วนขยายที่ออกนอกธุรกรรมได้ ถ้ามีในฐานข้อมูล ด่านตรวจข้อความอย่างเดียวไม่พอ */
-export const OUTSIDE_TX_EXTENSIONS = ['dblink', 'postgres_fdw', 'file_fdw', 'http', 'plpython3u', 'plperlu', 'pltclu'];
+export const OUTSIDE_TX_EXTENSIONS = ['dblink', 'postgres_fdw', 'file_fdw', 'http', 'pg_net', 'wrappers', 'plpython3u', 'plperlu', 'pltclu'];
 
 export function serverProblem({ extensions, foreignServers }) {
   if (extensions.length > 0) return `ฐานข้อมูลมีส่วนขยายที่ทำงานนอกธุรกรรมได้: ${extensions.join(', ')} (ไม่รัน)`;

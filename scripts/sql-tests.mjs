@@ -13,7 +13,7 @@ import { fail, loadDbUrl } from './lib/admin.mjs';
 import { ADMIN_DIR_NAME } from './lib/adminEnv.mjs';
 import {
   FINGERPRINT_SQL, OUTSIDE_TX_EXTENSIONS, parseDbUrl, pgEnvProblem, projectRefProblem, reportDetail, runOne, runProbes,
-  safeText, selectFiles, serverProblem, snapshotChanges, sqlProblems,
+  safeText, selectFiles, serverProblem, snapshotChanges, sqlProblems, STATEMENT_TIMEOUT_MS,
 } from './lib/sqlTests.mjs';
 
 let secrets = [];
@@ -69,7 +69,7 @@ async function main() {
   const ssl = { rejectUnauthorized: true, ...(existsSync(caFile) ? { ca: readFileSync(caFile, 'utf8') } : {}) };
 
   async function connect() {
-    const client = new pg.Client({ ...parsed.config, ssl, connectionTimeoutMillis: 20_000, application_name: 'money-buddy-sql-tests' });
+    const client = new pg.Client({ ...parsed.config, ssl, connectionTimeoutMillis: 20_000, query_timeout: STATEMENT_TIMEOUT_MS + 30_000, application_name: 'money-buddy-sql-tests' });
     client.on('error', () => {}); // ข้อความของไลบรารีอาจมีค่าเชื่อมต่อ ไม่พิมพ์ · คำสั่งถัดไปจะล้มและรายงานแบบปิดบังแล้ว
     try {
       await client.connect();
