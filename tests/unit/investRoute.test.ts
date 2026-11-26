@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DIVIDEND_PAYOUT_CALENDAR_URL, INVEST_GROUPS, INVEST_PAGES, investPageFromPath, investPath, investUrl, type InvestPageId } from '../../src/app/investRoute';
+import { DIVIDEND_PAYOUT_CALENDAR_URL, INVEST_GROUPS, INVEST_PAGES, investPageFromPath, investPath, investUrl, TOP_DIVIDEND_STOCKS_URL, type InvestPageId } from '../../src/app/investRoute';
 import { urlForView, viewFromLocation } from '../../src/app/route';
 
 describe('investRoute (เมนูย่อยของโหมด /invest)', () => {
@@ -42,6 +42,12 @@ describe('investRoute (เมนูย่อยของโหมด /invest)', 
     expect(cal).toMatchObject({ kind: 'external', href: 'https://snowball-analytics.com/calendars/dividend-calendar' });
     expect(cal.page).toBeUndefined();
     expect(DIVIDEND_PAYOUT_CALENDAR_URL).toBe(cal.href);
+    // Top dividend stocks: ลิงก์ออกเว็บภายนอก ไม่ทำหน้ารายชื่อหุ้นเอง (เจ้าของสั่ง 26 พ.ย. 2569) · ไม่มี route และไม่ส่งข้อมูลผู้ใช้ไปใน URL
+    const top = items.find((i) => i.label === 'Top dividend stocks')!;
+    expect(top).toEqual({ kind: 'external', label: 'Top dividend stocks', href: 'https://snowball-analytics.com/tools/investing-ideas/stocks/dividend-stocks' });
+    expect(TOP_DIVIDEND_STOCKS_URL).toBe(top.href);
+    expect(investPageFromPath('/invest/tools/top-dividend-stocks')).toBeNull();
+    expect(INVEST_PAGES.map((p) => p.title)).not.toContain('Top dividend stocks');
     // ไม่มีลิงก์เสีย: ทุกรายการที่เป็นหน้ามี route จริง · ทุกลิงก์ภายนอกเป็น https
     for (const i of items) {
       if (i.kind === 'page') expect(investPageFromPath(investPath(i.page!))).toBe(i.page);
