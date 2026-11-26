@@ -6,9 +6,9 @@ import { obscured, overflowing, watch } from './helpers/layoutChecks';
  * คอม: ปุ่ม Edit เปิดฟอร์มเดียวกับ Add เติมค่าเดิม → ตรวจผลกระทบก่อน→หลัง → ยืนยัน · ปุ่มที่แก้ไม่ได้ปิดพร้อมเหตุผล
  * มือถือ (<1024px): ปุ่ม Edit ปิดพร้อม "Available on desktop" กดแล้วไม่เปิดอะไรและไม่พัง
  */
-async function openTx(page: Page, demo: 'tx' | 'txthb' = 'tx'): Promise<void> {
+async function openTx(page: Page, demo: 'tx' | 'txthb' = 'tx', extra = ''): Promise<void> {
   await page.route((url) => !/^(localhost|127\.0\.0\.1)$/.test(url.hostname), (route) => route.abort());
-  await page.goto(`/harness.html?seed=1&investDemo=${demo}#/invest/portfolio/transactions`);
+  await page.goto(`/harness.html?seed=1&investDemo=${demo}${extra}#/invest/portfolio/transactions`);
   await expect(page.getByRole('heading', { name: 'Transactions', level: 2, exact: true })).toBeVisible({ timeout: 20_000 });
   await expect(page.locator('.tx-table')).toBeVisible();
 }
@@ -136,6 +136,21 @@ for (const w of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
       { name: 'หุ้นสหรัฐ', demo: 'tx' as const, edit: /^Edit Buy DEMA/, title: /Edit buy DEMA/, field: 'Amount invested (USD)', value: '3300.00', wallet: false },
       { name: 'กองทุนไทย', demo: 'txthb' as const, edit: /^Edit Buy Demo Thai Fund/, title: /Edit buy: Demo Thai Fund/, field: 'Amount invested (THB)', value: '1200.00', wallet: true },
     ]) {
+      test(`บันทึกล้ม: กลับฟอร์มพร้อมข้อความ ค่าที่กรอกยังอยู่ โฟกัสไปหัวข้อ (ไม่หลุดจาก dialog) · ${c.name}`, async ({ page }) => {
+        await openTx(page, c.demo, '&replaceFail=1');
+        await page.getByRole('button', { name: c.edit }).click();
+        const dialog = page.getByRole('dialog', { name: c.title });
+        await dialog.getByLabel(c.field).fill(c.value);
+        if (c.wallet) await dialog.getByLabel('Pay from wallet').selectOption({ index: 1 });
+        await dialog.getByRole('button', { name: 'Review change' }).click();
+        await dialog.getByRole('button', { name: 'Save changes' }).click();
+        await expect(dialog.getByTestId('edit-problem')).toBeVisible();
+        await expect(dialog.getByTestId('edit-impact')).toHaveCount(0);
+        await expect(dialog.getByLabel(c.field)).toHaveValue(c.value);
+        await expect(dialog.getByRole('heading', { level: 2 })).toBeFocused();
+        await expect(page.getByText('Transaction updated')).toHaveCount(0);
+      });
+
       test(`Esc ที่หน้าตรวจผลกระทบถอยกลับฟอร์ม (ค่าที่กรอกยังอยู่) กด Esc อีกครั้งจึงปิด · ${c.name}`, async ({ page }) => {
         await openTx(page, c.demo);
         const edit = page.getByRole('button', { name: c.edit });
