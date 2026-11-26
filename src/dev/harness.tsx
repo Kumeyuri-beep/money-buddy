@@ -138,6 +138,8 @@ function makeTxRepository(thai: boolean) {
     },
     // แก้รายการสมมติในหน่วยความจำ (กติกาจริงตรวจที่ฟอร์มด้วย previewTradeEdit ก่อนถึงตรงนี้ · ฐานข้อมูลจริงทดสอบด้วย live-contract)
     replaceTrade: ({ oldId, trade }: { oldId: string; trade: TradeRecord }) => {
+      // ?replaceFail=1 จำลองการบันทึกล้ม (ข้อมูลเปลี่ยนระหว่างแก้) เพื่อทดสอบหน้าจอ
+      if (new URLSearchParams(window.location.search).get('replaceFail') === '1') return Promise.reject(new Error('simulated save failure'));
       const old = demo.trades.find((t) => t.id === oldId);
       if (!old) return Promise.reject(new Error('missing'));
       const next = editedTradeOf(old, trade);

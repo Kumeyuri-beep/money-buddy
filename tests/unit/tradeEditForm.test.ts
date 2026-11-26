@@ -51,6 +51,31 @@ describe('usTradeToForm: หุ้นสหรัฐ มีอัตราแล
   });
 });
 
+describe('เติมฟอร์มด้วยตัวเลขใหญ่และค่า 0 (round-trip)', () => {
+  const MAX = Number.MAX_SAFE_INTEGER;
+  const big: TradeRecord[] = [
+    { ...base, id: 'bb', kind: 'buy', date: '2026-03-01', units: '123456789012345678', amount: MAX - 1, fee: 1 },
+    { ...base, id: 'bz', kind: 'buy', date: '2026-03-01', units: '1', amount: 1, fee: 0 },
+    { ...base, id: 'bd', kind: 'dividend', date: '2026-03-01', amount: MAX, withholding: MAX - 1 },
+    { ...base, id: 'bd0', kind: 'dividend', date: '2026-03-01', amount: 1, withholding: 0 },
+  ];
+  it.each(big.map((t) => [t.id, t] as const))('บาท %s', (_n, t) => {
+    const r = buildTradeRecord(tradeToForm(t), t.id, t.createdAt, TODAY);
+    if (!r.ok) throw new Error(JSON.stringify(r.errors));
+    expect(r.trade).toEqual(t);
+  });
+  it.each(big.map((t) => [t.id, t] as const))('USD %s', (_n, t) => {
+    const usdTrade = { ...t, fxRateMicro: MAX };
+    const form = usTradeToForm(usdTrade);
+    const r = buildUsTradeRecord(form, t.id, t.createdAt, TODAY);
+    if (!r.ok) throw new Error(JSON.stringify(r.errors));
+    expect(r.trade).toEqual(usdTrade);
+  });
+  it('ค่าธรรมเนียม/ภาษีเป็น 0 = ช่องว่างในฟอร์ม', () => {
+    expect(tradeToForm(big[3]!)).toMatchObject({ fee: '', withholding: '' });
+  });
+});
+
 describe('linkedCashAccountId: กระเป๋า/เงินสด USD ที่รายการเดิมใช้', () => {
   const accounts: Account[] = [
     { id: 'w1', type: 'asset', name: 'Wallet', currency: 'THB' },

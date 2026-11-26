@@ -158,6 +158,8 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
   /** ขั้น "ตรวจผลกระทบ" ของการแก้รายการ: รายการใหม่ที่สร้างจากฟอร์ม + ตัวเลขก่อน→หลัง (ยังไม่บันทึกจนกว่าจะกดยืนยัน) */
   const [review, setReview] = useState<{ trade: TradeRecord; before: EditSide; after: EditSide } | null>(null);
   const [editProblemText, setEditProblemText] = useState('');
+  /** ข้อความผิดพลาดอยู่ท้ายฟอร์ม: จอเตี้ยอาจอยู่ใต้ขอบหรือถูกแถบปุ่มบัง จึงเลื่อนเข้ากลาง dialog เมื่อแสดง (ref คงที่ ไม่เลื่อนซ้ำตอนพิมพ์ · ไม่ย้ายโฟกัส) */
+  const showProblem = useCallback((el: HTMLElement | null) => el?.scrollIntoView?.({ block: 'center' }), []);
 
   const load = useCallback(async () => {
     try {
@@ -319,6 +321,13 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
     }
   };
 
+  /** ขั้นตรวจผลกระทบ → กลับฟอร์ม (ปุ่ม Back และ Esc) ค่าที่กรอกยังอยู่ · กำลังบันทึกอยู่ = ไม่ทำอะไร */
+  const backToForm = () => {
+    if (busy) return;
+    setReview(null);
+    headingRef.current?.focus();
+  };
+
   const confirmEdit = async () => {
     if (busy || !review || panel?.type !== 'trade' || panel.editId === undefined) return;
     setBusy(true);
@@ -327,6 +336,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
       await finish('Transaction updated');
     } catch (err) {
       setReview(null); // ชนกัน/ผิดกติกาจากฐานข้อมูล: กลับไปฟอร์มพร้อมข้อความ
+      headingRef.current?.focus(); // ปุ่มที่โฟกัสอยู่หายไปกับขั้นตรวจผลกระทบ
       setEditProblemText(investError(err));
     } finally {
       setBusy(false);
@@ -636,11 +646,11 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
             {editing ? `Edit ${KIND_LABEL[tradeKind].toLowerCase()}` : KIND_LABEL[tradeKind]} {stockRow(panel.assetId)?.ticker}
           </h2>
           {review ? (
-            <div className="settings-form" onKeyDown={closeOnEscape}>
+            <div className="settings-form">
               <h3 className="edit-review-title">Check the change before you save</h3>
               <EditImpact before={review.before} after={review.after} currency="USD" />
               <div className="dialog-actions">
-                <button type="button" className="btn btn-ghost btn-small" onClick={() => setReview(null)} disabled={busy}>
+                <button type="button" className="btn btn-ghost btn-small" autoFocus onClick={backToForm} disabled={busy}>
                   Back
                 </button>
                 <button type="button" className="btn btn-primary btn-small" onClick={() => void confirmEdit()} disabled={busy}>
@@ -709,7 +719,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
             <Field id="us-t-memo" text label="Note (optional)" value={form.memo} onChange={(v) => setT({ memo: v })} error={errOf(tradeErrors, 'memo')} />
             {activeCash === '' && <p className="avg-err">Create a USD cash account and exchange some baht first before you can record entries</p>}
             {editProblemText !== '' && (
-              <p className="avg-err" role="alert" data-testid="edit-problem">
+              <p ref={showProblem} className="avg-err" role="alert" data-testid="edit-problem">
                 {editProblemText}
               </p>
             )}
@@ -726,7 +736,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
         </>
         );
         return editing ? (
-          <StockShell desktop={desktop} onClose={close} labelledBy="us-trade-title">
+          <StockShell desktop={desktop} onClose={review ? backToForm : close} labelledBy="us-trade-title">
             {body}
           </StockShell>
         ) : (

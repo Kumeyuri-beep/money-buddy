@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { chunkEntries } from '../domain/backup/chunk';
+import { editedTradeOf } from '../domain/invest/editImpact';
 import { buildTradeEntry, TradeLinkError } from '../domain/invest/ledgerLink';
 import { checkTradeAddCoded, checkTradeDeleteCoded, replayRecords } from '../domain/invest/rules';
 import { tradesFingerprint } from '../domain/invest/tradesFingerprint';
@@ -1150,8 +1151,8 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       const editProblem = checkTradeDeleteCoded(all, oldId);
       if (editProblem) throw coded(editProblem);
       const rest = all.filter((t) => t.id !== oldId);
-      // เหมือนฐานข้อมูล: วันที่ไม่เปลี่ยน = คงลำดับเวลาเดิมในวันนั้น (ไม่งั้นเว็บ replay ต่างจากฐานข้อมูล ต้นทุนที่ตัดออกอาจไม่ตรง)
-      const edited: TradeRecord = trade.date === old.date ? { ...trade, createdAt: old.createdAt } : trade;
+      // กติกาลำดับเวลาอยู่ที่ domain ตัวเดียว (หน้าจอใช้ตัวเดียวกันแสดงผลกระทบก่อนยืนยัน)
+      const edited = editedTradeOf(old, trade);
       const addProblem = checkTradeAddCoded(rest, edited);
       if (addProblem) throw coded(addProblem);
       const usd = assetCurrency(asset) === 'USD';

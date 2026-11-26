@@ -6,9 +6,9 @@ import { obscured, overflowing, watch } from './helpers/layoutChecks';
  * คอม: ปุ่ม Edit เปิดฟอร์มเดียวกับ Add เติมค่าเดิม → ตรวจผลกระทบก่อน→หลัง → ยืนยัน · ปุ่มที่แก้ไม่ได้ปิดพร้อมเหตุผล
  * มือถือ (<1024px): ปุ่ม Edit ปิดพร้อม "Available on desktop" กดแล้วไม่เปิดอะไรและไม่พัง
  */
-async function openTx(page: Page, demo: 'tx' | 'txthb' = 'tx'): Promise<void> {
+async function openTx(page: Page, demo: 'tx' | 'txthb' = 'tx', extra = ''): Promise<void> {
   await page.route((url) => !/^(localhost|127\.0\.0\.1)$/.test(url.hostname), (route) => route.abort());
-  await page.goto(`/harness.html?seed=1&investDemo=${demo}#/invest/portfolio/transactions`);
+  await page.goto(`/harness.html?seed=1&investDemo=${demo}${extra}#/invest/portfolio/transactions`);
   await expect(page.getByRole('heading', { name: 'Transactions', level: 2, exact: true })).toBeVisible({ timeout: 20_000 });
   await expect(page.locator('.tx-table')).toBeVisible();
 }
@@ -39,7 +39,7 @@ for (const w of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
       await expect(avg).toContainText('$110.03');
       await expect(avg).toContainText('(changed)');
       await expect(impact.getByRole('row', { name: /Shares held/ })).not.toContainText('(changed)');
-      await expect(impact.getByRole('row', { name: /Profit already realised/ })).toContainText('$0.00');
+      await expect(impact.getByRole('row', { name: /Realized profit \(price, USD\)/ })).toContainText('$0.00');
 
       await dialog.getByRole('button', { name: 'Back' }).click();
       await expect(dialog.getByLabel('Amount invested (USD)')).toHaveValue('3300.00'); // ย้อนกลับแล้วค่าที่กรอกยังอยู่
@@ -63,7 +63,7 @@ for (const w of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
       await expect(dialog.getByLabel('Sale price per share (USD)')).toHaveValue('70');
       await dialog.getByLabel('Sale price per share (USD)').fill('90');
       await dialog.getByRole('button', { name: 'Review change' }).click();
-      const row = dialog.getByTestId('edit-impact').getByRole('row', { name: /Profit already realised from price/ });
+      const row = dialog.getByTestId('edit-impact').getByRole('row', { name: /Realized profit \(price, USD\)/ });
       await expect(row).toContainText('(changed)');
       await dialog.getByRole('button', { name: 'Save changes' }).click();
       await expect(page.getByText('Transaction updated')).toBeVisible();
@@ -131,6 +131,65 @@ for (const w of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
       await expect(dialog.getByLabel('Withholding tax (THB)')).toHaveValue('5.00');
       await expect(dialog.getByLabel('Trade type')).toHaveCount(0);
     });
+
+    for (const c of [
+      { name: 'หุ้นสหรัฐ', demo: 'tx' as const, edit: /^Edit Buy DEMA/, title: /Edit buy DEMA/, field: 'Amount invested (USD)', value: '3300.00', wallet: false },
+      { name: 'กองทุนไทย', demo: 'txthb' as const, edit: /^Edit Buy Demo Thai Fund/, title: /Edit buy: Demo Thai Fund/, field: 'Amount invested (THB)', value: '1200.00', wallet: true },
+    ]) {
+      test(`บันทึกล้ม: กลับฟอร์มพร้อมข้อความ ค่าที่กรอกยังอยู่ โฟกัสไปหัวข้อ (ไม่หลุดจาก dialog) · ${c.name}`, async ({ page }) => {
+        await openTx(page, c.demo, '&replaceFail=1');
+        await page.getByRole('button', { name: c.edit }).click();
+        const dialog = page.getByRole('dialog', { name: c.title });
+        await dialog.getByLabel(c.field).fill(c.value);
+        if (c.wallet) await dialog.getByLabel('Pay from wallet').selectOption({ index: 1 });
+        await dialog.getByRole('button', { name: 'Review change' }).click();
+        await dialog.getByRole('button', { name: 'Save changes' }).click();
+        await expect(dialog.getByTestId('edit-problem')).toBeVisible();
+        await expect(dialog.getByTestId('edit-impact')).toHaveCount(0);
+        await expect(dialog.getByLabel(c.field)).toHaveValue(c.value);
+        await expect(dialog.getByRole('heading', { level: 2 })).toBeFocused();
+        await expect(page.getByText('Transaction updated')).toHaveCount(0);
+      });
+
+      test(`บันทึกล้มบนจอเตี้ย: ข้อความผิดพลาดอยู่ในจอและไม่ถูกแถบปุ่มบัง · ${c.name}`, async ({ page }) => {
+        await page.setViewportSize({ width: w.width, height: 560 });
+        await openTx(page, c.demo, '&replaceFail=1');
+        await page.getByRole('button', { name: c.edit }).click();
+        const dialog = page.getByRole('dialog', { name: c.title });
+        await dialog.getByLabel(c.field).fill(c.value);
+        if (c.wallet) await dialog.getByLabel('Pay from wallet').selectOption({ index: 1 });
+        await dialog.getByRole('button', { name: 'Review change' }).click();
+        await dialog.getByRole('button', { name: 'Save changes' }).click();
+        const problem = dialog.getByTestId('edit-problem');
+        await expect(problem).toBeInViewport({ ratio: 1 });
+        const uncovered = await problem.evaluate((el) => {
+          const r = el.getBoundingClientRect();
+          return [r.top + 2, r.bottom - 2].every((y) => el.contains(document.elementFromPoint(r.left + r.width / 2, y)));
+        });
+        expect(uncovered, 'ข้อความถูกบัง').toBe(true);
+        await expect(dialog.getByRole('heading', { level: 2 })).toBeFocused(); // เลื่อนแล้วโฟกัสยังอยู่ที่หัวข้อ
+      });
+
+      test(`Esc ที่หน้าตรวจผลกระทบถอยกลับฟอร์ม (ค่าที่กรอกยังอยู่) กด Esc อีกครั้งจึงปิด · ${c.name}`, async ({ page }) => {
+        await openTx(page, c.demo);
+        const edit = page.getByRole('button', { name: c.edit });
+        await edit.click();
+        const dialog = page.getByRole('dialog', { name: c.title });
+        await dialog.getByLabel(c.field).fill(c.value);
+        if (c.wallet) await dialog.getByLabel('Pay from wallet').selectOption({ index: 1 });
+        await dialog.getByRole('button', { name: 'Review change' }).click();
+        await expect(dialog.getByTestId('edit-impact')).toBeVisible();
+        await expect(dialog.getByRole('button', { name: 'Back' })).toBeFocused();
+        await page.keyboard.press('Escape');
+        await expect(dialog).toBeVisible();
+        await expect(dialog.getByTestId('edit-impact')).toHaveCount(0);
+        await expect(dialog.getByLabel(c.field)).toHaveValue(c.value);
+        await expect(dialog.getByRole('heading', { level: 2 })).toBeFocused();
+        await page.keyboard.press('Escape');
+        await expect(page.getByRole('dialog')).toHaveCount(0);
+        await expect(edit).toBeFocused();
+      });
+    }
 
     test('แลกเงิน/เงินสด: ปุ่ม Edit ปิดพร้อมเหตุผล', async ({ page }) => {
       await openTx(page);

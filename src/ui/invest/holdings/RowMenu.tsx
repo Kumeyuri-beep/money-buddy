@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { useDesktop } from '../../useDesktop';
 
 export type RowAction = 'add' | 'open' | 'edit' | 'delete' | 'deleteAsset';
 const MENU_H = 5 * 44 + 40; // ความสูงเมนูโดยประมาณ (สูงสุด 5 รายการ × 44px + บรรทัดเหตุผล + ขอบ)
@@ -8,7 +7,7 @@ const ITEMS: { id: RowAction; label: string; hint?: string }[] = [
   { id: 'add', label: 'Add a transaction' },
   { id: 'open', label: 'Open holding' },
   { id: 'edit', label: 'Edit', hint: 'Edit the latest price and exchange rate' },
-  { id: 'delete', label: 'Delete' },
+  { id: 'delete', label: 'Delete all records' },
 ];
 
 /** เมนู ⋯ ของแถว: คีย์บอร์ดใช้ได้ (ลูกศรขึ้น/ลง · Esc ปิดแล้วโฟกัสกลับปุ่ม) · วางตำแหน่งแบบ fixed ไม่ถูกตารางเลื่อนตัด */
@@ -17,10 +16,9 @@ const ITEMS: { id: RowAction; label: string; hint?: string }[] = [
  */
 export function RowMenu({ label, onPick, deleteAsset }: { label: string; onPick: (a: RowAction, from: HTMLElement) => void; deleteAsset?: { reason: string | null } }) {
   const [open, setOpen] = useState<{ top: number; right: number; up: boolean } | null>(null);
-  // คอม: วางเมนูใน body เพราะการ์ดกระจก (backdrop-filter) ทำให้ position: fixed ของลูกอิงกรอบการ์ด ไม่ใช่หน้าจอ เมนูจึงเลื่อนลงไปนอกจอ (พบตอนทำ Delete asset)
-  // มือถือไม่แตะ (ตามกติกาคอมก่อน) · ถ้ามือถือมีอาการเดียวกันจดไว้ใน HANDOFF หัวข้อ "รอปรับมือถือ"
-  const desktop = useDesktop();
-  const inBody = (node: ReactNode): ReactNode => (desktop && typeof document !== 'undefined' ? createPortal(node, document.body) : node);
+  // วางเมนูใน body ทุกขนาดจอ: การ์ดกระจก (backdrop-filter) ทำให้ position: fixed ของลูกอิงกรอบการ์ด ไม่ใช่หน้าจอ เมนูจึงเปิดไกลจากปุ่มหรือหลุดนอกจอ
+  // (พบบนคอมตอนทำ Delete asset · ยืนยันบนมือถือ/แท็บเล็ต 26 พ.ย. 2569)
+  const inBody = (node: ReactNode): ReactNode => (typeof document !== 'undefined' ? createPortal(node, document.body) : node);
   const btn = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
 
@@ -71,7 +69,11 @@ export function RowMenu({ label, onPick, deleteAsset }: { label: string; onPick:
     } else if (e.key === 'End') {
       e.preventDefault();
       items[items.length - 1]?.focus();
-    } else if (e.key === 'Tab') setOpen(null);
+    } else if (e.key === 'Tab') {
+      // เมนูอยู่ท้าย body: คืนโฟกัสให้ปุ่มของแถวก่อน แล้วปล่อยให้ Tab ทำงานตามปกติต่อจากปุ่มนั้น (ไม่ preventDefault)
+      btn.current?.focus();
+      setOpen(null);
+    }
   };
 
   return (

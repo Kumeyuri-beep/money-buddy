@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { newId } from '../../../app/ids';
 import { linkedCashAccountId, tradeToForm } from '../../../app/tradeEditForm';
 import { buildTradeRecord, type TradeField, type TradeForm, type TradeFormError } from '../../../app/tradeForm';
@@ -72,6 +72,8 @@ export function ThaiTradeEdit({ trade, asset, assetTrades, accounts, entries, wa
   const [problem, setProblem] = useState('');
   const [review, setReview] = useState<{ trade: TradeRecord; before: EditSide; after: EditSide } | null>(null);
   const [busy, setBusy] = useState(false);
+  /** ข้อความผิดพลาดอยู่ท้ายฟอร์ม: จอเตี้ยอาจอยู่ใต้ขอบหรือถูกแถบปุ่มบัง จึงเลื่อนเข้ากลาง dialog เมื่อแสดง (ref คงที่ ไม่เลื่อนซ้ำตอนพิมพ์ · ไม่ย้ายโฟกัส) */
+  const showProblem = useCallback((el: HTMLElement | null) => el?.scrollIntoView?.({ block: 'center' }), []);
   const needWallet = tradeNeedsWallet(trade.kind);
 
   // กระเป๋าที่รายการเดิมใช้ (ถ้าเป็นบัญชีที่ไม่อยู่ในรายการกระเป๋า เช่น บัญชีเงินสดที่พักกับโบรกเกอร์ ก็ยังเลือกได้)
@@ -115,6 +117,12 @@ export function ThaiTradeEdit({ trade, asset, assetTrades, accounts, entries, wa
     setReview({ trade: built.trade, before: preview.before, after: preview.after });
   };
 
+  /** ขั้นตรวจผลกระทบ → กลับฟอร์ม (ปุ่ม Back และ Esc) ค่าที่กรอกยังอยู่ */
+  const backToForm = () => {
+    setReview(null);
+    heading.current?.focus();
+  };
+
   const confirm = async () => {
     if (busy || !review) return;
     setBusy(true);
@@ -123,6 +131,7 @@ export function ThaiTradeEdit({ trade, asset, assetTrades, accounts, entries, wa
       onSaved('Transaction updated');
     } catch (err) {
       setReview(null); // ชนกัน/ผิดกติกาจากฐานข้อมูล: กลับไปฟอร์มพร้อมข้อความ
+      heading.current?.focus(); // ปุ่มที่โฟกัสอยู่หายไปกับขั้นตรวจผลกระทบ
       setProblem(investError(err));
     } finally {
       setBusy(false);
@@ -138,7 +147,9 @@ export function ThaiTradeEdit({ trade, asset, assetTrades, accounts, entries, wa
       aria-labelledby="th-edit-title"
       onCancel={(e) => {
         e.preventDefault();
-        if (!busy) onClose();
+        if (busy) return;
+        if (review) backToForm();
+        else onClose();
       }}
     >
       <div className="entry-form">
@@ -150,7 +161,7 @@ export function ThaiTradeEdit({ trade, asset, assetTrades, accounts, entries, wa
             <h3 className="edit-review-title">Check the change before you save</h3>
             <EditImpact before={review.before} after={review.after} currency="THB" />
             <div className="dialog-actions">
-              <button type="button" className="btn btn-ghost btn-small" onClick={() => setReview(null)} disabled={busy}>
+              <button type="button" className="btn btn-ghost btn-small" autoFocus onClick={backToForm} disabled={busy}>
                 Back
               </button>
               <button type="button" className="btn btn-primary btn-small" onClick={() => void confirm()} disabled={busy}>
@@ -220,7 +231,7 @@ export function ThaiTradeEdit({ trade, asset, assetTrades, accounts, entries, wa
             )}
             <Field id="th-e-memo" label="Note (optional)" text value={form.memo} onChange={(v) => set({ memo: v })} errors={errors} field="memo" />
             {problem !== '' && (
-              <p className="avg-err" role="alert" data-testid="edit-problem">
+              <p ref={showProblem} className="avg-err" role="alert" data-testid="edit-problem">
                 {problem}
               </p>
             )}
