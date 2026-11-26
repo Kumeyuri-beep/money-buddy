@@ -64,10 +64,6 @@ export function loadAdmin() {
     fail('พบตัวแปรขึ้นต้น VITE_ ที่ชื่อเกี่ยวกับ key ผู้ดูแล ซึ่งจะถูกฝังลงเว็บ ลบออกก่อน');
   }
 
-  if (process.env.SUPABASE_DB_URL) {
-    fail('ปฏิเสธ: พบ SUPABASE_DB_URL ใน environment ของ shell ให้ลบออก (ต้องอ่านจาก admin.env เท่านั้น)');
-  }
-
   const file = resolve(adminEnvPath(homedir(), '/'));
   checkAdminFile(file);
 
@@ -80,7 +76,16 @@ export function loadAdmin() {
   const client = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
-  // SUPABASE_DB_URL ใช้เฉพาะ admin:sql-tests (ไม่บังคับสำหรับสคริปต์อื่น) · อ่านจากไฟล์นี้เท่านั้นเช่นเดียวกับ key
-  const dbUrl = values.SUPABASE_DB_URL;
-  return { client, url, dbUrl, safeMessage: makeSafeMessage([key, url, dbUrl ?? '']) };
+  return { client, url, safeMessage: makeSafeMessage([key, url]) };
+}
+
+/** เฉพาะ admin:sql-tests: ตรวจไฟล์แบบเดียวกับ loadAdmin แต่คืนแค่ URL โปรเจกต์กับค่าเชื่อมต่อฐานข้อมูล ไม่คืน key และไม่สร้าง client */
+export function loadDbUrl() {
+  if (process.env.SUPABASE_DB_URL) {
+    fail('ปฏิเสธ: พบ SUPABASE_DB_URL ใน environment ของ shell ให้ลบออก (ต้องอ่านจาก admin.env เท่านั้น)');
+  }
+  const file = resolve(adminEnvPath(homedir(), '/'));
+  checkAdminFile(file);
+  const values = parseEnv(readFileSync(file, 'utf8'));
+  return { url: values.SUPABASE_URL ?? '', dbUrl: values.SUPABASE_DB_URL };
 }
