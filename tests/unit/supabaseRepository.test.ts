@@ -452,3 +452,69 @@ describe('saveCategories (R2 Categories): ตรวจก่อนส่ง แ�
     await expect(repo.saveCategories(cats, [])).rejects.not.toThrow(/secret/);
   });
 });
+
+describe('นำเข้าเมื่อมีหมวดเดิมค้าง (ผู้ใช้ยืนยันให้ลบแล้ว)', () => {
+  const data = {
+    accounts: [
+      { id: 'a', type: 'asset' as const, name: 'a', currency: 'THB' },
+      { id: 'b', type: 'equity' as const, name: 'b', currency: 'THB' },
+    ],
+    entries: [{ id: 'e', date: '2026-11-01', memo: '', source: 'system' as const, lines: [{ accountId: 'a', amount: 10 }, { accountId: 'b', amount: -10 }] }],
+    bills: [],
+    settings: {},
+  };
+  const NEW_RPC = 'import_ledger_investments_replacing_categories';
+  const okLedger = () => fakeClient(() => ({ data: { accounts: 2, bills: 0, entries: 1 } }));
+  const failMessage = async (error: { message: string; code?: string }) => {
+    const { client } = fakeClient((call) => (call.name === NEW_RPC ? { error } : { data: { accounts: 2, bills: 0, entries: 1 } }));
+    const err = await createSupabaseRepository(client, 'u').importBackup(data, undefined, { replaceCategories: 2 }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(StorageError);
+    return (err as Error).message;
+  };
+
+  it('countCategories: นับจากตาราง asset_categories อย่างเดียว · อ่านไม่ได้ = StorageError (ไม่ถือว่าเป็น 0)', async () => {
+    const { client, calls } = fakeClient(() => ({ count: 3 }));
+    expect(await createSupabaseRepository(client, 'u').countCategories()).toBe(3);
+    expect(calls.map((c) => c.kind + ':' + c.name)).toEqual(['from:asset_categories']);
+    expect(calls[0]!.ops).toEqual(['select']);
+    await expect(createSupabaseRepository(fakeClient(() => ({ error: { message: 'x' } })).client, 'u').countCategories()).rejects.toThrow(StorageError);
+    await expect(createSupabaseRepository(fakeClient(() => ({})).client, 'u').countCategories()).rejects.toThrow(StorageError);
+  });
+
+  it('เรียก RPC ใหม่พร้อมจำนวนที่ผู้ใช้ยืนยัน แม้ไฟล์ไม่มีข้อมูลลงทุน · ไม่เรียกตัวเดิม', async () => {
+    const { client, calls } = okLedger();
+    await createSupabaseRepository(client, 'u').importBackup(data, undefined, { replaceCategories: 2 });
+    expect(calls.map((c) => c.name)).toEqual(['import_ledger', NEW_RPC]);
+    expect(calls[1]!.args).toEqual({ p_data: { assets: [], trades: [], prices: [] }, p_expected_categories: 2 });
+  });
+
+  it('จำนวนยืนยัน 0 หรือไม่ส่ง = ทางเดิมทุกอย่าง', async () => {
+    for (const options of [undefined, { replaceCategories: 0 }]) {
+      const { client, calls } = okLedger();
+      await createSupabaseRepository(client, 'u').importBackup(data, undefined, options);
+      expect(calls.map((c) => c.name)).toEqual(['import_ledger']);
+    }
+  });
+
+  it('ไฟล์ใหญ่ (แบ่งก้อน): ขั้นสุดท้ายก็เป็น RPC ใหม่', async () => {
+    const big = { ...data, entries: Array.from({ length: 1600 }, (_, i) => ({ ...data.entries[0]!, id: 'e' + i })) };
+    const { client, calls } = fakeClient(() => ({ data: { entries: 500 } }));
+    await createSupabaseRepository(client, 'u').importBackup(big, undefined, { replaceCategories: 1 });
+    expect(calls[0]!.name).toBe('import_ledger_begin');
+    expect(calls.at(-1)!.name).toBe(NEW_RPC);
+  });
+
+  it('ขั้นสุดท้ายถูกฐานข้อมูลปฏิเสธ: บอกว่าสมุดเข้าแล้ว ข้อมูลลงทุนไม่เข้า หมวดเดิมยังอยู่', async () => {
+    expect(await failMessage({ message: 'เป้ารวมต้องเป็น 100%', code: '23514' })).toMatch(/สมุดบัญชีสำเร็จแล้ว.*หมวดเดิมยังอยู่ครบ/);
+  });
+
+  it('หมวดเปลี่ยนหลังกดยืนยัน (PT409): บอกว่าไม่ได้ลบหมวด', async () => {
+    expect(await failMessage({ message: 'หมวดเปลี่ยนไปแล้ว', code: 'PT409' })).toMatch(/หมวดเปลี่ยนหลังคุณกดยืนยัน.*ไม่ได้ลบหมวด/);
+  });
+
+  it('ไม่ได้คำตอบจากฐานข้อมูล (เน็ตหลุด ไม่มีรหัส): ไม่อ้างว่าหมวดยังอยู่', async () => {
+    const message = await failMessage({ message: 'TypeError: Failed to fetch', code: '' });
+    expect(message).toMatch(/ยืนยันผลไม่ได้/);
+    expect(message).not.toMatch(/หมวดเดิมยังอยู่|ไม่ได้ลบ/);
+  });
+});

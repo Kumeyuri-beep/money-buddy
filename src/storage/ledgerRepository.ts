@@ -18,6 +18,11 @@ import { StorageError, storeError, type Ledger, type PayBillOptions, type PayBil
 /** รายงานความคืบหน้าการนำเข้า (รายการที่นำเข้าแล้ว, ทั้งหมด) */
 export type ImportProgress = (done: number, total: number) => void;
 
+export interface ImportOptions {
+  /** จำนวนหมวดเดิมที่ผู้ใช้ยืนยันให้ลบแล้ว (> 0) · ฐานข้อมูลลบและนำเข้าข้อมูลลงทุนในธุรกรรมเดียว จำนวนไม่ตรง = ไม่ลบ */
+  replaceCategories?: number;
+}
+
 /** การจัดหมวด/sector ของสินทรัพย์หนึ่งตัว (ส่งเฉพาะ key ที่ต้องการเปลี่ยน · null = ล้างค่า) */
 export interface CategoryAssignment {
   assetId: string;
@@ -48,7 +53,9 @@ export interface LedgerRepository {
    * นำเข้าข้อมูลจากไฟล์สำรองที่ผ่าน parseBackup แล้ว ทั้งก้อนในธุรกรรมเดียว (M2-D)
    * ปฏิเสธถ้ามีข้อมูลอยู่แล้ว (ไม่ทับ ไม่ซ้ำซ้อน) · ผิดข้อใดข้อหนึ่ง = ไม่เขียนอะไรเลย
    */
-  importBackup(data: BackupData, onProgress?: ImportProgress): Promise<{ accounts: number; entries: number; bills: number }>;
+  importBackup(data: BackupData, onProgress?: ImportProgress, options?: ImportOptions): Promise<{ accounts: number; entries: number; bills: number }>;
+  /** จำนวนหมวดสินทรัพย์ที่มีอยู่ (ใช้ถามผู้ใช้ก่อนนำเข้า) · Dexie คืน 0 เสมอ */
+  countCategories(): Promise<number>;
   /** ออนไลน์เท่านั้น: มีการนำเข้าแบบแบ่งก้อนที่ค้างอยู่ (ยังไม่ครบ) หรือไม่ · Dexie คืน false เสมอ */
   hasUnfinishedImport(): Promise<boolean>;
   /** ล้างข้อมูลที่นำเข้าค้าง (ใช้ได้เฉพาะขณะมีการนำเข้าค้าง ไม่ถามรหัสผ่าน) · Dexie ไม่ทำอะไร */
@@ -172,6 +179,7 @@ export function createDexieRepository(db: MoneyDB): LedgerRepository {
     cancelBillPayment: (entryId) => dexie.cancelBillPayment(db, entryId),
     cancelLatestBillPayment: (billId) => dexie.cancelLatestBillPayment(db, billId),
     importBackup: (data) => dexie.importBackup(db, data),
+    countCategories: () => Promise.resolve(0),
     hasUnfinishedImport: () => Promise.resolve(false),
     abortUnfinishedImport: () => Promise.resolve(),
     loadSettings: () => dexie.loadSettings(db),

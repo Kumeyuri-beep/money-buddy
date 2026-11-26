@@ -3,8 +3,10 @@ import { thaiIsoDate } from '../app/dates';
 import { readBackupFile, type BackupFileRead } from '../app/importFile';
 import type { VerifyReport } from '../app/importVerify';
 import { importAndVerify, RESET_CANCELLED_MESSAGE } from '../app/migrate';
+import type { ImportOptions } from '../storage/ledgerRepository';
 import { StorageError } from '../storage/repository';
 import { BalanceTable } from './ImportReportTable';
+import { useCategoryGuard } from './ReplaceCategoriesDialog';
 import { useRepository } from './RepositoryContext';
 
 type Step =
@@ -46,11 +48,13 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
     }
   };
 
-  const doImport = async (read: Extract<BackupFileRead, { ok: true }>) => {
+  const { guard, dialog } = useCategoryGuard(repo, (e) => setStep({ name: 'error', message: friendly(e) }));
+
+  const doImport = async (read: Extract<BackupFileRead, { ok: true }>, options?: ImportOptions) => {
     setStep({ name: 'importing' });
     setProgress(null);
     try {
-      const result = await importAndVerify(read.data, repo, (done, total) => setProgress([done, total]));
+      const result = await importAndVerify(read.data, repo, (done, total) => setProgress([done, total]), options);
       setAck(false);
       setWipeNote('');
       setStep({ name: 'result', report: result.report, counts: result.counts });
@@ -153,8 +157,16 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
       )}
 
       {step.name === 'review' && step.read.ok && (
-        <ReviewBody read={step.read} onImport={() => void doImport(step.read as Extract<BackupFileRead, { ok: true }>)} onBack={() => setStep({ name: 'pick' })} />
+        <ReviewBody
+          read={step.read}
+          onImport={() => {
+            const read = step.read as Extract<BackupFileRead, { ok: true }>;
+            void guard(read.data.investments?.categories?.length ?? 0, (options) => void doImport(read, options));
+          }}
+          onBack={() => setStep({ name: 'pick' })}
+        />
       )}
+      {dialog}
 
       {step.name === 'result' && (
         <div className="migrate-body">
