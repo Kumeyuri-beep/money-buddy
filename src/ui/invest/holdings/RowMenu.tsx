@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { useDesktop } from '../../useDesktop';
 
 export type RowAction = 'add' | 'open' | 'edit' | 'delete' | 'deleteAsset';
 const MENU_H = 5 * 44 + 40; // ความสูงเมนูโดยประมาณ (สูงสุด 5 รายการ × 44px + บรรทัดเหตุผล + ขอบ)
@@ -17,10 +16,9 @@ const ITEMS: { id: RowAction; label: string; hint?: string }[] = [
  */
 export function RowMenu({ label, onPick, deleteAsset }: { label: string; onPick: (a: RowAction, from: HTMLElement) => void; deleteAsset?: { reason: string | null } }) {
   const [open, setOpen] = useState<{ top: number; right: number; up: boolean } | null>(null);
-  // คอม: วางเมนูใน body เพราะการ์ดกระจก (backdrop-filter) ทำให้ position: fixed ของลูกอิงกรอบการ์ด ไม่ใช่หน้าจอ เมนูจึงเลื่อนลงไปนอกจอ (พบตอนทำ Delete asset)
-  // มือถือไม่แตะ (ตามกติกาคอมก่อน) · ถ้ามือถือมีอาการเดียวกันจดไว้ใน HANDOFF หัวข้อ "รอปรับมือถือ"
-  const desktop = useDesktop();
-  const inBody = (node: ReactNode): ReactNode => (desktop && typeof document !== 'undefined' ? createPortal(node, document.body) : node);
+  // วางเมนูใน body ทุกขนาดจอ: การ์ดกระจก (backdrop-filter) ทำให้ position: fixed ของลูกอิงกรอบการ์ด ไม่ใช่หน้าจอ เมนูจึงเปิดไกลจากปุ่มหรือหลุดนอกจอ
+  // (พบบนคอมตอนทำ Delete asset · ยืนยันบนมือถือ/แท็บเล็ต 26 พ.ย. 2569)
+  const inBody = (node: ReactNode): ReactNode => (typeof document !== 'undefined' ? createPortal(node, document.body) : node);
   const btn = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
 
