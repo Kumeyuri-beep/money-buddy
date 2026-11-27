@@ -19,6 +19,8 @@ import { categoriesDemoRepository } from './categoriesDemo';
 import { rebalanceDemoRepository, type RebalanceDemoKind } from './rebalanceDemo';
 import { demoCashLedger, demoInvestments, demoInvestmentsNoRate, demoInvestmentsWithHistory, demoTransactionsData, demoTransactionsDataWithThai, demoTransactionsLedger } from './investDemo';
 import { AccountContext } from '../ui/AuthContext';
+import { MigrationWizard } from '../ui/MigrationWizard';
+import { wizardDemoRepository, type WizardDemoKind } from './wizardDemo';
 import { PasswordPromptProvider } from '../ui/PasswordPrompt';
 import '@fontsource/ibm-plex-sans-thai/400.css';
 import '@fontsource/ibm-plex-sans-thai/500.css';
@@ -44,6 +46,10 @@ async function seed(): Promise<void> {
   if (income) await repo.appendEntry({ id: 'demo-e2', date: '2026-11-03', memo: 'เงินเดือน (สมมติ)', lines: [{ accountId: wallet.id, amount: 3_000_000 }, { accountId: income.id, amount: -3_000_000 }] });
   await repo.addBill({ id: 'bill-demo', name: 'ค่าเน็ต (สมมติ)', amount: 59900, dueDay: 5 } as never, '2026-11-13');
 }
+
+/** หน้าย้ายข้อมูล (?wizard=…): สร้างปลายทางจำลองครั้งเดียวต่อการโหลดหน้า */
+let wizardRepo: ReturnType<typeof wizardDemoRepository> | null = null;
+const wizardOnline = () => (wizardRepo ??= wizardDemoRepository(params.get('wizard') as WizardDemoKind));
 
 /** StrictMode เรียก effect สองรอบ: ใส่ข้อมูลสมมติครั้งเดียว */
 let seedOnce: Promise<void> | null = null;
@@ -71,7 +77,9 @@ function Harness() {
   return (
     <AccountContext.Provider value={{ username: 'ผู้ทดสอบ', signOut: async () => undefined, refresh: async () => undefined }}>
       <PasswordPromptProvider>
-        {params.get('investDemo') === 'rebal' || params.get('investDemo') === 'rebal-empty' || params.get('investDemo') === 'rebal-baht' ? (
+        {params.get('wizard') !== null ? (
+          <MigrationWizard userId="harness" online={wizardOnline()} mode="migrate" onDone={() => undefined} />
+        ) : params.get('investDemo') === 'rebal' || params.get('investDemo') === 'rebal-empty' || params.get('investDemo') === 'rebal-baht' ? (
           <RepositoryProvider repository={rebalanceDemoRepository(params.get('investDemo') as RebalanceDemoKind)}>
             <App />
           </RepositoryProvider>
