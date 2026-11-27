@@ -107,7 +107,9 @@ for (const width of [360, 390, 1280, 1440]) test.describe('ลองนำเข
     await page.getByRole('button', { name: RETRY }).click();
     await expect(page.getByRole('alert')).toContainText('ข้อมูลลงทุนเข้าแล้ว แต่ตรวจยอดไม่ได้');
     await expect(page.getByRole('button', { name: RETRY })).toHaveCount(0);
-    const gone = page.getByRole('note', { name: 'ถ้าปุ่มลองใหม่หาย' });
+    const gone = page.getByRole('note', { name: 'ถ้าปุ่มตรวจยอดหาย' });
+    await expect(gone).toContainText('ปุ่มตรวจยอดอีกครั้งจะหาย');
+    await expect(gone).not.toContainText('ปุ่มลองใหม่');
     await expect(gone).toContainText('ไม่ต้องนำเข้าใหม่');
     await expect(gone).not.toContainText('ล้างข้อมูล');
     await page.getByRole('button', { name: 'ตรวจยอดอีกครั้ง' }).click();
@@ -216,6 +218,49 @@ for (const width of [360, 390, 1280, 1440]) test.describe('ลองนำเข
     await page.getByLabel('ไฟล์สำรอง', { exact: true }).setInputFiles('tests/fixtures/import-retry-backup.json');
     await page.getByRole('button', { name: 'นำเข้า', exact: true }).click();
     await expect(page.getByRole('alert')).toContainText('ยอดสมุดบัญชีตรงกับไฟล์ แต่อ่านข้อมูลลงทุนไม่ได้');
+    await expect(page.getByRole('button', { name: RETRY })).toBeVisible();
+    expect(await calls(page)).toEqual([]);
+  });
+
+  test('รอบแรกนำเข้าสำเร็จแต่ตรวจยอดไม่ได้: บอกว่านำเข้าแล้ว ปุ่มตรวจยอดอีกครั้ง ไม่นำเข้าซ้ำ', async ({ page }) => {
+    await page.goto('/harness.html?reset=1&importRetry=ok&online=empty&verify=firstfail');
+    await page.getByRole('button', { name: 'นำเข้าจากไฟล์สำรอง' }).click();
+    await page.getByLabel('ไฟล์สำรอง', { exact: true }).setInputFiles('tests/fixtures/import-retry-backup.json');
+    await page.getByRole('button', { name: 'นำเข้า', exact: true }).click();
+    await expect(page.getByRole('alert')).toContainText('นำเข้าแล้ว แต่ตรวจยอดไม่ได้');
+    await page.getByRole('button', { name: 'ตรวจยอดอีกครั้ง' }).click();
+    await expect(page.getByText('นำเข้าแล้ว:')).toBeVisible();
+    expect(await calls(page)).toEqual([]);
+  });
+
+  test('ไฟล์ไม่มีข้อมูลลงทุน ตรวจยอดล้มสองรอบ: ไม่อ้างว่าลบหมวดเดิมแล้ว', async ({ page }) => {
+    await page.goto('/harness.html?reset=1&importRetry=ok&online=empty&verify=twice');
+    await page.getByRole('button', { name: 'นำเข้าจากไฟล์สำรอง' }).click();
+    await page.getByLabel('ไฟล์สำรอง', { exact: true }).setInputFiles('tests/fixtures/import-categories-backup.json');
+    await page.getByRole('button', { name: 'นำเข้า', exact: true }).click();
+    await page.getByRole('button', { name: 'ตรวจยอดอีกครั้ง' }).click();
+    await expect(page.getByRole('alert')).toContainText('นำเข้าแล้ว แต่ตรวจยอดไม่ได้');
+    await expect(page.getByRole('alert')).not.toContainText('ลบหมวด');
+    await page.getByRole('button', { name: 'ตรวจยอดอีกครั้ง' }).click();
+    await expect(page.getByText('นำเข้าแล้ว:')).toBeVisible();
+  });
+
+  test('ตรวจยอดไม่ได้เพราะบัญชีเปลี่ยน: ไม่มีปุ่มตรวจยอด บอกให้เข้าบัญชีที่ใช้นำเข้า', async ({ page }) => {
+    await page.goto('/harness.html?reset=1&importRetry=ok&online=empty&verify=account');
+    await page.getByRole('button', { name: 'นำเข้าจากไฟล์สำรอง' }).click();
+    await page.getByLabel('ไฟล์สำรอง', { exact: true }).setInputFiles('tests/fixtures/import-retry-backup.json');
+    await page.getByRole('button', { name: 'นำเข้า', exact: true }).click();
+    await expect(page.getByRole('alert')).toContainText('เข้าสู่ระบบด้วยบัญชีที่ใช้นำเข้า');
+    await expect(page.getByRole('button', { name: 'ตรวจยอดอีกครั้ง' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: RETRY })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'โหลดหน้าใหม่' })).toBeVisible();
+  });
+
+  test('บัญชีเปลี่ยนตอนข้อมูลลงทุนยังค้าง: ปุ่มลองใหม่ยังอยู่ บอกว่าอาจยังไม่เข้า และให้กลับเข้าบัญชีเดิม', async ({ page }) => {
+    await failFirst(page, 'importRetry=fail&online=empty&verify=account');
+    await page.getByRole('button', { name: RETRY }).click();
+    await expect(page.getByRole('alert')).toContainText('ข้อมูลลงทุนอาจยังไม่เข้า');
+    await expect(page.getByRole('alert')).toContainText('กลับเข้าบัญชีที่ใช้นำเข้า');
     await expect(page.getByRole('button', { name: RETRY })).toBeVisible();
     expect(await calls(page)).toEqual([]);
   });

@@ -8,7 +8,7 @@ import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { buildInitialLedger } from '../app/setup';
 import { db } from '../storage/instance';
-import { createDexieRepository, ImportUnconfirmedError, InvestmentImportError } from '../storage/ledgerRepository';
+import { AccountChangedError, createDexieRepository, ImportUnconfirmedError, InvestmentImportError } from '../storage/ledgerRepository';
 import { emptyInvestments, type InvestmentData } from '../domain/invest/types';
 import { App } from '../ui/App';
 import { RepositoryProvider, localLedgerRepository } from '../ui/RepositoryContext';
@@ -109,7 +109,7 @@ function Harness() {
 
 /**
  * ปุ่มลองนำเข้าข้อมูลลงทุนอีกครั้ง (?importRetry=ผลของแต่ละรอบ: fail | lost | ok · รอบแรกใช้ unconfirmed = สมุดเข้าแต่ยืนยันผลไม่ได้ · unconfirmed-empty = ไม่ได้เข้า · unconfirmed-wrong = เข้าแต่เนื้อหาไม่ตรง) · สมุดบัญชีเข้าที่เก็บในเครื่องจริง ขั้นลงทุนจำลอง
- * ?online=empty|match|different|error|late|oldcats ผลการอ่านข้อมูลลงทุนก่อนลองใหม่ (late = ว่างครั้งแรก แล้วตรง) · ?verify=fail ตรวจยอดล้มหนึ่งครั้งหลังลองสำเร็จ · ?importCategories=N หมวดค้างตอนลองใหม่ · ?readDelay=ms
+ * ?online=empty|match|different|error|late|oldcats ผลการอ่านข้อมูลลงทุนก่อนลองใหม่ (late = ว่างครั้งแรก แล้วตรง) · ?verify=fail ตรวจยอดล้มหนึ่งครั้งหลังลองสำเร็จ · verify=firstfail ตรวจยอดล้มหนึ่งครั้งหลังนำเข้ารอบแรก · twice = ล้มสองครั้ง · account = บัญชีเปลี่ยนตอนตรวจยอด · ?importCategories=N หมวดค้างตอนลองใหม่ · ?readDelay=ms
  */
 let retryDemo: ReturnType<typeof localLedgerRepository> | null = null;
 function importRetryRepository(outcomes: string[]) {
@@ -119,7 +119,7 @@ function importRetryRepository(outcomes: string[]) {
   let failed = false;
   let saved = false;
   let reads = 0;
-  let breakVerify = false;
+  let breakVerify = 0;
   const step = () => {
     const outcome = outcomes.shift() ?? 'ok';
     if (outcome === 'ok') return;
@@ -132,10 +132,11 @@ function importRetryRepository(outcomes: string[]) {
   retryDemo = {
     ...local,
     loadLedger: () => {
-      if (!breakVerify) return local.loadLedger();
-      breakVerify = false;
+      if (breakVerify === 0) return local.loadLedger();
+      breakVerify -= 1;
       return Promise.reject(new Error('จำลอง: อ่านไม่ได้'));
     },
+    confirmSameAccount: () => (params.get('verify') === 'account' ? Promise.reject(new AccountChangedError('บัญชีที่เข้าสู่ระบบเปลี่ยนไป (จำลอง)')) : Promise.resolve()),
     countCategories: () => Promise.resolve(failed ? Number(params.get('importCategories') ?? 0) : 0),
     importBackup: async ({ investments, ...data }, onProgress) => {
       file = investments ?? emptyInvestments();
@@ -150,6 +151,12 @@ function importRetryRepository(outcomes: string[]) {
         throw unconfirmed();
       }
       const counts = await local.importBackup(data, onProgress);
+      const verify = params.get('verify');
+      if (verify === 'firstfail' || verify === 'twice' || verify === 'account') {
+        saved = true; // ข้อมูลลงทุนเข้าครบในรอบแรก
+        failed = true;
+        if (verify !== 'account') breakVerify = verify === 'twice' ? 2 : 1;
+      }
       if (outcomes[0] === 'unconfirmed') {
         outcomes.shift();
         failed = true;
@@ -175,7 +182,7 @@ function importRetryRepository(outcomes: string[]) {
       (w.__retryCalls ??= []).push(options ?? null);
       step();
       saved = true;
-      breakVerify = params.get('verify') === 'fail';
+      breakVerify = params.get('verify') === 'fail' ? 1 : breakVerify;
     },
   };
   return retryDemo;

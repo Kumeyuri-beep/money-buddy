@@ -9,7 +9,7 @@ import {
   type BillRow,
   type EntryRow,
 } from '../../src/storage/supabaseRepository';
-import { ImportUnconfirmedError, InvestmentImportError } from '../../src/storage/ledgerRepository';
+import { AccountChangedError, ImportUnconfirmedError, InvestmentImportError } from '../../src/storage/ledgerRepository';
 import { StorageError } from '../../src/storage/repository';
 
 /** client จำลอง: บันทึกทุกคำสั่งที่ส่งออกไป และตอบตามที่เทสต์กำหนด (ไม่ต้องมีฐานข้อมูลจริง) */
@@ -673,7 +673,7 @@ describe('บัญชีเปลี่ยนจากแท็บอื่น�
   it('confirmSameAccount: ผู้ใช้เดิมผ่าน · ต่างหรือออกจากระบบ = StorageError', async () => {
     await expect(createSupabaseRepository(fakeClient(ok).client, 'u').confirmSameAccount()).resolves.toBeUndefined();
     for (const id of ['other', null]) {
-      await expect(createSupabaseRepository(fakeClient(ok, [id]).client, 'u').confirmSameAccount()).rejects.toThrow(StorageError);
+      await expect(createSupabaseRepository(fakeClient(ok, [id]).client, 'u').confirmSameAccount()).rejects.toBeInstanceOf(AccountChangedError);
     }
   });
 });
