@@ -44,6 +44,8 @@ async function openView(page: Page, view: (typeof VIEWS)[number], mobile: boolea
     await openDesktopView(page, view.desktop);
   }
   await expect(page.locator('#main h2, #main h1').first()).toBeVisible();
+  // หน้าโหลดแบบ lazy: หัวข้อแรกใน #main อาจเป็นของหน้าเดิม ต้องรอสถานะ "กำลังโหลดหน้า" หายก่อนวัด (HANDOFF §119 · ทำซ้ำได้โดยหน่วงไฟล์ของหน้า)
+  await expect(page.getByText('กำลังโหลดหน้า…')).toHaveCount(0);
   await page.waitForTimeout(500);
 }
 
