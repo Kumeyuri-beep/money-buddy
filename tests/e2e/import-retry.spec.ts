@@ -25,6 +25,20 @@ for (const width of [360, 390, 1280, 1440]) test.describe('ลองนำเข
     await expect(page.getByRole('button', { name: RETRY })).toHaveClass(/btn-primary/);
     await expect(page.getByRole('button', { name: 'โหลดหน้าใหม่' })).toHaveClass(/btn-ghost/);
     await expect(page.getByText('ปิดหรือโหลดหน้าใหม่แล้ว ปุ่มลองใหม่จะหาย')).toBeVisible();
+    const gone = page.getByRole('note', { name: 'ถ้าปุ่มลองใหม่หาย' });
+    await expect(gone).toContainText('ข้อมูลของคุณไม่หาย');
+    await expect(gone).toContainText('พอร์ตการลงทุน');
+    await expect(gone).toContainText('ล้างข้อมูลและเริ่มใหม่');
+    await expect(gone).toContainText('รายการที่เพิ่มหลังนำเข้าจะหายด้วย');
+    await expect(gone).toContainText('ใช้ไฟล์สำรองเดิม');
+    await expect(gone).toContainText('โปรไฟล์และตั้งค่า');
+    await expect(gone).toContainText('เทียบยอดในหน้า "ภาพรวม"');
+    await expect(gone.getByRole('heading', { name: 'ถ้าปุ่มลองใหม่หาย' })).toBeVisible();
+    // คำเตือนว่าย้อนกลับไม่ได้ต้องมาก่อนขั้นกดล้าง
+    const text = (await gone.textContent())!;
+    expect(text.indexOf('ย้อนกลับไม่ได้')).toBeLessThan(text.indexOf('ล้างข้อมูลและเริ่มใหม่'));
+    // กล่องช่วยเหลืออยู่ใต้ปุ่ม ปุ่มลองใหม่ไม่ถูกดันลง
+    expect((await gone.boundingBox())!.y).toBeGreaterThan((await page.getByRole('button', { name: RETRY }).boundingBox())!.y);
     await expect(page.getByText('แอปจะไม่นำเข้าทับ โหลดหน้าใหม่')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   });
@@ -93,6 +107,9 @@ for (const width of [360, 390, 1280, 1440]) test.describe('ลองนำเข
     await page.getByRole('button', { name: RETRY }).click();
     await expect(page.getByRole('alert')).toContainText('ข้อมูลลงทุนเข้าแล้ว แต่ตรวจยอดไม่ได้');
     await expect(page.getByRole('button', { name: RETRY })).toHaveCount(0);
+    const gone = page.getByRole('note', { name: 'ถ้าปุ่มลองใหม่หาย' });
+    await expect(gone).toContainText('ไม่ต้องนำเข้าใหม่');
+    await expect(gone).not.toContainText('ล้างข้อมูล');
     await page.getByRole('button', { name: 'ตรวจยอดอีกครั้ง' }).click();
     await expect(page.getByText('นำเข้าแล้ว:')).toBeVisible();
     expect(await calls(page)).toEqual([null]);
@@ -103,9 +120,15 @@ for (const width of [360, 390, 1280, 1440]) test.describe('ลองนำเข
     const main = page.getByRole('region', { name: 'นำเข้าจากไฟล์สำรอง' });
     await expect(main).toContainText('ปุ่มลองใหม่จะตรวจก่อนว่าลบหมวดเดิมแล้วหรือยัง');
     await expect(main).not.toContainText('ข้อมูลลงทุนเข้า');
+    const gone = page.getByRole('note', { name: 'ถ้าปุ่มลองใหม่หาย' });
+    await expect(gone).toContainText('ข้อมูลของคุณไม่หาย');
+    await expect(gone).toContainText('ลบได้หลังเพิ่มหุ้นแล้ว');
+    await expect(gone).not.toContainText('ล้างข้อมูล');
     await page.getByRole('button', { name: 'ลองลบหมวดเดิมอีกครั้ง' }).click();
     const dialog = page.getByRole('dialog', { name: 'ลบหมวดเดิม?' });
     await expect(dialog).not.toContainText('ก่อนนำเข้า');
+    await expect(dialog).toContainText('หลังลบแล้วจะไม่มีหมวดเลย');
+    await expect(dialog).not.toContainText('หลังนำเข้า');
     await dialog.getByRole('button', { name: 'ลบหมวดเดิม', exact: true }).click();
     await expect(page.getByText('นำเข้าแล้ว:')).toBeVisible();
     expect(await calls(page)).toEqual([{ replaceCategories: 2 }]);
@@ -127,11 +150,28 @@ for (const width of [360, 390, 1280, 1440]) test.describe('ลองนำเข
     expect(b.x - (a.x + a.width)).toBeGreaterThanOrEqual(8);
   });
 
+  test('ตรวจยอดอีกครั้งแล้วพบว่าข้อมูลออนไลน์หายไป: ไม่นำเข้าเองโดยไม่ได้กด', async ({ page }) => {
+    await failFirst(page, 'importRetry=fail,ok&online=empty&verify=fail&gone=1');
+    await page.getByRole('button', { name: RETRY }).click();
+    await page.getByRole('button', { name: 'ตรวจยอดอีกครั้ง' }).click();
+    await expect(page.getByRole('alert')).toContainText('ข้อมูลออนไลน์เปลี่ยนไป');
+    expect(await calls(page)).toEqual([null]);
+    await expect(page.getByRole('button', { name: RETRY })).toBeVisible();
+  });
+
+  test('ไฟล์มีข้อมูลลงทุนแต่ไม่มีสินทรัพย์: ไม่แนะให้ล้างข้อมูล', async ({ page }) => {
+    await failFirst(page, 'importRetry=fail&online=empty', 'import-retry-noassets-backup');
+    const gone = page.getByRole('note', { name: 'ถ้าปุ่มลองใหม่หาย' });
+    await expect(gone).toContainText('แจ้งผู้ดูแลระบบ');
+    await expect(gone).not.toContainText('ล้างข้อมูล');
+    await expect(gone).not.toContainText('ตรวจว่าสินทรัพย์');
+  });
+
   test('กดซ้ำระหว่างตรวจ: เรียกนำเข้าครั้งเดียว', async ({ page }) => {
     await failFirst(page, 'importRetry=fail,ok&online=empty&readDelay=800');
     const retry = page.getByRole('button', { name: RETRY });
     await retry.click();
-    await expect(page.getByRole('status').filter({ hasText: 'กำลังตรวจข้อมูลลงทุนออนไลน์' })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: 'กำลังตรวจข้อมูลออนไลน์' })).toBeVisible();
     await expect(retry).toHaveAttribute('aria-disabled', 'true');
     await retry.click({ force: true });
     await expect(page.getByText('นำเข้าแล้ว:')).toBeVisible();
