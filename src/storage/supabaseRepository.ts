@@ -542,21 +542,25 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       }
     } catch (e) {
       const reason = e instanceof StorageError ? e.message : 'เกิดข้อผิดพลาด';
+      let cleared: boolean;
       try {
-        await abortImport();
+        cleared = await abortImport();
       } catch {
         throw new StorageError(`นำเข้าไม่สำเร็จ (${reason}) และล้างส่วนที่นำเข้าค้างไม่ได้ เปิดแอปใหม่แล้วแอปจะให้ล้างส่วนที่ค้างก่อนลองใหม่`);
       }
-      throw new StorageError(`นำเข้าไม่สำเร็จ (${reason}) ระบบล้างส่วนที่นำเข้าค้างให้แล้ว ลองนำเข้าใหม่ได้`);
+      if (cleared) throw new StorageError(`นำเข้าไม่สำเร็จ (${reason}) ระบบล้างส่วนที่นำเข้าค้างให้แล้ว ลองนำเข้าใหม่ได้`);
+      // ไม่มีเซสชันให้ล้าง = ฐานข้อมูลอาจบันทึกก้อนสุดท้ายครบแล้วแต่คำตอบหาย ห้ามอ้างว่าล้างหรือว่าล้ม · ขั้นข้อมูลลงทุนยังไม่ถูกเรียก
+      const invest = isEmptyInvestments(data.investments) ? '' : ' ข้อมูลลงทุนยังไม่ได้นำเข้า';
+      throw new StorageError(`ยืนยันผลไม่ได้ว่านำเข้าสมุดบัญชีครบหรือไม่ (${reason}) ระบบไม่พบส่วนที่ค้างให้ล้าง ข้อมูลอาจเข้าครบแล้ว${invest} โหลดหน้าใหม่แล้วตรวจยอดก่อนทำอย่างอื่น`);
     }
     return { accounts: begin?.accounts ?? 0, entries: done, bills: begin?.bills ?? 0 };
   }
 
-  /** ล้างส่วนที่นำเข้าค้างเป็นชุด (ฐานข้อมูลลบทีละ ≤ 500 รายการ คืน 'more' จนกว่าจะหมด) · หยุดที่ 200 รอบกันวนไม่รู้จบ */
-  async function abortImport(): Promise<void> {
+  /** ล้างส่วนที่นำเข้าค้างเป็นชุด (ฐานข้อมูลลบทีละ ≤ 500 รายการ คืน 'more' จนกว่าจะหมด) · หยุดที่ 200 รอบกันวนไม่รู้จบ · false = ไม่มีเซสชันค้างตั้งแต่ครั้งแรก (ไม่ได้ล้างอะไร) */
+  async function abortImport(): Promise<boolean> {
     for (let i = 0; i < 200; i++) {
       const result = await rpc('import_ledger_abort', {});
-      if (result !== 'more') return;
+      if (result !== 'more') return !(i === 0 && result === 'none');
     }
     throw new StorageError('ล้างส่วนที่นำเข้าค้างไม่หมด ลองอีกครั้ง');
   }

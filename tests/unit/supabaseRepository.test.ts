@@ -304,6 +304,42 @@ describe('นำเข้าแบบแบ่งก้อน (เกิน 1,50
     expect((err as Error).message).not.toMatch(/ล้างส่วนที่นำเข้าค้างให้แล้ว/);
   });
 
+  it('คำตอบก้อนสุดท้ายหายหลังบันทึก (abort ตอบ none): ห้ามบอกว่าล้างให้แล้ว · บอกให้ตรวจยอด', async () => {
+    let appends = 0;
+    const { client, calls } = fakeClient((call) => {
+      if (call.name === 'import_ledger_append' && ++appends === 3) return { error: { message: 'TypeError: Failed to fetch', code: '' } };
+      if (call.name === 'import_ledger_abort') return { data: 'none' };
+      return ok(call);
+    });
+    const message = ((await createSupabaseRepository(client, 'u').importBackup(many(1600)).catch((e: unknown) => e)) as Error).message;
+    expect(message).toMatch(/ยืนยันผลไม่ได้/);
+    expect(message).toMatch(/ตรวจยอด/);
+    expect(message).not.toMatch(/ล้างส่วนที่นำเข้าค้างให้แล้ว|ลองนำเข้าใหม่ได้|Failed to fetch/);
+    expect(message).not.toMatch(/ข้อมูลลงทุน/);
+    expect(calls.at(-1)!.name).toBe('import_ledger_abort');
+  });
+
+  it('เหมือนข้างบนและไฟล์มีข้อมูลลงทุน: บอกว่าส่วนลงทุนยังไม่ได้นำเข้า (ยังไม่ได้เรียกเลย)', async () => {
+    const { client, calls } = fakeClient((call) => {
+      if (call.name === 'import_ledger_append') return { error: { message: 'x', code: '' } };
+      if (call.name === 'import_ledger_abort') return { data: 'none' };
+      return ok(call);
+    });
+    const data = { ...many(1600), investments: { assets: [{ id: 's', name: 'สมมติ', kind: 'fund' as const, accountId: 'a' }], trades: [], prices: [] } };
+    await expect(createSupabaseRepository(client, 'u').importBackup(data)).rejects.toThrow(/ข้อมูลลงทุนยังไม่ได้นำเข้า/);
+    expect(calls.some((c) => c.name.startsWith('import_ledger_investments'))).toBe(false);
+  });
+
+  it('ล้างเป็นชุด (more แล้ว done) ยังบอกว่าล้างให้แล้ว', async () => {
+    const answers = ['more', 'done'];
+    const { client } = fakeClient((call) => {
+      if (call.name === 'import_ledger_append') return { error: { message: 'ล้ม' } };
+      if (call.name === 'import_ledger_abort') return { data: answers.shift() };
+      return ok(call);
+    });
+    await expect(createSupabaseRepository(client, 'u').importBackup(many(1600))).rejects.toThrow(/ล้างส่วนที่นำเข้าค้างให้แล้ว/);
+  });
+
   it('begin ถูกปฏิเสธ (เช่นมีข้อมูลอยู่แล้ว): ไม่สั่งล้าง เพราะยังไม่ได้เปิดเซสชัน ข้อมูลเดิมต้องไม่ถูกแตะ', async () => {
     const { client, calls } = fakeClient((call) => (call.name === 'import_ledger_begin' ? { error: { message: 'มีข้อมูลอยู่แล้ว นำเข้าไม่ได้ (ไม่ทับข้อมูลเดิม)', code: '23505' } } : ok(call)));
     await expect(createSupabaseRepository(client, 'u').importBackup(many(1600))).rejects.toThrow(/มีข้อมูลอยู่แล้ว/);

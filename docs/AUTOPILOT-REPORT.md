@@ -8,7 +8,8 @@
 - **#281** กติกา autopilot และรายงาน
 - **#282** ตลาดหุ้นสหรัฐตรงกับฐานข้อมูล (`NYSE`, `NASDAQ`, `OTHER`)
 - **#283** ข้อความ "ถ้าปุ่มลองใหม่หาย" และเก็บข้อระดับต่ำจากการตรวจซ้ำ
-- **หน้า Categories** แก้/ลบหมวดได้เมื่อยังไม่มีหุ้น (branch `auto/categories-edit-without-stocks`)
+- **#284** หน้า Categories แก้/ลบหมวดได้เมื่อยังไม่มีหุ้น (CI ผ่านครบ · รอบเต็มในเครื่องมี contrast ล้มแล้วผ่านซ้ำ 2 ข้อ ดู HANDOFF §119)
+- **นำเข้าแบบแบ่งก้อน** คำตอบก้อนสุดท้ายหาย ไม่อ้างว่าล้างแล้ว (branch `auto/chunked-import-unknown`)
 - **สิทธิ์ผู้ช่วย** (`.claude/settings.local.json` นอก git) เพิ่มเฉพาะ allow: `git push origin auto/*`, `git push -u origin auto/*` (Bash และ PowerShell) · Supabase `list_tables`, `list_migrations`, `query_logs`, `get_advisors`
 
 ## ตัดสินใจเองไปแล้ว (พร้อมเหตุผล)
