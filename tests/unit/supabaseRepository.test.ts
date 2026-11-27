@@ -9,6 +9,7 @@ import {
   type BillRow,
   type EntryRow,
 } from '../../src/storage/supabaseRepository';
+import { InvestmentImportError } from '../../src/storage/ledgerRepository';
 import { StorageError } from '../../src/storage/repository';
 
 /** client จำลอง: บันทึกทุกคำสั่งที่ส่งออกไป และตอบตามที่เทสต์กำหนด (ไม่ต้องมีฐานข้อมูลจริง) */
@@ -516,5 +517,81 @@ describe('นำเข้าเมื่อมีหมวดเดิมค้�
     const message = await failMessage({ message: 'TypeError: Failed to fetch', code: '' });
     expect(message).toMatch(/ยืนยันผลไม่ได้/);
     expect(message).not.toMatch(/หมวดเดิมยังอยู่|ไม่ได้ลบ/);
+  });
+});
+
+describe('ขั้นข้อมูลลงทุนล้ม: ชนิดข้อผิดพลาดสำหรับปุ่มลองใหม่', () => {
+  const ledger = {
+    accounts: [
+      { id: 'a', type: 'asset' as const, name: 'a', currency: 'THB' },
+      { id: 'b', type: 'equity' as const, name: 'b', currency: 'THB' },
+    ],
+    entries: [{ id: 'e', date: '2026-11-01', memo: '', source: 'system' as const, lines: [{ accountId: 'a', amount: 10 }, { accountId: 'b', amount: -10 }] }],
+    bills: [],
+    settings: {},
+  };
+  const investments = { assets: [{ id: 's', name: 'สมมติ', kind: 'fund' as const, accountId: 'i' }], trades: [], prices: [] };
+  const OLD_RPC = 'import_ledger_investments';
+  const NEW_RPC = 'import_ledger_investments_replacing_categories';
+  const failing = (error: { message: string; code?: string }) => fakeClient((call) => (call.name === OLD_RPC || call.name === NEW_RPC ? { error } : { data: { accounts: 2, bills: 0, entries: 1 } }));
+  const fail = async (data: Parameters<ReturnType<typeof createSupabaseRepository>['importBackup']>[0], error: { message: string; code?: string }, replaceCategories?: number) => {
+    const options = replaceCategories === undefined ? undefined : { replaceCategories };
+    const e = await createSupabaseRepository(failing(error).client, 'u').importBackup(data, undefined, options).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(InvestmentImportError);
+    return e as InvestmentImportError;
+  };
+
+  it('ฐานข้อมูลปฏิเสธ = not_saved ทั้งสองทาง', async () => {
+    for (const replace of [undefined, 2]) {
+      const e = await fail({ ...ledger, investments }, { message: 'x', code: '23514' }, replace);
+      expect(e.outcome).toBe('not_saved');
+      expect(e.message).toMatch(/สมุดบัญชีสำเร็จแล้ว.*ข้อมูลลงทุนยังไม่เข้า/);
+    }
+  });
+  it('ไม่ได้คำตอบ (ไม่มีรหัส) = unknown ทั้งสองทาง ไม่อ้างว่าไม่เข้า', async () => {
+    for (const replace of [undefined, 2]) {
+      const e = await fail({ ...ledger, investments }, { message: 'TypeError: Failed to fetch', code: '' }, replace);
+      expect(e.outcome).toBe('unknown');
+      expect(e.message).toMatch(/ยืนยันผลไม่ได้/);
+      expect(e.message).not.toMatch(/ยังไม่เข้า|หมวดเดิมยังอยู่|Failed to fetch/);
+    }
+  });
+  it('หมวดเปลี่ยน (PT409) = not_saved', async () => {
+    expect((await fail({ ...ledger, investments }, { message: 'x', code: 'PT409' }, 2)).outcome).toBe('not_saved');
+  });
+  it('ไฟล์ไม่มีข้อมูลลงทุน (ลบหมวดอย่างเดียว): ข้อความพูดเรื่องลบหมวด ไม่พูดว่าข้อมูลลงทุนไม่เข้า', async () => {
+    for (const code of ['23514', 'PT409', '']) {
+      const e = await fail(ledger, { message: 'x', code }, 2);
+      expect(e.message).toMatch(/สมุดบัญชีสำเร็จแล้ว.*หมวดเดิม/);
+      expect(e.message).not.toMatch(/ข้อมูลลงทุน/);
+    }
+    expect((await fail(ledger, { message: 'x', code: '' }, 2)).message).not.toMatch(/หมวดเดิมยังอยู่|ไม่ได้ลบ/);
+  });
+  it('สมุดบัญชีล้มเอง ไม่ใช่ InvestmentImportError', async () => {
+    const { client } = fakeClient(() => ({ error: { message: 'x', code: '23514' } }));
+    const e = await createSupabaseRepository(client, 'u').importBackup({ ...ledger, investments }).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(StorageError);
+    expect(e).not.toBeInstanceOf(InvestmentImportError);
+  });
+  /** client จำลองที่มีเซสชันของผู้ใช้ที่กำหนด (null = ออกจากระบบ) */
+  const signedIn = (client: SupabaseClient, id: string | null) =>
+    Object.assign(client, { auth: { getSession: () => Promise.resolve({ data: { session: id === null ? null : { user: { id } } } }) } });
+  it('บัญชีที่เข้าสู่ระบบเปลี่ยนไป (หรือออกจากระบบ) = ไม่เรียกฐานข้อมูลเลย', async () => {
+    for (const id of ['other', null]) {
+      const { client, calls } = fakeClient(() => ({ data: {} }));
+      await expect(createSupabaseRepository(signedIn(client, id), 'u').retryImportInvestments(investments)).rejects.toThrow(/บัญชีที่เข้าสู่ระบบเปลี่ยนไป/);
+      expect(calls).toHaveLength(0);
+    }
+  });
+  it('retryImportInvestments: เรียกเฉพาะขั้นข้อมูลลงทุน ไม่เรียกนำเข้าสมุดอีก', async () => {
+    for (const [replace, name] of [[undefined, OLD_RPC], [2, NEW_RPC]] as const) {
+      const { client, calls } = fakeClient(() => ({ data: {} }));
+      await createSupabaseRepository(signedIn(client, 'u'), 'u').retryImportInvestments(investments, replace === undefined ? undefined : { replaceCategories: replace });
+      expect(calls.map((c) => c.name)).toEqual([name]);
+    }
+  });
+  it('retryImportInvestments ล้ม = InvestmentImportError เหมือนรอบแรก', async () => {
+    const repo = createSupabaseRepository(signedIn(failing({ message: 'x', code: '' }).client, 'u'), 'u');
+    await expect(repo.retryImportInvestments(investments)).rejects.toMatchObject({ outcome: 'unknown' });
   });
 });

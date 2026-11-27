@@ -23,6 +23,20 @@ export interface ImportOptions {
   replaceCategories?: number;
 }
 
+/**
+ * สมุดบัญชีนำเข้าสำเร็จแล้ว แต่ขั้นข้อมูลลงทุน (หรือการแทนหมวดเดิม) ล้ม · ลองเฉพาะขั้นนี้ใหม่ได้ด้วย retryImportInvestments
+ * unknown = ไม่ได้คำตอบจากฐานข้อมูล อาจบันทึกสำเร็จแล้วก็ได้
+ */
+export class InvestmentImportError extends StorageError {
+  constructor(
+    message: string,
+    readonly outcome: 'not_saved' | 'unknown',
+  ) {
+    super(message);
+    this.name = 'InvestmentImportError';
+  }
+}
+
 /** การจัดหมวด/sector ของสินทรัพย์หนึ่งตัว (ส่งเฉพาะ key ที่ต้องการเปลี่ยน · null = ล้างค่า) */
 export interface CategoryAssignment {
   assetId: string;
@@ -54,6 +68,11 @@ export interface LedgerRepository {
    * ปฏิเสธถ้ามีข้อมูลอยู่แล้ว (ไม่ทับ ไม่ซ้ำซ้อน) · ผิดข้อใดข้อหนึ่ง = ไม่เขียนอะไรเลย
    */
   importBackup(data: BackupData, onProgress?: ImportProgress, options?: ImportOptions): Promise<{ accounts: number; entries: number; bills: number }>;
+  /**
+   * ลองเฉพาะขั้นข้อมูลลงทุนของไฟล์เดิมอีกครั้ง หลัง importBackup โยน InvestmentImportError (ไม่แตะสมุดบัญชี) · ออนไลน์เท่านั้น
+   * ผู้เรียกต้องตรวจสถานะออนไลน์ก่อน (checkInvestImport) · ฐานข้อมูลปฏิเสธถ้ามีข้อมูลลงทุนอยู่แล้ว
+   */
+  retryImportInvestments(investments: InvestmentData | undefined, options?: ImportOptions): Promise<void>;
   /** จำนวนหมวดสินทรัพย์ที่มีอยู่ (ใช้ถามผู้ใช้ก่อนนำเข้า) · Dexie คืน 0 เสมอ */
   countCategories(): Promise<number>;
   /** ออนไลน์เท่านั้น: มีการนำเข้าแบบแบ่งก้อนที่ค้างอยู่ (ยังไม่ครบ) หรือไม่ · Dexie คืน false เสมอ */
@@ -179,6 +198,7 @@ export function createDexieRepository(db: MoneyDB): LedgerRepository {
     cancelBillPayment: (entryId) => dexie.cancelBillPayment(db, entryId),
     cancelLatestBillPayment: (billId) => dexie.cancelLatestBillPayment(db, billId),
     importBackup: (data) => dexie.importBackup(db, data),
+    retryImportInvestments: () => Promise.reject(localInvestError()),
     countCategories: () => Promise.resolve(0),
     hasUnfinishedImport: () => Promise.resolve(false),
     abortUnfinishedImport: () => Promise.resolve(),

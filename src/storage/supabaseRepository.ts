@@ -50,7 +50,7 @@ import type { Account, AccountType, Entry, EntrySource, NewEntry } from '../doma
 import { SCHEMA_VERSION } from './db';
 import { buildCashAdjustmentEntry, CashAdjustmentError } from '../domain/invest/cashAdjustment';
 import { carryCode, type NumberField } from './storageMessages';
-import type { ImportOptions, ImportProgress, LedgerRepository } from './ledgerRepository';
+import { InvestmentImportError, type ImportOptions, type ImportProgress, type LedgerRepository } from './ledgerRepository';
 import {
   assertBillWritableWith,
   assertNotFuture,
@@ -611,29 +611,35 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
   }
 
   /**
-   * นำเข้าข้อมูลลงทุนหลังสมุดบัญชีนำเข้าเสร็จ (ฟังก์ชันฐานข้อมูลเดียว อะตอมมิก) · ล้ม = สมุดนำเข้าแล้วแต่ข้อมูลลงทุนยังไม่เข้า
+   * นำเข้าข้อมูลลงทุนหลังสมุดบัญชีนำเข้าเสร็จ (ฟังก์ชันฐานข้อมูลเดียว อะตอมมิก) · ล้ม = InvestmentImportError (สมุดนำเข้าแล้ว ลองเฉพาะขั้นนี้ใหม่ได้)
    * replaceCategories > 0 (ผู้ใช้ยืนยันแล้ว) = ลบหมวดเดิมแล้วนำเข้าในธุรกรรมเดียว เรียกแม้ไฟล์ไม่มีข้อมูลลงทุน
    */
   async function importInvestments(d: InvestmentData | undefined, replaceCategories = 0): Promise<void> {
-    if (replaceCategories > 0) {
-      const { error } = await client.rpc('import_ledger_investments_replacing_categories', {
-        p_data: investmentsToJson(d ?? emptyInvestments()),
-        p_expected_categories: replaceCategories,
-      });
-      if (!error) return;
-      const head = 'นำเข้าสมุดบัญชีสำเร็จแล้ว แต่';
-      if (error.code === 'PT409') throw new StorageError(`${head}ข้อมูลลงทุนยังไม่เข้า เพราะหมวดเปลี่ยนหลังคุณกดยืนยัน ระบบจึงไม่ได้ลบหมวดใดๆ แจ้งผู้ดูแลระบบ`);
-      // ไม่มีรหัส = ไม่ได้คำตอบจากฐานข้อมูล อาจบันทึกสำเร็จแล้วก็ได้ ห้ามอ้างว่าหมวดเดิมยังอยู่
-      if (!error.code) throw new StorageError(`${head}ยืนยันผลไม่ได้ว่าข้อมูลลงทุนเข้าหรือไม่ (การเชื่อมต่อมีปัญหา) โหลดหน้าใหม่แล้วตรวจสินทรัพย์และหมวดก่อนทำอย่างอื่น`);
-      throw new StorageError(`${head}นำเข้าข้อมูลลงทุนไม่สำเร็จ (${storageErrorFrom(error).message}) ข้อมูลลงทุนยังไม่เข้า หมวดเดิมยังอยู่ครบ แจ้งผู้ดูแลระบบ`);
+    const replacing = replaceCategories > 0;
+    if (!replacing && isEmptyInvestments(d)) return;
+    const p_data = investmentsToJson(d ?? emptyInvestments());
+    const { error } = replacing
+      ? await client.rpc('import_ledger_investments_replacing_categories', { p_data, p_expected_categories: replaceCategories })
+      : await client.rpc('import_ledger_investments', { p_data });
+    if (error) throw investmentImportError(error, replacing, isEmptyInvestments(d));
+  }
+
+  function investmentImportError(error: { message: string; code?: string }, replacing: boolean, categoriesOnly: boolean): InvestmentImportError {
+    const head = 'นำเข้าสมุดบัญชีสำเร็จแล้ว แต่';
+    // ไฟล์ไม่มีข้อมูลลงทุน (categoriesOnly) = ขั้นนี้มีแค่การลบหมวดเดิม ห้ามพูดว่าข้อมูลลงทุนไม่เข้า
+    // ไม่มีรหัส = ไม่ได้คำตอบจากฐานข้อมูล อาจบันทึกสำเร็จแล้วก็ได้ ห้ามอ้างผลใดๆ
+    if (!error.code) {
+      const what = categoriesOnly ? 'ลบหมวดเดิมแล้วหรือไม่' : 'ข้อมูลลงทุนเข้าหรือไม่';
+      return new InvestmentImportError(`${head}ยืนยันผลไม่ได้ว่า${what} (การเชื่อมต่อมีปัญหา)`, 'unknown');
     }
-    if (isEmptyInvestments(d)) return;
-    try {
-      await rpc('import_ledger_investments', { p_data: investmentsToJson(d ?? emptyInvestments()) });
-    } catch (e) {
-      const reason = e instanceof StorageError ? e.message : 'เกิดข้อผิดพลาด';
-      throw new StorageError(`นำเข้าสมุดบัญชีสำเร็จแล้ว แต่นำเข้าข้อมูลลงทุนไม่สำเร็จ (${reason}) ข้อมูลลงทุนยังไม่เข้า (ไม่ได้เข้าครึ่งเดียว) แจ้งผู้ดูแลระบบหรือลองนำเข้าข้อมูลลงทุนอีกครั้งภายหลัง`);
+    if (replacing && error.code === 'PT409') {
+      const what = categoriesOnly ? 'ยังไม่ได้ลบหมวดเดิม' : 'ข้อมูลลงทุนยังไม่เข้า';
+      return new InvestmentImportError(`${head}${what} เพราะหมวดเปลี่ยนหลังคุณกดยืนยัน ระบบจึงไม่ได้ลบหมวดใดๆ`, 'not_saved');
     }
+    const reason = storageErrorFrom(error).message;
+    if (categoriesOnly) return new InvestmentImportError(`${head}ลบหมวดเดิมไม่สำเร็จ (${reason}) หมวดเดิมยังอยู่ครบ`, 'not_saved');
+    const kept = replacing ? ' หมวดเดิมยังอยู่ครบ' : '';
+    return new InvestmentImportError(`${head}ข้อมูลลงทุนยังไม่เข้า${kept} สาเหตุ: ${reason} · ถ้าลองแล้วยังไม่สำเร็จ แจ้งผู้ดูแลระบบ`, 'not_saved');
   }
 
   async function loadSettings(): Promise<FinanceSettings> {
@@ -1240,6 +1246,13 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
         .from('asset_prices')
         .upsert({ user_id: userId, asset_id: price.assetId, date: price.date, price_micro: price.priceMicro }, { onConflict: 'user_id,asset_id,date' });
       check(error);
+    },
+
+    async retryImportInvestments(investments, options) {
+      // ไฟล์ค้างในหน่วยความจำได้นาน: ถ้าแท็บอื่นสลับบัญชีไปแล้ว ห้ามเขียนข้อมูลของไฟล์นี้เข้าบัญชีใหม่
+      const { data } = await client.auth.getSession();
+      if (data.session?.user.id !== userId) throw new InvestmentImportError('บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงยังไม่ได้นำเข้า โหลดหน้าใหม่', 'not_saved');
+      await importInvestments(investments, options?.replaceCategories);
     },
 
     async countCategories() {

@@ -8,7 +8,8 @@ import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { buildInitialLedger } from '../app/setup';
 import { db } from '../storage/instance';
-import { createDexieRepository } from '../storage/ledgerRepository';
+import { createDexieRepository, InvestmentImportError } from '../storage/ledgerRepository';
+import { emptyInvestments, type InvestmentData } from '../domain/invest/types';
 import { App } from '../ui/App';
 import { RepositoryProvider, localLedgerRepository } from '../ui/RepositoryContext';
 import { buildCashAdjustmentEntry } from '../domain/invest/cashAdjustment';
@@ -82,6 +83,10 @@ function Harness() {
           <RepositoryProvider repository={params.get('investDemo') === 'report' ? { ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestmentsWithHistory()) } : params.get('investDemo') === 'norate' ? { ...localLedgerRepository(), loadInvestments: () => Promise.resolve(demoInvestmentsNoRate()) } : params.get('investDemo') === 'cash' || params.get('investDemo') === 'cashneg' ? cashDemoRepository(params.get('investDemo') === 'cashneg') : params.get('investDemo') === 'tx' ? txRepository() : params.get('investDemo') === 'txthb' ? txRepository(true) : demoRepository()}>
             <App />
           </RepositoryProvider>
+        ) : params.get('importRetry') !== null ? (
+          <RepositoryProvider repository={importRetryRepository((params.get('importRetry') ?? '').split(','))}>
+            <App />
+          </RepositoryProvider>
         ) : params.get('importCategories') !== null ? (
           <RepositoryProvider repository={importDemoRepository(Number(params.get('importCategories')))}>
             <App />
@@ -92,6 +97,64 @@ function Harness() {
       </PasswordPromptProvider>
     </AccountContext.Provider>
   );
+}
+
+/**
+ * ปุ่มลองนำเข้าข้อมูลลงทุนอีกครั้ง (?importRetry=ผลของแต่ละรอบ: fail | lost | ok) · สมุดบัญชีเข้าที่เก็บในเครื่องจริง ขั้นลงทุนจำลอง
+ * ?online=empty|match|different|error|late|oldcats ผลการอ่านข้อมูลลงทุนก่อนลองใหม่ (late = ว่างครั้งแรก แล้วตรง) · ?verify=fail ตรวจยอดล้มหนึ่งครั้งหลังลองสำเร็จ · ?importCategories=N หมวดค้างตอนลองใหม่ · ?readDelay=ms
+ */
+let retryDemo: ReturnType<typeof localLedgerRepository> | null = null;
+function importRetryRepository(outcomes: string[]) {
+  if (retryDemo) return retryDemo;
+  const local = localLedgerRepository();
+  let file: InvestmentData = emptyInvestments();
+  let failed = false;
+  let saved = false;
+  let reads = 0;
+  let breakVerify = false;
+  const step = () => {
+    const outcome = outcomes.shift() ?? 'ok';
+    if (outcome === 'ok') return;
+    failed = true;
+    throw new InvestmentImportError(
+      outcome === 'lost' ? 'นำเข้าสมุดบัญชีสำเร็จแล้ว แต่ยืนยันผลไม่ได้ว่าข้อมูลลงทุนเข้าหรือไม่ (การเชื่อมต่อมีปัญหา)' : 'นำเข้าสมุดบัญชีสำเร็จแล้ว แต่นำเข้าข้อมูลลงทุนไม่สำเร็จ (จำลอง) ข้อมูลลงทุนยังไม่เข้า (ไม่ได้เข้าครึ่งเดียว)',
+      outcome === 'lost' ? 'unknown' : 'not_saved',
+    );
+  };
+  retryDemo = {
+    ...local,
+    loadLedger: () => {
+      if (!breakVerify) return local.loadLedger();
+      breakVerify = false;
+      return Promise.reject(new Error('จำลอง: อ่านไม่ได้'));
+    },
+    countCategories: () => Promise.resolve(failed ? Number(params.get('importCategories') ?? 0) : 0),
+    importBackup: async ({ investments, ...data }, onProgress) => {
+      file = investments ?? emptyInvestments();
+      const counts = await local.importBackup(data, onProgress);
+      step();
+      return counts;
+    },
+    loadInvestments: async () => {
+      if (!failed) return emptyInvestments();
+      await new Promise((resolve) => window.setTimeout(resolve, Number(params.get('readDelay') ?? 0)));
+      const online = params.get('online');
+      if (saved || (online === 'late' && reads++ > 0)) return file;
+      if (online === 'oldcats') return { ...emptyInvestments(), categories: [{ id: 'old', name: 'หมวดเก่า (สมมติ)', targetBps: null, sortOrder: 0 }] };
+      if (online === 'error') throw new Error('จำลอง: อ่านไม่ได้');
+      if (online === 'match') return file;
+      if (online === 'different') return { ...file, assets: file.assets.map((a) => ({ ...a, name: a.name + ' (ต่าง)' })) };
+      return emptyInvestments();
+    },
+    retryImportInvestments: async (_investments, options) => {
+      const w = window as unknown as { __retryCalls?: unknown[] };
+      (w.__retryCalls ??= []).push(options ?? null);
+      step();
+      saved = true;
+      breakVerify = params.get('verify') === 'fail';
+    },
+  };
+  return retryDemo;
 }
 
 /** นำเข้าไฟล์สำรองเมื่อ "มีหมวดเดิม" (?importCategories=N) · จดตัวเลือกที่หน้าจอส่งมาให้ e2e ตรวจ */
