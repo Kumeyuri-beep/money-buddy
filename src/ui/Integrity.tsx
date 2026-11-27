@@ -21,7 +21,7 @@ export function IntegrityBanner({ report }: { report: IntegrityReport }) {
   return (
     <div role="alert" className="alert-banner">
       <strong>พบ {report.issues.length} ปัญหาในสมุดบัญชี</strong>
-      <p>ยอดที่แสดงอาจไม่ถูกต้อง ควรกด "สำรองข้อมูล" ไว้ก่อน แล้วตรวจรายการด้านล่าง</p>
+      <p>ยอดที่แสดงอาจไม่ถูกต้อง ควรกด "ดาวน์โหลดข้อมูลของฉัน" ในหน้าโปรไฟล์ไว้ก่อน แล้วตรวจรายการด้านล่าง</p>
       <details>
         <summary>ดูรายละเอียด</summary>
         <ul>

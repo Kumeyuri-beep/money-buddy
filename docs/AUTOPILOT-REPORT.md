@@ -10,7 +10,9 @@
 - **#283** ข้อความ "ถ้าปุ่มลองใหม่หาย" และเก็บข้อระดับต่ำจากการตรวจซ้ำ
 - **#284** หน้า Categories แก้/ลบหมวดได้เมื่อยังไม่มีหุ้น (CI ผ่านครบ · รอบเต็มในเครื่องมี contrast ล้มแล้วผ่านซ้ำ 2 ข้อ ดู HANDOFF §119)
 - **#285** นำเข้าแบบแบ่งก้อน คำตอบก้อนสุดท้ายหาย ไม่อ้างว่าล้างแล้ว · live-contract branch และ `main` 69/69
-- **นำเข้าไฟล์ใหญ่ไม่รู้ผล** แอปตรวจยอดเอง แล้วให้นำเข้าข้อมูลลงทุนต่อ (branch `auto/chunked-unconfirmed-retry`)
+- **#286** นำเข้าไฟล์ใหญ่ไม่รู้ผล แอปตรวจยอดเอง แล้วให้นำเข้าข้อมูลลงทุนต่อ · live-contract branch และ `main` 69/69
+- **ข้อความล้างข้อมูล/ชื่อปุ่มสำรอง** (branch `auto/backup-button-name`) รวมแก้ข้อความที่อ้างว่าลบสำเนาในเครื่อง
+- **รอบหน้า:** ดู HANDOFF §122
 - **สิทธิ์ผู้ช่วย** (`.claude/settings.local.json` นอก git) เพิ่มเฉพาะ allow: `git push origin auto/*`, `git push -u origin auto/*` (Bash และ PowerShell) · Supabase `list_tables`, `list_migrations`, `query_logs`, `get_advisors`
 
 ## ตัดสินใจเองไปแล้ว (พร้อมเหตุผล)
