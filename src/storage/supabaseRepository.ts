@@ -50,7 +50,7 @@ import type { Account, AccountType, Entry, EntrySource, NewEntry } from '../doma
 import { SCHEMA_VERSION } from './db';
 import { buildCashAdjustmentEntry, CashAdjustmentError } from '../domain/invest/cashAdjustment';
 import { carryCode, type NumberField } from './storageMessages';
-import { InvestmentImportError, type ImportOptions, type ImportProgress, type LedgerRepository } from './ledgerRepository';
+import { ImportUnconfirmedError, InvestmentImportError, type ImportOptions, type ImportProgress, type LedgerRepository } from './ledgerRepository';
 import {
   assertBillWritableWith,
   assertNotFuture,
@@ -551,7 +551,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       if (cleared) throw new StorageError(`นำเข้าไม่สำเร็จ (${reason}) ระบบล้างส่วนที่นำเข้าค้างให้แล้ว ลองนำเข้าใหม่ได้`);
       // ไม่มีเซสชันให้ล้าง = ฐานข้อมูลอาจบันทึกก้อนสุดท้ายครบแล้วแต่คำตอบหาย ห้ามอ้างว่าล้างหรือว่าล้ม · ขั้นข้อมูลลงทุนยังไม่ถูกเรียก
       const invest = isEmptyInvestments(data.investments) ? '' : ' ข้อมูลลงทุนยังไม่ได้นำเข้า';
-      throw new StorageError(`ยืนยันผลไม่ได้ว่านำเข้าสมุดบัญชีครบหรือไม่ (${reason}) ระบบไม่พบส่วนที่ค้างให้ล้าง ข้อมูลอาจเข้าครบแล้ว${invest} โหลดหน้าใหม่แล้วตรวจยอดก่อนทำอย่างอื่น`);
+      throw new ImportUnconfirmedError(`ยืนยันผลไม่ได้ว่านำเข้าสมุดบัญชีครบหรือไม่ (${reason}) ระบบไม่พบส่วนที่ค้างให้ล้าง ข้อมูลอาจเข้าครบแล้ว${invest} โหลดหน้าใหม่แล้วตรวจยอดก่อนทำอย่างอื่น`);
     }
     return { accounts: begin?.accounts ?? 0, entries: done, bills: begin?.bills ?? 0 };
   }

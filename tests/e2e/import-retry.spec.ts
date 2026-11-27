@@ -168,6 +168,58 @@ for (const width of [360, 390, 1280, 1440]) test.describe('ลองนำเข
     await expect(gone).not.toContainText('ตรวจว่าสินทรัพย์');
   });
 
+  test('ยืนยันผลสมุดไม่ได้ แต่ตรวจยอดตรง: มีปุ่มนำเข้าข้อมูลลงทุนต่อ', async ({ page }) => {
+    await page.goto('/harness.html?reset=1&importRetry=unconfirmed,ok&online=empty');
+    await page.getByRole('button', { name: 'นำเข้าจากไฟล์สำรอง' }).click();
+    await page.getByLabel('ไฟล์สำรอง', { exact: true }).setInputFiles('tests/fixtures/import-retry-backup.json');
+    await page.getByRole('button', { name: 'นำเข้า', exact: true }).click();
+    await expect(page.getByRole('alert')).toContainText('ตรวจแล้ว ยอดสมุดบัญชีตรงกับไฟล์ ข้อมูลลงทุนยังไม่ได้นำเข้า');
+    await page.getByRole('button', { name: RETRY }).click();
+    await expect(page.getByText('นำเข้าแล้ว:')).toBeVisible();
+    expect(await calls(page)).toEqual([null]);
+  });
+
+  test('ยืนยันผลสมุดไม่ได้ ไฟล์ไม่มีข้อมูลลงทุน และยอดตรง: ไปหน้าตรวจยอดเลย', async ({ page }) => {
+    await page.goto('/harness.html?reset=1&importRetry=unconfirmed&online=empty');
+    await page.getByRole('button', { name: 'นำเข้าจากไฟล์สำรอง' }).click();
+    await page.getByLabel('ไฟล์สำรอง', { exact: true }).setInputFiles('tests/fixtures/import-categories-backup.json');
+    await page.getByRole('button', { name: 'นำเข้า', exact: true }).click();
+    await expect(page.getByLabel('ฉันตรวจยอดแล้ว')).toBeVisible();
+    expect(await calls(page)).toEqual([]);
+  });
+
+  test('ยืนยันผลสมุดไม่ได้ และยอดไม่ตรง (ไม่ได้เข้า): ไม่มีปุ่มนำเข้าลงทุน ข้อความเดิม', async ({ page }) => {
+    await page.goto('/harness.html?reset=1&importRetry=unconfirmed-empty&online=empty');
+    await page.getByRole('button', { name: 'นำเข้าจากไฟล์สำรอง' }).click();
+    await page.getByLabel('ไฟล์สำรอง', { exact: true }).setInputFiles('tests/fixtures/import-retry-backup.json');
+    await page.getByRole('button', { name: 'นำเข้า', exact: true }).click();
+    await expect(page.getByRole('alert')).toContainText('ยืนยันผลไม่ได้');
+    await expect(page.getByRole('button', { name: RETRY })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'โหลดหน้าใหม่' })).toBeVisible();
+  });
+
+  test('ยืนยันผลสมุดไม่ได้ และตรวจแล้วยอดไม่ตรง: แสดงผลตรวจที่ไม่ให้ใช้งานต่อ ไม่มีปุ่มนำเข้าลงทุน', async ({ page }) => {
+    await page.goto('/harness.html?reset=1&importRetry=unconfirmed-wrong&online=empty');
+    await page.getByRole('button', { name: 'นำเข้าจากไฟล์สำรอง' }).click();
+    await page.getByLabel('ไฟล์สำรอง', { exact: true }).setInputFiles('tests/fixtures/import-retry-backup.json');
+    await page.getByRole('button', { name: 'นำเข้า', exact: true }).click();
+    await expect(page.getByRole('alert')).toContainText('ยอดไม่ตรงกัน');
+    // จำกัดในกล่องนำเข้า: ฟอร์มตั้งต้นด้านบนมีปุ่มชื่อเดียวกัน
+    await expect(page.getByRole('region', { name: 'นำเข้าจากไฟล์สำรอง' }).getByRole('button', { name: 'เริ่มใช้งาน' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: RETRY })).toHaveCount(0);
+    expect(await calls(page)).toEqual([]);
+  });
+
+  test('ยอดสมุดตรงแต่อ่านข้อมูลลงทุนไม่ได้: ปุ่มลองใหม่ยังอยู่', async ({ page }) => {
+    await page.goto('/harness.html?reset=1&importRetry=unconfirmed&online=error');
+    await page.getByRole('button', { name: 'นำเข้าจากไฟล์สำรอง' }).click();
+    await page.getByLabel('ไฟล์สำรอง', { exact: true }).setInputFiles('tests/fixtures/import-retry-backup.json');
+    await page.getByRole('button', { name: 'นำเข้า', exact: true }).click();
+    await expect(page.getByRole('alert')).toContainText('ยอดสมุดบัญชีตรงกับไฟล์ แต่อ่านข้อมูลลงทุนไม่ได้');
+    await expect(page.getByRole('button', { name: RETRY })).toBeVisible();
+    expect(await calls(page)).toEqual([]);
+  });
+
   test('กดซ้ำระหว่างตรวจ: เรียกนำเข้าครั้งเดียว', async ({ page }) => {
     await failFirst(page, 'importRetry=fail,ok&online=empty&readDelay=800');
     const retry = page.getByRole('button', { name: RETRY });

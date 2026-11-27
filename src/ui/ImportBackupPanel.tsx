@@ -4,7 +4,7 @@ import { readBackupFile, type BackupFileRead } from '../app/importFile';
 import type { VerifyReport } from '../app/importVerify';
 import { checkInvestImport } from '../app/investImport';
 import { importAndVerify, RESET_CANCELLED_MESSAGE, verifyOnline } from '../app/migrate';
-import { InvestmentImportError, type ImportOptions } from '../storage/ledgerRepository';
+import { ImportUnconfirmedError, InvestmentImportError, type ImportOptions } from '../storage/ledgerRepository';
 import { isEmptyInvestments } from '../domain/invest/types';
 import { StorageError } from '../storage/repository';
 import { BalanceTable } from './ImportReportTable';
@@ -142,6 +142,38 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
     }
   };
 
+  /** ไม่รู้ว่าสมุดเข้าครบไหม: ตรวจยอดเอง · ครบ = ทำขั้นข้อมูลลงทุนต่อได้ · ไม่ตรง = หน้าผลตรวจที่ไม่ให้ใช้ต่อ · อ่านไม่ได้หรือว่างเปล่า = ข้อความเดิม */
+  const recoverUnconfirmed = async (read: ReadyFile, original: string) => {
+    setStep({ name: 'importing', verifying: true });
+    setProgress(null);
+    let report: VerifyReport;
+    try {
+      report = await verifyOnline(read.data, repo);
+    } catch {
+      setStep({ name: 'error', message: original });
+      return;
+    }
+    // จำนวนฝั่งออนไลน์จริง (ไม่ใช่ของไฟล์)
+    const counts = { accounts: report.counts.accounts[1], entries: report.counts.entries[1], bills: report.counts.bills[1] };
+    if (!report.ok) {
+      if (counts.accounts === 0 && counts.entries === 0 && counts.bills === 0) setStep({ name: 'error', message: original });
+      else showResult(report, counts);
+      return;
+    }
+    try {
+      const state = await checkInvestImport(read.data.investments, repo);
+      if (state === 'different') stop();
+      else if (state === 'match') showResult(report, counts);
+      else {
+        const left = onlyDeletes(read) ? 'หมวดเดิมยังไม่ได้ลบ' : 'ข้อมูลลงทุนยังไม่ได้นำเข้า';
+        setStep({ name: 'error', message: `${LEDGER_SAVED} · ตรวจแล้ว ยอดสมุดบัญชีตรงกับไฟล์ ${left}`, retry: read });
+      }
+    } catch (e) {
+      // ปุ่มลองใหม่ตรวจสถานะก่อนทำอะไรเสมอ จึงเปิดให้ได้
+      setStep({ name: 'error', message: `${LEDGER_SAVED} · ตรวจแล้ว ยอดสมุดบัญชีตรงกับไฟล์ แต่อ่านข้อมูลลงทุนไม่ได้ (${friendly(e)})`, retry: read });
+    }
+  };
+
   const doImport = async (read: ReadyFile, options?: ImportOptions) => {
     setStep({ name: 'importing' });
     setProgress(null);
@@ -149,7 +181,8 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
       const result = await importAndVerify(read.data, repo, (done, total) => setProgress([done, total]), options);
       showResult(result.report, result.counts);
     } catch (e) {
-      setStep({ name: 'error', message: friendly(e), retry: e instanceof InvestmentImportError ? read : undefined });
+      if (e instanceof ImportUnconfirmedError) await recoverUnconfirmed(read, friendly(e));
+      else setStep({ name: 'error', message: friendly(e), retry: e instanceof InvestmentImportError ? read : undefined });
     }
   };
 
