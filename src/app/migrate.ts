@@ -25,6 +25,8 @@ export async function readLocalForMigration(local: LedgerRepository, today: stri
 /** อ่านข้อมูลออนไลน์กลับมาเทียบกับต้นทาง (ใช้ทั้งหลังนำเข้าและตอนเปิดแอปใหม่ที่ยังไม่ได้ยืนยัน) */
 export async function verifyOnline(source: BackupData, online: LedgerRepository): Promise<VerifyReport> {
   const [ledger, bills, settings] = await Promise.all([online.loadLedger(), online.loadBills(), online.loadSettings()]);
+  // ตรวจหลังอ่าน: สลับบัญชีระหว่างอ่านทำให้ผลเทียบใช้ไม่ได้ (และจะพาไปหน้าที่มีปุ่มล้างของบัญชีใหม่)
+  await online.confirmSameAccount();
   return verifyImport(source, { accounts: ledger.accounts, entries: ledger.entries, bills, settings });
 }
 
