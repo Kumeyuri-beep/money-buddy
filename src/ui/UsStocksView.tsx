@@ -599,7 +599,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
                 <select id="us-stock-ex" value={stockForm.exchange} onChange={(e) => setStockForm((f) => ({ ...f, exchange: e.target.value }))}>
                   {INSTRUMENT_EXCHANGES.map((x) => (
                     <option key={x} value={x}>
-                      {x}
+                      {x === 'OTHER' ? 'Other' : x}
                     </option>
                   ))}
                 </select>
