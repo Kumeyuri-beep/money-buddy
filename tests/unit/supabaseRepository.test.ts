@@ -21,8 +21,10 @@ interface Call {
 }
 type Responder = (call: Call) => { data?: unknown; error?: { message?: string; code?: string } | null; count?: number };
 
-function fakeClient(respond: Responder) {
+/** sessionUsers = ผู้ใช้ของเซสชันในการถามแต่ละครั้ง (ตัวสุดท้ายใช้ต่อไปเรื่อยๆ · null = ออกจากระบบ) */
+function fakeClient(respond: Responder, sessionUsers: (string | null)[] = ['u']) {
   const calls: Call[] = [];
+  let asked = 0;
   const builder = (call: Call) => {
     const proxy: Record<string, unknown> = {};
     const chain = (op: string) => (...args: unknown[]) => {
@@ -38,6 +40,12 @@ function fakeClient(respond: Responder) {
     return proxy;
   };
   const client = {
+    auth: {
+      getSession: () => {
+        const id = sessionUsers[Math.min(asked++, sessionUsers.length - 1)] ?? null;
+        return Promise.resolve({ data: { session: id === null ? null : { user: { id } } } });
+      },
+    },
     from: (name: string) => {
       const call: Call = { kind: 'from', name, ops: [] };
       calls.push(call);
@@ -632,5 +640,90 @@ describe('ขั้นข้อมูลลงทุนล้ม: ชนิด�
   it('retryImportInvestments ล้ม = InvestmentImportError เหมือนรอบแรก', async () => {
     const repo = createSupabaseRepository(signedIn(failing({ message: 'x', code: '' }).client, 'u'), 'u');
     await expect(repo.retryImportInvestments(investments)).rejects.toMatchObject({ outcome: 'unknown' });
+  });
+});
+
+describe('บัญชีเปลี่ยนจากแท็บอื่นระหว่างนำเข้า', () => {
+  const ledger = {
+    accounts: [
+      { id: 'a', type: 'asset' as const, name: 'a', currency: 'THB' },
+      { id: 'b', type: 'equity' as const, name: 'b', currency: 'THB' },
+    ],
+    entries: [{ id: 'e', date: '2026-11-01', memo: '', source: 'system' as const, lines: [{ accountId: 'a', amount: 10 }, { accountId: 'b', amount: -10 }] }],
+    bills: [],
+    settings: {},
+  };
+  const investments = { assets: [{ id: 's', name: 'สมมติ', kind: 'fund' as const, accountId: 'a' }], trades: [], prices: [] };
+  const ok = () => ({ data: { accounts: 2, bills: 0, entries: 1 } });
+
+  it('เปลี่ยนก่อนเริ่ม (หรือออกจากระบบ): ไม่เรียกฐานข้อมูลเลย', async () => {
+    for (const id of ['other', null]) {
+      const { client, calls } = fakeClient(ok, [id]);
+      await expect(createSupabaseRepository(client, 'u').importBackup(ledger)).rejects.toThrow(/บัญชีที่เข้าสู่ระบบเปลี่ยนไป/);
+      expect(calls).toHaveLength(0);
+    }
+  });
+  it('เปลี่ยนหลังสมุดเข้าแล้ว: ไม่เรียกขั้นข้อมูลลงทุน · เป็น InvestmentImportError', async () => {
+    const { client, calls } = fakeClient(ok, ['u', 'other']);
+    const e = await createSupabaseRepository(client, 'u').importBackup({ ...ledger, investments }).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(InvestmentImportError);
+    expect((e as Error).message).toMatch(/บัญชีที่เข้าสู่ระบบเปลี่ยนไป/);
+    expect(calls.map((c) => c.name)).toEqual(['import_ledger']);
+  });
+  it('confirmSameAccount: ผู้ใช้เดิมผ่าน · ต่างหรือออกจากระบบ = StorageError', async () => {
+    await expect(createSupabaseRepository(fakeClient(ok).client, 'u').confirmSameAccount()).resolves.toBeUndefined();
+    for (const id of ['other', null]) {
+      await expect(createSupabaseRepository(fakeClient(ok, [id]).client, 'u').confirmSameAccount()).rejects.toThrow(StorageError);
+    }
+  });
+});
+
+describe('บัญชีเปลี่ยนระหว่างส่งก้อนและระหว่างล้าง', () => {
+  const big = {
+    accounts: [
+      { id: 'a', type: 'asset' as const, name: 'a', currency: 'THB' },
+      { id: 'b', type: 'equity' as const, name: 'b', currency: 'THB' },
+    ],
+    entries: Array.from({ length: 1600 }, (_, i) => ({ id: 'e' + i, date: '2026-11-01', memo: '', source: 'manual' as const, lines: [{ accountId: 'a', amount: 10 }, { accountId: 'b', amount: -10 }] })),
+    bills: [],
+    settings: {},
+  };
+  const ok = () => ({ data: { entries: 500 } });
+  const CHANGED = /บัญชีที่เข้าสู่ระบบเปลี่ยนไป/;
+
+  it('เปลี่ยนก่อนก้อนถัดไป: ไม่ส่งต่อ และไม่สั่งล้างในชื่อบัญชีใหม่', async () => {
+    // ถามครั้งที่ 1 = ก่อนเริ่ม · 2 = ก่อน append แรก · 3 = ก่อน append ที่สอง
+    const { client, calls } = fakeClient(ok, ['u', 'u', 'other']);
+    const e = await createSupabaseRepository(client, 'u').importBackup(big).catch((x: unknown) => x);
+    expect((e as Error).message).toMatch(CHANGED);
+    expect(e).not.toBeInstanceOf(ImportUnconfirmedError);
+    expect((e as Error).message).not.toMatch(/ล้างส่วนที่นำเข้าค้างให้แล้ว/);
+    expect(calls.map((c) => c.name)).toEqual(['import_ledger_begin', 'import_ledger_append']);
+  });
+  it('ก้อนล้มและบัญชีเปลี่ยนก่อนล้าง: ไม่เรียก abort', async () => {
+    const { client, calls } = fakeClient((c) => (c.name === 'import_ledger_append' ? { error: { message: 'x', code: '55000' } } : ok()), ['u', 'u', 'other']);
+    await expect(createSupabaseRepository(client, 'u').importBackup(big)).rejects.toThrow(CHANGED);
+    expect(calls.map((c) => c.name)).toEqual(['import_ledger_begin', 'import_ledger_append']);
+  });
+  it('abortUnfinishedImport: บัญชีอื่นตั้งแต่แรก = ไม่เรียกเลย · เปลี่ยนระหว่างชุด = หยุด', async () => {
+    const first = fakeClient(() => ({ data: 'done' }), ['other']);
+    await expect(createSupabaseRepository(first.client, 'u').abortUnfinishedImport()).rejects.toThrow(CHANGED);
+    expect(first.calls).toHaveLength(0);
+    const mid = fakeClient(() => ({ data: 'more' }), ['u', 'other']);
+    await expect(createSupabaseRepository(mid.client, 'u').abortUnfinishedImport()).rejects.toThrow(CHANGED);
+    expect(mid.calls).toHaveLength(1);
+  });
+  it('resetAll หยุดกลางทาง: บอกว่าอาจล้างไปแล้วบางส่วน', async () => {
+    const mid = fakeClient(() => ({ data: 'more' }), ['u', 'other']);
+    await expect(createSupabaseRepository(mid.client, 'u', { getPasswordForReset: async () => 'pw' }).resetAll()).rejects.toThrow(/อาจล้างไปแล้วบางส่วน/);
+  });
+  it('resetAll: ตรวจหลังกรอกรหัสผ่านและก่อนทุกชุด', async () => {
+    const options = { getPasswordForReset: async () => 'pw' };
+    const first = fakeClient(() => ({ data: 'done' }), ['other']);
+    await expect(createSupabaseRepository(first.client, 'u', options).resetAll()).rejects.toThrow(CHANGED);
+    expect(first.calls).toHaveLength(0);
+    const mid = fakeClient(() => ({ data: 'more' }), ['u', 'other']);
+    await expect(createSupabaseRepository(mid.client, 'u', options).resetAll()).rejects.toThrow(CHANGED);
+    expect(mid.calls).toHaveLength(1);
   });
 });

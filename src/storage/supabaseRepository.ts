@@ -50,7 +50,7 @@ import type { Account, AccountType, Entry, EntrySource, NewEntry } from '../doma
 import { SCHEMA_VERSION } from './db';
 import { buildCashAdjustmentEntry, CashAdjustmentError } from '../domain/invest/cashAdjustment';
 import { carryCode, type NumberField } from './storageMessages';
-import { ImportUnconfirmedError, InvestmentImportError, type ImportOptions, type ImportProgress, type LedgerRepository } from './ledgerRepository';
+import { AccountChangedError, ImportUnconfirmedError, InvestmentImportError, type ImportOptions, type ImportProgress, type LedgerRepository } from './ledgerRepository';
 import {
   assertBillWritableWith,
   assertNotFuture,
@@ -532,20 +532,24 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       p_total_entries: total,
     })) as { accounts?: number; entries?: number; bills?: number } | null;
     // ถึงตรงนี้เซสชันเปิดแล้ว: ล้มหลังจากนี้ต้องล้างส่วนที่ค้าง
+    const stopped = 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป การนำเข้าหยุดกลางทาง เข้าสู่ระบบบัญชีเดิมแล้วแอปจะให้ล้างส่วนที่ค้างก่อนลองใหม่';
     let done = begin?.entries ?? first.length;
     onProgress?.(done, total);
     try {
       for (const chunk of rest) {
+        await assertSameAccount(stopped);
         const out = (await rpc('import_ledger_append', { p_entries: chunk.map(entryToJson) })) as { entries?: number } | null;
         done += out?.entries ?? chunk.length;
         onProgress?.(done, total);
       }
     } catch (e) {
+      if (e instanceof AccountChangedError) throw e;
       const reason = e instanceof StorageError ? e.message : 'เกิดข้อผิดพลาด';
       let cleared: boolean;
       try {
         cleared = await abortImport();
-      } catch {
+      } catch (abortError) {
+        if (abortError instanceof AccountChangedError) throw new AccountChangedError(stopped);
         throw new StorageError(`นำเข้าไม่สำเร็จ (${reason}) และล้างส่วนที่นำเข้าค้างไม่ได้ เปิดแอปใหม่แล้วแอปจะให้ล้างส่วนที่ค้างก่อนลองใหม่`);
       }
       if (cleared) throw new StorageError(`นำเข้าไม่สำเร็จ (${reason}) ระบบล้างส่วนที่นำเข้าค้างให้แล้ว ลองนำเข้าใหม่ได้`);
@@ -559,6 +563,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
   /** ล้างส่วนที่นำเข้าค้างเป็นชุด (ฐานข้อมูลลบทีละ ≤ 500 รายการ คืน 'more' จนกว่าจะหมด) · หยุดที่ 200 รอบกันวนไม่รู้จบ · false = ไม่มีเซสชันค้างตั้งแต่ครั้งแรก (ไม่ได้ล้างอะไร) */
   async function abortImport(): Promise<boolean> {
     for (let i = 0; i < 200; i++) {
+      await assertSameAccount('บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงหยุดล้าง โหลดหน้าใหม่');
       const result = await rpc('import_ledger_abort', {});
       if (result !== 'more') return !(i === 0 && result === 'none');
     }
@@ -614,6 +619,17 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
     return data;
   }
 
+  /** เซสชันปัจจุบันยังเป็นผู้ใช้ของ repository นี้ไหม (แท็บอื่นอาจสลับบัญชี · ออกจากระบบ = ไม่ใช่) */
+  async function sameAccount(): Promise<boolean> {
+    const { data } = await client.auth.getSession();
+    return data.session?.user.id === userId;
+  }
+
+  /** ใช้ก่อนทุกคำสั่งเขียน/ล้างที่ทำหลายชุด: บัญชีเปลี่ยนกลางทาง = หยุด ไม่ทำอะไรกับบัญชีใหม่ */
+  async function assertSameAccount(message: string): Promise<void> {
+    if (!(await sameAccount())) throw new AccountChangedError(message);
+  }
+
   /**
    * นำเข้าข้อมูลลงทุนหลังสมุดบัญชีนำเข้าเสร็จ (ฟังก์ชันฐานข้อมูลเดียว อะตอมมิก) · ล้ม = InvestmentImportError (สมุดนำเข้าแล้ว ลองเฉพาะขั้นนี้ใหม่ได้)
    * replaceCategories > 0 (ผู้ใช้ยืนยันแล้ว) = ลบหมวดเดิมแล้วนำเข้าในธุรกรรมเดียว เรียกแม้ไฟล์ไม่มีข้อมูลลงทุน
@@ -621,6 +637,10 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
   async function importInvestments(d: InvestmentData | undefined, replaceCategories = 0): Promise<void> {
     const replacing = replaceCategories > 0;
     if (!replacing && isEmptyInvestments(d)) return;
+    // ไฟล์ค้างในหน่วยความจำได้นาน: ห้ามเขียนข้อมูลของไฟล์นี้เข้าบัญชีใหม่
+    if (!(await sameAccount())) {
+      throw new InvestmentImportError('นำเข้าสมุดบัญชีสำเร็จแล้ว แต่บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงยังไม่ได้ทำขั้นข้อมูลลงทุน โหลดหน้าใหม่', 'not_saved');
+    }
     const p_data = investmentsToJson(d ?? emptyInvestments());
     const { error } = replacing
       ? await client.rpc('import_ledger_investments_replacing_categories', { p_data, p_expected_categories: replaceCategories })
@@ -756,6 +776,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       // ล้างเป็นชุดละ ≤ 500 รายการ (ข้อมูลหนักมากล้างในคำสั่งเดียวชนเพดานเวลา 8 วินาที) · ฐานข้อมูลตรวจรหัสผ่านและด่านอื่นทุกชุด
       // more = ยังเหลือ เรียกซ้ำ · หยุดที่ 200 ชุด (= 100,000 รายการ) กันวนไม่รู้จบ · ค่าที่ไม่รู้จักถือว่าผิดพลาด ไม่เดาว่าสำเร็จ
       for (let i = 0; i < 200; i++) {
+        await assertSameAccount(i === 0 ? 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงยังไม่ได้ล้าง โหลดหน้าใหม่' : 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงหยุดล้าง อาจล้างไปแล้วบางส่วน เข้าสู่ระบบบัญชีเดิมแล้วล้างส่วนที่เหลือต่อได้');
         const result = await rpc('reset_my_ledger_step', { p_password: password });
         if (result === 'done') return;
         if (result === 'wrong') throw new StorageError('รหัสผ่านไม่ถูกต้อง ไม่ได้ล้างข้อมูล');
@@ -1253,10 +1274,11 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
     },
 
     async retryImportInvestments(investments, options) {
-      // ไฟล์ค้างในหน่วยความจำได้นาน: ถ้าแท็บอื่นสลับบัญชีไปแล้ว ห้ามเขียนข้อมูลของไฟล์นี้เข้าบัญชีใหม่
-      const { data } = await client.auth.getSession();
-      if (data.session?.user.id !== userId) throw new InvestmentImportError('บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงยังไม่ได้นำเข้า โหลดหน้าใหม่', 'not_saved');
       await importInvestments(investments, options?.replaceCategories);
+    },
+
+    async confirmSameAccount() {
+      if (!(await sameAccount())) throw new StorageError('บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงตรวจยอดไม่ได้ โหลดหน้าใหม่');
     },
 
     async countCategories() {
@@ -1271,6 +1293,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       if (!report.ok) throw new StorageError(`ข้อมูลนำเข้าไม่ผ่านการตรวจ: ${report.issues[0]?.message ?? ''}`);
       const settingsIssue = settingsProblem(data.settings);
       if (settingsIssue) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${settingsIssue}`);
+      if (!(await sameAccount())) throw new StorageError('บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงยังไม่ได้นำเข้า โหลดหน้าใหม่');
       const totalLines = data.entries.reduce((n, e) => n + e.lines.length, 0);
       if (data.entries.length > SINGLE_IMPORT_MAX_ENTRIES || totalLines > SINGLE_IMPORT_MAX_LINES) {
         const chunked = await importChunked(data, onProgress);

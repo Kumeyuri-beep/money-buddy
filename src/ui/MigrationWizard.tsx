@@ -132,7 +132,11 @@ export function MigrationWizard({ userId, online, mode, onDone }: Props) {
     } catch (e) {
       // นำเข้าถูกปฏิเสธ/ล้มก่อนเขียน (ออนไลน์ยังว่าง) = ไม่มีอะไรรอยืนยัน เคลียร์ธง ไม่งั้นเปิดใหม่จะเข้าหน้าตรวจยอดและมีปุ่มล้างข้อมูลออนไลน์ที่ไม่ได้มาจากการนำเข้านี้
       try {
-        if (await online.isEmpty()) writeMigrationFlag(window.localStorage, userId, 'none');
+        if (await online.isEmpty()) {
+          // ว่างของ "บัญชีที่ล็อกอินอยู่ตอนนี้": ถ้าสลับบัญชีไปแล้ว ห้ามล้างธงของบัญชีเดิม
+          await online.confirmSameAccount();
+          writeMigrationFlag(window.localStorage, userId, 'none');
+        }
       } catch {
         /* ตรวจไม่ได้ ปล่อยธงไว้ ผู้ใช้จะเห็นหน้าตรวจยอดซึ่งแสดงจำนวนข้อมูลออนไลน์ก่อนอนุญาตให้ล้าง */
       }

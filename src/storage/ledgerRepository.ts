@@ -48,6 +48,14 @@ export class ImportUnconfirmedError extends StorageError {
   }
 }
 
+/** บัญชีที่เข้าสู่ระบบไม่ใช่เจ้าของ repository แล้ว (แท็บอื่นสลับหรือออกจากระบบ) · หยุดก่อนเขียนหรือล้าง */
+export class AccountChangedError extends StorageError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AccountChangedError';
+  }
+}
+
 /** การจัดหมวด/sector ของสินทรัพย์หนึ่งตัว (ส่งเฉพาะ key ที่ต้องการเปลี่ยน · null = ล้างค่า) */
 export interface CategoryAssignment {
   assetId: string;
@@ -84,6 +92,11 @@ export interface LedgerRepository {
    * ผู้เรียกต้องตรวจสถานะออนไลน์ก่อน (checkInvestImport) · ฐานข้อมูลปฏิเสธถ้ามีข้อมูลลงทุนอยู่แล้ว
    */
   retryImportInvestments(investments: InvestmentData | undefined, options?: ImportOptions): Promise<void>;
+  /**
+   * ยืนยันว่าเซสชันยังเป็นผู้ใช้ของ repository นี้ (แท็บอื่นอาจสลับบัญชี) · ไม่ใช่ = StorageError · Dexie ผ่านเสมอ
+   * ใช้หลังอ่านข้อมูลมาเทียบกับไฟล์: ผลที่เทียบกับบัญชีอื่นใช้ไม่ได้
+   */
+  confirmSameAccount(): Promise<void>;
   /** จำนวนหมวดสินทรัพย์ที่มีอยู่ (ใช้ถามผู้ใช้ก่อนนำเข้า) · Dexie คืน 0 เสมอ */
   countCategories(): Promise<number>;
   /** ออนไลน์เท่านั้น: มีการนำเข้าแบบแบ่งก้อนที่ค้างอยู่ (ยังไม่ครบ) หรือไม่ · Dexie คืน false เสมอ */
@@ -210,6 +223,7 @@ export function createDexieRepository(db: MoneyDB): LedgerRepository {
     cancelLatestBillPayment: (billId) => dexie.cancelLatestBillPayment(db, billId),
     importBackup: (data) => dexie.importBackup(db, data),
     retryImportInvestments: () => Promise.reject(localInvestError()),
+    confirmSameAccount: () => Promise.resolve(),
     countCategories: () => Promise.resolve(0),
     hasUnfinishedImport: () => Promise.resolve(false),
     abortUnfinishedImport: () => Promise.resolve(),
