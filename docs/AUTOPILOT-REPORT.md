@@ -7,7 +7,8 @@
 - **live-contract บน `main`** รอบซ้ำ 69/69 (รอบแรก 68/69 ดู HANDOFF §117)
 - **#281** กติกา autopilot และรายงาน
 - **#282** ตลาดหุ้นสหรัฐตรงกับฐานข้อมูล (`NYSE`, `NASDAQ`, `OTHER`)
-- **ข้อความ "ถ้าปุ่มลองใหม่หาย"** (branch `auto/import-retry-gone-message`) และเก็บข้อระดับต่ำจากการตรวจซ้ำ
+- **#283** ข้อความ "ถ้าปุ่มลองใหม่หาย" และเก็บข้อระดับต่ำจากการตรวจซ้ำ
+- **หน้า Categories** แก้/ลบหมวดได้เมื่อยังไม่มีหุ้น (branch `auto/categories-edit-without-stocks`)
 - **สิทธิ์ผู้ช่วย** (`.claude/settings.local.json` นอก git) เพิ่มเฉพาะ allow: `git push origin auto/*`, `git push -u origin auto/*` (Bash และ PowerShell) · Supabase `list_tables`, `list_migrations`, `query_logs`, `get_advisors`
 
 ## ตัดสินใจเองไปแล้ว (พร้อมเหตุผล)

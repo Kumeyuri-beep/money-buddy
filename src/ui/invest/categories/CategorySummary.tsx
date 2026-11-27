@@ -87,12 +87,14 @@ function Donut({ rows, active, onActive, total, currency }: { rows: readonly Cat
 export function CategorySummary({ rows, currency, total }: { rows: readonly CategoryTableRow[]; currency: DisplayCurrency; total: number | null }) {
   const [active, setActive] = useState<string | null>(null);
   const hasWeights = rows.some((r) => (r.weightBps ?? 0) > 0);
+  // ไม่ถือหุ้นเลย (ยังไม่มี หรือขายหมด) ต่างจากราคาขาด ห้ามบอกว่าราคาขาด
+  const nothingHeld = rows.every((r) => r.count === 0);
   return (
     <div className="cg-body">
       <section className="glass-lite card cg-donut-card" aria-label="Portfolio by category">
         <h3 className="cg-card-title">Portfolio</h3>
         <div className="iv-donut-wrap">
-          {hasWeights ? <Donut rows={rows} active={active} onActive={setActive} total={total} currency={currency} /> : <p className="iv-empty">Allocation is not available yet: no price or exchange rate for a stock you hold.</p>}
+          {hasWeights ? <Donut rows={rows} active={active} onActive={setActive} total={total} currency={currency} /> : <p className="iv-empty">{nothingHeld ? 'No stocks held, so there is no allocation to show.' : 'Allocation is not available yet: no price or exchange rate for a stock you hold.'}</p>}
         </div>
       </section>
       <section className="glass-lite card cg-table-card" aria-label="Categories table">
@@ -137,7 +139,7 @@ export function CategorySummary({ rows, currency, total }: { rows: readonly Cate
                     )}
                   </td>
                   <td className="num">
-                    <span className="cg-strong">{r.weightBps === null ? dash('No allocation (a price is missing)') : bpsText(r.weightBps)}</span>
+                    <span className="cg-strong">{r.weightBps === null ? dash(nothingHeld ? 'No allocation (no stocks held)' : 'No allocation (a price is missing)') : bpsText(r.weightBps)}</span>
                     <span className="cg-sub">{r.targetBps === null ? 'no target' : `target ${bpsText(r.targetBps)}`}</span>
                   </td>
                   <td className="cg-vs">

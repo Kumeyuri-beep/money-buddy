@@ -122,7 +122,8 @@ for (const width of [360, 390, 1280, 1440]) test.describe('ลองนำเข
     await expect(main).not.toContainText('ข้อมูลลงทุนเข้า');
     const gone = page.getByRole('note', { name: 'ถ้าปุ่มลองใหม่หาย' });
     await expect(gone).toContainText('ข้อมูลของคุณไม่หาย');
-    await expect(gone).toContainText('ลบได้หลังเพิ่มหุ้นแล้ว');
+    await expect(gone).toContainText('ลบได้ที่ พอร์ตการลงทุน > Portfolio > Categories > Change แล้วกด Delete และ Save');
+    await expect(gone).toContainText('เทียบยอดในหน้า "ภาพรวม"');
     await expect(gone).not.toContainText('ล้างข้อมูล');
     await page.getByRole('button', { name: 'ลองลบหมวดเดิมอีกครั้ง' }).click();
     const dialog = page.getByRole('dialog', { name: 'ลบหมวดเดิม?' });

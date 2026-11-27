@@ -26,7 +26,12 @@ function read(): Saved {
   } catch {
     // อ่านไม่ได้ = เริ่มใหม่
   }
-  return { categories: [], patch: {}, extra: [] };
+  // ?noStocks=1 = มีหมวดค้างแต่ยังไม่มีหุ้น
+  const categories = noStocks() ? ['A', 'B'].map((x, i) => ({ id: `old-${x}`, name: `Old category ${x}`, targetBps: null, sortOrder: i })) : [];
+  return { categories, patch: {}, extra: [] };
+}
+function noStocks(): boolean {
+  return new URLSearchParams(window.location.search).get('noStocks') === '1';
 }
 function write(s: Saved): void {
   try {
@@ -41,7 +46,7 @@ export function categoriesDemoRepository(): LedgerRepository {
   return {
     ...localLedgerRepository(),
     loadInvestments: () => {
-      const base = demoInvestments();
+      const base: InvestmentData = noStocks() ? { assets: [], trades: [], prices: [] } : demoInvestments();
       const assets: Asset[] = [...base.assets, ...saved.extra].map((a) => {
         const sector = SECTORS[a.id];
         const next: Asset = sector !== undefined ? { ...a, sector } : { ...a };

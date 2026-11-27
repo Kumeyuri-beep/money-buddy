@@ -88,7 +88,7 @@ export function CategoryEditor({ state, onChange, assets, busy, error, notice, o
       <div role="status">{notice !== '' && <p className="muted">{notice}</p>}</div>
 
       {drafts.length === 0 ? (
-        <p className="muted">No categories yet. Add one, or use "Create categories from sectors".</p>
+        <p className="muted">{assets.length === 0 ? 'No categories left. Press Save to keep this change, or add a category.' : 'No categories yet. Add one, or use "Create categories from sectors".'}</p>
       ) : (
         <ul className="cg-list" aria-label="Categories">
           {drafts.map((d, i) => (
@@ -172,7 +172,7 @@ export function CategoryEditor({ state, onChange, assets, busy, error, notice, o
       </div>
 
       <p className={`cg-total is-${totals.status}`} id="cg-total">
-        {message}
+        {drafts.length === 0 ? '' : message}
       </p>
       <p className="sr-only" aria-live="polite" aria-atomic="true">
         {announce}
