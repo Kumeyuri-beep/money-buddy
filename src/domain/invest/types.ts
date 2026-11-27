@@ -35,7 +35,8 @@ export interface AssetCategory {
 
 /** สกุลของสินทรัพย์ที่รองรับ (R11/R20) */
 export type InstrumentCurrency = 'THB' | 'USD';
-export const INSTRUMENT_EXCHANGES: readonly string[] = ['NYSE', 'NASDAQ', 'AMEX', 'OTC'];
+/** ต้องตรงกับ check ของคอลัมน์ assets.exchange ในฐานข้อมูล (มีเทสต์ instrumentExchanges ตรวจ) */
+export const INSTRUMENT_EXCHANGES: readonly string[] = ['NYSE', 'NASDAQ', 'OTHER'];
 export const assetCurrency = (a: Pick<Asset, 'currency'>): InstrumentCurrency => a.currency ?? 'THB';
 
 /** buy = ซื้อ · sell = ขาย · dividend = ปันผลเป็นเงินสด · reinvest = ปันผลลงทุนต่อ (หน่วยเพิ่ม ไม่มีเงินสด) */
