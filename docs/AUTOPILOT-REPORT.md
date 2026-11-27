@@ -13,7 +13,8 @@
 - **#286** นำเข้าไฟล์ใหญ่ไม่รู้ผล แอปตรวจยอดเอง แล้วให้นำเข้าข้อมูลลงทุนต่อ · live-contract branch และ `main` 69/69
 - **#287** ข้อความล้างข้อมูล/ชื่อปุ่มสำรอง รวมแก้ข้อความที่อ้างว่าลบสำเนาในเครื่อง
 - **กฎ deny ของ push** (เจ้าของอนุมัติ) เพิ่มใน `.claude/settings.local.json` · push ปกติของ `auto/*` ยังผ่าน (ลองแบบ `--dry-run`) · กรณีที่ต้องถูกบล็อกไม่ได้ลองยิงจริง
-- **กันนำเข้า/ล้างผิดบัญชี** (branch `auto/import-same-account`) · security-auditor รอบสองผ่าน · ดู HANDOFF §123
+- **#288** กันนำเข้า/ล้างผิดบัญชี · security-auditor รอบสองผ่าน · live-contract branch และ `main` 69/69 · CI ล้มหนึ่งข้อ (`aurora.spec.ts:179`) รันซ้ำผ่าน ดู HANDOFF §123
+- **รอบหน้า:** HANDOFF §122 ข้อถัดไป (เทสต์หน้าจอ `MigrationWizard` → ข้อทดสอบจริงของปุ่มลองใหม่) และ backlog §123
 - **สิทธิ์ผู้ช่วย** (`.claude/settings.local.json` นอก git) เพิ่มเฉพาะ allow: `git push origin auto/*`, `git push -u origin auto/*` (Bash และ PowerShell) · Supabase `list_tables`, `list_migrations`, `query_logs`, `get_advisors`
 
 ## ตัดสินใจเองไปแล้ว (พร้อมเหตุผล)
