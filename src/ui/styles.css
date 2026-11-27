@@ -1427,3 +1427,12 @@ select { font: inherit; }
 .invest-cur:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .invest-badge { margin: 0; }
 .invest-tab { display: grid; gap: 16px; }
+
+/* ปุ่มในการ์ดตั้งต้น/นำเข้าไฟล์สำรองบนคอม: เว้นช่องว่างระหว่างปุ่ม */
+@media (min-width: 1024px) {
+  .setup .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+}
