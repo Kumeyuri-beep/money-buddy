@@ -37,6 +37,17 @@ export class InvestmentImportError extends StorageError {
   }
 }
 
+/**
+ * นำเข้าแบบแบ่งก้อนที่ไม่รู้ผล: ไม่มีส่วนค้างให้ล้าง สมุดบัญชีอาจเข้าครบแล้ว · ผู้เรียกต้องตรวจยอดเอง
+ * ขั้นข้อมูลลงทุนยังไม่ถูกเรียก (ถ้าตรวจยอดแล้วครบ ลองขั้นนั้นได้ด้วย retryImportInvestments)
+ */
+export class ImportUnconfirmedError extends StorageError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ImportUnconfirmedError';
+  }
+}
+
 /** การจัดหมวด/sector ของสินทรัพย์หนึ่งตัว (ส่งเฉพาะ key ที่ต้องการเปลี่ยน · null = ล้างค่า) */
 export interface CategoryAssignment {
   assetId: string;

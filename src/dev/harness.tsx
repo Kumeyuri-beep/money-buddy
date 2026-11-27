@@ -8,7 +8,7 @@ import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { buildInitialLedger } from '../app/setup';
 import { db } from '../storage/instance';
-import { createDexieRepository, InvestmentImportError } from '../storage/ledgerRepository';
+import { createDexieRepository, ImportUnconfirmedError, InvestmentImportError } from '../storage/ledgerRepository';
 import { emptyInvestments, type InvestmentData } from '../domain/invest/types';
 import { App } from '../ui/App';
 import { RepositoryProvider, localLedgerRepository } from '../ui/RepositoryContext';
@@ -100,7 +100,7 @@ function Harness() {
 }
 
 /**
- * ปุ่มลองนำเข้าข้อมูลลงทุนอีกครั้ง (?importRetry=ผลของแต่ละรอบ: fail | lost | ok) · สมุดบัญชีเข้าที่เก็บในเครื่องจริง ขั้นลงทุนจำลอง
+ * ปุ่มลองนำเข้าข้อมูลลงทุนอีกครั้ง (?importRetry=ผลของแต่ละรอบ: fail | lost | ok · รอบแรกใช้ unconfirmed = สมุดเข้าแต่ยืนยันผลไม่ได้ · unconfirmed-empty = ไม่ได้เข้า · unconfirmed-wrong = เข้าแต่เนื้อหาไม่ตรง) · สมุดบัญชีเข้าที่เก็บในเครื่องจริง ขั้นลงทุนจำลอง
  * ?online=empty|match|different|error|late|oldcats ผลการอ่านข้อมูลลงทุนก่อนลองใหม่ (late = ว่างครั้งแรก แล้วตรง) · ?verify=fail ตรวจยอดล้มหนึ่งครั้งหลังลองสำเร็จ · ?importCategories=N หมวดค้างตอนลองใหม่ · ?readDelay=ms
  */
 let retryDemo: ReturnType<typeof localLedgerRepository> | null = null;
@@ -131,7 +131,22 @@ function importRetryRepository(outcomes: string[]) {
     countCategories: () => Promise.resolve(failed ? Number(params.get('importCategories') ?? 0) : 0),
     importBackup: async ({ investments, ...data }, onProgress) => {
       file = investments ?? emptyInvestments();
+      const unconfirmed = () => new ImportUnconfirmedError('ยืนยันผลไม่ได้ว่านำเข้าสมุดบัญชีครบหรือไม่ (จำลอง)');
+      if (outcomes[0] === 'unconfirmed-empty') {
+        failed = true;
+        throw unconfirmed();
+      }
+      if (outcomes[0] === 'unconfirmed-wrong') {
+        failed = true;
+        await local.importBackup({ ...data, entries: data.entries.map((e) => ({ ...e, memo: 'ต่างจากไฟล์ (จำลอง)' })) });
+        throw unconfirmed();
+      }
       const counts = await local.importBackup(data, onProgress);
+      if (outcomes[0] === 'unconfirmed') {
+        outcomes.shift();
+        failed = true;
+        throw unconfirmed();
+      }
       step();
       return counts;
     },

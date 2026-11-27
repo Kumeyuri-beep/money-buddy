@@ -9,7 +9,7 @@ import {
   type BillRow,
   type EntryRow,
 } from '../../src/storage/supabaseRepository';
-import { InvestmentImportError } from '../../src/storage/ledgerRepository';
+import { ImportUnconfirmedError, InvestmentImportError } from '../../src/storage/ledgerRepository';
 import { StorageError } from '../../src/storage/repository';
 
 /** client จำลอง: บันทึกทุกคำสั่งที่ส่งออกไป และตอบตามที่เทสต์กำหนด (ไม่ต้องมีฐานข้อมูลจริง) */
@@ -316,6 +316,7 @@ describe('นำเข้าแบบแบ่งก้อน (เกิน 1,50
     expect(message).toMatch(/ตรวจยอด/);
     expect(message).not.toMatch(/ล้างส่วนที่นำเข้าค้างให้แล้ว|ลองนำเข้าใหม่ได้|Failed to fetch/);
     expect(message).not.toMatch(/ข้อมูลลงทุน/);
+    await expect(createSupabaseRepository(fakeClient((c) => (c.name === 'import_ledger_abort' ? { data: 'none' } : c.name === 'import_ledger_append' ? { error: { message: 'x' } } : ok(c))).client, 'u').importBackup(many(1600))).rejects.toBeInstanceOf(ImportUnconfirmedError);
     expect(calls.at(-1)!.name).toBe('import_ledger_abort');
   });
 
@@ -337,7 +338,9 @@ describe('นำเข้าแบบแบ่งก้อน (เกิน 1,50
       if (call.name === 'import_ledger_abort') return { data: answers.shift() };
       return ok(call);
     });
-    await expect(createSupabaseRepository(client, 'u').importBackup(many(1600))).rejects.toThrow(/ล้างส่วนที่นำเข้าค้างให้แล้ว/);
+    const e = await createSupabaseRepository(client, 'u').importBackup(many(1600)).catch((x: unknown) => x);
+    expect((e as Error).message).toMatch(/ล้างส่วนที่นำเข้าค้างให้แล้ว/);
+    expect(e).not.toBeInstanceOf(ImportUnconfirmedError);
   });
 
   it('begin ถูกปฏิเสธ (เช่นมีข้อมูลอยู่แล้ว): ไม่สั่งล้าง เพราะยังไม่ได้เปิดเซสชัน ข้อมูลเดิมต้องไม่ถูกแตะ', async () => {
