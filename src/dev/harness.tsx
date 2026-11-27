@@ -139,7 +139,8 @@ function importRetryRepository(outcomes: string[]) {
       if (!failed) return emptyInvestments();
       await new Promise((resolve) => window.setTimeout(resolve, Number(params.get('readDelay') ?? 0)));
       const online = params.get('online');
-      if (saved || (online === 'late' && reads++ > 0)) return file;
+      // gone=1: บันทึกแล้วแต่ถูกล้างจากที่อื่น
+      if ((saved && params.get('gone') !== '1') || (online === 'late' && reads++ > 0)) return file;
       if (online === 'oldcats') return { ...emptyInvestments(), categories: [{ id: 'old', name: 'หมวดเก่า (สมมติ)', targetBps: null, sortOrder: 0 }] };
       if (online === 'error') throw new Error('จำลอง: อ่านไม่ได้');
       if (online === 'match') return file;

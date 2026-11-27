@@ -45,7 +45,7 @@ export function useCategoryGuard(repo: LedgerRepository, onError: (e: unknown) =
 
   const dialog = pending ? (
     <ReplaceCategoriesDialog
-      message={categoryReplaceWarning(pending.existing, pending.incoming)}
+      message={categoryReplaceWarning(pending.existing, pending.incoming, pending.deleteOnly)}
       cancelNote={pending.cancelNote}
       deleteOnly={pending.deleteOnly === true}
       onCancel={() => setPending(null)}

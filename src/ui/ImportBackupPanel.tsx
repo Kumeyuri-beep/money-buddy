@@ -17,7 +17,7 @@ type Step =
   | { name: 'pick' }
   | { name: 'reading' }
   | { name: 'review'; read: BackupFileRead }
-  | { name: 'importing'; verifying?: boolean }
+  | { name: 'importing'; verifying?: boolean; deleteOnly?: boolean }
   | { name: 'result'; report: VerifyReport; counts: { accounts: number; entries: number; bills: number } }
   /** retry = สมุดบัญชีเข้าแล้ว ลองเฉพาะขั้นข้อมูลลงทุนได้ (ไฟล์อยู่ในหน่วยความจำเท่านั้น) · stopped = ข้อมูลออนไลน์ไม่ตรงกับไฟล์ ห้ามลองต่อ */
   | { name: 'error'; message: string; retry?: ReadyFile; verifyOnly?: boolean; stopped?: boolean };
@@ -97,7 +97,7 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
     setStep({ name: 'error', message: `${LEDGER_SAVED} แต่ข้อมูลลงทุนออนไลน์ไม่ตรงกับไฟล์ ระบบจึงหยุด ไม่ได้ลบหรือทับอะไร เก็บไฟล์สำรองไว้และแจ้งผู้ดูแลระบบ`, stopped: true });
 
   const runRetry = async (read: ReadyFile, options?: ImportOptions) => {
-    setStep({ name: 'importing' });
+    setStep({ name: 'importing', deleteOnly: onlyDeletes(read) });
     setProgress(null);
     try {
       await repo.retryImportInvestments(read.data.investments, options);
@@ -117,7 +117,7 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
   };
 
   // อ่านสถานะออนไลน์ก่อนทุกครั้ง (รอบก่อนอาจบันทึกสำเร็จแต่คำตอบหาย)
-  const retry = async (read: ReadyFile) => {
+  const retry = async (read: ReadyFile, verifyOnly = false) => {
     if (retryBusy.current || checking) return;
     retryBusy.current = true;
     setRechecking(true);
@@ -126,6 +126,8 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
       const state = await checkInvestImport(read.data.investments, repo);
       if (state === 'match') await verifyRetried(read);
       else if (state === 'different') stop();
+      // ปุ่มตรวจยอดสัญญาว่าไม่นำเข้าซ้ำ: ข้อมูลหายไปแล้วต้องให้ผู้ใช้กดลองใหม่เอง
+      else if (verifyOnly) setStep({ name: 'error', message: `${LEDGER_SAVED} · ข้อมูลออนไลน์เปลี่ยนไปหลังลองครั้งก่อน จึงยังไม่ได้ทำอะไร`, retry: read });
       else await guard(read.data.investments?.categories?.length ?? 0, (options) => void runRetry(read, options), { cancelNote: RETRY_CANCEL_NOTE, deleteOnly: onlyDeletes(read) });
     } catch (e) {
       setStep((prev) => ({
@@ -212,7 +214,7 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
         <>
         <p role="status" className="muted">
           {step.name === 'importing'
-            ? `${step.verifying ? 'กำลังตรวจยอด' : 'กำลังนำเข้าและตรวจยอด'}... อย่าปิดหน้านี้`
+            ? `${step.verifying ? 'กำลังตรวจยอด' : step.deleteOnly ? 'กำลังลบหมวดเดิมและตรวจยอด' : 'กำลังนำเข้าและตรวจยอด'}... อย่าปิดหน้านี้`
             : 'กำลังอ่านและตรวจไฟล์...'}
         </p>
         {step.name === 'importing' && progress && (
@@ -315,15 +317,12 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
             ⚠ {step.message}
           </p>
           {step.retry ? (
-            <>
-              <p className="muted">
-                {step.verifyOnly
-                  ? 'ปุ่มด้านล่างอ่านข้อมูลออนไลน์มาตรวจยอด ไม่นำเข้าซ้ำ'
-                  : `ปุ่มลองใหม่จะตรวจก่อนว่า${onlyDeletes(step.retry) ? 'ลบหมวดเดิมแล้วหรือยัง' : 'ข้อมูลลงทุนเข้าหรือยัง'} ไม่นำเข้าสมุดบัญชีซ้ำ`}{' '}
-                ไฟล์สำรองของคุณไม่ถูกแตะต้อง
-              </p>
-              <p id="import-retry-warn" className="slip-warn">ปิดหรือโหลดหน้าใหม่แล้ว ปุ่มลองใหม่จะหาย</p>
-            </>
+            <p className="muted">
+              {step.verifyOnly
+                ? 'ปุ่มด้านล่างอ่านข้อมูลออนไลน์มาตรวจยอด ไม่นำเข้าซ้ำ'
+                : `ปุ่มลองใหม่จะตรวจก่อนว่า${onlyDeletes(step.retry) ? 'ลบหมวดเดิมแล้วหรือยัง' : 'ข้อมูลลงทุนเข้าหรือยัง'} ไม่นำเข้าสมุดบัญชีซ้ำ`}{' '}
+              ไฟล์สำรองของคุณไม่ถูกแตะต้อง
+            </p>
           ) : step.stopped ? (
             <p className="muted">ไฟล์สำรองของคุณไม่ถูกแตะต้อง</p>
           ) : (
@@ -331,7 +330,7 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
           )}
           <div className="actions">
             {step.retry && (
-              <button className="btn btn-primary" type="button" aria-disabled={rechecking || checking || undefined} onClick={() => void retry(step.retry as ReadyFile)}>
+              <button className="btn btn-primary" type="button" aria-disabled={rechecking || checking || undefined} onClick={() => void retry(step.retry as ReadyFile, step.verifyOnly === true)}>
                 {step.verifyOnly ? 'ตรวจยอดอีกครั้ง' : onlyDeletes(step.retry) ? 'ลองลบหมวดเดิมอีกครั้ง' : 'ลองนำเข้าข้อมูลลงทุนอีกครั้ง'}
               </button>
             )}
@@ -341,12 +340,51 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
           </div>
           {step.retry && (
             <p role="status" className="muted">
-              {rechecking ? 'กำลังตรวจข้อมูลลงทุนออนไลน์...' : ''}
+              {rechecking ? 'กำลังตรวจข้อมูลออนไลน์...' : ''}
             </p>
+          )}
+          {step.retry && (
+            <div role="note" aria-labelledby="import-retry-gone">
+              <h3 id="import-retry-gone">ถ้าปุ่มลองใหม่หาย</h3>
+              <p id="import-retry-warn" className="slip-warn">ปิดหรือโหลดหน้าใหม่แล้ว ปุ่มลองใหม่จะหาย</p>
+              <RetryGoneHelp read={step.retry} verifyOnly={step.verifyOnly === true} />
+            </div>
           )}
         </div>
       )}
     </section>
+  );
+}
+
+/** ปุ่มหายแล้วทำอะไรต่อ · อ้างเฉพาะเมนูที่มีจริง · แนะการล้างข้อมูลเฉพาะเมื่อมีข้อมูลลงทุนที่อาจยังไม่เข้า */
+function RetryGoneHelp({ read, verifyOnly }: { read: ReadyFile; verifyOnly: boolean }) {
+  const safe = 'ข้อมูลของคุณไม่หาย: สมุดบัญชีที่นำเข้าแล้วอยู่ในบัญชีออนไลน์ และไฟล์สำรองยังอยู่ครบ';
+  if (verifyOnly) {
+    return <p>{safe} ข้อมูลเข้าแล้ว ไม่ต้องนำเข้าใหม่ เปิดแอปแล้วเทียบยอดในหน้า "ภาพรวม" กับที่คุณเคยเห็น</p>;
+  }
+  if (onlyDeletes(read)) {
+    // หน้า Categories แก้หมวดได้เมื่อมีหุ้นแล้วเท่านั้น
+    return (
+      <p>
+        {safe} ไฟล์นี้ไม่มีข้อมูลลงทุน จึงไม่มีอะไรขาด ถ้าหมวดเก่าในพอร์ตยังอยู่ ไม่กระทบยอดเงิน ใช้งานต่อได้ และลบได้หลังเพิ่มหุ้นแล้ว (พอร์ตการลงทุน &gt; Portfolio &gt; Categories &gt; Change)
+      </p>
+    );
+  }
+  // ไม่มีสินทรัพย์ในไฟล์ = ไม่มีจุดให้ผู้ใช้ตรวจเองชัดๆ ห้ามพาไปล้างข้อมูล
+  if ((read.data.investments?.assets.length ?? 0) === 0) {
+    return <p>{safe} ไฟล์นี้ไม่มีสินทรัพย์ลงทุน มีแค่ข้อมูลประกอบของพอร์ต (เช่น หมวดหรืออัตราแลกเปลี่ยน) ถ้ายังไม่เข้า เก็บไฟล์สำรองไว้และแจ้งผู้ดูแลระบบ</p>;
+  }
+  return (
+    <>
+      <p>{safe}</p>
+      <ol className="migrate-list">
+        <li>เปิด "พอร์ตการลงทุน" &gt; Portfolio &gt; Holdings ตรวจว่าสินทรัพย์จากไฟล์เข้าแล้วหรือยัง ถ้าเข้าแล้ว เทียบยอดในหน้า "ภาพรวม" กับที่คุณเคยเห็น ไม่ต้องนำเข้าใหม่</li>
+        <li>ถ้ายังไม่เข้าและไม่แน่ใจ แจ้งผู้ดูแลระบบก่อน</li>
+        <li>
+          ถ้าจะทำเอง: การล้างย้อนกลับไม่ได้ และรายการที่เพิ่มหลังนำเข้าจะหายด้วย ใช้ไฟล์สำรองเดิม (ไฟล์ที่ดาวน์โหลดใหม่ตอนนี้ไม่มีข้อมูลลงทุนที่ขาด) เปิดหน้าโปรไฟล์ (บนคอม: ไอคอน "บัญชีของฉัน" ล่างเมนูซ้าย &gt; "โปรไฟล์และตั้งค่า") กด "ล้างข้อมูลและเริ่มใหม่" แล้วนำเข้าไฟล์เดิมอีกครั้ง
+        </li>
+      </ol>
+    </>
   );
 }
 
