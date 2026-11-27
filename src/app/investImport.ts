@@ -21,6 +21,9 @@ export function investImportState(file: InvestmentData | undefined, online: Inve
 
 /** อ่านออนไลน์แล้วเทียบ · ผลว่าต่างจะอ่านซ้ำหนึ่งครั้ง (อ่านหลายตารางไม่อะตอมมิก อาจคร่อมช่วงที่ฐานข้อมูลกำลังบันทึก) · อ่านไม่ได้ = โยนต่อ */
 export async function checkInvestImport(file: InvestmentData | undefined, repo: LedgerRepository): Promise<InvestImportState> {
-  const first = investImportState(file, await repo.loadInvestments());
-  return first === 'different' ? investImportState(file, await repo.loadInvestments()) : first;
+  let state = investImportState(file, await repo.loadInvestments());
+  if (state === 'different') state = investImportState(file, await repo.loadInvestments());
+  // ตรวจหลังอ่าน: สลับบัญชีระหว่างอ่านทำให้ผลเทียบใช้ไม่ได้
+  await repo.confirmSameAccount();
+  return state;
 }

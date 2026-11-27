@@ -3,8 +3,8 @@ import { thaiIsoDate } from '../app/dates';
 import { readBackupFile, type BackupFileRead } from '../app/importFile';
 import type { VerifyReport } from '../app/importVerify';
 import { checkInvestImport } from '../app/investImport';
-import { importAndVerify, RESET_CANCELLED_MESSAGE, verifyOnline } from '../app/migrate';
-import { ImportUnconfirmedError, InvestmentImportError, type ImportOptions } from '../storage/ledgerRepository';
+import { importAndVerify, RESET_CANCELLED_MESSAGE, VerifyAfterImportError, verifyOnline } from '../app/migrate';
+import { AccountChangedError, ImportUnconfirmedError, InvestmentImportError, type ImportOptions } from '../storage/ledgerRepository';
 import { isEmptyInvestments } from '../domain/invest/types';
 import { StorageError } from '../storage/repository';
 import { BalanceTable } from './ImportReportTable';
@@ -80,16 +80,22 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
     setStep({ name: 'result', report, counts });
   };
 
+  // บัญชีเปลี่ยน: ตรวจซ้ำในหน้านี้จะอ่านของบัญชีอื่น จึงไม่มีปุ่มลองต่อ
+  const stopForAccount = () =>
+    setStep({ name: 'error', message: `${LEDGER_SAVED} แต่บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงหยุดไว้ โหลดหน้าใหม่ เข้าสู่ระบบด้วยบัญชีที่ใช้นำเข้า แล้วเทียบยอดในหน้า "ภาพรวม"`, stopped: true });
+
   /** ข้อมูลลงทุนเข้าครบแล้ว: ตรวจยอดสมุดบัญชี (รอบที่ล้มยังไม่ได้ตรวจ) · อ่านไม่ได้ = กดลองใหม่ได้ */
-  const verifyRetried = async (read: ReadyFile) => {
+  const verifyRetried = async (read: ReadyFile, fromVerifyButton = false) => {
     setStep({ name: 'importing', verifying: true });
     setProgress(null);
     try {
       const { accounts, entries, bills } = read.data;
       showResult(await verifyOnline(read.data, repo), { accounts: accounts.length, entries: entries.length, bills: bills.length });
     } catch (e) {
-      const done = onlyDeletes(read) ? 'ลบหมวดเดิมแล้ว' : 'ข้อมูลลงทุนเข้าแล้ว';
-      setStep({ name: 'error', message: `${LEDGER_SAVED} · ${done} แต่ตรวจยอดไม่ได้ (${friendly(e)})`, retry: read, verifyOnly: true });
+      if (e instanceof AccountChangedError) return stopForAccount();
+      // มาจากปุ่มตรวจยอด: ไม่รู้ว่ารอบก่อนทำอะไรบ้าง ห้ามอ้างว่าลบหมวดแล้ว
+      const done = fromVerifyButton ? 'นำเข้าแล้ว' : `${LEDGER_SAVED} · ${onlyDeletes(read) ? 'ลบหมวดเดิมแล้ว' : 'ข้อมูลลงทุนเข้าแล้ว'}`;
+      setStep({ name: 'error', message: `${done} แต่ตรวจยอดไม่ได้ (${friendly(e)})`, retry: read, verifyOnly: true });
     }
   };
 
@@ -124,13 +130,18 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
     setAttempt((n) => n + 1);
     try {
       const state = await checkInvestImport(read.data.investments, repo);
-      if (state === 'match') await verifyRetried(read);
+      if (state === 'match') await verifyRetried(read, verifyOnly);
       else if (state === 'different') stop();
       // ปุ่มตรวจยอดสัญญาว่าไม่นำเข้าซ้ำ: ข้อมูลหายไปแล้วต้องให้ผู้ใช้กดลองใหม่เอง
-      else if (verifyOnly) setStep({ name: 'error', message: `${LEDGER_SAVED} · ข้อมูลออนไลน์เปลี่ยนไปหลังลองครั้งก่อน จึงยังไม่ได้ทำอะไร`, retry: read });
+      else if (verifyOnly) setStep({ name: 'error', message: `${LEDGER_SAVED} · ข้อมูลออนไลน์เปลี่ยนไปหลังนำเข้า จึงยังไม่ได้ทำอะไร`, retry: read });
       else await guard(read.data.investments?.categories?.length ?? 0, (options) => void runRetry(read, options), { cancelNote: RETRY_CANCEL_NOTE, deleteOnly: onlyDeletes(read) });
     } catch (e) {
-      setStep((prev) => ({
+      if (e instanceof AccountChangedError && verifyOnly) stopForAccount();
+      else if (e instanceof AccountChangedError) {
+        // ขั้นลงทุนยังค้าง: คงปุ่มไว้ (ปุ่มยืนยันบัญชีก่อนทำอะไรเสมอ) และต้องบอกว่ายังค้าง
+        const left = onlyDeletes(read) ? 'หมวดเดิมอาจยังไม่ได้ลบ' : 'ข้อมูลลงทุนอาจยังไม่เข้า';
+        setStep({ name: 'error', message: `${LEDGER_SAVED} · บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงยังไม่ได้ทำอะไร ${left} กลับเข้าบัญชีที่ใช้นำเข้าก่อนกดลองใหม่`, retry: read });
+      } else setStep((prev) => ({
         name: 'error',
         message: `${LEDGER_SAVED} · อ่านข้อมูลออนไลน์ไม่ได้ จึงยังไม่ได้ทำอะไร (${friendly(e)})`,
         retry: read,
@@ -181,7 +192,11 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
       const result = await importAndVerify(read.data, repo, (done, total) => setProgress([done, total]), options);
       showResult(result.report, result.counts);
     } catch (e) {
-      if (e instanceof ImportUnconfirmedError) await recoverUnconfirmed(read, friendly(e));
+      if (e instanceof VerifyAfterImportError && e.cause instanceof AccountChangedError) stopForAccount();
+      else if (e instanceof VerifyAfterImportError) {
+        // ข้อมูลเข้าแล้ว: ให้ตรวจยอดซ้ำได้โดยไม่ต้องโหลดหน้าใหม่
+        setStep({ name: 'error', message: `นำเข้าแล้ว แต่ตรวจยอดไม่ได้ (${friendly(e.cause)})`, retry: read, verifyOnly: true });
+      } else if (e instanceof ImportUnconfirmedError) await recoverUnconfirmed(read, friendly(e));
       else setStep({ name: 'error', message: friendly(e), retry: e instanceof InvestmentImportError ? read : undefined });
     }
   };
@@ -378,8 +393,8 @@ export function ImportBackupPanel({ onDone }: { onDone: () => void }) {
           )}
           {step.retry && (
             <div role="note" aria-labelledby="import-retry-gone">
-              <h3 id="import-retry-gone">ถ้าปุ่มลองใหม่หาย</h3>
-              <p id="import-retry-warn" className="slip-warn">ปิดหรือโหลดหน้าใหม่แล้ว ปุ่มลองใหม่จะหาย</p>
+              <h3 id="import-retry-gone">{step.verifyOnly ? 'ถ้าปุ่มตรวจยอดหาย' : 'ถ้าปุ่มลองใหม่หาย'}</h3>
+              <p id="import-retry-warn" className="slip-warn">ปิดหรือโหลดหน้าใหม่แล้ว {step.verifyOnly ? 'ปุ่มตรวจยอดอีกครั้ง' : 'ปุ่มลองใหม่'}จะหาย</p>
               <RetryGoneHelp read={step.retry} verifyOnly={step.verifyOnly === true} />
             </div>
           )}
@@ -413,7 +428,7 @@ function RetryGoneHelp({ read, verifyOnly }: { read: ReadyFile; verifyOnly: bool
         <li>เปิด "พอร์ตการลงทุน" &gt; Portfolio &gt; Holdings ตรวจว่าสินทรัพย์จากไฟล์เข้าแล้วหรือยัง ถ้าเข้าแล้ว เทียบยอดในหน้า "ภาพรวม" กับที่คุณเคยเห็น ไม่ต้องนำเข้าใหม่</li>
         <li>ถ้ายังไม่เข้าและไม่แน่ใจ แจ้งผู้ดูแลระบบก่อน</li>
         <li>
-          ถ้าจะทำเอง: การล้างย้อนกลับไม่ได้ และรายการที่เพิ่มหลังนำเข้าจะหายด้วย ใช้ไฟล์สำรองเดิม (ไฟล์ที่ดาวน์โหลดใหม่ตอนนี้ไม่มีข้อมูลลงทุนที่ขาด) เปิดหน้าโปรไฟล์ (บนคอม: ไอคอน "บัญชีของฉัน" ล่างเมนูซ้าย &gt; "โปรไฟล์และตั้งค่า") กด "ล้างข้อมูลและเริ่มใหม่" แล้วนำเข้าไฟล์เดิมอีกครั้ง
+          ถ้าจะทำเอง: ตรวจก่อนว่าเข้าสู่ระบบด้วยบัญชีที่ใช้นำเข้า การล้างย้อนกลับไม่ได้ และรายการที่เพิ่มหลังนำเข้าจะหายด้วย ใช้ไฟล์สำรองเดิม (ไฟล์ที่ดาวน์โหลดใหม่ตอนนี้ไม่มีข้อมูลลงทุนที่ขาด) เปิดหน้าโปรไฟล์ (บนคอม: ไอคอน "บัญชีของฉัน" ล่างเมนูซ้าย &gt; "โปรไฟล์และตั้งค่า") กด "ล้างข้อมูลและเริ่มใหม่" แล้วนำเข้าไฟล์เดิมอีกครั้ง
         </li>
       </ol>
     </>
