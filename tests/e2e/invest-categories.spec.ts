@@ -49,6 +49,30 @@ for (const w of WIDTHS) {
       expect(seen.errors).toEqual([]);
     });
 
+    test('มีหมวดค้างแต่ยังไม่มีหุ้น: แก้และลบหมวดได้ · ลบหมดแล้วกลับเป็นหน้าว่าง', async ({ page }) => {
+      const seen = watch(page);
+      await page.route((url) => !/^(localhost|127\.0\.0\.1)$/.test(url.hostname), (route) => route.abort());
+      await page.goto('/harness.html?seed=1&investDemo=cat&noStocks=1#/invest/portfolio/categories');
+      await expect(tableRow(page, 'Old category A')).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByText('Add a stock in Portfolio → Holdings to group it into these categories.')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Create categories from sectors' })).toBeDisabled();
+      await expect(page.getByText('No stocks held, so there is no allocation to show.')).toBeVisible();
+      await expect(page.getByText(/price is missing|no price or exchange rate/)).toHaveCount(0);
+      await noOverflow(page);
+      await page.getByRole('button', { name: 'Change', exact: true }).click();
+      await noOverflow(page);
+      await page.getByRole('button', { name: 'Delete Old category A' }).click();
+      await page.getByRole('button', { name: 'Delete Old category B' }).click();
+      await expect(page.getByText('No categories left. Press Save to keep this change, or add a category.')).toBeVisible();
+      await expect(page.getByText(/set one for every category/)).toBeHidden();
+      await page.getByRole('button', { name: 'Save', exact: true }).click();
+      await expect(page.getByText('Categories saved.')).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'No stocks yet' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Categories', level: 2, exact: true })).toBeFocused();
+      await expect(page.getByRole('button', { name: 'Change', exact: true })).toBeDisabled();
+      expect(seen.errors).toEqual([]);
+    });
+
     test('สร้างจาก sector → ตารางต่อหมวด + Uncategorized (หุ้นไม่มี sector) → Save แล้วรีโหลดยังอยู่', async ({ page }) => {
       const seen = watch(page);
       await open(page);

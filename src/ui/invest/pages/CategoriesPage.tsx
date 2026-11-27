@@ -150,6 +150,8 @@ export function CategoriesPage(_props: { onHome?: () => void }) {
   };
 
   const noAssets = data !== null && data.assets.length === 0;
+  // หมวดค้างได้แม้ยังไม่มีหุ้น (เช่น หลังนำเข้าไฟล์สำรอง) ต้องแก้และลบได้
+  const nothingToManage = noAssets && !hasCategories && !editing;
 
   return (
     <div className="invest-tab hd-page cg-page">
@@ -171,7 +173,7 @@ export function CategoriesPage(_props: { onHome?: () => void }) {
             Import
           </button>
           <input id="cg-import-file" ref={fileRef} type="file" accept=".json,application/json" className="sr-only" tabIndex={-1} aria-hidden="true" onChange={(e) => { void importFile(e.target.files?.[0]); e.target.value = ''; }} />
-          <button type="button" className="iv-btn iv-btn-gold" onClick={startEdit} disabled={data === null || editing || busy}>
+          <button type="button" className="iv-btn iv-btn-gold" onClick={startEdit} disabled={data === null || nothingToManage || editing || busy}>
             Change
           </button>
         </div>
@@ -191,13 +193,14 @@ export function CategoriesPage(_props: { onHome?: () => void }) {
         <p className="muted" role="status">
           Loading categories…
         </p>
-      ) : noAssets ? (
+      ) : nothingToManage ? (
         <section className="glass-lite card">
           <h3 className="hd-empty-title">No stocks yet</h3>
           <p className="muted">Add a stock in Portfolio → Holdings first. Then you can group it into a category.</p>
         </section>
       ) : (
         <>
+          {noAssets && <p className="muted">Add a stock in Portfolio → Holdings to group it into these categories.</p>}
           {(data.categories?.length ?? 0) === 0 ? (
             editing ? null : (
             <section className="glass-lite card">
