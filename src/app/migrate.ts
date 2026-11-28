@@ -35,12 +35,23 @@ export interface ImportResult {
   report: VerifyReport;
 }
 
+/** นำเข้าสำเร็จแล้ว แต่อ่านกลับมาตรวจยอดไม่ได้ · cause = ข้อผิดพลาดของการอ่าน */
+export class VerifyAfterImportError extends Error {
+  constructor(override readonly cause: unknown) {
+    super('นำเข้าแล้ว แต่ตรวจยอดไม่ได้');
+    this.name = 'VerifyAfterImportError';
+  }
+}
+
 /**
  * นำเข้า (ธุรกรรมเดียวที่ฐานข้อมูล · มีข้อมูลออนไลน์อยู่แล้ว = ปฏิเสธ ไม่ทับ) แล้วอ่านกลับมาตรวจยอด
  * report.ok = false ไม่ได้ย้อนกลับการนำเข้า (ข้อมูลออนไลน์ถูกเขียนแล้ว) · ผู้เรียกต้องแสดงผลให้เจ้าของเห็นและห้ามไปต่อ
  */
 export async function importAndVerify(source: BackupData, online: LedgerRepository, onProgress?: ImportProgress, options?: ImportOptions): Promise<ImportResult> {
   const counts = await online.importBackup(source, onProgress, options);
-  const report = await verifyOnline(source, online);
-  return { counts, report };
+  try {
+    return { counts, report: await verifyOnline(source, online) };
+  } catch (e) {
+    throw new VerifyAfterImportError(e);
+  }
 }

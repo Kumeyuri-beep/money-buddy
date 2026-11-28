@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { categoryReplaceWarning } from '../../src/app/importCategories';
-import { importAndVerify } from '../../src/app/migrate';
+import { importAndVerify, VerifyAfterImportError } from '../../src/app/migrate';
 import type { BackupData } from '../../src/domain/backup/parseBackup';
 import type { LedgerRepository } from '../../src/storage/ledgerRepository';
 
@@ -37,5 +37,26 @@ describe('ทั้งสองทางนำเข้าผ่านด่า�
     const entries = Object.entries(ui);
     expect(entries).toHaveLength(2);
     for (const [path, text] of entries) expect(text, path).toContain('useCategoryGuard(');
+  });
+});
+
+describe('importAndVerify: นำเข้าสำเร็จแต่ตรวจยอดล้ม', () => {
+  const repo = (importFails: boolean) =>
+    ({
+      importBackup: () => (importFails ? Promise.reject(new Error('import')) : Promise.resolve({ accounts: 0, entries: 0, bills: 0 })),
+      loadLedger: () => Promise.reject(new Error('read')),
+      loadBills: () => Promise.resolve([]),
+      loadSettings: () => Promise.resolve({}),
+      confirmSameAccount: () => Promise.resolve(),
+    }) as unknown as LedgerRepository;
+  it('แยกชนิดข้อผิดพลาด เก็บสาเหตุไว้', async () => {
+    const e = await importAndVerify({} as BackupData, repo(false)).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(VerifyAfterImportError);
+    expect((e as VerifyAfterImportError).cause).toBeInstanceOf(Error);
+  });
+  it('นำเข้าล้มเอง = ข้อผิดพลาดเดิม ไม่ใช่ชนิดนี้', async () => {
+    const e = await importAndVerify({} as BackupData, repo(true)).catch((x: unknown) => x);
+    expect(e).not.toBeInstanceOf(VerifyAfterImportError);
+    expect((e as Error).message).toBe('import');
   });
 });

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { thaiIsoDate } from '../app/dates';
 import { writeMigrationFlag } from '../app/dataSource';
-import { importAndVerify, readLocalForMigration, RESET_CANCELLED_MESSAGE, verifyOnline, type LocalRead } from '../app/migrate';
+import { importAndVerify, readLocalForMigration, RESET_CANCELLED_MESSAGE, VerifyAfterImportError, verifyOnline, type LocalRead } from '../app/migrate';
 import type { VerifyReport } from '../app/importVerify';
 import type { ImportOptions, LedgerRepository } from '../storage/ledgerRepository';
 import { StorageError } from '../storage/repository';
@@ -140,7 +140,8 @@ export function MigrationWizard({ userId, online, mode, onDone }: Props) {
       } catch {
         /* ตรวจไม่ได้ ปล่อยธงไว้ ผู้ใช้จะเห็นหน้าตรวจยอดซึ่งแสดงจำนวนข้อมูลออนไลน์ก่อนอนุญาตให้ล้าง */
       }
-      setStep({ name: 'error', message: friendly(e) });
+      // ข้อความของตัวย้ายข้อมูลคงเดิม: แสดงสาเหตุของการอ่าน (โหลดใหม่แล้วเข้าหน้าตรวจยอดเอง)
+      setStep({ name: 'error', message: friendly(e instanceof VerifyAfterImportError ? e.cause : e) });
     }
   };
 
