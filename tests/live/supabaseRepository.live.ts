@@ -349,6 +349,59 @@ describe('ฐานข้อมูลตรวจผู้ใช้ที่ต�
     expect((await b.loadLedger()).entries).toHaveLength(1);
   });
 
+  it('หน้าจอของ A แต่เซสชันเป็น B: บันทึกบัญชี บิล ค่าตั้งค่า การลงทุน และลบรายการได้ PT412 ข้อมูลของ B ไม่เปลี่ยน', async () => {
+    await wipe(0);
+    await wipeUserTables(admin, (await signedIn(1)).id, ['assets', 'entries', 'bills', 'accounts', 'settings']);
+    const b = await repoFor(1);
+    const { client: bc } = await signedIn(1);
+    const aId = (await signedIn(0)).id;
+    const stale = new Proxy(bc, {
+      get(target, key) {
+        if (key === 'auth') return { getSession: async () => ({ data: { session: { user: { id: aId } } } }) };
+        const value = Reflect.get(target, key) as unknown;
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const staleRepo = createSupabaseRepository(stale, aId);
+    await b.saveInitialLedger(buildInitialLedger([{ name: 'ของ B', opening: '5' }], '2026-11-01'));
+    await b.addBill({ id: 'bill-b', name: 'บิล B', amount: 100, dueDay: 1 }, '2026-11-04');
+    await b.saveSettings({ payDay: 10 });
+    await b.addAsset({ id: 'asset-b', name: 'สินทรัพย์ของ B', kind: 'fund' });
+    try {
+      const before = { ledger: await b.loadLedger(), bills: await b.loadBills(), settings: await b.loadSettings(), investments: await b.loadInvestments() };
+      const writes: [string, () => Promise<unknown>][] = [
+        ['เพิ่มกระเป๋า (insert ตรง)', () => staleRepo.addWallet({ id: 'stale-wallet', name: 'ของหน้าจอ A' })],
+        ['เพิ่มบิล (insert ตรง)', () => staleRepo.addBill({ id: 'stale-bill', name: 'บิล A', amount: 100, dueDay: 2 }, '2026-11-04')],
+        ['ตั้งค่า (RPC)', () => staleRepo.patchSettings({ payDay: 3 })],
+        ['บัญชีเงินสด USD', () => staleRepo.addUsdCash({ id: 'stale-usd', name: 'ของหน้าจอ A' })],
+        // ต้องเป็นสินทรัพย์ที่มีจริง: ฟังก์ชันตรวจว่ามีสินทรัพย์ก่อนถึงคำสั่งลบ
+        ['ลบสินทรัพย์ (RPC)', () => staleRepo.deleteAsset('asset-b')],
+      ];
+      for (const [label, write] of writes) await expect(write(), label).rejects.toBeInstanceOf(AccountChangedError);
+      // ลบรายการด้วยตัวระบุของ B ผ่าน client เดียวกัน: ด่านอยู่ที่ฐานข้อมูล ไม่ใช่ฝั่งเว็บ
+      const direct = await bc.from('entries').delete().eq('id', before.ledger.entries[0]!.id).setHeader('x-expected-user', aId);
+      expect(direct.error?.code).toBe('PT412');
+      expect({ ledger: await b.loadLedger(), bills: await b.loadBills(), settings: await b.loadSettings(), investments: await b.loadInvestments() }).toEqual(before);
+    } finally {
+      // สินทรัพย์อ้างถึงบัญชี: ต้องล้างก่อน ไม่งั้นข้อถัดไปล้างบัญชีของผู้ใช้ทดสอบไม่ได้
+      await wipeUserTables(admin, (await signedIn(1)).id, ['assets', 'entries', 'bills', 'accounts', 'settings']);
+    }
+  });
+
+  it('เบราว์เซอร์ส่งหัวคำขอ x-expected-user ได้ (CORS preflight อนุญาต)', async () => {
+    const res = await fetch(`${live.url.replace(/\/+$/, '')}/rest/v1/entries`, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'https://example.invalid',
+        'Access-Control-Request-Method': 'DELETE',
+        'Access-Control-Request-Headers': 'apikey,authorization,x-client-info,x-expected-user',
+      },
+    });
+    expect(res.ok).toBe(true);
+    const allowed = (res.headers.get('access-control-allow-headers') ?? '').toLowerCase();
+    expect(allowed === '*' || allowed.split(',').map((h) => h.trim()).includes('x-expected-user')).toBe(true);
+  });
+
   it('ไฟล์ใหญ่ 1,600 รายการพร้อมค่าตั้งค่า: นำเข้าแบบแบ่งก้อนสำเร็จครบ ค่าตั้งค่าเข้า ไม่มีเซสชันค้าง', async () => {
     await wipe(1);
     const b = await repoFor(1);

@@ -6,6 +6,7 @@ import { formatDateEn } from '../app/dateEn';
 import { newId } from '../app/ids';
 import { linkedCashAccountId, usTradeToForm } from '../app/tradeEditForm';
 import { buildFxExchange, buildUsTradeRecord, emptyFxExchangeForm, emptyUsTradeForm, parseFxRate, type FxExchangeForm, type UsFormError, type UsTradeForm, type UsTradeKind } from '../app/usForms';
+import { rateNotSavedText, savePriceAndRate } from '../app/savePriceAndRate';
 import { fxRateText, usd, usdPrice, usdSigned } from '../app/usdFormat';
 import { EditImpact } from './invest/transactions/EditImpact';
 import { buildUsPortfolio, type UsStockRow } from '../app/usPortfolio';
@@ -364,13 +365,21 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
     if (priceForm.date > today) return setPriceError('Cannot record a future date');
     if (hasFx && activeCash === '') return setPriceError('You need a USD cash account before you can record an exchange rate');
     setPriceError('');
+    setMessage(null);
     setBusy(true);
     try {
-      if (hasPrice) await repo.savePrice({ assetId, date: priceForm.date, priceMicro });
-      if (hasFx) await repo.saveFxRate({ accountId: activeCash, date: priceForm.date, rateMicro });
-      await finish('Price/rate saved');
+      const { rateError } = await savePriceAndRate(repo, {
+        ...(hasPrice ? { price: { assetId, date: priceForm.date, priceMicro } } : {}),
+        ...(hasFx ? { rate: { accountId: activeCash, date: priceForm.date, rateMicro } } : {}),
+      });
+      if (rateError === undefined) await finish('Price/rate saved');
+      else {
+        await load();
+        onLedgerChanged();
+        setPriceError(rateNotSavedText(rateError, investError(rateError))); // อยู่ติดปุ่ม Save ฟอร์มยังเปิด
+      }
     } catch (err) {
-      fail(err);
+      setPriceError(investError(err)); // อยู่ติดปุ่ม Save เช่นกัน
     } finally {
       setBusy(false);
     }
@@ -759,7 +768,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
             </div>
             <p className="muted small">Enter either or both. Entering the same date again overwrites that day's values (automatic fetching will come in a later phase).</p>
             {priceError && (
-              <p className="avg-err" role="alert">
+              <p ref={showProblem} className="avg-err" role="alert">
                 {priceError}
               </p>
             )}

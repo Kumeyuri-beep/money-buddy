@@ -19,7 +19,8 @@ type Respond = (call: Call) => { data?: unknown; error?: { message?: string; cod
 function fakeClient(respond: Respond) {
   const calls: Call[] = [];
   const builder = (call: Call) => {
-    const proxy: Record<string, unknown> = {};
+    // หัวคำขอ x-expected-user ตรวจใน expectedUserHeader.test.ts
+    const proxy: Record<string, unknown> = { headers: new Headers(), setHeader: () => proxy };
     for (const op of ['select', 'insert', 'update', 'upsert', 'delete', 'eq', 'order', 'range', 'limit', 'maybeSingle']) {
       proxy[op] = (...a: unknown[]) => {
         call.ops.push(op);
