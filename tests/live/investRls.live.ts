@@ -1,5 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
+import { checkInvestImport } from '../../src/app/investImport';
+import { verifyOnline } from '../../src/app/migrate';
 import { buildInitialLedger } from '../../src/app/setup';
 import { parseBackup } from '../../src/domain/backup/parseBackup';
 import { isCashWallet } from '../../src/domain/ledger/accountKind';
@@ -7,7 +9,7 @@ import { cashBalance } from '../../src/domain/ledger/overview';
 import type { TradeRecord } from '../../src/domain/invest/types';
 import { StorageError } from '../../src/storage/repository';
 import { createSupabaseRepository } from '../../src/storage/supabaseRepository';
-import type { LedgerRepository } from '../../src/storage/ledgerRepository';
+import { InvestmentImportError, type LedgerRepository } from '../../src/storage/ledgerRepository';
 import { loadAdmin } from '../../scripts/lib/admin.mjs';
 import { authErrorText, liveClientOptions, wipeUserTables } from './liveHelpers';
 
@@ -386,6 +388,33 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     const restored = await b.loadInvestments();
     expect(restored.categories).toEqual(categories);
     expect(restored.assets).toEqual(snapshot.investments?.assets);
+    await wipeUserTables(admin, id, ['asset_categories']); // หลัง assertTestUser(id) ข้างบน
+  });
+
+  it('ปุ่มลองใหม่: สมุดเข้าแล้ว → สถานะยังไม่เข้า → ลองเฉพาะข้อมูลลงทุนสำเร็จ → สถานะตรง · ลองซ้ำถูกปฏิเสธโดยไม่เปลี่ยนอะไร', async () => {
+    const snapshot = await a.exportSnapshot(new Date('2026-11-12T00:00:00.000Z'));
+    const parsed = parseBackup(JSON.stringify(snapshot), '2026-11-12');
+    if (!parsed.ok) throw new Error(parsed.problems.join(' | '));
+    const { id } = await signedIn(1);
+    await wipe(1);
+    assertTestUser(id);
+    await wipeUserTables(admin, id, ['asset_categories']);
+    // จำลองรอบแรกที่ขั้นข้อมูลลงทุนไม่เข้า: นำเข้าเฉพาะสมุดบัญชี
+    const { investments, ...ledgerOnly } = parsed.data;
+    await b.importBackup(ledgerOnly);
+    await b.confirmSameAccount();
+    expect((await verifyOnline(parsed.data, b)).ok).toBe(true);
+    expect(await checkInvestImport(investments, b)).toBe('not_imported');
+
+    await b.retryImportInvestments(investments);
+    // แถวที่อ่านกลับจากฐานข้อมูลจริงต้องเทียบกับไฟล์ได้ "ตรง" (เวลา คอลัมน์ว่าง จำนวนใหญ่)
+    expect(await checkInvestImport(investments, b)).toBe('match');
+
+    const before = await b.loadInvestments();
+    const again = await b.retryImportInvestments(investments).catch((e: unknown) => e);
+    expect(again).toBeInstanceOf(InvestmentImportError);
+    expect((again as InvestmentImportError).outcome).toBe('not_saved');
+    expect(await b.loadInvestments()).toEqual(before);
     await wipeUserTables(admin, id, ['asset_categories']); // หลัง assertTestUser(id) ข้างบน
   });
 });

@@ -1278,7 +1278,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
     },
 
     async confirmSameAccount() {
-      if (!(await sameAccount())) throw new StorageError('บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงตรวจยอดไม่ได้ โหลดหน้าใหม่');
+      await assertSameAccount('บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงตรวจยอดไม่ได้ โหลดหน้าใหม่');
     },
 
     async countCategories() {

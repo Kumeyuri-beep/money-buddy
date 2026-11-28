@@ -73,6 +73,7 @@ describe('checkInvestImport: อ่านออนไลน์แล้วเท
   const repoReading = (...reads: (InvestmentData | Error)[]) => {
     let n = 0;
     const repo = {
+      confirmSameAccount: () => Promise.resolve(),
       loadInvestments: () => {
         const r = reads[Math.min(n++, reads.length - 1)]!;
         return r instanceof Error ? Promise.reject(r) : Promise.resolve(r);
@@ -117,5 +118,17 @@ describe('ไปกลับ: ค่าที่อ่านจากแถว�
       categories: [rowToCategory({ id: 'c1', name: 'หมวดสมมติ', target_bps: null, sort_order: 0 })],
     };
     expect(investImportState(big, online)).toBe('match');
+  });
+});
+
+describe('checkInvestImport ยืนยันบัญชีหลังอ่าน', () => {
+  it('บัญชีเปลี่ยน = ไม่คืนสถานะ (ผลที่เทียบกับบัญชีอื่นใช้ไม่ได้)', async () => {
+    const order: string[] = [];
+    const repo = {
+      loadInvestments: () => (order.push('read'), Promise.resolve(empty)),
+      confirmSameAccount: () => (order.push('confirm'), Promise.reject(new Error('เปลี่ยน'))),
+    } as unknown as LedgerRepository;
+    await expect(checkInvestImport(file, repo)).rejects.toThrow('เปลี่ยน');
+    expect(order).toEqual(['read', 'confirm']);
   });
 });
