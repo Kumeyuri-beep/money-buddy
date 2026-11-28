@@ -379,7 +379,7 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
         setPriceError(rateNotSavedText(rateError, investError(rateError))); // อยู่ติดปุ่ม Save ฟอร์มยังเปิด
       }
     } catch (err) {
-      fail(err);
+      setPriceError(investError(err)); // อยู่ติดปุ่ม Save เช่นกัน
     } finally {
       setBusy(false);
     }
