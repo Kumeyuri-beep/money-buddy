@@ -6,6 +6,7 @@ import { formatDateEn } from '../app/dateEn';
 import { newId } from '../app/ids';
 import { linkedCashAccountId, usTradeToForm } from '../app/tradeEditForm';
 import { buildFxExchange, buildUsTradeRecord, emptyFxExchangeForm, emptyUsTradeForm, parseFxRate, type FxExchangeForm, type UsFormError, type UsTradeForm, type UsTradeKind } from '../app/usForms';
+import { savePriceAndRate } from '../app/savePriceAndRate';
 import { fxRateText, usd, usdPrice, usdSigned } from '../app/usdFormat';
 import { EditImpact } from './invest/transactions/EditImpact';
 import { buildUsPortfolio, type UsStockRow } from '../app/usPortfolio';
@@ -366,9 +367,16 @@ export function UsStocksView({ today, accounts, entries, wallets, onLedgerChange
     setPriceError('');
     setBusy(true);
     try {
-      if (hasPrice) await repo.savePrice({ assetId, date: priceForm.date, priceMicro });
-      if (hasFx) await repo.saveFxRate({ accountId: activeCash, date: priceForm.date, rateMicro });
-      await finish('Price/rate saved');
+      const { rateError } = await savePriceAndRate(repo, {
+        ...(hasPrice ? { price: { assetId, date: priceForm.date, priceMicro } } : {}),
+        ...(hasFx ? { rate: { accountId: activeCash, date: priceForm.date, rateMicro } } : {}),
+      });
+      if (rateError === undefined) await finish('Price/rate saved');
+      else {
+        await load();
+        onLedgerChanged();
+        setMessage({ text: `Price saved, but the exchange rate was not saved: ${investError(rateError)}`, kind: 'error' });
+      }
     } catch (err) {
       fail(err);
     } finally {

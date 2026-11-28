@@ -84,7 +84,7 @@ begin
   execute 'reset role';
   foreach t in array tables loop
     foreach stmt in array array[
-      format('insert into public.%I select * from public.%I where false', t, t),
+      format('insert into public.%I (user_id) select user_id from public.%I where false', t, t),
       format('update public.%I set user_id = user_id where false', t),
       format('delete from public.%I where false', t)] loop
       foreach r in array array[ub::text, '', 'not-a-uuid'] loop
@@ -111,6 +111,11 @@ begin
   perform pg_temp.logout();
 
   -- T3 ทางเขียนจริงของหน้าจอ: แท็บของ B ค้างอยู่ แต่เซสชันเป็น A = PT412 และข้อมูลของทั้งสองคนไม่เปลี่ยน
+  perform pg_temp.login(ua);
+  insert into public.accounts (id, type, name, currency, kind) values ('inv-sa', 'asset', 'สินทรัพย์สมมติ', 'THB', 'investment');
+  insert into public.assets (id, name, kind, account_id) values ('sa', 'สินทรัพย์สมมติ', 'fund', 'inv-sa');
+  perform pg_temp.settle();
+  perform pg_temp.logout();
   before_a := pg_temp.snap(ua);
   calls := array[
     format('select public.create_entry(%L::jsonb)', one),
@@ -124,7 +129,9 @@ begin
     'delete from public.entries where id = ''sys''',
     'delete from public.entries where id = ''no-such-entry''',
     'select public.set_category_archived(''no-such'', true)',
-    'select public.set_account_kind(''w1'', ''investment'')'];
+    'select public.set_account_kind(''w1'', ''investment'')',
+    'insert into public.asset_prices (user_id, asset_id, date, price_micro) values (auth.uid(), ''sa'', ''2026-11-01'', 1000000)',
+    'select public.delete_asset(''sa'')'];
   foreach call in array calls loop
     perform pg_temp.login(ua);
     perform pg_temp.headers(ub::text);

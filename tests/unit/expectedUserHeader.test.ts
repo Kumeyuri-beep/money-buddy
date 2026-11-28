@@ -111,6 +111,11 @@ describe('PT412 จาก trigger = บัญชีเปลี่ยน', () =>
     }
   });
 
+  it('เพิ่มสินทรัพย์บาทแล้วบัญชีเปลี่ยนระหว่างสองคำสั่ง: แจ้งว่าทำไม่ครบ', async () => {
+    const { repo } = setup((s) => (s.path === 'accounts' && s.method === 'POST' ? { status: 201, body: [] } : changed));
+    await expect(repo.addAsset({ id: 's', name: 'สมมติ', kind: 'fund' })).rejects.toMatchObject({ code: 'store.accountChangedPartly' });
+  });
+
   it('เพิ่มหุ้นแล้วบัญชีเปลี่ยนระหว่างสองคำสั่ง: ไม่อ้างว่ายังไม่ได้บันทึกอะไรเลย', async () => {
     const { repo } = setup((s) => (s.path === 'accounts' && s.method === 'POST' ? { status: 201, body: [] } : changed));
     const e = await repo.addUsdStock({ id: 's', name: 'สมมติ', ticker: 'ABC', exchange: 'NASDAQ' }).then(() => null, (x: unknown) => x as Error & { code?: string });

@@ -109,8 +109,8 @@ export const storeMsg = defineMessages({
     en: () => 'The signed-in account has changed. This action was not saved. Reload the page.',
   },
   'store.accountChangedPartly': {
-    th: () => 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป การเพิ่มสินทรัพย์ทำไม่ครบ อาจมีบัญชีว่างค้างในบัญชีเดิม โหลดหน้าใหม่',
-    en: () => 'The signed-in account has changed. The asset was not fully added and an empty account may remain in the previous account. Reload the page.',
+    th: () => 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป การเพิ่มสินทรัพย์ทำไม่ครบ บัญชีเดิมอาจมีบัญชีเงินสดว่างชื่อเดียวกับสินทรัพย์ค้างอยู่ โหลดหน้าใหม่',
+    en: () => 'The signed-in account has changed. The asset was not fully added and the previous account may show an empty cash account with the same name. Reload the page.',
   },
   // ค่าตั้งค่า (ตั้งค่าพอร์ต / แผนซื้อประจำ) และที่เก็บในเครื่อง
   'store.settingsConflict': {
