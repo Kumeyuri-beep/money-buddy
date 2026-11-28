@@ -336,7 +336,7 @@ describe('นำเข้าแบบแบ่งก้อน (เกิน 1,50
     });
     const data = { ...many(1600), investments: { assets: [{ id: 's', name: 'สมมติ', kind: 'fund' as const, accountId: 'a' }], trades: [], prices: [] } };
     await expect(createSupabaseRepository(client, 'u').importBackup(data)).rejects.toThrow(/ข้อมูลลงทุนยังไม่ได้นำเข้า/);
-    expect(calls.some((c) => c.name.startsWith('import_ledger_investments_as'))).toBe(false);
+    expect(calls.some((c) => c.name.startsWith('import_ledger_investments'))).toBe(false);
   });
 
   it('ล้างเป็นชุด (more แล้ว done) ยังบอกว่าล้างให้แล้ว', async () => {

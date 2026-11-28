@@ -125,6 +125,14 @@ describe('ฐานข้อมูลตอบ PT412 = บัญชีเปล�
     expect(e?.message).toMatch(/หยุดล้าง/);
   });
 
+  it('สั่งล้างส่วนค้างเองแล้วบัญชีเปลี่ยนหลังล้างไปบางชุด: บอกว่าอาจล้างไปแล้วบางส่วน', async () => {
+    let n = 0;
+    const { client: c } = client(() => (++n === 1 ? { data: 'more' } : changed));
+    const e = await caught(repo(c).abortUnfinishedImport());
+    expect(e).toBeInstanceOf(AccountChangedError);
+    expect(e?.message).toMatch(/บางส่วน/);
+  });
+
   it.each([
     ['ข้อมูลลงทุน', true, 0],
     ['แทนหมวดเดิม', true, 2],

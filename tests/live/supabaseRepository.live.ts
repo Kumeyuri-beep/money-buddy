@@ -97,9 +97,8 @@ describe('PDPA (M2-E): ยอมรับนโยบาย · ลบบัญ�
     expect(wrong.error).toBeNull();
     expect(wrong.data).toBe('wrong');
     expect(await repo.isEmpty()).toBe(false);
-    const ok = await client.rpc('delete_my_account_step', { p_password: live.users[2]!.password });
-    expect(ok.error).toBeNull();
-    expect(ok.data).toBe('done'); // สมุดเล็ก (< 500 รายการ) จบในชุดเดียว
+    // ลบจริงด้วยทางที่เว็บใช้ (delete_my_account_step_as พร้อมผู้ใช้ของหน้าจอ)
+    expect(await deleteMyAccount({ rpc: (name, args) => client.rpc(name, args) }, id, live.users[2]!.password)).toEqual({ ok: true });
     for (const table of ['accounts', 'entries', 'lines', 'bills', 'settings', 'profiles', 'assets', 'trades', 'asset_prices']) {
       const left = await admin.from(table).select('*', { count: 'exact', head: true }).eq('user_id', id);
       expect(left.error, table).toBeNull();
@@ -332,7 +331,9 @@ describe('ฐานข้อมูลตรวจผู้ใช้ที่ต�
         return typeof value === 'function' ? value.bind(target) : value;
       },
     });
-    const staleRepo = createSupabaseRepository(stale, aId, { getPasswordForReset: async () => live.users[1]!.password });
+    // ใช้รหัสผ่านที่ผิดโดยตั้งใจ: ถ้าวันหนึ่งด่านผู้ใช้หายไป เทสต์ต้องล้มโดยไม่ล้างหรือลบบัญชีทดสอบจริง · ด่านผู้ใช้ตรวจก่อนรหัสผ่าน จึงยังได้ PT412
+    const wrongPassword = 'definitely-wrong-1A';
+    const staleRepo = createSupabaseRepository(stale, aId, { getPasswordForReset: async () => wrongPassword });
     const ledger = buildInitialLedger([{ name: 'ของหน้าจอ A', opening: '10' }], '2026-11-01');
     await expect(staleRepo.saveInitialLedger(ledger)).rejects.toBeInstanceOf(AccountChangedError);
     expect(await b.isEmpty()).toBe(true);
@@ -342,7 +343,7 @@ describe('ฐานข้อมูลตรวจผู้ใช้ที่ต�
     await b.saveInitialLedger(buildInitialLedger([{ name: 'ของ B', opening: '5' }], '2026-11-01'));
     await expect(staleRepo.resetAll()).rejects.toBeInstanceOf(AccountChangedError);
     expect((await b.loadLedger()).entries).toHaveLength(1);
-    const deleted = await deleteMyAccount({ rpc: (name, args) => bc.rpc(name, args) }, aId, live.users[1]!.password);
+    const deleted = await deleteMyAccount({ rpc: (name, args) => bc.rpc(name, args) }, aId, wrongPassword);
     expect(deleted.ok).toBe(false);
     if (!deleted.ok) expect(deleted.message).toMatch(/บัญชีที่เข้าสู่ระบบเปลี่ยนไป/);
     expect((await b.loadLedger()).entries).toHaveLength(1);
@@ -366,7 +367,12 @@ describe('ฐานข้อมูลตรวจผู้ใช้ที่ต�
     expect(out.entries).toBe(1600);
     expect(await b.hasUnfinishedImport()).toBe(false);
     expect(await b.loadSettings()).toEqual({ payDay: 7 });
-    expect((await b.loadLedger()).entries).toHaveLength(1600);
+    // ล้างส่วนค้างผ่านทางที่เว็บใช้ (import_ledger_abort_as) เมื่อไม่มีอะไรค้าง ต้องไม่ลบข้อมูล
+    await b.abortUnfinishedImport();
+    const stored = (await b.loadLedger()).entries;
+    expect(stored).toHaveLength(1600);
+    const total = (id: string) => stored.flatMap((e) => e.lines).filter((l) => l.accountId === id).reduce((n, l) => n + l.amount, 0);
+    expect([total('w1'), total('open')]).toEqual([1600, -1600]);
     await wipe(1);
   }, 120_000);
 });

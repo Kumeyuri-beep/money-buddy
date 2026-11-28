@@ -583,7 +583,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
   /** ล้างส่วนที่นำเข้าค้างเป็นชุด (ฐานข้อมูลลบทีละ ≤ 500 รายการ คืน 'more' จนกว่าจะหมด) · หยุดที่ 200 รอบกันวนไม่รู้จบ · false = ไม่มีเซสชันค้างตั้งแต่ครั้งแรก (ไม่ได้ล้างอะไร) */
   async function abortImport(): Promise<boolean> {
     for (let i = 0; i < 200; i++) {
-      const changed = 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงหยุดล้าง โหลดหน้าใหม่';
+      const changed = i === 0 ? 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงหยุดล้าง โหลดหน้าใหม่' : 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงหยุดล้าง อาจล้างไปแล้วบางส่วน เข้าสู่ระบบบัญชีเดิมแล้วล้างส่วนที่เหลือต่อได้';
       await assertSameAccount(changed);
       const result = await guardedRpc('import_ledger_abort', {}, changed);
       if (result !== 'more') return !(i === 0 && result === 'none');
