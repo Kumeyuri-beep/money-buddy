@@ -11,11 +11,11 @@
 3. ไม่มีหัวคำขอ = ผ่าน (แท็บรุ่นเก่า เทสต์ SQL งานผู้ดูแล) · เป็นการเพิ่มอย่างเดียว
 
 ## งาน
-- [ ] เทสต์เว็บด้วย supabase-js จริง + fetch จำลอง: ทุกทางเขียนส่งหัวคำขอ · PT412 = AccountChangedError
-- [ ] เว็บ: `src/storage/expectedUser.ts` + `supabaseRepository.ts` + ข้อความ `store.accountChanged`
-- [ ] migration `20261129000100_expected_user_header_guard.sql` + `supabase/tests/expected_user_header_test.sql`
-- [ ] live test: PT412 ผ่าน PostgREST จริง + CORS preflight รับหัวคำขอ
-- [ ] dry-run แบบย้อนกลับ + SQL ครบทุกไฟล์ · money-auditor · security-auditor
+- [x] เทสต์เว็บด้วย supabase-js จริง + fetch จำลอง: ทุกทางเขียนส่งหัวคำขอ · PT412 = AccountChangedError
+- [x] เว็บ: `src/storage/expectedUser.ts` + `supabaseRepository.ts` + ข้อความ `store.accountChanged`
+- [x] migration `20261129000100_expected_user_header_guard.sql` + `supabase/tests/expected_user_header_test.sql`
+- [x] live test: PT412 ผ่าน PostgREST จริง + CORS preflight รับหัวคำขอ
+- [x] dry-run แบบย้อนกลับ + SQL ครบทุกไฟล์ · money-auditor · security-auditor
 - [ ] เปิด PR draft แล้วรอเจ้าของ
 
 ## ลำดับหลังอนุมัติ
