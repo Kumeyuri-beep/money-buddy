@@ -48,7 +48,7 @@ begin
   update public.profiles set password_changed_at = now() - interval '2 days' where user_id in (ua, ub);
 
   perform pg_temp.login(ua);
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   perform pg_temp.settle();
   insert into public.accounts (id, type, name, currency, kind) values ('inv1', 'asset', 'กองทุน ก', 'THB', 'investment'), ('inv2', 'asset', 'กองทุน ข', 'THB', 'investment');
   insert into public.assets (id, name, kind, account_id) values ('a1', 'กองทุน ก', 'fund', 'inv1'), ('a2', 'กองทุน ข', 'fund', 'inv2');
@@ -192,7 +192,7 @@ begin
   perform pg_temp.settle();
 
   perform pg_temp.login(ub);
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   insert into public.accounts (id, type, name, currency, kind) values ('inv9', 'asset', 'กองทุน ค', 'THB', 'investment'), ('inv-wht', 'income', 'ชื่อซ้ำชนิดผิด', 'THB', 'normal');
   insert into public.assets (id, name, kind, account_id) values ('b1', 'กองทุน ค', 'fund', 'inv9');
   perform pg_temp.settle();
@@ -212,7 +212,7 @@ begin
   perform pg_temp.logout();
   delete from public.assets where user_id = ub;
   perform pg_temp.login(ub);
-  r := (public.import_ledger_investments('{"assets":[{"id":"b2","name":"นำเข้า","kind":"fund","accountId":"inv9"}],"prices":[],"trades":[
+  r := (private.import_ledger_investments('{"assets":[{"id":"b2","name":"นำเข้า","kind":"fund","accountId":"inv9"}],"prices":[],"trades":[
      {"id":"i-sell","assetId":"b2","kind":"sell","date":"2026-11-10","units":"100000000","priceMicro":6000000,"fee":0},
      {"id":"i-buy","assetId":"b2","kind":"buy","date":"2026-11-05","units":"1000000000","priceMicro":5000000,"amount":50000,"fee":0}]}'::jsonb))::text;
   if r not like '%"trades": 2%' then raise exception 'FAIL: T8 นำเข้าไม่ผ่าน (%)', r; end if;

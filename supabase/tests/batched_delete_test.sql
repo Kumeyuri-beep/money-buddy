@@ -70,16 +70,16 @@ begin
 
   -- T1 ยังไม่เปลี่ยนรหัส = ทุกฟังก์ชันปฏิเสธ
   perform pg_temp.login(ua);
-  if pg_temp.fails($$ select public.reset_my_ledger_step('old-password') $$) is null then raise exception 'FAIL: T1 reset'; end if;
-  if pg_temp.fails($$ select public.delete_my_account_step('old-password') $$) is null then raise exception 'FAIL: T1 delete'; end if;
+  if pg_temp.fails($$ select private.reset_my_ledger_step('old-password') $$) is null then raise exception 'FAIL: T1 reset'; end if;
+  if pg_temp.fails($$ select private.delete_my_account_step('old-password') $$) is null then raise exception 'FAIL: T1 delete'; end if;
   perform pg_temp.logout();
   update auth.users set encrypted_password = extensions.crypt('new-password', extensions.gen_salt('bf')) where id in (ua, ub, uc, ud, ue, uf, ug);
 
   -- T2 cooldown 24 ชม. ยังบังคับ (เพิ่งเปลี่ยนรหัส) ทั้งสองฟังก์ชัน · ไม่นับเป็นการลองรหัส
   perform pg_temp.login(ua);
-  r := pg_temp.fails($$ select public.reset_my_ledger_step('new-password') $$);
+  r := pg_temp.fails($$ select private.reset_my_ledger_step('new-password') $$);
   if r is null or r not like '%24 ชั่วโมง%' then raise exception 'FAIL: T2 reset ไม่ติด cooldown (%)', r; end if;
-  r := pg_temp.fails($$ select public.delete_my_account_step('new-password') $$);
+  r := pg_temp.fails($$ select private.delete_my_account_step('new-password') $$);
   if r is null or r not like '%24 ชั่วโมง%' then raise exception 'FAIL: T2 delete ไม่ติด cooldown (%)', r; end if;
   perform pg_temp.logout();
   select count(*) into v_attempts from private.delete_attempts where user_id = ua;
@@ -98,12 +98,12 @@ begin
   -- T3 รหัสผิด = 'wrong' ไม่ลบอะไรเลย · ถูกจำกัดเมื่อผิดครบ 5 ครั้ง (แม้ใส่รหัสถูกหลังจากนั้น) ทั้งสองฟังก์ชัน
   perform pg_temp.login(ua);
   for i in 1..5 loop
-    if public.reset_my_ledger_step('wrong-' || i) <> 'wrong' then raise exception 'FAIL: T3 รหัสผิดไม่คืน wrong (ครั้ง %)', i; end if;
+    if private.reset_my_ledger_step('wrong-' || i) <> 'wrong' then raise exception 'FAIL: T3 รหัสผิดไม่คืน wrong (ครั้ง %)', i; end if;
   end loop;
   select count(*) into n from public.entries; if n <> 1202 then raise exception 'FAIL: T3 รหัสผิดแต่ข้อมูลหาย (%)', n; end if;
-  r := pg_temp.fails($$ select public.reset_my_ledger_step('new-password') $$);
+  r := pg_temp.fails($$ select private.reset_my_ledger_step('new-password') $$);
   if r is null or r not like '%ลองผิดหลายครั้ง%' then raise exception 'FAIL: T3 ไม่ถูกจำกัดการลองหลังผิด 5 ครั้ง (%)', r; end if;
-  r := pg_temp.fails($$ select public.delete_my_account_step('new-password') $$);
+  r := pg_temp.fails($$ select private.delete_my_account_step('new-password') $$);
   if r is null or r not like '%ลองผิดหลายครั้ง%' then raise exception 'FAIL: T3 delete ไม่ถูกจำกัด (%)', r; end if;
   perform pg_temp.logout();
   delete from private.delete_attempts where user_id = ua;
@@ -111,9 +111,9 @@ begin
   -- T3b รหัสผิด 4 ครั้งแล้วรหัสถูกยังใช้ได้ · ตัวนับไม่เพิ่มตอนรหัสถูก (ยังเป็น 4)
   perform pg_temp.login(ug);
   for i in 1..4 loop
-    if public.reset_my_ledger_step('bad-' || i) <> 'wrong' then raise exception 'FAIL: T3b รหัสผิดไม่คืน wrong'; end if;
+    if private.reset_my_ledger_step('bad-' || i) <> 'wrong' then raise exception 'FAIL: T3b รหัสผิดไม่คืน wrong'; end if;
   end loop;
-  if public.reset_my_ledger_step('new-password') <> 'done' then raise exception 'FAIL: T3b รหัสถูกหลังผิด 4 ครั้งต้องได้ done'; end if;
+  if private.reset_my_ledger_step('new-password') <> 'done' then raise exception 'FAIL: T3b รหัสถูกหลังผิด 4 ครั้งต้องได้ done'; end if;
   perform pg_temp.logout();
   select count(*) into v_attempts from private.delete_attempts where user_id = ug;
   if v_attempts <> 4 then raise exception 'FAIL: T3b ตัวนับต้องเป็น 4 (นับเฉพาะรหัสผิด) ได้ %', v_attempts; end if;
@@ -123,9 +123,9 @@ begin
   delete from private.delete_attempts where user_id = ub;
   perform pg_temp.login(ub);
   for i in 1..5 loop
-    if public.reset_my_ledger('bad-old-' || i) then raise exception 'FAIL: T3c ฟังก์ชันเดิมรหัสผิดต้องคืน false'; end if;
+    if private.reset_my_ledger('bad-old-' || i) then raise exception 'FAIL: T3c ฟังก์ชันเดิมรหัสผิดต้องคืน false'; end if;
   end loop;
-  r := pg_temp.fails($$ select public.reset_my_ledger_step('new-password') $$);
+  r := pg_temp.fails($$ select private.reset_my_ledger_step('new-password') $$);
   if r is null or r not like '%ลองผิดหลายครั้ง%' then raise exception 'FAIL: T3c _step ไม่เห็นตัวนับของฟังก์ชันเดิม (%)', r; end if;
   perform pg_temp.logout();
   delete from private.delete_attempts where user_id = ub;
@@ -134,7 +134,7 @@ begin
   perform pg_temp.login(ua);
   steps := 0;
   loop
-    r := public.reset_my_ledger_step('new-password');
+    r := private.reset_my_ledger_step('new-password');
     steps := steps + 1;
     exit when r = 'done';
     if r <> 'more' then raise exception 'FAIL: T4 ผลไม่คาด % (ชุดที่ %)', r, steps; end if;
@@ -157,7 +157,7 @@ begin
   perform pg_temp.login(ue);
   steps := 0;
   loop
-    r := public.reset_my_ledger_step('new-password');
+    r := private.reset_my_ledger_step('new-password');
     steps := steps + 1;
     exit when r = 'done';
     if r <> 'more' then raise exception 'FAIL: T4b ผลไม่คาด %', r; end if;
@@ -172,12 +172,12 @@ begin
   -- T4c ชุดตามบรรทัด: 102 รายการ (100 × 300 บรรทัด + 2 รายการเล็ก) ชุดแรกต้องไม่เกิน ~20,000 บรรทัด (ลบได้ 66 รายการหนัก) แล้วยังเหลือ → more
   perform pg_temp.login(ud);
   select count(*) into n from public.entries; if n <> 102 then raise exception 'FAIL: T4c seed ผิด (%)', n; end if;
-  if public.reset_my_ledger_step('new-password') <> 'more' then raise exception 'FAIL: T4c ชุดแรกต้องคืน more'; end if;
+  if private.reset_my_ledger_step('new-password') <> 'more' then raise exception 'FAIL: T4c ชุดแรกต้องคืน more'; end if;
   select count(*) into n from public.entries;
   if n < 30 or n > 45 then raise exception 'FAIL: T4c ชุดแรกควรลบราว 66 รายการ (จำกัดบรรทัด) เหลือ % ', n; end if;
   steps := 1;
   loop
-    r := public.reset_my_ledger_step('new-password');
+    r := private.reset_my_ledger_step('new-password');
     steps := steps + 1;
     exit when r = 'done';
     if r <> 'more' or steps > 6 then raise exception 'FAIL: T4c ผลไม่คาด % (ชุด %)', r, steps; end if;
@@ -187,14 +187,14 @@ begin
 
   -- T5 ล้างสมุดว่างซ้ำ: done ทันที ไม่ error (วนซ้ำหลังเน็ตหลุดได้)
   perform pg_temp.login(ua);
-  if public.reset_my_ledger_step('new-password') <> 'done' then raise exception 'FAIL: T5 สมุดว่างต้องได้ done'; end if;
+  if private.reset_my_ledger_step('new-password') <> 'done' then raise exception 'FAIL: T5 สมุดว่างต้องได้ done'; end if;
   perform pg_temp.logout();
 
   -- T6 ลบบัญชีเป็นชุด (มีเซสชันนำเข้าค้างด้วย): C มี 1,202 รายการ → more, more, done · บัญชี C หาย · B ยังอยู่
   perform pg_temp.login(uc);
   steps := 0;
   loop
-    r := public.delete_my_account_step('new-password');
+    r := private.delete_my_account_step('new-password');
     steps := steps + 1;
     exit when r = 'done';
     if r <> 'more' then raise exception 'FAIL: T6 ผลไม่คาด % (ชุดที่ %)', r, steps; end if;
@@ -211,13 +211,13 @@ begin
   -- T6b พหุคูณของ 500 พอดี (1,002 = 500 + 500 + 2): ไม่มีชุดว่างเกิน · ลบบัญชีที่ชุดสุดท้าย
   -- (F ใช้ทดสอบกลางลูปด้านล่างด้วย จึงทดสอบกับ 1,002 รายการ: more, more, done)
   perform pg_temp.login(uf);
-  if public.delete_my_account_step('new-password') <> 'more' then raise exception 'FAIL: T6b ชุดแรกต้องคืน more'; end if;
+  if private.delete_my_account_step('new-password') <> 'more' then raise exception 'FAIL: T6b ชุดแรกต้องคืน more'; end if;
   perform pg_temp.logout();
 
   -- T6c กลางลูป: เปลี่ยนรหัสผ่านใหม่ (cooldown ใหม่) → ชุดถัดไปถูกปฏิเสธ ไม่ลบเพิ่ม
   update public.profiles set password_changed_at = now() where user_id = uf;
   perform pg_temp.login(uf);
-  r := pg_temp.fails($$ select public.delete_my_account_step('new-password') $$);
+  r := pg_temp.fails($$ select private.delete_my_account_step('new-password') $$);
   if r is null or r not like '%24 ชั่วโมง%' then raise exception 'FAIL: T6c เปลี่ยนรหัสกลางลูปแล้วยังลบต่อได้ (%)', r; end if;
   perform pg_temp.logout();
   update public.profiles set password_changed_at = now() - interval '2 days' where user_id = uf;
@@ -225,21 +225,21 @@ begin
   -- T6d กลางลูป: session ถูกเพิกถอน → ชุดถัดไปถูกปฏิเสธ
   delete from auth.sessions where user_id = uf;
   perform pg_temp.login_existing(uf);
-  r := pg_temp.fails($$ select public.delete_my_account_step('new-password') $$);
+  r := pg_temp.fails($$ select private.delete_my_account_step('new-password') $$);
   if r is null then raise exception 'FAIL: T6d session ที่ถูกเพิกถอนยังลบต่อได้'; end if;
   perform pg_temp.logout();
   if not exists (select 1 from auth.users where id = uf) then raise exception 'FAIL: T6d บัญชีถูกลบด้วย session ที่เพิกถอนแล้ว'; end if;
 
   -- T6e ลบต่อหลังล็อกอินใหม่ได้: เหลือ 502 รายการ → more, done (ชุดละ 500 แล้วเหลือ 2 → ลบบัญชี)
   perform pg_temp.login(uf);
-  if public.delete_my_account_step('new-password') <> 'more' then raise exception 'FAIL: T6e ควรคืน more'; end if;
-  if public.delete_my_account_step('new-password') <> 'done' then raise exception 'FAIL: T6e ควรคืน done'; end if;
+  if private.delete_my_account_step('new-password') <> 'more' then raise exception 'FAIL: T6e ควรคืน more'; end if;
+  if private.delete_my_account_step('new-password') <> 'done' then raise exception 'FAIL: T6e ควรคืน done'; end if;
   perform pg_temp.logout();
   if exists (select 1 from auth.users where id = uf) then raise exception 'FAIL: T6e บัญชียังอยู่'; end if;
 
   -- T7 รหัสผิดตอนลบบัญชี = 'wrong' บัญชีไม่ถูกลบ
   perform pg_temp.login(ub);
-  if public.delete_my_account_step('wrong-x') <> 'wrong' then raise exception 'FAIL: T7 รหัสผิดไม่คืน wrong'; end if;
+  if private.delete_my_account_step('wrong-x') <> 'wrong' then raise exception 'FAIL: T7 รหัสผิดไม่คืน wrong'; end if;
   perform pg_temp.logout();
   if not exists (select 1 from auth.users where id = ub) then raise exception 'FAIL: T7 รหัสผิดแต่บัญชีถูกลบ'; end if;
 
@@ -250,30 +250,30 @@ begin
   update public.profiles set password_changed_at = now() where user_id = ub;
   insert into private.import_sessions (user_id, expected_entries, received_entries) values (ub, 5000, 700);
   perform pg_temp.login(ub);
-  if public.import_ledger_abort() <> 'more' then raise exception 'FAIL: T7b ชุดแรกควรคืน more'; end if;
-  if public.import_ledger_abort() <> 'done' then raise exception 'FAIL: T7b ชุดสองควรคืน done'; end if;
-  if public.import_ledger_abort() <> 'none' then raise exception 'FAIL: T7b หลัง done ควรคืน none'; end if;
+  if private.import_ledger_abort() <> 'more' then raise exception 'FAIL: T7b ชุดแรกควรคืน more'; end if;
+  if private.import_ledger_abort() <> 'done' then raise exception 'FAIL: T7b ชุดสองควรคืน done'; end if;
+  if private.import_ledger_abort() <> 'none' then raise exception 'FAIL: T7b หลัง done ควรคืน none'; end if;
   perform pg_temp.logout();
   if pg_temp.left_rows(ub) <> 0 then raise exception 'FAIL: T7b abort แล้วยังเหลือแถว'; end if;
 
   -- T8 เรียกแบบอ่านอย่างเดียว (GET) ถูกปฏิเสธ · anon เรียกไม่ได้ · ผู้ใช้เรียกตัวช่วย private ตรงๆ ไม่ได้
   update public.profiles set password_changed_at = now() - interval '2 days' where user_id = ub;
   perform pg_temp.login(ub);
-  r := pg_temp.fails($$ select set_config('transaction_read_only', 'on', true), public.reset_my_ledger_step('new-password') $$);
+  r := pg_temp.fails($$ select set_config('transaction_read_only', 'on', true), private.reset_my_ledger_step('new-password') $$);
   if r is null or r not like '%เขียนได้%' then raise exception 'FAIL: T8 เรียกแบบอ่านอย่างเดียวไม่ถูกปฏิเสธด้วยเหตุผลที่ถูก (%)', r; end if;
   if pg_temp.fails($$ select private.deletion_gate('new-password') $$) is null then raise exception 'FAIL: T8 ผู้ใช้เรียก private.deletion_gate ตรงๆ ได้'; end if;
   if pg_temp.fails(format($$ select private.delete_entry_batch('%s') $$, ub)) is null then raise exception 'FAIL: T8 ผู้ใช้เรียก private.delete_entry_batch ตรงๆ ได้'; end if;
   perform pg_temp.logout();
   execute 'set local role anon';
-  if pg_temp.fails($$ select public.reset_my_ledger_step('x') $$) is null then raise exception 'FAIL: T8 anon เรียก reset step ได้'; end if;
-  if pg_temp.fails($$ select public.delete_my_account_step('x') $$) is null then raise exception 'FAIL: T8 anon เรียก delete step ได้'; end if;
+  if pg_temp.fails($$ select private.reset_my_ledger_step('x') $$) is null then raise exception 'FAIL: T8 anon เรียก reset step ได้'; end if;
+  if pg_temp.fails($$ select private.delete_my_account_step('x') $$) is null then raise exception 'FAIL: T8 anon เรียก delete step ได้'; end if;
   execute 'reset role';
 
   -- T9 สิทธิ์ในแคตตาล็อก: ฟังก์ชันเดิมยังอยู่ · _step เปิดให้ authenticated เท่านั้น · ตัวช่วย private ไม่มี PUBLIC/anon/authenticated
-  if not has_function_privilege('authenticated', 'public.reset_my_ledger(text)', 'execute') then raise exception 'FAIL: T9 reset_my_ledger เดิมหาย'; end if;
-  if not has_function_privilege('authenticated', 'public.delete_my_account(text)', 'execute') then raise exception 'FAIL: T9 delete_my_account เดิมหาย'; end if;
-  if has_function_privilege('anon', 'public.reset_my_ledger_step(text)', 'execute') or has_function_privilege('anon', 'public.delete_my_account_step(text)', 'execute') then raise exception 'FAIL: T9 anon มีสิทธิ์'; end if;
-  if not has_function_privilege('authenticated', 'public.reset_my_ledger_step(text)', 'execute') or not has_function_privilege('authenticated', 'public.delete_my_account_step(text)', 'execute') then raise exception 'FAIL: T9 authenticated ไม่มีสิทธิ์ _step'; end if;
+  if not has_function_privilege('authenticated', 'private.reset_my_ledger(text)', 'execute') then raise exception 'FAIL: T9 reset_my_ledger เดิมหาย'; end if;
+  if not has_function_privilege('authenticated', 'private.delete_my_account(text)', 'execute') then raise exception 'FAIL: T9 delete_my_account เดิมหาย'; end if;
+  if has_function_privilege('anon', 'private.reset_my_ledger_step(text)', 'execute') or has_function_privilege('anon', 'private.delete_my_account_step(text)', 'execute') then raise exception 'FAIL: T9 anon มีสิทธิ์'; end if;
+  if not has_function_privilege('authenticated', 'private.reset_my_ledger_step(text)', 'execute') or not has_function_privilege('authenticated', 'private.delete_my_account_step(text)', 'execute') then raise exception 'FAIL: T9 authenticated ไม่มีสิทธิ์ _step'; end if;
   if exists (
     select 1 from pg_proc p where p.oid in ('private.deletion_gate(text)'::regprocedure, 'private.delete_entry_batch(uuid)'::regprocedure)
       and (p.proacl is null or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0))

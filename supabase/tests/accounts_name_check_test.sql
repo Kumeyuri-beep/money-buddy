@@ -61,7 +61,7 @@ begin
   if (select name from public.accounts where id = 'good-2') is distinct from 'ค่า กาแฟ (ร้านหน้า) #1' then raise exception 'FAIL: T3 update ที่ถูกปฏิเสธเปลี่ยนค่า'; end if;
 
   -- T4 ฟังก์ชันที่สร้างบัญชี (setup_ledger) ก็ถูกกันด้วย constraint เดียวกัน
-  st := pg_temp.state_of(format($q$select public.setup_ledger(%L::jsonb, '[]'::jsonb)$q$, json_build_array(json_build_object('id', 'w9', 'type', 'asset', 'name', 'กระเป๋า' || chr(8238) || 'กลับทิศ', 'currency', 'THB'))::text));
+  st := pg_temp.state_of(format($q$select private.setup_ledger(%L::jsonb, '[]'::jsonb)$q$, json_build_array(json_build_object('id', 'w9', 'type', 'asset', 'name', 'กระเป๋า' || chr(8238) || 'กลับทิศ', 'currency', 'THB'))::text));
   if st is null then raise exception 'FAIL: T4 setup_ledger ยอมรับชื่อกลับทิศ'; end if;
   if exists (select 1 from public.accounts where id = 'w9') then raise exception 'FAIL: T4 บัญชีที่ชื่อกลับทิศถูกสร้างผ่าน setup_ledger'; end if;
 

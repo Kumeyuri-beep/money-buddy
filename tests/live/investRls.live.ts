@@ -359,10 +359,10 @@ describe('พอร์ตลงทุน: แยกข้อมูลต่อ�
     expect(parseBackup(JSON.stringify(broken), '2026-11-12').ok).toBe(false);
     // ส่งตรงเข้า RPC (ข้ามตัวตรวจฝั่งเว็บ): ฐานข้อมูลต้องปฏิเสธทั้งก้อน
     await wipe(1);
-    const { client } = await signedIn(1);
-    const begin = await client.rpc('import_ledger', { p_data: { accounts: snapshot.accounts, entries: snapshot.entries } });
+    const { client, id } = await signedIn(1);
+    const begin = await client.rpc('import_ledger_as', { p_expected_user: id, p_data: { accounts: snapshot.accounts, entries: snapshot.entries } });
     expect(begin.error).toBeNull();
-    const bad = await client.rpc('import_ledger_investments', { p_data: broken.investments });
+    const bad = await client.rpc('import_ledger_investments_as', { p_expected_user: id, p_data: broken.investments });
     expect(bad.error).not.toBeNull();
     const inv = await b.loadInvestments();
     expect(inv).toEqual({ assets: [], trades: [], prices: [] });

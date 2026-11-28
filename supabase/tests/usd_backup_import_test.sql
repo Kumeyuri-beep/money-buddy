@@ -53,9 +53,9 @@ begin
 
   -- T1 นำเข้าข้อมูล USD ครบ: ผลที่คืนมีคีย์ใหม่ · ข้อมูลที่เก็บตรงกับไฟล์ทุกฟิลด์ (เซนต์/สตางค์/อัตรา)
   perform pg_temp.login(ua);
-  perform public.import_ledger(jsonb_build_object('accounts', accs, 'entries', ents));
+  perform private.import_ledger(jsonb_build_object('accounts', accs, 'entries', ents));
   perform pg_temp.settle();
-  v := public.import_ledger_investments(usd);
+  v := private.import_ledger_investments(usd);
   perform pg_temp.settle();
   if v <> '{"assets":1,"prices":0,"trades":1,"fxRates":1,"fxExchanges":1}'::jsonb then raise exception 'FAIL: T1 ผลที่คืนไม่ตรง (%)', v; end if;
   select count(*) into n from public.assets where id = 'us1' and instrument_currency = 'USD' and ticker = 'ABC' and exchange = 'NASDAQ' and account_id = 'inv-us';
@@ -70,7 +70,7 @@ begin
   if n <> 99900 then raise exception 'FAIL: T1 ยอดเงินสด USD ในสมุดผิด (%)', n; end if;
 
   -- T2 นำเข้าซ้ำ = ปฏิเสธ (ไม่ทับ) · ข้อมูลเดิมไม่เปลี่ยน
-  r := pg_temp.fails($q$ select public.import_ledger_investments('{"assets":[]}'::jsonb) $q$);
+  r := pg_temp.fails($q$ select private.import_ledger_investments('{"assets":[]}'::jsonb) $q$);
   if r is null or r not like '23505|%มีข้อมูลลงทุนอยู่แล้ว%' then raise exception 'FAIL: T2 นำเข้าซ้ำได้ (%)', r; end if;
   select count(*) into n from public.fx_exchanges; if n <> 1 then raise exception 'FAIL: T2 ข้อมูลเดิมเปลี่ยน'; end if;
   -- T2b ขอบของ R20.3 (ถ้อยคำใหม่): ซื้อ USD ที่ (A+F) x fx < 500,000 ปัดต้นทุนบาทเป็น 0 สตางค์ = ปฏิเสธ · = 500,000 พอดี ผ่าน (ปัดครึ่งขึ้นเป็น 1) · ค่าธรรมเนียมช่วยให้ผ่าน
@@ -88,9 +88,9 @@ begin
 
   -- T3 ไฟล์บาทเดิม (ไม่มีฟิลด์ USD) ได้ผลรูปเดิมทุกประการ: {assets, prices, trades} ไม่มีคีย์ fx
   perform pg_temp.login(ub);
-  perform public.import_ledger(jsonb_build_object('accounts', accs, 'entries', ents));
+  perform private.import_ledger(jsonb_build_object('accounts', accs, 'entries', ents));
   perform pg_temp.settle();
-  v := public.import_ledger_investments('{"assets":[{"id":"t1","name":"กองทุนไทย","kind":"fund","accountId":"inv-th"}]}'::jsonb);
+  v := private.import_ledger_investments('{"assets":[{"id":"t1","name":"กองทุนไทย","kind":"fund","accountId":"inv-th"}]}'::jsonb);
   perform pg_temp.settle();
   if v <> '{"assets":1,"prices":0,"trades":0}'::jsonb then raise exception 'FAIL: T3 ผลของไฟล์บาทเดิมเปลี่ยนรูป (%)', v; end if;
   select instrument_currency into k from public.assets where id = 't1';
@@ -99,27 +99,27 @@ begin
 
   -- T4 ข้อมูลผิดถูกปฏิเสธทั้งก้อน ไม่เหลือแถวค้าง (ผู้ใช้ C)
   perform pg_temp.login(uc);
-  perform public.import_ledger(jsonb_build_object('accounts', accs, 'entries', ents));
+  perform private.import_ledger(jsonb_build_object('accounts', accs, 'entries', ents));
   perform pg_temp.settle();
-  r := pg_temp.fails($q$ select public.import_ledger_investments('{"assets":[{"id":"us1","name":"x","kind":"stock","accountId":"inv-th","currency":"USD"}]}'::jsonb) $q$);
+  r := pg_temp.fails($q$ select private.import_ledger_investments('{"assets":[{"id":"us1","name":"x","kind":"stock","accountId":"inv-th","currency":"USD"}]}'::jsonb) $q$);
   if r is null or r not like '23514|%' then raise exception 'FAIL: T4 สินทรัพย์ USD ผูกบัญชีบาทผ่าน (%)', r; end if;
-  r := pg_temp.fails($q$ select public.import_ledger_investments('{"assets":[{"id":"us1","name":"x","kind":"stock","accountId":"inv-us","currency":"USD"}],"trades":[{"id":"t","assetId":"us1","kind":"buy","date":"2026-11-03","units":"100000000","amount":100,"entryId":"b1-e"}]}'::jsonb) $q$);
+  r := pg_temp.fails($q$ select private.import_ledger_investments('{"assets":[{"id":"us1","name":"x","kind":"stock","accountId":"inv-us","currency":"USD"}],"trades":[{"id":"t","assetId":"us1","kind":"buy","date":"2026-11-03","units":"100000000","amount":100,"entryId":"b1-e"}]}'::jsonb) $q$);
   if r is null or r not like '23514|%ต้องมีอัตรา%' then raise exception 'FAIL: T4 รายการ USD ไม่มีอัตราผ่าน (%)', r; end if;
-  r := pg_temp.fails($q$ select public.import_ledger_investments('{"assets":[{"id":"t1","name":"x","kind":"fund","accountId":"inv-th"}],"trades":[{"id":"t","assetId":"t1","kind":"buy","date":"2026-11-03","units":"100000000","amount":100,"fxRateMicro":35000000}]}'::jsonb) $q$);
+  r := pg_temp.fails($q$ select private.import_ledger_investments('{"assets":[{"id":"t1","name":"x","kind":"fund","accountId":"inv-th"}],"trades":[{"id":"t","assetId":"t1","kind":"buy","date":"2026-11-03","units":"100000000","amount":100,"fxRateMicro":35000000}]}'::jsonb) $q$);
   if r is null or r not like '23514|%ไม่มีอัตรา%' then raise exception 'FAIL: T4 รายการบาทมีอัตราผ่าน (%)', r; end if;
-  r := pg_temp.fails($q$ select public.import_ledger_investments('{"assets":[{"id":"us1","name":"x","kind":"stock","accountId":"inv-us","currency":"USD"}],"trades":[{"id":"t","assetId":"us1","kind":"reinvest","date":"2026-11-03","units":"100000000","amount":100,"fxRateMicro":35000000,"entryId":"b1-e"}]}'::jsonb) $q$);
+  r := pg_temp.fails($q$ select private.import_ledger_investments('{"assets":[{"id":"us1","name":"x","kind":"stock","accountId":"inv-us","currency":"USD"}],"trades":[{"id":"t","assetId":"us1","kind":"reinvest","date":"2026-11-03","units":"100000000","amount":100,"fxRateMicro":35000000,"entryId":"b1-e"}]}'::jsonb) $q$);
   if r is null or r not like '23514|%' then raise exception 'FAIL: T4 ปันผลลงทุนต่อของ USD ผ่าน (%)', r; end if;
-  r := pg_temp.fails($q$ select public.import_ledger_investments('{"fxRates":[{"accountId":"w1","date":"2026-11-02","rateMicro":35000000}]}'::jsonb) $q$);
+  r := pg_temp.fails($q$ select private.import_ledger_investments('{"fxRates":[{"accountId":"w1","date":"2026-11-02","rateMicro":35000000}]}'::jsonb) $q$);
   if r is null or r not like '23514|%บัญชีลงทุนสกุล USD%' then raise exception 'FAIL: T4 อัตราผูกกระเป๋าบาทผ่าน (%)', r; end if;
-  r := pg_temp.fails($q$ select public.import_ledger_investments('{"fxExchanges":[{"id":"fx1","date":"2026-11-02","direction":"thb_to_usd","thbSatang":7000000,"usdCents":200000,"rateMicro":35000001,"entryId":"fx1-e"}]}'::jsonb) $q$);
+  r := pg_temp.fails($q$ select private.import_ledger_investments('{"fxExchanges":[{"id":"fx1","date":"2026-11-02","direction":"thb_to_usd","thbSatang":7000000,"usdCents":200000,"rateMicro":35000001,"entryId":"fx1-e"}]}'::jsonb) $q$);
   if r is null or r not like '23514|%' then raise exception 'FAIL: T4 อัตราไม่ตรงสองจำนวนผ่าน (%)', r; end if;
-  r := pg_temp.fails($q$ select public.import_ledger_investments('{"fxExchanges":[{"id":"fx1","date":"2026-11-02","direction":"thb_to_usd","thbSatang":7000000,"usdCents":200000,"rateMicro":35000000,"entryId":"not-in-ledger"}]}'::jsonb) $q$);
+  r := pg_temp.fails($q$ select private.import_ledger_investments('{"fxExchanges":[{"id":"fx1","date":"2026-11-02","direction":"thb_to_usd","thbSatang":7000000,"usdCents":200000,"rateMicro":35000000,"entryId":"not-in-ledger"}]}'::jsonb) $q$);
   if r is null or r not like '23503|%' then raise exception 'FAIL: T4 การแลกเงินชี้ Entry ที่ไม่มีผ่าน (%)', r; end if;
-  r := pg_temp.fails($q$ select public.import_ledger_investments('{"fxRates":"x"}'::jsonb) $q$);
+  r := pg_temp.fails($q$ select private.import_ledger_investments('{"fxRates":"x"}'::jsonb) $q$);
   if r is null or r not like '22023|%' then raise exception 'FAIL: T4 fxRates ไม่ใช่อาร์เรย์ผ่าน (%)', r; end if;
-  r := pg_temp.fails($q$ select public.import_ledger_investments('{"fxExchanges":[1]}'::jsonb) $q$);
+  r := pg_temp.fails($q$ select private.import_ledger_investments('{"fxExchanges":[1]}'::jsonb) $q$);
   if r is null or r not like '22023|%' then raise exception 'FAIL: T4 fxExchanges แถวไม่ใช่วัตถุผ่าน (%)', r; end if;
-  r := pg_temp.fails($q$ select public.import_ledger_investments(jsonb_build_object('fxRates', (select jsonb_agg(jsonb_build_object('accountId', 'usd-cash', 'date', '2026-11-02', 'rateMicro', 1)) from generate_series(1, 10001)))) $q$);
+  r := pg_temp.fails($q$ select private.import_ledger_investments(jsonb_build_object('fxRates', (select jsonb_agg(jsonb_build_object('accountId', 'usd-cash', 'date', '2026-11-02', 'rateMicro', 1)) from generate_series(1, 10001)))) $q$);
   if r is null or r not like '22023|%เกินเพดาน%' then raise exception 'FAIL: T4 อัตราเกิน 10,000 แถวผ่าน (%)', r; end if;
   select (select count(*) from public.assets) + (select count(*) from public.trades) + (select count(*) from public.fx_rates) + (select count(*) from public.fx_exchanges) into n;
   if n <> 0 then raise exception 'FAIL: T4 ล้มแล้วยังเหลือแถวค้าง (%)', n; end if;
@@ -136,7 +136,7 @@ begin
   perform pg_temp.login(ua);
   n := 0;
   loop
-    r := public.reset_my_ledger_step('new-password');
+    r := private.reset_my_ledger_step('new-password');
     n := n + 1;
     exit when r = 'done';
     if r <> 'more' or n > 10 then raise exception 'FAIL: T6 ผลล้างข้อมูลไม่คาด % (ชุด %)', r, n; end if;
@@ -160,7 +160,7 @@ begin
 
   -- T8 anon เรียกนำเข้าไม่ได้
   execute 'set local role anon';
-  r := pg_temp.fails($q$ select public.import_ledger_investments('{}'::jsonb) $q$);
+  r := pg_temp.fails($q$ select private.import_ledger_investments('{}'::jsonb) $q$);
   execute 'reset role';
   if r is null then raise exception 'FAIL: T8 anon นำเข้าข้อมูลลงทุนได้'; end if;
 

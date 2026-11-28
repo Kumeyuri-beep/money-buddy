@@ -33,7 +33,7 @@ begin
   update auth.users set encrypted_password = extensions.crypt('new-password-2', extensions.gen_salt('bf')) where id = ub;
 
   perform pg_temp.login(ua);
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   insert into public.bills (id, name, amount, due_day) values ('b1', 'net', 500, 5);
   perform pg_temp.settle();
 
@@ -119,7 +119,7 @@ begin
 
   -- T8 นำเข้า: บิลพก lastPaidMonth มาจากไฟล์ได้ (ผู้ใช้ B ว่าง)
   perform pg_temp.login(ub);
-  perform public.import_ledger(('{"accounts":' || acc::text || ',"bills":[{"id":"ib","name":"n","amount":5,"dueDay":1,"lastPaidMonth":"2026-11"}],"entries":' || ent::text || '}')::jsonb);
+  perform private.import_ledger(('{"accounts":' || acc::text || ',"bills":[{"id":"ib","name":"n","amount":5,"dueDay":1,"lastPaidMonth":"2026-11"}],"entries":' || ent::text || '}')::jsonb);
   perform pg_temp.settle();
   select last_paid_month into v_paid from public.bills where id = 'ib';
   if v_paid is distinct from '2026-11' then raise exception 'FAIL: T8 นำเข้าแล้ว lastPaidMonth หาย (%)', v_paid; end if;

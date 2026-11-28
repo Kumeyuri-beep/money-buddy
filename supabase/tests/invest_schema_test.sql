@@ -52,7 +52,7 @@ begin
   update public.profiles set password_changed_at = now() - interval '2 days' where user_id in (ua, ub);
 
   perform pg_temp.login(ua);
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   perform pg_temp.settle();
 
   -- T1 บัญชีเดิม/ใหม่ที่ไม่ระบุ kind = normal
@@ -153,7 +153,7 @@ begin
   -- T7 แยกข้อมูลต่อผู้ใช้ (RLS): B อ่าน/แก้/ลบของ A ไม่ได้ · ใส่ user_id ของ A ไม่ได้ · ผูกสินทรัพย์ของ A ไม่ได้
   perform pg_temp.logout();
   perform pg_temp.login(ub);
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   insert into public.accounts (id, type, name, currency, kind) values ('inv1', 'asset', 'ของ B', 'THB', 'investment');
   perform pg_temp.settle();
   select count(*) into n from public.assets;       if n <> 0 then raise exception 'FAIL: T7 B เห็นสินทรัพย์ของ A (%)', n; end if;
@@ -226,7 +226,7 @@ begin
   perform pg_temp.settle();
   n := 0;
   loop
-    r := public.reset_my_ledger_step('new-password-1');
+    r := private.reset_my_ledger_step('new-password-1');
     n := n + 1;
     exit when r = 'done';
     if r <> 'more' or n > 10 then raise exception 'FAIL: T11 ผลไม่คาด % (ชุดที่ %)', r, n; end if;
@@ -259,7 +259,7 @@ begin
   perform pg_temp.settle();
   n := 0;
   loop
-    r := public.delete_my_account_step('new-password-2');
+    r := private.delete_my_account_step('new-password-2');
     n := n + 1;
     exit when r = 'done';
     if r <> 'more' or n > 10 then raise exception 'FAIL: T12 ผลไม่คาด % (ชุดที่ %)', r, n; end if;

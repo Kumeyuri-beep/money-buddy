@@ -98,7 +98,7 @@ begin
   if r is null then raise exception 'FAIL: T2 เขียนข้อมูลได้ทั้งที่ยังไม่เปลี่ยนรหัส'; end if;
   select count(*) into v_int from public.accounts;
   if v_int <> 0 then raise exception 'FAIL: T2 อ่านข้อมูลได้ทั้งที่ยังไม่เปลี่ยนรหัส'; end if;
-  r := pg_temp.fails($$ select public.setup_ledger('[]'::jsonb, '[]'::jsonb) $$);
+  r := pg_temp.fails($$ select private.setup_ledger('[]'::jsonb, '[]'::jsonb) $$);
   if r is null then raise exception 'FAIL: T2 setup_ledger ผ่านทั้งที่ยังไม่เปลี่ยนรหัส'; end if;
   r := pg_temp.fails($$ select public.record_consent('2026-11-09') $$);
   if r is null then raise exception 'FAIL: T2 record_consent ผ่านทั้งที่ยังไม่เปลี่ยนรหัส'; end if;
@@ -142,11 +142,11 @@ begin
   if r is null then raise exception 'FAIL: T6 anon เรียก create_entry ได้'; end if;
   r := pg_temp.fails($$ select public.update_entry('{}'::jsonb) $$);
   if r is null then raise exception 'FAIL: T6 anon เรียก update_entry ได้'; end if;
-  r := pg_temp.fails($$ select public.setup_ledger('[]'::jsonb, '[]'::jsonb) $$);
+  r := pg_temp.fails($$ select private.setup_ledger('[]'::jsonb, '[]'::jsonb) $$);
   if r is null then raise exception 'FAIL: T6 anon เรียก setup_ledger ได้'; end if;
   r := pg_temp.fails($$ select public.record_consent('2026-11-09') $$);
   if r is null then raise exception 'FAIL: T6 anon เรียก record_consent ได้'; end if;
-  r := pg_temp.fails($$ select public.delete_my_account('x') $$);
+  r := pg_temp.fails($$ select private.delete_my_account('x') $$);
   if r is null then raise exception 'FAIL: T6 anon เรียก delete_my_account ได้'; end if;
   execute 'reset role';
 
@@ -154,13 +154,13 @@ begin
   perform pg_temp.login(ua);
 
   -- T7 setup_ledger พร้อมยอดยกมา (source system) สมดุล
-  perform public.setup_ledger(acc, jsonb_build_array(jsonb_build_object(
+  perform private.setup_ledger(acc, jsonb_build_array(jsonb_build_object(
     'id','e-open','date','2026-11-01','memo','ยอดยกมา','source','system',
     'lines', jsonb_build_array(jsonb_build_object('accountId','w1','amount',100000), jsonb_build_object('accountId','open','amount',-100000)))));
   perform pg_temp.settle();
   select count(*) into v_int from public.accounts;
   if v_int <> 7 then raise exception 'FAIL: T7 setup_ledger จำนวนบัญชี (%)', v_int; end if;
-  r := pg_temp.fails($$ select public.setup_ledger('[]'::jsonb, '[]'::jsonb) $$);
+  r := pg_temp.fails($$ select private.setup_ledger('[]'::jsonb, '[]'::jsonb) $$);
   if r is null then raise exception 'FAIL: T7 setup_ledger ซ้ำได้'; end if;
 
   -- T8 เพิ่มรายการปกติ (รายจ่าย)
@@ -390,13 +390,13 @@ begin
 
   -- T24 delete_my_account: ผิด 5 ครั้งคืน false แล้วถูกล็อก (แม้ใส่รหัสถูก) · ข้อมูลของ B ยังอยู่
   -- T24-0 เรียกแบบอ่านอย่างเดียว (เช่น GET) ถูกปฏิเสธ ไม่ให้เดารหัสโดยตัวนับไม่ขยับ
-  r := pg_temp.fails($$ select set_config('transaction_read_only', 'on', true), public.delete_my_account('wrong-password') $$);
+  r := pg_temp.fails($$ select set_config('transaction_read_only', 'on', true), private.delete_my_account('wrong-password') $$);
   if r is null or r not like '%เขียนได้%' then raise exception 'FAIL: T24-0 เรียกแบบอ่านอย่างเดียวไม่ถูกปฏิเสธด้วยเหตุผลที่ถูก (%)', r; end if;
   for v_int in 1..5 loop
-    select public.delete_my_account('wrong-password') into v_bool;
+    select private.delete_my_account('wrong-password') into v_bool;
     if v_bool is distinct from false then raise exception 'FAIL: T24a รหัสผิดต้องคืน false (ครั้งที่ %)', v_int; end if;
   end loop;
-  r := pg_temp.fails($$ select public.delete_my_account('new-password-2') $$);
+  r := pg_temp.fails($$ select private.delete_my_account('new-password-2') $$);
   if r is null then raise exception 'FAIL: T24b ผิด 5 ครั้งแล้วยังลบได้ (ไม่ล็อก)'; end if;
   perform pg_temp.logout();
   select count(*) into v_int from auth.users where id = ub;
@@ -404,9 +404,9 @@ begin
 
   -- T25 ลบบัญชี A ด้วยรหัสถูก: คืน true ผู้ใช้และข้อมูลทุกตารางหมด (รวมรายการ system/recurring)
   perform pg_temp.login(ua);
-  select public.delete_my_account('wrong-password') into v_bool;
+  select private.delete_my_account('wrong-password') into v_bool;
   if v_bool is distinct from false then raise exception 'FAIL: T25a รหัสผิดต้องคืน false'; end if;
-  select public.delete_my_account('new-password-1') into v_bool;
+  select private.delete_my_account('new-password-1') into v_bool;
   if v_bool is distinct from true then raise exception 'FAIL: T25b รหัสถูกต้องคืน true'; end if;
   perform pg_temp.settle();
   perform pg_temp.logout();
@@ -425,7 +425,7 @@ begin
   update auth.users set encrypted_password = extensions.crypt('pw-c-new-12345', extensions.gen_salt('bf')) where id = uc;
   update public.profiles set password_changed_at = now() - interval '2 days' where user_id in (uc); -- ข้าม cooldown 24 ชม. ของ delete/reset (M2-F)
   perform pg_temp.login(uc);
-  perform public.setup_ledger(acc, jsonb_build_array(jsonb_build_object(
+  perform private.setup_ledger(acc, jsonb_build_array(jsonb_build_object(
     'id','c-open','date','2026-11-01','source','system',
     'lines', jsonb_build_array(jsonb_build_object('accountId','w1','amount',500), jsonb_build_object('accountId','open','amount',-500)))));
   insert into public.bills (id, name, amount, due_day) values ('cb','x',100,5);
@@ -444,7 +444,7 @@ begin
   -- T27 ผู้ใช้ B ที่ยังต้องเปลี่ยนรหัส ลบบัญชีด้วย RPC ไม่ได้
   update public.profiles set must_change_password = true where user_id = ub;
   perform pg_temp.login(ub);
-  r := pg_temp.fails($$ select public.delete_my_account('new-password-2') $$);
+  r := pg_temp.fails($$ select private.delete_my_account('new-password-2') $$);
   if r is null then raise exception 'FAIL: T27 ลบบัญชีทั้งที่ยังไม่เปลี่ยนรหัสผ่าน'; end if;
   perform pg_temp.logout();
 

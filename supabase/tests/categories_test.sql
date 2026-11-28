@@ -48,14 +48,14 @@ begin
 
   -- เตรียมสินทรัพย์ของ A (3 ตัว) และ B (1 ตัว)
   perform pg_temp.login(ua);
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   perform pg_temp.settle();
   insert into public.accounts (id, type, name, currency, kind) values
     ('inv-a', 'asset', 'หุ้น A', 'USD', 'investment'), ('inv-b', 'asset', 'หุ้น B', 'USD', 'investment'), ('inv-c', 'asset', 'หุ้น C', 'USD', 'investment');
   insert into public.assets (id, name, kind, account_id, instrument_currency) values
     ('sa', 'หุ้น A', 'stock', 'inv-a', 'USD'), ('sb', 'หุ้น B', 'stock', 'inv-b', 'USD'), ('sc', 'หุ้น C', 'stock', 'inv-c', 'USD');
   perform pg_temp.login(ub);
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   perform pg_temp.settle();
   insert into public.accounts (id, type, name, currency, kind) values ('inv-bx', 'asset', 'หุ้น BX', 'USD', 'investment');
   insert into public.assets (id, name, kind, account_id, instrument_currency) values ('sbx', 'หุ้น BX', 'stock', 'inv-bx', 'USD');
@@ -192,46 +192,46 @@ begin
   perform public.save_categories('[{"id":"bx","name":"B cat","targetBps":10000}]'::jsonb, '[{"assetId":"sbx","categoryId":"bx"}]'::jsonb);
   perform pg_temp.settle();
   perform pg_temp.login(ua);
-  if public.reset_my_ledger('new-password-1') is distinct from true then raise exception 'FAIL: T10 reset_my_ledger ต้องสำเร็จ'; end if;
+  if private.reset_my_ledger('new-password-1') is distinct from true then raise exception 'FAIL: T10 reset_my_ledger ต้องสำเร็จ'; end if;
   perform pg_temp.settle();
   if pg_temp.ac(ua, format($q$ select count(*) from public.asset_categories where user_id = %L $q$, ua)) <> 0 then raise exception 'FAIL: T10 ล้างข้อมูลแล้วหมวดของ A ต้องหมด'; end if;
   if pg_temp.ac(ub, format($q$ select count(*) from public.asset_categories where user_id = %L $q$, ub)) <> 1 then raise exception 'FAIL: T10 หมวดของ B ต้องไม่ถูกแตะ'; end if;
 
   -- T11 ล้างข้อมูลแบบเป็นชุดล้างหมวดด้วย · ยกเลิกนำเข้า **ไม่** ลบหมวด (20261127000100 · เจ้าของอนุมัติ 27 พ.ย. 2569)
   perform pg_temp.login(ua);
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   perform pg_temp.settle();
   perform public.save_categories('[{"id":"r1","name":"R1","targetBps":10000}]'::jsonb);
   perform pg_temp.settle();
-  if public.reset_my_ledger_step('new-password-1') not in ('done', 'more') then raise exception 'FAIL: T11a reset_my_ledger_step'; end if;
-  while public.reset_my_ledger_step('new-password-1') = 'more' loop null; end loop;
+  if private.reset_my_ledger_step('new-password-1') not in ('done', 'more') then raise exception 'FAIL: T11a reset_my_ledger_step'; end if;
+  while private.reset_my_ledger_step('new-password-1') = 'more' loop null; end loop;
   if pg_temp.ac(ua, format($q$ select count(*) from public.asset_categories where user_id = %L $q$, ua)) <> 0 then raise exception 'FAIL: T11a reset_my_ledger_step ต้องล้างหมวด'; end if;
   perform pg_temp.login(ua);
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   perform pg_temp.settle();
   perform public.save_categories('[{"id":"r2","name":"R2","targetBps":10000}]'::jsonb);
   perform pg_temp.settle();
   perform pg_temp.logout();
   insert into private.import_sessions (user_id, expected_entries, received_entries) values (ua, 5000, 1200);
   perform pg_temp.login(ua);
-  while public.import_ledger_abort() = 'more' loop null; end loop;
+  while private.import_ledger_abort() = 'more' loop null; end loop;
   if pg_temp.ac(ua, format($q$ select count(*) from public.asset_categories where user_id = %L $q$, ua)) <> 1 then raise exception 'FAIL: T11b import_ledger_abort ต้องไม่ลบหมวด (หมวดต้องยังอยู่)'; end if;
 
   -- T12 นำเข้าข้อมูลลงทุนพร้อมหมวด (ผู้ใช้ D สมุดใหม่) · เป้ารวมผิดล้มตอน commit · ไฟล์รุ่นเก่าไม่มีหมวดนำเข้าได้
   perform pg_temp.login(ud);
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   perform pg_temp.settle();
   insert into public.accounts (id, type, name, currency, kind) values ('inv-d', 'asset', 'หุ้น D', 'USD', 'investment');
-  r := pg_temp.fails($q$ select public.import_ledger_investments('{"categories":[{"id":"x1","name":"X","targetBps":5000}],"assets":[{"id":"sd","name":"หุ้น D","kind":"stock","accountId":"inv-d","currency":"USD","categoryId":"x1","sector":"Utilities"}]}'::jsonb) $q$);
+  r := pg_temp.fails($q$ select private.import_ledger_investments('{"categories":[{"id":"x1","name":"X","targetBps":5000}],"assets":[{"id":"sd","name":"หุ้น D","kind":"stock","accountId":"inv-d","currency":"USD","categoryId":"x1","sector":"Utilities"}]}'::jsonb) $q$);
   if r is null or r not like '23514|%' then raise exception 'FAIL: T12a เป้ารวมผิดตอนนำเข้าต้อง 23514 (ได้ %)', r; end if;
   if pg_temp.ac(ud, format($q$ select count(*) from public.assets where user_id = %L $q$, ud)) <> 0 then raise exception 'FAIL: T12a ล้มแล้วต้องย้อนกลับ (ไม่มีสินทรัพย์เหลือ)'; end if;
-  if (public.import_ledger_investments('{"categories":[{"id":"x1","name":"X","targetBps":10000}],"assets":[{"id":"sd","name":"หุ้น D","kind":"stock","accountId":"inv-d","currency":"USD","categoryId":"x1","sector":"Utilities"}]}'::jsonb)->>'categories')::integer <> 1 then raise exception 'FAIL: T12b นำเข้าหมวดต้องได้ 1'; end if;
+  if (private.import_ledger_investments('{"categories":[{"id":"x1","name":"X","targetBps":10000}],"assets":[{"id":"sd","name":"หุ้น D","kind":"stock","accountId":"inv-d","currency":"USD","categoryId":"x1","sector":"Utilities"}]}'::jsonb)->>'categories')::integer <> 1 then raise exception 'FAIL: T12b นำเข้าหมวดต้องได้ 1'; end if;
   perform pg_temp.settle();
   if (select category_id || '/' || sector from public.assets where id = 'sd') is distinct from 'x1/Utilities' then raise exception 'FAIL: T12b สินทรัพย์ต้องมีหมวดและ sector'; end if;
-  r := pg_temp.fails($q$ select public.import_ledger_investments('{"categories":[],"assets":[]}'::jsonb) $q$);
+  r := pg_temp.fails($q$ select private.import_ledger_investments('{"categories":[],"assets":[]}'::jsonb) $q$);
   if r is null or r not like '23505|%' then raise exception 'FAIL: T12c นำเข้าซ้ำทับข้อมูลเดิมต้อง 23505 (ได้ %)', r; end if;
   perform pg_temp.login(ub);
-  r := pg_temp.fails($q$ select public.import_ledger_investments('{"categories":"x"}'::jsonb) $q$);
+  r := pg_temp.fails($q$ select private.import_ledger_investments('{"categories":"x"}'::jsonb) $q$);
   if r is null or r not like '22023|%' then raise exception 'FAIL: T12d categories ไม่ใช่ array ต้อง 22023 (ได้ %)', r; end if;
 
   -- T13 ลบผู้ใช้ทั้งบัญชี (cascade ผ่าน auth.users) ด้วยสิทธิ์ผู้ดูแล ไม่ล้มเพราะด่านเป้ารวม · หมวดของผู้ใช้นั้นหายไปหมด
@@ -244,7 +244,7 @@ begin
   -- T14 ลบบัญชีผู้ใช้ทั้งบัญชีแบบเป็นชุด (delete_my_account_step) ล้างหมวดตาม (ผู้ใช้ D มีหมวดจาก T12)
   perform pg_temp.login(ud);
   if (select count(*) from public.asset_categories) <> 1 then raise exception 'FAIL: T14 ก่อนลบ D ต้องมี 1 หมวด'; end if;
-  while public.delete_my_account_step('new-password-4') = 'more' loop null; end loop;
+  while private.delete_my_account_step('new-password-4') = 'more' loop null; end loop;
   perform pg_temp.logout();
   if (select count(*) from public.asset_categories where user_id = ud) <> 0 then raise exception 'FAIL: T14 ลบบัญชีแล้วหมวดต้องหมด'; end if;
 

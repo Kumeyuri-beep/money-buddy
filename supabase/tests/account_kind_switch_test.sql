@@ -61,7 +61,7 @@ begin
   perform pg_temp.mkuser(ua, 'a', true); perform pg_temp.mkuser(ub, 'b', true); perform pg_temp.mkuser(uc, 'c', false);
 
   perform pg_temp.login(ua);
-  perform public.import_ledger(jsonb_build_object('accounts', accs, 'entries', ents));
+  perform private.import_ledger(jsonb_build_object('accounts', accs, 'entries', ents));
   perform pg_temp.settle();
   insert into public.assets (id, name, kind, account_id) values ('a1', 'กองทุนไทย', 'fund', 'inv-th');
   insert into public.bills (id, name, amount, due_day, wallet_id) values ('b1', 'ค่าเน็ต', 500, 5, 'w1');

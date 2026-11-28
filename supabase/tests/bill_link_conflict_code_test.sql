@@ -26,7 +26,7 @@ begin
   update auth.users set encrypted_password = extensions.crypt('new-password-1', extensions.gen_salt('bf')) where id = ua;
   update public.profiles set password_changed_at = now() - interval '2 days' where user_id = ua;
   perform pg_temp.login(ua);
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   perform pg_temp.settle();
   insert into public.bills (id, name, amount, due_day, wallet_id, category_id, start_month) values ('bill1', 'ค่าเน็ต', 59900, 5, 'w1', 'food', private.current_month());
   -- T1 before ไม่ตรง (บิลยังไม่เคยจ่าย = null แต่ส่ง 2020-01) → PT409 และไม่เขียนอะไร

@@ -46,11 +46,11 @@ begin
   if has_column_privilege('authenticated', 'public.accounts', 'archived', 'update') then raise exception 'FAIL: T1 authenticated แก้ archived ตรงๆ ได้'; end if;
 
   perform pg_temp.login(ua);
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   perform pg_temp.settle();
   -- ผู้ใช้ B มีหมวดรหัสเดียวกัน (กันรั่วข้ามผู้ใช้)
   perform pg_temp.login(ub);
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   perform pg_temp.settle();
 
   -- T2 ซ่อนหมวดที่มีรายการแล้ว: archived เปลี่ยน · ชื่อ/ชนิด/สกุลเงินและรายการเดิมไม่เปลี่ยน

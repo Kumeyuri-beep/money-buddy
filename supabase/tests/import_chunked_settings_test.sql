@@ -35,7 +35,7 @@ begin
 
   -- T1 ก้อนแรกจาก 2 รายการพร้อมค่าตั้งค่า = สำเร็จ เซสชันเปิด ค่าตั้งค่าถูกบันทึก
   perform pg_temp.login(ua);
-  v := public.import_ledger_begin(data, 2);
+  v := private.import_ledger_begin(data, 2);
   perform pg_temp.settle();
   if (v->>'done')::boolean or not public.import_ledger_status() then raise exception 'FAIL: T1a เซสชันต้องยังเปิด %', v; end if;
   if (select value->>'payDay' from public.settings) is distinct from '25' then raise exception 'FAIL: T1b ค่าตั้งค่าต้องถูกบันทึก'; end if;
@@ -48,7 +48,7 @@ begin
   if (select count(*) from public.settings) <> 1 then raise exception 'FAIL: T2c ลบค่าตั้งค่าขณะเซสชันเปิดได้'; end if;
 
   -- T3 ก้อนสุดท้ายครบ: ปิดเซสชัน ค่าตั้งค่ายังอยู่
-  perform public.import_ledger_append(e2);
+  perform private.import_ledger_append(e2);
   perform pg_temp.settle();
   if public.import_ledger_status() then raise exception 'FAIL: T3a เซสชันต้องปิด'; end if;
   if (select count(*) from public.entries) <> 2 or (select value->>'payDay' from public.settings) is distinct from '25' then raise exception 'FAIL: T3b รายการหรือค่าตั้งค่าไม่ครบ'; end if;
@@ -56,23 +56,23 @@ begin
   -- T4 ก้อนแรกครบทั้งไฟล์พร้อมค่าตั้งค่า
   perform pg_temp.logout();
   perform pg_temp.login(ub);
-  v := public.import_ledger_begin(data, 1);
+  v := private.import_ledger_begin(data, 1);
   perform pg_temp.settle();
   if not (v->>'done')::boolean or public.import_ledger_status() then raise exception 'FAIL: T4a ต้องเสร็จในก้อนเดียว %', v; end if;
   if (select value->>'payDay' from public.settings) is distinct from '25' then raise exception 'FAIL: T4b ค่าตั้งค่าต้องถูกบันทึก'; end if;
-  r := public.reset_my_ledger_step('new-password-1');
+  r := private.reset_my_ledger_step('new-password-1');
   perform pg_temp.settle();
   if r <> 'done' then raise exception 'FAIL: T4c ล้างไม่สำเร็จ (%)', r; end if;
 
   -- T5 ยกเลิกกลางทาง: ค่าตั้งค่าที่นำเข้าค้างถูกล้างด้วย
-  perform public.import_ledger_begin(data, 3);
+  perform private.import_ledger_begin(data, 3);
   perform pg_temp.settle();
-  if public.import_ledger_abort() <> 'done' then raise exception 'FAIL: T5a ล้างส่วนค้างไม่สำเร็จ'; end if;
+  if private.import_ledger_abort() <> 'done' then raise exception 'FAIL: T5a ล้างส่วนค้างไม่สำเร็จ'; end if;
   perform pg_temp.settle();
   if (select count(*) from public.settings) <> 0 or (select count(*) from public.accounts) <> 0 then raise exception 'FAIL: T5b ต้องไม่เหลือข้อมูลค้าง'; end if;
 
   -- T6 ค่าตั้งค่าผิดรูป = ย้อนกลับทั้งก้อน ไม่มีเซสชันค้าง
-  r := pg_temp.fails(format('select public.import_ledger_begin(%L::jsonb, 2)', data || '{"settings":[1]}'::jsonb));
+  r := pg_temp.fails(format('select private.import_ledger_begin(%L::jsonb, 2)', data || '{"settings":[1]}'::jsonb));
   if r is null or r not like '22023|%' then raise exception 'FAIL: T6a ต้อง 22023 (ได้ %)', r; end if;
   if public.import_ledger_status() or (select count(*) from public.accounts) <> 0 then raise exception 'FAIL: T6b ต้องไม่เหลือเซสชันหรือข้อมูล'; end if;
 

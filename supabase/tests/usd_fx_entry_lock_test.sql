@@ -38,7 +38,7 @@ begin
   update auth.users set encrypted_password = extensions.crypt('new-password-2', extensions.gen_salt('bf')) where id = ub;
 
   perform pg_temp.login(ua);
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   perform pg_temp.settle();
   insert into public.accounts (id, type, name, currency, kind) values ('usd-cash', 'asset', 'เงินสด USD', 'USD', 'investment'), ('inv-us', 'asset', 'หุ้นสหรัฐ ก', 'USD', 'investment');
   insert into public.assets (id, name, kind, account_id, instrument_currency, ticker, exchange) values ('us1', 'หุ้นสหรัฐ ก', 'stock', 'inv-us', 'USD', 'ABC', 'NASDAQ');
@@ -101,7 +101,7 @@ begin
   -- T7 ผู้ใช้ B ชี้ไปที่สินทรัพย์/บัญชีของ A ผ่านข้อมูลที่ส่งเข้าฟังก์ชันไม่ได้
   perform pg_temp.logout();
   perform pg_temp.login(ub);
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   insert into public.accounts (id, type, name, currency, kind) values ('usd-cash', 'asset', 'เงินสด USD ของ B', 'USD', 'investment');
   perform pg_temp.settle();
   r := pg_temp.fails($q$ select public.record_trade_fx(
