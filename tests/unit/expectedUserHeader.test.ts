@@ -94,8 +94,8 @@ describe('PT412 จาก trigger = บัญชีเปลี่ยน', () =>
     const e = storageErrorFrom({ code: 'PT412', message: 'x' }) as Error & { code?: string };
     expect(e).toBeInstanceOf(AccountChangedError);
     expect(e.code).toBe('store.accountChanged');
-    expect(e.message).toBe('บัญชีที่เข้าสู่ระบบเปลี่ยนไป คำสั่งนี้ยังไม่ได้บันทึก โหลดหน้าใหม่');
-    expect(messageFor('store.accountChanged', {}, 'en')).toBe('The signed-in account has changed. This action was not saved. Reload the page.');
+    expect(e.message).toBe('บัญชีที่เข้าสู่ระบบเปลี่ยนไป คำสั่งนี้ยังไม่ได้ทำ โหลดหน้าใหม่ ตรวจว่าเข้าสู่ระบบบัญชีไหน แล้วทำอีกครั้ง');
+    expect(messageFor('store.accountChanged', {}, 'en')).toBe('The signed-in account has changed. This action was not completed. Reload the page, check which account you are signed in to, then try again.');
   });
 
   it('ทุกชนิดคำสั่งเขียนโยน AccountChangedError', async () => {
@@ -121,6 +121,6 @@ describe('PT412 จาก trigger = บัญชีเปลี่ยน', () =>
     const e = await repo.addUsdStock({ id: 's', name: 'สมมติ', ticker: 'ABC', exchange: 'NASDAQ' }).then(() => null, (x: unknown) => x as Error & { code?: string });
     expect(e).toBeInstanceOf(AccountChangedError);
     expect(e?.code).toBe('store.accountChangedPartly');
-    expect(e?.message).not.toMatch(/ยังไม่ได้บันทึก/);
+    expect(e?.message).toMatch(/ค้างอยู่/); // ไม่อ้างว่าไม่มีอะไรถูกเขียนเลย
   });
 });

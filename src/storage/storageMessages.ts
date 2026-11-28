@@ -105,12 +105,12 @@ export const storeMsg = defineMessages({
   },
   // ฐานข้อมูลตอบ PT412: เซสชันเปลี่ยนเป็นบัญชีอื่น (สลับบัญชีจากแท็บอื่น)
   'store.accountChanged': {
-    th: () => 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป คำสั่งนี้ยังไม่ได้บันทึก โหลดหน้าใหม่',
-    en: () => 'The signed-in account has changed. This action was not saved. Reload the page.',
+    th: () => 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป คำสั่งนี้ยังไม่ได้ทำ โหลดหน้าใหม่ ตรวจว่าเข้าสู่ระบบบัญชีไหน แล้วทำอีกครั้ง',
+    en: () => 'The signed-in account has changed. This action was not completed. Reload the page, check which account you are signed in to, then try again.',
   },
   'store.accountChangedPartly': {
-    th: () => 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป การเพิ่มสินทรัพย์ทำไม่ครบ บัญชีเดิมอาจมีบัญชีเงินสดว่างชื่อเดียวกับสินทรัพย์ค้างอยู่ โหลดหน้าใหม่',
-    en: () => 'The signed-in account has changed. The asset was not fully added and the previous account may show an empty cash account with the same name. Reload the page.',
+    th: () => 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงเพิ่มสินทรัพย์ไม่สำเร็จ โหลดหน้าใหม่ เข้าสู่ระบบบัญชีเดิมแล้วตรวจก่อนเพิ่มอีกครั้ง อาจมีบัญชีเงินสดว่างชื่อเดียวกับสินทรัพย์ค้างอยู่',
+    en: () => 'The signed-in account has changed, so the asset was not added. Reload the page, sign in to the previous account and check before adding it again. An empty cash account with the same name may be left there.',
   },
   // ค่าตั้งค่า (ตั้งค่าพอร์ต / แผนซื้อประจำ) และที่เก็บในเครื่อง
   'store.settingsConflict': {
