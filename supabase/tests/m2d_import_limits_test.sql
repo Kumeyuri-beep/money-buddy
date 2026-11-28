@@ -29,13 +29,13 @@ begin
   perform pg_temp.login(ua);
 
   -- T1 รอบบิลอนาคตถูกปฏิเสธแม้ตอนนำเข้า (R15) · ไม่เหลือแถวค้าง
-  r := pg_temp.fails('select public.import_ledger(''{' || acc || ',"bills":[],"entries":[{"id":"p","date":"2026-11-02","memo":"","source":"recurring","bill":{"id":"b1","cycle":"2999-12"},"lines":[{"accountId":"food","amount":10},{"accountId":"w1","amount":-10}]}]}''::jsonb)');
+  r := pg_temp.fails('select private.import_ledger(''{' || acc || ',"bills":[],"entries":[{"id":"p","date":"2026-11-02","memo":"","source":"recurring","bill":{"id":"b1","cycle":"2999-12"},"lines":[{"accountId":"food","amount":10},{"accountId":"w1","amount":-10}]}]}''::jsonb)');
   if r is null or r not like '%เดือนปัจจุบัน%' then raise exception 'FAIL: T1 รอบอนาคตถูกนำเข้า (%)', r; end if;
   select count(*) into n from public.accounts;
   if n <> 0 then raise exception 'FAIL: T1 ล้มแล้วยังเหลือบัญชี'; end if;
 
   -- T2 ลิงก์ไปบิลที่ไม่มีในไฟล์ (บิลถูกลบไปแล้ว) นำเข้าได้ และลบรายการนั้นได้จากสมุดบัญชี
-  v := public.import_ledger(('{' || acc || ',"bills":[],"entries":[{"id":"open1","date":"2026-11-01","memo":"","source":"system","lines":[{"accountId":"w1","amount":1000},{"accountId":"open","amount":-1000}]},{"id":"p","date":"2026-11-02","memo":"","source":"recurring","bill":{"id":"gone","cycle":"2026-10"},"lines":[{"accountId":"food","amount":10},{"accountId":"w1","amount":-10}]}]}')::jsonb);
+  v := private.import_ledger(('{' || acc || ',"bills":[],"entries":[{"id":"open1","date":"2026-11-01","memo":"","source":"system","lines":[{"accountId":"w1","amount":1000},{"accountId":"open","amount":-1000}]},{"id":"p","date":"2026-11-02","memo":"","source":"recurring","bill":{"id":"gone","cycle":"2026-10"},"lines":[{"accountId":"food","amount":10},{"accountId":"w1","amount":-10}]}]}')::jsonb);
   perform pg_temp.settle();
   if v->>'entries' <> '2' then raise exception 'FAIL: T2 นำเข้าไม่ครบ %', v; end if;
   delete from public.entries where id = 'p';
@@ -51,11 +51,11 @@ begin
   perform pg_temp.login((select id from auth.users where email = 'b-lim@users.money-buddy.internal'));
   select jsonb_agg(jsonb_build_object('accountId', case when g % 2 = 0 then 'food' else 'w1' end, 'amount', case when g % 2 = 0 then 1 else -1 end))
     into many_lines from generate_series(1, 202) g;
-  r := pg_temp.fails($$ select public.import_ledger(jsonb_build_object('accounts', '[{"id":"w1","type":"asset","name":"w1","currency":"THB"},{"id":"food","type":"expense","name":"f","currency":"THB"}]'::jsonb, 'entries', jsonb_build_array(jsonb_build_object('id','x','date','2026-11-01','memo','','lines', $$ || quote_literal(many_lines::text) || $$::jsonb)))) $$);
+  r := pg_temp.fails($$ select private.import_ledger(jsonb_build_object('accounts', '[{"id":"w1","type":"asset","name":"w1","currency":"THB"},{"id":"food","type":"expense","name":"f","currency":"THB"}]'::jsonb, 'entries', jsonb_build_array(jsonb_build_object('id','x','date','2026-11-01','memo','','lines', $$ || quote_literal(many_lines::text) || $$::jsonb)))) $$);
   if r is null or r not like '%เกินเพดาน%' then raise exception 'FAIL: T3 บรรทัดเกินเพดานถูกรับ (%)', r; end if;
-  r := pg_temp.fails($$ select public.import_ledger(jsonb_build_object('accounts','[]'::jsonb,'entries',(select jsonb_agg('{"id":"e","lines":[]}'::jsonb) from generate_series(1,1501)))) $$);
+  r := pg_temp.fails($$ select private.import_ledger(jsonb_build_object('accounts','[]'::jsonb,'entries',(select jsonb_agg('{"id":"e","lines":[]}'::jsonb) from generate_series(1,1501)))) $$);
   if r is null or r not like '%เกินเพดาน%' then raise exception 'FAIL: T3 รายการเกินเพดานถูกรับ (%)', r; end if;
-  r := pg_temp.fails($$ select public.import_ledger('{"accounts":[],"entries":[{"id":"x","lines":"no"}]}'::jsonb) $$);
+  r := pg_temp.fails($$ select private.import_ledger('{"accounts":[],"entries":[{"id":"x","lines":"no"}]}'::jsonb) $$);
   if r is null then raise exception 'FAIL: T3 lines ไม่ใช่อาร์เรย์ถูกรับ'; end if;
   perform pg_temp.logout();
 

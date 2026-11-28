@@ -43,7 +43,7 @@ begin
   update public.profiles set password_changed_at = now() - interval '2 days' where user_id in (ua, ub);
 
   perform pg_temp.login(ua);
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   perform pg_temp.settle();
   insert into public.accounts (id, type, name, currency, kind) values
     ('inv1', 'asset', 'กองทุน ก', 'THB', 'investment'), ('inv2', 'asset', 'กองทุน ข', 'THB', 'investment'), ('inv3', 'asset', 'กองทุน ค', 'THB', 'investment'),

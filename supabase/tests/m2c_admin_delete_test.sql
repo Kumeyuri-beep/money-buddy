@@ -18,7 +18,7 @@ begin
   insert into auth.sessions (id, user_id) values (md5(ua::text)::uuid, ua);
   execute 'set local role authenticated';
   perform set_config('request.jwt.claims', json_build_object('sub', ua, 'role', 'authenticated', 'session_id', md5(ua::text)::uuid, 'is_anonymous', false)::text, true);
-  perform public.setup_ledger('[{"id":"w1","type":"asset","name":"w1","currency":"THB"},{"id":"open","type":"equity","name":"open","currency":"THB"},{"id":"food","type":"expense","name":"food","currency":"THB"}]'::jsonb,
+  perform private.setup_ledger('[{"id":"w1","type":"asset","name":"w1","currency":"THB"},{"id":"open","type":"equity","name":"open","currency":"THB"},{"id":"food","type":"expense","name":"food","currency":"THB"}]'::jsonb,
     '[{"id":"sys","date":"2026-11-01","memo":"o","source":"system","lines":[{"accountId":"w1","amount":1000},{"accountId":"open","amount":-1000}]},{"id":"e1","date":"2026-11-02","memo":"x","lines":[{"accountId":"food","amount":100},{"accountId":"w1","amount":-100}]}]'::jsonb);
   perform pg_temp.settle();
 

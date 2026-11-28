@@ -43,7 +43,7 @@ begin
   update public.profiles set password_changed_at = now() - interval '2 days' where user_id in (ua, ub);
 
   perform pg_temp.login(ua);
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   perform pg_temp.settle();
   insert into public.accounts (id, type, name, currency, kind) values ('inv1', 'asset', 'กองทุน ก', 'THB', 'investment');
   insert into public.assets (id, name, kind, account_id) values ('a1', 'กองทุน ก', 'fund', 'inv1');
@@ -179,7 +179,7 @@ begin
   perform pg_temp.login(ub);
   if private.trades_fingerprint(ua, 'a1') is distinct from fp_empty then raise exception 'FAIL: T9 B เห็นลายนิ้วมือที่มีเนื้อหาของ A'; end if;
   if private.trades_fingerprint(ub, 'a1') is distinct from fp_empty then raise exception 'FAIL: T9 ของ B ที่ยังไม่มีรายการต้องเป็นลายนิ้วมือว่าง'; end if;
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   insert into public.accounts (id, type, name, currency, kind) values ('inv1', 'asset', 'ของ B', 'THB', 'investment');
   insert into public.assets (id, name, kind, account_id) values ('a1', 'ของ B', 'fund', 'inv1');
   perform pg_temp.settle();

@@ -44,13 +44,13 @@ begin
 
   -- T1 anon เรียกไม่ได้
   execute 'set local role anon';
-  r := pg_temp.fails($$ select public.import_ledger('{"accounts":[],"entries":[]}'::jsonb) $$);
+  r := pg_temp.fails($$ select private.import_ledger('{"accounts":[],"entries":[]}'::jsonb) $$);
   if r is null then raise exception 'FAIL: T1 anon นำเข้าได้'; end if;
   execute 'reset role';
 
   -- T2 นำเข้าสำเร็จ: จำนวนตรง · lastPaidMonth จากไฟล์คงอยู่ (รวมรายการ system และ recurring) · ตั้งค่าครบ
   perform pg_temp.login(ua);
-  v := public.import_ledger(good);
+  v := private.import_ledger(good);
   perform pg_temp.settle();
   if v <> '{"accounts":3,"bills":1,"entries":3}'::jsonb then raise exception 'FAIL: T2 จำนวนที่นำเข้าไม่ตรง %', v; end if;
   select last_paid_month into v_paid from public.bills where id = 'b1';
@@ -67,7 +67,7 @@ begin
 
   -- T3 นำเข้าซ้ำถูกปฏิเสธ ไม่ซ้ำซ้อน ไม่แก้ของเดิม
   perform pg_temp.login(ua);
-  r := pg_temp.fails($$ select public.import_ledger('{"accounts":[],"entries":[]}'::jsonb) $$);
+  r := pg_temp.fails($$ select private.import_ledger('{"accounts":[],"entries":[]}'::jsonb) $$);
   if r is null or r not like '%มีข้อมูลอยู่แล้ว%' then raise exception 'FAIL: T3 นำเข้าซ้ำไม่ถูกปฏิเสธ (%)', r; end if;
   select count(*) into n from public.entries;
   if n <> 3 then raise exception 'FAIL: T3 รายการเปลี่ยนไป (%)', n; end if;
@@ -77,7 +77,7 @@ begin
   perform pg_temp.login(ub);
   select count(*) into n from public.entries;
   if n <> 0 then raise exception 'FAIL: T4 B เห็นข้อมูลของ A'; end if;
-  perform public.import_ledger(good);
+  perform private.import_ledger(good);
   perform pg_temp.settle();
   select count(*) into n from public.entries;
   if n <> 3 then raise exception 'FAIL: T4 B นำเข้าไม่ครบ (%)', n; end if;
@@ -92,23 +92,23 @@ begin
   values (gen_random_uuid(), 'c-imp@users.money-buddy.internal', extensions.crypt('old-password-3', extensions.gen_salt('bf')), 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000');
   update auth.users set encrypted_password = extensions.crypt('new-password-3', extensions.gen_salt('bf')) where email = 'c-imp@users.money-buddy.internal';
   perform pg_temp.login((select id from auth.users where email = 'c-imp@users.money-buddy.internal'));
-  r := pg_temp.fails($$ select public.import_ledger(jsonb_set('{"accounts":[{"id":"w1","type":"asset","name":"w1","currency":"THB"},{"id":"open","type":"equity","name":"open","currency":"THB"}],"bills":[],"entries":[{"id":"bad","date":"2026-11-01","memo":"","source":"manual","lines":[{"accountId":"w1","amount":100},{"accountId":"open","amount":-99}]}]}'::jsonb, '{settings}', '{}')) $$);
+  r := pg_temp.fails($$ select private.import_ledger(jsonb_set('{"accounts":[{"id":"w1","type":"asset","name":"w1","currency":"THB"},{"id":"open","type":"equity","name":"open","currency":"THB"}],"bills":[],"entries":[{"id":"bad","date":"2026-11-01","memo":"","source":"manual","lines":[{"accountId":"w1","amount":100},{"accountId":"open","amount":-99}]}]}'::jsonb, '{settings}', '{}')) $$);
   if r is null then raise exception 'FAIL: T5 รายการไม่สมดุลถูกนำเข้า'; end if;
   select (select count(*) from public.accounts) + (select count(*) from public.entries) + (select count(*) from public.bills) into n;
   if n <> 0 then raise exception 'FAIL: T5 ล้มแล้วยังเหลือแถวค้าง (%)', n; end if;
 
   -- T6 บัญชีไม่มีจริง / lastPaidMonth อนาคต (R15) = ถูกปฏิเสธทั้งก้อน
-  r := pg_temp.fails($$ select public.import_ledger('{"accounts":[{"id":"w1","type":"asset","name":"w1","currency":"THB"}],"bills":[{"id":"b","name":"n","amount":1,"dueDay":1,"lastPaidMonth":"2999-01"}],"entries":[]}'::jsonb) $$);
+  r := pg_temp.fails($$ select private.import_ledger('{"accounts":[{"id":"w1","type":"asset","name":"w1","currency":"THB"}],"bills":[{"id":"b","name":"n","amount":1,"dueDay":1,"lastPaidMonth":"2999-01"}],"entries":[]}'::jsonb) $$);
   if r is null then raise exception 'FAIL: T6 lastPaidMonth อนาคตถูกนำเข้า'; end if;
-  r := pg_temp.fails($$ select public.import_ledger('{"accounts":[{"id":"w1","type":"asset","name":"w1","currency":"THB"}],"bills":[],"entries":[{"id":"e","date":"2026-11-01","memo":"","source":"manual","lines":[{"accountId":"w1","amount":1},{"accountId":"ไม่มี","amount":-1}]}]}'::jsonb) $$);
+  r := pg_temp.fails($$ select private.import_ledger('{"accounts":[{"id":"w1","type":"asset","name":"w1","currency":"THB"}],"bills":[],"entries":[{"id":"e","date":"2026-11-01","memo":"","source":"manual","lines":[{"accountId":"w1","amount":1},{"accountId":"ไม่มี","amount":-1}]}]}'::jsonb) $$);
   if r is null then raise exception 'FAIL: T6 บัญชีที่ไม่มีถูกนำเข้า'; end if;
   select (select count(*) from public.accounts) + (select count(*) from public.bills) into n;
   if n <> 0 then raise exception 'FAIL: T6 ล้มแล้วยังเหลือแถวค้าง (%)', n; end if;
 
   -- T7 รูปแบบผิด / เกินเพดาน
-  r := pg_temp.fails($$ select public.import_ledger('[]'::jsonb) $$);
+  r := pg_temp.fails($$ select private.import_ledger('[]'::jsonb) $$);
   if r is null then raise exception 'FAIL: T7 รูปแบบผิดถูกรับ'; end if;
-  r := pg_temp.fails($$ select public.import_ledger('{"accounts":"x","entries":[]}'::jsonb) $$);
+  r := pg_temp.fails($$ select private.import_ledger('{"accounts":"x","entries":[]}'::jsonb) $$);
   if r is null then raise exception 'FAIL: T7 accounts ไม่ใช่อาร์เรย์ถูกรับ'; end if;
   perform pg_temp.logout();
 
@@ -119,8 +119,8 @@ begin
   perform pg_temp.logout();
 
   -- T9 แคตตาล็อก
-  if has_function_privilege('anon', 'public.import_ledger(jsonb)', 'execute') then raise exception 'FAIL: T9 anon มีสิทธิ์'; end if;
-  if not has_function_privilege('authenticated', 'public.import_ledger(jsonb)', 'execute') then raise exception 'FAIL: T9 authenticated ไม่มีสิทธิ์'; end if;
+  if has_function_privilege('anon', 'private.import_ledger(jsonb)', 'execute') then raise exception 'FAIL: T9 anon มีสิทธิ์'; end if;
+  if not has_function_privilege('authenticated', 'private.import_ledger(jsonb)', 'execute') then raise exception 'FAIL: T9 authenticated ไม่มีสิทธิ์'; end if;
 
   raise exception 'TESTS_PASSED (rollback แล้ว ไม่มีข้อมูลทดสอบเหลือ)';
 end

@@ -88,12 +88,12 @@ describe('PDPA (M2-E): ยอมรับนโยบาย · ลบบัญ�
     }
     const aBefore = (await (await repoFor(0)).loadLedger()).entries.length;
     // cooldown 24 ชม. หลังเปลี่ยนรหัส (M2-F): แม้รหัสถูก ลบบัญชี/ล้างข้อมูลไม่ได้ จนกว่าจะพ้นเวลา
-    const cooling = await client.rpc('delete_my_account_step', { p_password: live.users[2]!.password });
+    const cooling = await client.rpc('delete_my_account_step_as', { p_expected_user: id, p_password: live.users[2]!.password });
     expect(cooling.error?.message ?? '').toMatch(/24 ชั่วโมง/);
     expect(await repo.isEmpty()).toBe(false);
     const aged = await admin.from('profiles').update({ password_changed_at: new Date(Date.now() - 2 * 86_400_000).toISOString() }).eq('user_id', id);
     expect(aged.error).toBeNull();
-    const wrong = await client.rpc('delete_my_account_step', { p_password: 'definitely-wrong-1A' });
+    const wrong = await client.rpc('delete_my_account_step_as', { p_expected_user: id, p_password: 'definitely-wrong-1A' });
     expect(wrong.error).toBeNull();
     expect(wrong.data).toBe('wrong');
     expect(await repo.isEmpty()).toBe(false);
@@ -163,21 +163,21 @@ describe('แยกข้อมูลระหว่างผู้ใช้ (RL
 
   it('นำเข้าข้อมูลเสียที่ส่งตรงเข้า RPC (ข้ามการตรวจฝั่งเว็บ) ถูกฐานข้อมูลปฏิเสธทั้งก้อน ไม่เหลือแถวค้าง · นำเข้าซ้ำถูกปฏิเสธ', async () => {
     await wipe(1);
-    const { client } = await signedIn(1);
+    const { client, id } = await signedIn(1);
     const accounts = [
       { id: 'w1', type: 'asset', name: 'w1', currency: 'THB' },
       { id: 'open', type: 'equity', name: 'open', currency: 'THB' },
     ];
-    const bad = await client.rpc('import_ledger', {
+    const bad = await client.rpc('import_ledger_as', { p_expected_user: id,
       p_data: { accounts, bills: [], entries: [{ id: 'x', date: '2026-11-01', memo: '', source: 'manual', lines: [{ accountId: 'w1', amount: 100 }, { accountId: 'open', amount: -99 }] }] },
     });
     expect(bad.error).not.toBeNull();
     expect(await b.isEmpty()).toBe(true);
-    const good = await client.rpc('import_ledger', {
+    const good = await client.rpc('import_ledger_as', { p_expected_user: id,
       p_data: { accounts, bills: [], entries: [{ id: 'x', date: '2026-11-01', memo: '', source: 'system', lines: [{ accountId: 'w1', amount: 100 }, { accountId: 'open', amount: -100 }] }] },
     });
     expect(good.error).toBeNull();
-    const again = await client.rpc('import_ledger', { p_data: { accounts, bills: [], entries: [] } });
+    const again = await client.rpc('import_ledger_as', { p_expected_user: id, p_data: { accounts, bills: [], entries: [] } });
     expect(again.error?.message ?? '').toMatch(/มีข้อมูลอยู่แล้ว/);
     // GUC ของการนำเข้าไม่ค้างหลังจบ: สร้างรายการ system ด้วย create_entry ต้องถูกปฏิเสธ
     const sys = await client.rpc('create_entry', {
@@ -189,9 +189,9 @@ describe('แยกข้อมูลระหว่างผู้ใช้ (RL
 
   it('payload ที่ใส่ user_id ของคนอื่นมา ถูกมองข้าม แถวเป็นของผู้เรียกเสมอ · อ้างบัญชีของอีกคนไม่ได้', async () => {
     await wipe(1);
-    const { client } = await signedIn(1);
+    const { client, id } = await signedIn(1);
     const other = live.users[0]!;
-    const ok = await client.rpc('import_ledger', {
+    const ok = await client.rpc('import_ledger_as', { p_expected_user: id,
       p_data: {
         accounts: [
           { id: 'w1', type: 'asset', name: 'w1', currency: 'THB', user_id: other.id },
@@ -205,7 +205,7 @@ describe('แยกข้อมูลระหว่างผู้ใช้ (RL
     expect((await a.loadLedger()).accounts.some((x) => x.id === 'w1' && x.name === 'w1')).toBe(false);
     expect((await b.loadLedger()).entries.map((e) => e.id)).toEqual(['u1']);
     await wipe(1);
-    const cross = await client.rpc('import_ledger', {
+    const cross = await client.rpc('import_ledger_as', { p_expected_user: id,
       p_data: { accounts: [], bills: [], entries: [{ id: 'z', date: '2026-11-01', memo: '', source: 'manual', lines: [{ accountId: 'wallet-of-A', amount: 1 }, { accountId: 'x', amount: -1 }] }] },
     });
     expect(cross.error).not.toBeNull();
@@ -304,12 +304,11 @@ describe('แยกข้อมูลระหว่างผู้ใช้ (RL
     const anon = createClient(live.url, live.anonKey, liveClientOptions);
     const read = await anon.from('entries').select('id');
     expect(read.error !== null || (read.data ?? []).length === 0).toBe(true);
-    const rpc = await anon.rpc('reset_my_ledger', { p_password: 'x' });
+    const someone = '00000000-0000-0000-0000-000000000000';
+    const rpc = await anon.rpc('reset_my_ledger_step_as', { p_expected_user: someone, p_password: 'x' });
     expect(rpc.error).not.toBeNull();
-    for (const name of ['reset_my_ledger_step', 'delete_my_account_step']) {
-      expect((await anon.rpc(name, { p_password: 'x' })).error, name).not.toBeNull();
-    }
-    const imp = await anon.rpc('import_ledger', { p_data: { accounts: [], bills: [], entries: [] } });
+    expect((await anon.rpc('delete_my_account_step_as', { p_expected_user: someone, p_password: 'x' })).error).not.toBeNull();
+    const imp = await anon.rpc('import_ledger_as', { p_expected_user: someone, p_data: { accounts: [], bills: [], entries: [] } });
     expect(imp.error).not.toBeNull();
     expect((await a.loadLedger()).entries.length).toBeGreaterThan(0);
   });
@@ -347,6 +346,25 @@ describe('ฐานข้อมูลตรวจผู้ใช้ที่ต�
     expect(deleted.ok).toBe(false);
     if (!deleted.ok) expect(deleted.message).toMatch(/บัญชีที่เข้าสู่ระบบเปลี่ยนไป/);
     expect((await b.loadLedger()).entries).toHaveLength(1);
+  });
+
+  it('ฟังก์ชันรุ่นเก่า (ไม่ตรวจผู้ใช้ที่ตั้งใจ) เรียกผ่าน API ไม่ได้', async () => {
+    // เรียกแบบไม่ล็อกอินโดยตั้งใจ: ถ้ายังไม่ได้ย้าย จะได้ 42501 (ไม่มีสิทธิ์) ไม่มีฟังก์ชันไหนทำงานและไม่นับรหัสผิด · ย้ายแล้ว = PGRST202
+    const anon = createClient(live.url, live.anonKey, liveClientOptions);
+    const calls: [string, Record<string, unknown>][] = [
+      ['setup_ledger', { p_accounts: [], p_entries: [] }],
+      ['import_ledger', { p_data: {} }],
+      ['import_ledger_begin', { p_data: {}, p_total_entries: 0 }],
+      ['import_ledger_append', { p_entries: [] }],
+      ['import_ledger_abort', {}],
+      ['import_ledger_investments', { p_data: {} }],
+      ['import_ledger_investments_replacing_categories', { p_data: {}, p_expected_categories: -1 }],
+      ['reset_my_ledger_step', { p_password: 'definitely-wrong-1A' }],
+      ['delete_my_account_step', { p_password: 'definitely-wrong-1A' }],
+      ['reset_my_ledger', { p_password: 'definitely-wrong-1A' }],
+      ['delete_my_account', { p_password: 'definitely-wrong-1A' }],
+    ];
+    for (const [name, args] of calls) expect((await anon.rpc(name, args)).error?.code, name).toBe('PGRST202');
   });
 
   it('ไฟล์ใหญ่ 1,600 รายการพร้อมค่าตั้งค่า: นำเข้าแบบแบ่งก้อนสำเร็จครบ ค่าตั้งค่าเข้า ไม่มีเซสชันค้าง', async () => {

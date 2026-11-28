@@ -40,7 +40,7 @@ begin
   update public.profiles set password_changed_at = now() - interval '2 days' where user_id in (ua, ub);
 
   perform pg_temp.login(ua);
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   perform pg_temp.settle();
   insert into public.accounts (id, type, name, currency, kind) values
     ('cash-usd', 'asset', 'เงินสด USD', 'USD', 'investment'),
@@ -110,7 +110,7 @@ begin
   -- T9 ผู้ใช้ B ใช้บัญชีของ A ไม่ได้ (RLS/ขอบเขตผู้ใช้) และ anon เรียกไม่ได้
   perform pg_temp.logout();
   perform pg_temp.login(ub);
-  perform public.setup_ledger('[{"id":"w1","type":"asset","name":"w1","currency":"THB"},{"id":"open","type":"equity","name":"open","currency":"THB"}]'::jsonb, ent);
+  perform private.setup_ledger('[{"id":"w1","type":"asset","name":"w1","currency":"THB"},{"id":"open","type":"equity","name":"open","currency":"THB"}]'::jsonb, ent);
   perform pg_temp.settle();
   r := pg_temp.fails($q$ select public.record_cash_adjustment('{"id":"b1","date":"2026-11-03","source":"manual","lines":[{"accountId":"cash-usd","amount":100},{"accountId":"inv-cash-adjust-usd","amount":-100}]}'::jsonb, '[{"id":"inv-cash-adjust-usd"}]'::jsonb) $q$);
   if r is null then raise exception 'FAIL: T9 ผู้ใช้ B ต้องใช้บัญชีของ A ไม่ได้'; end if;

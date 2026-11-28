@@ -48,7 +48,7 @@ begin
 
   -- เตรียม: RPC เดิมยังสร้างบัญชี/รายการได้ (setup_ledger = insert ... ไม่ต้องการ update)
   perform pg_temp.login(ua);
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   perform pg_temp.settle();
 
   -- T2 แก้ name ได้ (กระเป๋าที่มีรายการแล้วก็ได้) และทุกอย่างอื่นคงเดิม
@@ -93,7 +93,7 @@ begin
 
   -- T6 ผู้ใช้ B แก้ name ของ A ไม่ได้ (RLS: 0 แถว) และส่ง user_id ของ A เพื่อย้ายแถวไม่ได้
   perform pg_temp.login(ub);
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   perform pg_temp.settle();
   update public.accounts set name = 'B แก้' where user_id = ua;
   get diagnostics n = row_count;

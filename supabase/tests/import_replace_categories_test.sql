@@ -61,39 +61,39 @@ begin
   perform pg_temp.login(ua);
   perform public.save_categories(old2);
   perform pg_temp.settle();
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   perform pg_temp.settle();
   insert into public.accounts (id, type, name, currency, kind) values ('inv-d', 'asset', 'หุ้น D', 'USD', 'investment');
   before_a := pg_temp.snap(ua);
 
   -- T1 จำนวนไม่ตรง / ว่าง = PT409 ไม่ลบ
-  r := pg_temp.fails($q$ select public.import_ledger_investments_replacing_categories('{}'::jsonb, 1) $q$);
+  r := pg_temp.fails($q$ select private.import_ledger_investments_replacing_categories('{}'::jsonb, 1) $q$);
   if r is null or r not like 'PT409|%' then raise exception 'FAIL: T1a จำนวนไม่ตรงต้อง PT409 (ได้ %)', r; end if;
-  r := pg_temp.fails($q$ select public.import_ledger_investments_replacing_categories('{}'::jsonb, null) $q$);
+  r := pg_temp.fails($q$ select private.import_ledger_investments_replacing_categories('{}'::jsonb, null) $q$);
   if r is null or r not like 'PT409|%' then raise exception 'FAIL: T1b จำนวนว่างต้อง PT409 (ได้ %)', r; end if;
   if pg_temp.snap(ua) <> before_a then raise exception 'FAIL: T1 หมวดเดิมต้องไม่เปลี่ยน'; end if;
 
   -- T2 ล้มตอนตรวจเป้ารวม (ด่าน deferred) = หมวดเดิมครบ ไม่มีสินทรัพย์เข้า
-  r := pg_temp.fails(format($q$ select public.import_ledger_investments_replacing_categories(%L::jsonb, 2) $q$,
+  r := pg_temp.fails(format($q$ select private.import_ledger_investments_replacing_categories(%L::jsonb, 2) $q$,
         '{"categories":[{"id":"x1","name":"X","targetBps":5000}],"assets":[' || asset_d || ',"categoryId":"x1"}]}'));
   if r is null or r not like '23514|%' then raise exception 'FAIL: T2 เป้ารวมผิดต้อง 23514 (ได้ %)', r; end if;
   if pg_temp.snap(ua) <> before_a then raise exception 'FAIL: T2 ล้มแล้วหมวดเดิมต้องกลับครบ'; end if;
   if pg_temp.ac(ua, format($q$ select count(*) from public.assets where user_id = %L $q$, ua)) <> 0 then raise exception 'FAIL: T2 ต้องไม่มีสินทรัพย์เข้า'; end if;
 
   -- T3 สินทรัพย์ชี้หมวดที่ไม่มี (รวมหมวดเดิมที่ถูกลบในธุรกรรมนี้) = FK ล้ม หมวดเดิมครบ
-  r := pg_temp.fails(format($q$ select public.import_ledger_investments_replacing_categories(%L::jsonb, 2) $q$, '{"categories":[],"assets":[' || asset_d || ',"categoryId":"c1"}]}'));
+  r := pg_temp.fails(format($q$ select private.import_ledger_investments_replacing_categories(%L::jsonb, 2) $q$, '{"categories":[],"assets":[' || asset_d || ',"categoryId":"c1"}]}'));
   if r is null or r not like '23503|%' then raise exception 'FAIL: T3 หมวดที่ไม่มีต้อง 23503 (ได้ %)', r; end if;
   if pg_temp.snap(ua) <> before_a then raise exception 'FAIL: T3 ล้มแล้วหมวดเดิมต้องกลับครบ'; end if;
 
   -- T4 รายการลงทุนผิด (ชี้สินทรัพย์ที่ไม่มี) ล้มหลังหมวดและสินทรัพย์เข้าแล้ว = ย้อนกลับทั้งหมด
-  r := pg_temp.fails(format($q$ select public.import_ledger_investments_replacing_categories(%L::jsonb, 2) $q$,
+  r := pg_temp.fails(format($q$ select private.import_ledger_investments_replacing_categories(%L::jsonb, 2) $q$,
         '{"categories":[{"id":"x1","name":"X","targetBps":10000}],"assets":[' || asset_d || ',"categoryId":"x1"}],"prices":[{"assetId":"nope","date":"2026-11-01","priceMicro":1000000}]}'));
   if r is null then raise exception 'FAIL: T4 ราคาชี้สินทรัพย์ที่ไม่มีต้องล้ม'; end if;
   if pg_temp.snap(ua) <> before_a then raise exception 'FAIL: T4 ล้มแล้วหมวดเดิมต้องกลับครบ'; end if;
   if pg_temp.ac(ua, format($q$ select count(*) from public.assets where user_id = %L $q$, ua)) <> 0 then raise exception 'FAIL: T4 ต้องไม่มีสินทรัพย์เข้า'; end if;
 
   -- T5 รูปแบบผิด = 22023 หมวดเดิมครบ
-  r := pg_temp.fails($q$ select public.import_ledger_investments_replacing_categories('{"categories":"x"}'::jsonb, 2) $q$);
+  r := pg_temp.fails($q$ select private.import_ledger_investments_replacing_categories('{"categories":"x"}'::jsonb, 2) $q$);
   if r is null or r not like '22023|%' then raise exception 'FAIL: T5 รูปแบบผิดต้อง 22023 (ได้ %)', r; end if;
   if pg_temp.snap(ua) <> before_a then raise exception 'FAIL: T5 หมวดเดิมต้องครบ'; end if;
 
@@ -101,19 +101,19 @@ begin
   perform pg_temp.logout();
   insert into private.import_sessions (user_id, expected_entries, received_entries) values (ua, 5000, 1200);
   perform pg_temp.login(ua);
-  r := pg_temp.fails($q$ select public.import_ledger_investments_replacing_categories('{}'::jsonb, 2) $q$);
+  r := pg_temp.fails($q$ select private.import_ledger_investments_replacing_categories('{}'::jsonb, 2) $q$);
   if r is null or r not like '55000|%' then raise exception 'FAIL: T6a เซสชันค้างต้อง 55000 (ได้ %)', r; end if;
   -- T7 ยกเลิกนำเข้า: สมุดค้างถูกล้าง แต่หมวดเดิมยังอยู่ครบ
-  while public.import_ledger_abort() = 'more' loop null; end loop;
+  while private.import_ledger_abort() = 'more' loop null; end loop;
   perform pg_temp.settle();
   if pg_temp.ac(ua, format($q$ select count(*) from public.accounts where user_id = %L $q$, ua)) <> 0 then raise exception 'FAIL: T7 abort ต้องล้างบัญชี'; end if;
   if pg_temp.snap(ua) <> before_a then raise exception 'FAIL: T7 abort ต้องไม่ลบหมวดเดิม'; end if;
 
   -- T8 สำเร็จ: ใช้รหัสและชื่อซ้ำกับหมวดเดิมได้ หมวดเดิมถูกแทนด้วยของไฟล์ สินทรัพย์ผูกถูก
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   perform pg_temp.settle();
   insert into public.accounts (id, type, name, currency, kind) values ('inv-d', 'asset', 'หุ้น D', 'USD', 'investment');
-  r := public.import_ledger_investments_replacing_categories(
+  r := private.import_ledger_investments_replacing_categories(
         ('{"categories":[{"id":"c1","name":"Old Tech","targetBps":10000}],"assets":[' || asset_d || ',"categoryId":"c1"}]}')::jsonb, 2)->>'categories';
   perform pg_temp.settle();
   if r <> '1' then raise exception 'FAIL: T8a ต้องนำเข้า 1 หมวด (ได้ %)', r; end if;
@@ -122,14 +122,14 @@ begin
 
   -- T9 มีสินทรัพย์อยู่แล้ว = 23505 และหมวดกับการผูกหมวดของสินทรัพย์กลับครบ (ระหว่างลบ category_id ถูกตั้ง null ชั่วคราว)
   perform pg_temp.login(ud);
-  perform public.setup_ledger(acc, ent);
+  perform private.setup_ledger(acc, ent);
   perform pg_temp.settle();
   insert into public.accounts (id, type, name, currency, kind) values ('inv-d', 'asset', 'หุ้น D', 'USD', 'investment');
   perform public.save_categories(old2);
   insert into public.assets (id, name, kind, account_id, instrument_currency, category_id) values ('sd', 'หุ้น D', 'stock', 'inv-d', 'USD', 'c1');
   perform pg_temp.settle();
   before_d := pg_temp.snap(ud);
-  r := pg_temp.fails($q$ select public.import_ledger_investments_replacing_categories('{}'::jsonb, 2) $q$);
+  r := pg_temp.fails($q$ select private.import_ledger_investments_replacing_categories('{}'::jsonb, 2) $q$);
   if r is null or r not like '23505|%' then raise exception 'FAIL: T9a มีสินทรัพย์อยู่แล้วต้อง 23505 (ได้ %)', r; end if;
   if pg_temp.snap(ud) <> before_d then raise exception 'FAIL: T9b หมวดต้องกลับครบ'; end if;
   if (select category_id from public.assets where id = 'sd') is distinct from 'c1' then raise exception 'FAIL: T9c การผูกหมวดต้องกลับ'; end if;
@@ -139,18 +139,18 @@ begin
   perform pg_temp.logout();
   delete from public.assets where user_id = ua;
   perform pg_temp.login(ua);
-  perform public.import_ledger_investments_replacing_categories('{}'::jsonb, 1);
+  perform private.import_ledger_investments_replacing_categories('{}'::jsonb, 1);
   perform pg_temp.settle();
   if pg_temp.ac(ua, format($q$ select count(*) from public.asset_categories where user_id = %L $q$, ua)) <> 0 then raise exception 'FAIL: T10a หมวดเดิมต้องหมด'; end if;
   if pg_temp.snap(ub) <> before_b then raise exception 'FAIL: T10b หมวดของผู้ใช้อื่นต้องไม่ถูกแตะ'; end if;
 
   -- T11 ด่านสิทธิ์: ยังไม่เปลี่ยนรหัส = 42501 · ไม่ได้ล็อกอิน (anon) เรียกไม่ได้
   perform pg_temp.login(uc);
-  r := pg_temp.fails($q$ select public.import_ledger_investments_replacing_categories('{}'::jsonb, 0) $q$);
+  r := pg_temp.fails($q$ select private.import_ledger_investments_replacing_categories('{}'::jsonb, 0) $q$);
   if r is null or r not like '42501|%' then raise exception 'FAIL: T11a ยังไม่เปลี่ยนรหัสต้อง 42501 (ได้ %)', r; end if;
   perform pg_temp.logout();
   execute 'set local role anon';
-  r := pg_temp.fails($q$ select public.import_ledger_investments_replacing_categories('{}'::jsonb, 0) $q$);
+  r := pg_temp.fails($q$ select private.import_ledger_investments_replacing_categories('{}'::jsonb, 0) $q$);
   perform pg_temp.logout();
   if r is null or r not like '42501|%' then raise exception 'FAIL: T11b anon ต้องเรียกไม่ได้ (ได้ %)', r; end if;
 
