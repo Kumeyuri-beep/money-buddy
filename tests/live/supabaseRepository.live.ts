@@ -307,9 +307,7 @@ describe('แยกข้อมูลระหว่างผู้ใช้ (RL
     const someone = '00000000-0000-0000-0000-000000000000';
     const rpc = await anon.rpc('reset_my_ledger_step_as', { p_expected_user: someone, p_password: 'x' });
     expect(rpc.error).not.toBeNull();
-    for (const name of ['delete_my_account_step_as']) {
-      expect((await anon.rpc(name, { p_expected_user: someone, p_password: 'x' })).error, name).not.toBeNull();
-    }
+    expect((await anon.rpc('delete_my_account_step_as', { p_expected_user: someone, p_password: 'x' })).error).not.toBeNull();
     const imp = await anon.rpc('import_ledger_as', { p_expected_user: someone, p_data: { accounts: [], bills: [], entries: [] } });
     expect(imp.error).not.toBeNull();
     expect((await a.loadLedger()).entries.length).toBeGreaterThan(0);
@@ -351,8 +349,8 @@ describe('ฐานข้อมูลตรวจผู้ใช้ที่ต�
   });
 
   it('ฟังก์ชันรุ่นเก่า (ไม่ตรวจผู้ใช้ที่ตั้งใจ) เรียกผ่าน API ไม่ได้', async () => {
-    const { client } = await signedIn(1);
-    // อาร์กิวเมนต์ครบและรหัสผิดโดยตั้งใจ: ถ้ายังเรียกได้ เทสต์ต้องล้มโดยไม่ล้างหรือลบอะไร
+    // เรียกแบบไม่ล็อกอินโดยตั้งใจ: ถ้ายังไม่ได้ย้าย จะได้ 42501 (ไม่มีสิทธิ์) ไม่มีฟังก์ชันไหนทำงานและไม่นับรหัสผิด · ย้ายแล้ว = PGRST202
+    const anon = createClient(live.url, live.anonKey, liveClientOptions);
     const calls: [string, Record<string, unknown>][] = [
       ['setup_ledger', { p_accounts: [], p_entries: [] }],
       ['import_ledger', { p_data: {} }],
@@ -366,7 +364,7 @@ describe('ฐานข้อมูลตรวจผู้ใช้ที่ต�
       ['reset_my_ledger', { p_password: 'definitely-wrong-1A' }],
       ['delete_my_account', { p_password: 'definitely-wrong-1A' }],
     ];
-    for (const [name, args] of calls) expect((await client.rpc(name, args)).error?.code, name).toBe('PGRST202');
+    for (const [name, args] of calls) expect((await anon.rpc(name, args)).error?.code, name).toBe('PGRST202');
   });
 
   it('ไฟล์ใหญ่ 1,600 รายการพร้อมค่าตั้งค่า: นำเข้าแบบแบ่งก้อนสำเร็จครบ ค่าตั้งค่าเข้า ไม่มีเซสชันค้าง', async () => {

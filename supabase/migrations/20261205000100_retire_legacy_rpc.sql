@@ -5,6 +5,9 @@
 -- และห้ามเปลี่ยนตัวห่อเป็น security definer (ฟังก์ชันเดิมหลายตัวพึ่ง RLS)
 -- วิธี: ย้ายฟังก์ชันเดิมไป schema private (PostgREST ไม่เปิดให้เรียก) แล้วให้ตัวห่อเรียกที่ใหม่ · เนื้อฟังก์ชัน ชนิดความปลอดภัย และสิทธิ์เดิมติดไปกับฟังก์ชัน
 -- ผลต่อผู้ใช้: แท็บที่เปิดค้างจากเว็บรุ่นเก่า (ก่อน #297) จะตั้งต้น นำเข้า ล้าง หรือลบบัญชีไม่ได้จนกว่าจะรีเฟรช
+-- ลำดับ: (1) เว็บที่ใช้งานจริงมี #297 แล้ว (2) ใส่ migration (3) เทสต์ SQL ครบทุกไฟล์ จาก branch ของ PR นี้ (4) live-contract บน branch (5) merge (6) live-contract บน main
+--   ระหว่างขั้น 2 ถึง 5 เทสต์บน main จะล้ม (ยังเรียกชื่อเดิม) · ห้าม merge ก่อนใส่ · ห้ามใช้ supabase db push ก่อนวันที่กำหนด (จะใส่ไฟล์นี้ทันที)
+--   ก่อนใส่ ดูใน Dashboard ว่า schema private ไม่อยู่ใน Exposed schemas
 -- ย้อนกลับ: alter function private.<ชื่อ>(...) set schema public แล้ว create or replace ตัวห่อให้เรียก public.<ชื่อ> ตาม 20261128000100
 
 alter function public.setup_ledger(jsonb, jsonb) set schema private;
