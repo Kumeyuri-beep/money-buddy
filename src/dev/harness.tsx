@@ -75,7 +75,7 @@ function Harness() {
   }, [ready]);
   if (!ready) return null;
   return (
-    <AccountContext.Provider value={{ username: 'ผู้ทดสอบ', signOut: async () => undefined, refresh: async () => undefined }}>
+    <AccountContext.Provider value={{ userId: 'dev-user', username: 'ผู้ทดสอบ', signOut: async () => undefined, refresh: async () => undefined }}>
       <PasswordPromptProvider>
         {params.get('wizard') !== null ? (
           <MigrationWizard userId="harness" online={wizardOnline()} mode="migrate" onDone={() => undefined} />

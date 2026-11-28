@@ -1,6 +1,8 @@
 import { createContext, useContext } from 'react';
 
 export interface AccountContextValue {
+  /** รหัสผู้ใช้ของหน้าจอนี้ (ส่งให้ฐานข้อมูลตรวจก่อนทำสิ่งที่ย้อนกลับไม่ได้) */
+  userId: string;
   /** ชื่อผู้ใช้ที่ล็อกอินอยู่ (ไม่ใช่อีเมลภายใน) */
   username: string;
   signOut: () => Promise<void>;

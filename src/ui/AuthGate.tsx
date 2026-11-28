@@ -93,7 +93,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }, [show]);
 
   const account = useMemo(
-    () => (view.kind === 'ready' ? { username: view.username, signOut, refresh: evaluate } : null),
+    () => (view.kind === 'ready' ? { userId: view.userId, username: view.username, signOut, refresh: evaluate } : null),
     [view, signOut, evaluate],
   );
 

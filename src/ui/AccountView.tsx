@@ -16,7 +16,7 @@ import { useRepository } from './RepositoryContext';
 
 /** หน้าโปรไฟล์: ชื่อผู้ใช้ เปลี่ยนรหัสผ่าน ออกจากระบบ (หัวหน้าหลักของแอปเป็น h1 แล้ว หน้านี้ใช้ h2) */
 export function AccountView({ onReset, onWalletsChanged, onBackedUp }: { onReset: () => void; onWalletsChanged: () => void; onBackedUp?: () => void }) {
-  const { username, signOut } = useAccount();
+  const { userId, username, signOut } = useAccount();
   const repo = useRepository();
   const requestPassword = usePasswordPrompt();
   const [exportNote, setExportNote] = useState('');
@@ -73,7 +73,7 @@ export function AccountView({ onReset, onWalletsChanged, onBackedUp }: { onReset
       return;
     }
     setBusy(true);
-    const result = await deleteMyAccount(accountApi, password);
+    const result = await deleteMyAccount(accountApi, userId, password);
     setBusy(false);
     if (!result.ok) {
       setDeleteNote(result.message);

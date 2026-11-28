@@ -4,7 +4,8 @@ import { buildInitialLedger } from '../../src/app/setup';
 import { PRIVACY_POLICY_VERSION } from '../../src/domain/privacy/policy';
 import { SettingsConflictError, StorageError } from '../../src/storage/repository';
 import { createSupabaseRepository } from '../../src/storage/supabaseRepository';
-import type { LedgerRepository } from '../../src/storage/ledgerRepository';
+import { AccountChangedError, type LedgerRepository } from '../../src/storage/ledgerRepository';
+import { deleteMyAccount } from '../../src/app/account';
 import { describeRepositoryContract } from '../unit/repositoryContract';
 import { loadAdmin } from '../../scripts/lib/admin.mjs';
 import { authErrorText, liveClientOptions, wipeUserTables } from './liveHelpers';
@@ -313,6 +314,61 @@ describe('แยกข้อมูลระหว่างผู้ใช้ (RL
     expect(imp.error).not.toBeNull();
     expect((await a.loadLedger()).entries.length).toBeGreaterThan(0);
   });
+});
+
+describe('ฐานข้อมูลตรวจผู้ใช้ที่ตั้งใจ (ตัวห่อ _as) · นำเข้าแบ่งก้อนที่มีค่าตั้งค่า', () => {
+  it('หน้าจอของ A แต่เซสชันเป็น B: ตั้งต้น ล้าง และลบบัญชีได้ PT412 ไม่มีอะไรถูกเขียนหรือลบ', async () => {
+    await wipe(0);
+    await wipe(1);
+    const a = await repoFor(0);
+    const b = await repoFor(1);
+    const { client: bc } = await signedIn(1);
+    const aId = (await signedIn(0)).id;
+    // จำลองแท็บค้าง: ฝั่งเว็บเชื่อว่าเซสชันยังเป็น A (ตัวตรวจฝั่งเว็บผ่าน) แต่คำสั่งไปถึงฐานข้อมูลด้วยเซสชันของ B
+    const stale = new Proxy(bc, {
+      get(target, key) {
+        if (key === 'auth') return { getSession: async () => ({ data: { session: { user: { id: aId } } } }) };
+        const value = Reflect.get(target, key) as unknown;
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const staleRepo = createSupabaseRepository(stale, aId, { getPasswordForReset: async () => live.users[1]!.password });
+    const ledger = buildInitialLedger([{ name: 'ของหน้าจอ A', opening: '10' }], '2026-11-01');
+    await expect(staleRepo.saveInitialLedger(ledger)).rejects.toBeInstanceOf(AccountChangedError);
+    expect(await b.isEmpty()).toBe(true);
+    expect(await a.isEmpty()).toBe(true);
+    await expect(staleRepo.importBackup({ ...ledger, bills: [], settings: { payDay: 3 } })).rejects.toBeInstanceOf(AccountChangedError);
+    expect(await b.isEmpty()).toBe(true);
+    await b.saveInitialLedger(buildInitialLedger([{ name: 'ของ B', opening: '5' }], '2026-11-01'));
+    await expect(staleRepo.resetAll()).rejects.toBeInstanceOf(AccountChangedError);
+    expect((await b.loadLedger()).entries).toHaveLength(1);
+    const deleted = await deleteMyAccount({ rpc: (name, args) => bc.rpc(name, args) }, aId, live.users[1]!.password);
+    expect(deleted.ok).toBe(false);
+    if (!deleted.ok) expect(deleted.message).toMatch(/บัญชีที่เข้าสู่ระบบเปลี่ยนไป/);
+    expect((await b.loadLedger()).entries).toHaveLength(1);
+  });
+
+  it('ไฟล์ใหญ่ 1,600 รายการพร้อมค่าตั้งค่า: นำเข้าแบบแบ่งก้อนสำเร็จครบ ค่าตั้งค่าเข้า ไม่มีเซสชันค้าง', async () => {
+    await wipe(1);
+    const b = await repoFor(1);
+    const accounts = [
+      { id: 'w1', type: 'asset' as const, name: 'w1', currency: 'THB' },
+      { id: 'open', type: 'equity' as const, name: 'open', currency: 'THB' },
+    ];
+    const entries = Array.from({ length: 1600 }, (_, i) => ({
+      id: 'big-' + i,
+      date: '2026-11-01',
+      memo: '',
+      source: 'system' as const,
+      lines: [{ accountId: 'w1', amount: 1 }, { accountId: 'open', amount: -1 }],
+    }));
+    const out = await b.importBackup({ accounts, entries, bills: [], settings: { payDay: 7 } });
+    expect(out.entries).toBe(1600);
+    expect(await b.hasUnfinishedImport()).toBe(false);
+    expect(await b.loadSettings()).toEqual({ payDay: 7 });
+    expect((await b.loadLedger()).entries).toHaveLength(1600);
+    await wipe(1);
+  }, 120_000);
 });
 
 describe('merge_settings: ช่องแข่งเขียน settings (สองแท็บของผู้ใช้เดียวกัน)', () => {

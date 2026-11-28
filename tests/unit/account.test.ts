@@ -55,11 +55,11 @@ describe('ยอมรับนโยบาย (record_consent)', () => {
   });
 });
 
-describe('ลบบัญชีและข้อมูลทั้งหมด (delete_my_account_step)', () => {
+describe('ลบบัญชีและข้อมูลทั้งหมด (delete_my_account_step_as)', () => {
   it('ส่งรหัสผ่านเข้า RPC · done = ลบแล้ว', async () => {
     const { impl, calls } = api({ data: 'done' });
-    expect(await deleteMyAccount(impl, 'My-Secret-1')).toEqual({ ok: true });
-    expect(calls).toEqual([{ name: 'delete_my_account_step', args: { p_password: 'My-Secret-1' } }]);
+    expect(await deleteMyAccount(impl, 'u', 'My-Secret-1')).toEqual({ ok: true });
+    expect(calls).toEqual([{ name: 'delete_my_account_step_as', args: { p_expected_user: 'u', p_password: 'My-Secret-1' } }]);
   });
   it('ลบเป็นชุด: more, more, done → เรียก 3 ครั้งด้วยรหัสเดิม แล้วสำเร็จ', async () => {
     const answers = ['more', 'more', 'done'];
@@ -70,8 +70,8 @@ describe('ลบบัญชีและข้อมูลทั้งหมด 
         return Promise.resolve({ data: answers.shift() ?? null, error: null });
       },
     };
-    expect(await deleteMyAccount(impl, 'My-Secret-1')).toEqual({ ok: true });
-    expect(calls.map((c) => c.name)).toEqual(['delete_my_account_step', 'delete_my_account_step', 'delete_my_account_step']);
+    expect(await deleteMyAccount(impl, 'u', 'My-Secret-1')).toEqual({ ok: true });
+    expect(calls.map((c) => c.name)).toEqual(['delete_my_account_step_as', 'delete_my_account_step_as', 'delete_my_account_step_as']);
     expect(calls.every((c) => c.args?.p_password === 'My-Secret-1')).toBe(true);
   });
   it('ชุดกลางทางล้ม (cooldown/จำกัดการลอง/เครือข่าย) = หยุดทันทีด้วยข้อความเฉพาะ · ไม่จบ (more ตลอด) หยุดและแจ้งผิดพลาด', async () => {
@@ -82,52 +82,52 @@ describe('ลบบัญชีและข้อมูลทั้งหมด 
         return Promise.resolve(n === 1 ? { data: 'more', error: null } : { data: null, error: { message: 'x', code: '53400' } });
       },
     };
-    const r = await deleteMyAccount(midFail, 'x');
+    const r = await deleteMyAccount(midFail, 'u', 'x');
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.message).toMatch(/หลายครั้ง/);
     expect(n).toBe(2);
     let m = 0;
     const forever: RpcApi = { rpc: () => { m += 1; return Promise.resolve({ data: 'more', error: null }); } };
-    const f = await deleteMyAccount(forever, 'x');
+    const f = await deleteMyAccount(forever, 'u', 'x');
     expect(f.ok).toBe(false);
     expect(m).toBeLessThanOrEqual(200);
   });
   it('ลบไปแล้วบางชุดแล้วถูกปฏิเสธ (42501: session/บัญชีใช้ไม่ได้) = ไม่นับว่าสำเร็จ แต่แจ้งให้ตรวจว่าบัญชีอาจถูกลบแล้ว · ชุดแรกถูกปฏิเสธ (42501) = ข้อผิดพลาดทั่วไป', async () => {
     let n = 0;
     const lostAnswer: RpcApi = { rpc: () => { n += 1; return Promise.resolve(n === 1 ? { data: 'more', error: null } : { data: null, error: { message: 'x', code: '42501' } }); } };
-    const r = await deleteMyAccount(lostAnswer, 'x');
+    const r = await deleteMyAccount(lostAnswer, 'u', 'x');
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.message).toMatch(/อาจถูกลบ/);
-    const first = await deleteMyAccount(api({ error: { message: 'x', code: '42501' } }).impl, 'x');
+    const first = await deleteMyAccount(api({ error: { message: 'x', code: '42501' } }).impl, 'u', 'x');
     expect(first.ok).toBe(false);
     if (!first.ok) expect(first.message).not.toMatch(/อาจถูกลบ/);
   });
   it('รหัสผิด (wrong) / ค่าแปลก (รวม true แบบฟังก์ชันเดิม) = ไม่ถือว่าลบ', async () => {
     for (const data of ['wrong', false, true, null, 'true', 1, undefined, 'oops']) {
-      const r = await deleteMyAccount(api({ data }).impl, 'x');
+      const r = await deleteMyAccount(api({ data }).impl, 'u', 'x');
       expect(r.ok, String(data)).toBe(false);
     }
-    const wrong = await deleteMyAccount(api({ data: 'wrong' }).impl, 'x');
+    const wrong = await deleteMyAccount(api({ data: 'wrong' }).impl, 'u', 'x');
     if (!wrong.ok) expect(wrong.message).toMatch(/รหัสผ่านไม่ถูกต้อง/);
   });
   it('ไม่มีรหัสผ่าน = ไม่ยิงเซิร์ฟเวอร์เลย', async () => {
     const { impl, calls } = api({ data: true });
     for (const pw of ['', undefined as unknown as string]) {
-      expect((await deleteMyAccount(impl, pw)).ok).toBe(false);
+      expect((await deleteMyAccount(impl, 'u', pw)).ok).toBe(false);
     }
     expect(calls).toHaveLength(0);
   });
   it('เพิ่งเปลี่ยนรหัส (55000) แจ้ง cooldown 24 ชั่วโมงโดยเฉพาะ ไม่ใช่ข้อผิดพลาดทั่วไป', async () => {
-    const r = await deleteMyAccount(api({ error: { message: 'x', code: '55000' } }).impl, 'x');
+    const r = await deleteMyAccount(api({ error: { message: 'x', code: '55000' } }).impl, 'u', 'x');
     if (r.ok) throw new Error('ควรไม่สำเร็จ');
     expect(r.message).toMatch(/24 ชั่วโมง/);
   });
   it('ลองผิดหลายครั้ง (53400) แจ้งแยก · เครือข่ายล้ม = ข้อความเครือข่าย · ข้อผิดพลาดอื่นไม่รั่วรายละเอียด', async () => {
-    const limited = await deleteMyAccount(api({ error: { message: 'ลองผิดหลายครั้งเกินไป', code: '53400' } }).impl, 'x');
+    const limited = await deleteMyAccount(api({ error: { message: 'ลองผิดหลายครั้งเกินไป', code: '53400' } }).impl, 'u', 'x');
     if (!limited.ok) expect(limited.message).toMatch(/หลายครั้ง/);
-    const net = await deleteMyAccount(api('throw').impl, 'x');
+    const net = await deleteMyAccount(api('throw').impl, 'u', 'x');
     if (!net.ok) expect(net.message).toMatch(/เชื่อมต่อ/);
-    const other = await deleteMyAccount(api({ error: { message: 'duplicate key value violates "x_pkey"', code: '23505' } }).impl, 'x');
+    const other = await deleteMyAccount(api({ error: { message: 'duplicate key value violates "x_pkey"', code: '23505' } }).impl, 'u', 'x');
     if (!other.ok) expect(other.message).not.toMatch(/duplicate|pkey/);
   });
 });

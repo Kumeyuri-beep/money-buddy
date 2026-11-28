@@ -434,6 +434,11 @@ export interface SupabaseRepositoryOptions {
   getPasswordForReset?: () => Promise<string>;
 }
 
+/** รหัสที่ private.assert_expected_user โยนเมื่อผู้ใช้ของเซสชันไม่ใช่ผู้ใช้ที่หน้าจอตั้งใจ */
+const ACCOUNT_CHANGED_CODE = 'PT412';
+const NOT_IMPORTED_ACCOUNT_CHANGED = 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงยังไม่ได้นำเข้า โหลดหน้าใหม่';
+const INVEST_ACCOUNT_CHANGED = 'นำเข้าสมุดบัญชีสำเร็จแล้ว แต่บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงยังไม่ได้ทำขั้นข้อมูลลงทุน โหลดหน้าใหม่';
+
 export function createSupabaseRepository(client: SupabaseClient, userId: string, options: SupabaseRepositoryOptions = {}): LedgerRepository {
   if (typeof userId !== 'string' || userId === '') throw new StorageError('ต้องเข้าสู่ระบบก่อนใช้งานข้อมูล');
 
@@ -504,6 +509,17 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
   }
 
   /**
+   * คำสั่งที่เขียนหรือล้างทั้งสมุด: เรียกตัวห่อ <ชื่อ>_as ให้ฐานข้อมูลตรวจในธุรกรรมเดียวกันว่าผู้ใช้ของเซสชันยังเป็นผู้ใช้ของ repository นี้
+   * (การตรวจฝั่งเว็บอย่างเดียวมีช่องระหว่างตรวจกับเรียก) · PT412 = บัญชีเปลี่ยน คำสั่งนั้นยังไม่ได้ทำอะไร
+   */
+  async function guardedRpc(name: string, args: Record<string, unknown>, changed: string): Promise<unknown> {
+    const { data, error } = await client.rpc(`${name}_as`, { p_expected_user: userId, ...args });
+    if (error?.code === ACCOUNT_CHANGED_CODE) throw new AccountChangedError(changed);
+    check(error);
+    return data;
+  }
+
+  /**
    * RPC ของรายการลงทุน (record_trade, record_trade_fx, replace_trade, delete_asset): ข้อมูลของสินทรัพย์เปลี่ยนระหว่างทำรายการ (PT409 ลายนิ้วมือไม่ตรง ·
    * 40P01 deadlock กับการลบรายการตรงๆ · 40001 ของเดิม) = store.dataChanged ข้อความเดียว ("Data changed — reload and try again.") ไม่รั่วรายละเอียดภายใน
    */
@@ -522,15 +538,19 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
   async function importChunked(data: BackupData, onProgress?: ImportProgress) {
     const [first = [], ...rest] = chunkEntries(data.entries);
     const total = data.entries.length;
-    const begin = (await rpc('import_ledger_begin', {
-      p_data: {
-        accounts: data.accounts.map(accountToJson),
-        bills: data.bills.map(billToJson),
-        entries: first.map(entryToJson),
-        settings: sanitizeSettings(data.settings),
+    const begin = (await guardedRpc(
+      'import_ledger_begin',
+      {
+        p_data: {
+          accounts: data.accounts.map(accountToJson),
+          bills: data.bills.map(billToJson),
+          entries: first.map(entryToJson),
+          settings: sanitizeSettings(data.settings),
+        },
+        p_total_entries: total,
       },
-      p_total_entries: total,
-    })) as { accounts?: number; entries?: number; bills?: number } | null;
+      NOT_IMPORTED_ACCOUNT_CHANGED,
+    )) as { accounts?: number; entries?: number; bills?: number } | null;
     // ถึงตรงนี้เซสชันเปิดแล้ว: ล้มหลังจากนี้ต้องล้างส่วนที่ค้าง
     const stopped = 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป การนำเข้าหยุดกลางทาง เข้าสู่ระบบบัญชีเดิมแล้วแอปจะให้ล้างส่วนที่ค้างก่อนลองใหม่';
     let done = begin?.entries ?? first.length;
@@ -538,7 +558,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
     try {
       for (const chunk of rest) {
         await assertSameAccount(stopped);
-        const out = (await rpc('import_ledger_append', { p_entries: chunk.map(entryToJson) })) as { entries?: number } | null;
+        const out = (await guardedRpc('import_ledger_append', { p_entries: chunk.map(entryToJson) }, stopped)) as { entries?: number } | null;
         done += out?.entries ?? chunk.length;
         onProgress?.(done, total);
       }
@@ -563,8 +583,9 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
   /** ล้างส่วนที่นำเข้าค้างเป็นชุด (ฐานข้อมูลลบทีละ ≤ 500 รายการ คืน 'more' จนกว่าจะหมด) · หยุดที่ 200 รอบกันวนไม่รู้จบ · false = ไม่มีเซสชันค้างตั้งแต่ครั้งแรก (ไม่ได้ล้างอะไร) */
   async function abortImport(): Promise<boolean> {
     for (let i = 0; i < 200; i++) {
-      await assertSameAccount('บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงหยุดล้าง โหลดหน้าใหม่');
-      const result = await rpc('import_ledger_abort', {});
+      const changed = 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงหยุดล้าง โหลดหน้าใหม่';
+      await assertSameAccount(changed);
+      const result = await guardedRpc('import_ledger_abort', {}, changed);
       if (result !== 'more') return !(i === 0 && result === 'none');
     }
     throw new StorageError('ล้างส่วนที่นำเข้าค้างไม่หมด ลองอีกครั้ง');
@@ -638,13 +659,13 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
     const replacing = replaceCategories > 0;
     if (!replacing && isEmptyInvestments(d)) return;
     // ไฟล์ค้างในหน่วยความจำได้นาน: ห้ามเขียนข้อมูลของไฟล์นี้เข้าบัญชีใหม่
-    if (!(await sameAccount())) {
-      throw new InvestmentImportError('นำเข้าสมุดบัญชีสำเร็จแล้ว แต่บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงยังไม่ได้ทำขั้นข้อมูลลงทุน โหลดหน้าใหม่', 'not_saved');
-    }
+    if (!(await sameAccount())) throw new InvestmentImportError(INVEST_ACCOUNT_CHANGED, 'not_saved');
     const p_data = investmentsToJson(d ?? emptyInvestments());
+    const p_expected_user = userId;
     const { error } = replacing
-      ? await client.rpc('import_ledger_investments_replacing_categories', { p_data, p_expected_categories: replaceCategories })
-      : await client.rpc('import_ledger_investments', { p_data });
+      ? await client.rpc('import_ledger_investments_replacing_categories_as', { p_expected_user, p_data, p_expected_categories: replaceCategories })
+      : await client.rpc('import_ledger_investments_as', { p_expected_user, p_data });
+    if (error?.code === ACCOUNT_CHANGED_CODE) throw new InvestmentImportError(INVEST_ACCOUNT_CHANGED, 'not_saved');
     if (error) throw investmentImportError(error, replacing, isEmptyInvestments(d));
   }
 
@@ -720,7 +741,11 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
     async saveInitialLedger(ledger) {
       const report = runIntegrityCheck(ledger.accounts, ledger.entries);
       if (!report.ok) throw new StorageError(`ข้อมูลตั้งต้นไม่ผ่านการตรวจ: ${report.issues[0]?.message ?? ''}`);
-      await rpc('setup_ledger', { p_accounts: ledger.accounts.map(accountToJson), p_entries: ledger.entries.map(entryToJson) });
+      await guardedRpc(
+        'setup_ledger',
+        { p_accounts: ledger.accounts.map(accountToJson), p_entries: ledger.entries.map(entryToJson) },
+        'บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงยังไม่ได้บันทึก โหลดหน้าใหม่',
+      );
     },
 
     async appendEntry(input: NewEntry) {
@@ -776,8 +801,9 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       // ล้างเป็นชุดละ ≤ 500 รายการ (ข้อมูลหนักมากล้างในคำสั่งเดียวชนเพดานเวลา 8 วินาที) · ฐานข้อมูลตรวจรหัสผ่านและด่านอื่นทุกชุด
       // more = ยังเหลือ เรียกซ้ำ · หยุดที่ 200 ชุด (= 100,000 รายการ) กันวนไม่รู้จบ · ค่าที่ไม่รู้จักถือว่าผิดพลาด ไม่เดาว่าสำเร็จ
       for (let i = 0; i < 200; i++) {
-        await assertSameAccount(i === 0 ? 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงยังไม่ได้ล้าง โหลดหน้าใหม่' : 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงหยุดล้าง อาจล้างไปแล้วบางส่วน เข้าสู่ระบบบัญชีเดิมแล้วล้างส่วนที่เหลือต่อได้');
-        const result = await rpc('reset_my_ledger_step', { p_password: password });
+        const changed = i === 0 ? 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงยังไม่ได้ล้าง โหลดหน้าใหม่' : 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงหยุดล้าง อาจล้างไปแล้วบางส่วน เข้าสู่ระบบบัญชีเดิมแล้วล้างส่วนที่เหลือต่อได้';
+        await assertSameAccount(changed);
+        const result = await guardedRpc('reset_my_ledger_step', { p_password: password }, changed);
         if (result === 'done') return;
         if (result === 'wrong') throw new StorageError('รหัสผ่านไม่ถูกต้อง ไม่ได้ล้างข้อมูล');
         if (result !== 'more') throw new StorageError('ล้างข้อมูลไม่สำเร็จ ลองอีกครั้ง');
@@ -1293,7 +1319,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       if (!report.ok) throw new StorageError(`ข้อมูลนำเข้าไม่ผ่านการตรวจ: ${report.issues[0]?.message ?? ''}`);
       const settingsIssue = settingsProblem(data.settings);
       if (settingsIssue) throw new StorageError(`ค่าตั้งค่าไม่ถูกต้อง: ${settingsIssue}`);
-      if (!(await sameAccount())) throw new StorageError('บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงยังไม่ได้นำเข้า โหลดหน้าใหม่');
+      await assertSameAccount(NOT_IMPORTED_ACCOUNT_CHANGED);
       const totalLines = data.entries.reduce((n, e) => n + e.lines.length, 0);
       if (data.entries.length > SINGLE_IMPORT_MAX_ENTRIES || totalLines > SINGLE_IMPORT_MAX_LINES) {
         const chunked = await importChunked(data, onProgress);
@@ -1301,14 +1327,18 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
         return chunked;
       }
       // ครั้งเดียว: ฐานข้อมูลเขียนทุกส่วนในธุรกรรมเดียว ผิดข้อใด = ย้อนกลับทั้งก้อน · มีข้อมูลอยู่แล้ว = ปฏิเสธ
-      const out = (await rpc('import_ledger', {
-        p_data: {
-          accounts: data.accounts.map(accountToJson),
-          bills: data.bills.map(billToJson),
-          entries: data.entries.map(entryToJson),
-          settings: sanitizeSettings(data.settings),
+      const out = (await guardedRpc(
+        'import_ledger',
+        {
+          p_data: {
+            accounts: data.accounts.map(accountToJson),
+            bills: data.bills.map(billToJson),
+            entries: data.entries.map(entryToJson),
+            settings: sanitizeSettings(data.settings),
+          },
         },
-      })) as { accounts?: number; entries?: number; bills?: number } | null;
+        NOT_IMPORTED_ACCOUNT_CHANGED,
+      )) as { accounts?: number; entries?: number; bills?: number } | null;
       onProgress?.(data.entries.length, data.entries.length);
       await importInvestments(data.investments, options?.replaceCategories);
       return { accounts: out?.accounts ?? 0, entries: out?.entries ?? 0, bills: out?.bills ?? 0 };
