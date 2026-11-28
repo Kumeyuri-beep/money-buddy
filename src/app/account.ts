@@ -3,13 +3,15 @@ import type { AuthResult } from './auth';
 
 /**
  * บัญชีผู้ใช้: ยอมรับนโยบาย (PDPA) และลบบัญชีพร้อมข้อมูลทั้งหมด (M2-E)
- * ฐานข้อมูลเป็นด่านจริง (RPC record_consent / delete_my_account ตรวจผู้เรียก รหัสผ่าน และจำกัดการลอง) ที่นี่แปลงผลเป็นข้อความไทย
+ * ฐานข้อมูลเป็นด่านจริง (RPC record_consent / delete_my_account_step_as ตรวจผู้เรียก รหัสผ่าน และจำกัดการลอง) ที่นี่แปลงผลเป็นข้อความไทย
  */
 export interface RpcApi {
   rpc(name: string, args?: Record<string, unknown>): PromiseLike<{ data: unknown; error: { message?: string; code?: string } | null }>;
 }
 
 const PARTIAL_DELETE = 'ข้อมูลบางส่วนถูกลบไปแล้ว และบัญชีอาจถูกลบเรียบร้อยแล้ว ลองเข้าสู่ระบบใหม่เพื่อตรวจ ถ้ายังเข้าได้ให้กดลบบัญชีอีกครั้ง';
+const CHANGED_NOT_DELETED = 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงยังไม่ได้ลบอะไร โหลดหน้าใหม่';
+const CHANGED_PARTIAL = 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงหยุดลบ ข้อมูลบางส่วนอาจถูกลบไปแล้ว เข้าสู่ระบบบัญชีเดิมแล้วกดลบบัญชีอีกครั้ง';
 const NETWORK = 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ตรวจอินเทอร์เน็ตแล้วลองใหม่';
 const UNKNOWN = 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง';
 const RATE_LIMITED = 'ลองรหัสผ่านผิดหลายครั้งเกินไป ลองใหม่ภายหลัง';
@@ -30,15 +32,18 @@ export async function recordConsent(api: RpcApi): Promise<AuthResult> {
 /**
  * ลบบัญชีและข้อมูลทั้งหมดของผู้ที่ล็อกอินอยู่ (ย้อนกลับไม่ได้) · ต้องส่งรหัสผ่านปัจจุบัน
  * รหัสผิด = ไม่ลบ ฐานข้อมูลจำกัดรหัสผิด 5 ครั้ง/15 นาที · ไม่ผ่านโดยไม่มี done จากเซิร์ฟเวอร์
+ * userId = ผู้ใช้ของหน้าจอที่กดลบ ฐานข้อมูลลบเฉพาะเมื่อเซสชันยังเป็นผู้ใช้นี้ (PT412 = บัญชีเปลี่ยน)
  */
-export async function deleteMyAccount(api: RpcApi, password: string): Promise<AuthResult> {
+export async function deleteMyAccount(api: RpcApi, userId: string, password: string): Promise<AuthResult> {
+  if (typeof userId !== 'string' || userId === '') return { ok: false, message: UNKNOWN };
   if (typeof password !== 'string' || password === '') return { ok: false, message: 'ต้องใส่รหัสผ่านเพื่อยืนยัน' };
   try {
     // ลบเป็นชุดละ ≤ 500 รายการ (ข้อมูลหนักมากลบในคำสั่งเดียวชนเพดานเวลา 8 วินาที) · ฐานข้อมูลตรวจรหัสผ่านและ cooldown ทุกชุด
     // more = ยังเหลือ เรียกซ้ำ · done = ลบบัญชีแล้ว · หยุดที่ 200 ชุดกันวนไม่รู้จบ · ค่าที่ไม่รู้จักไม่นับว่าลบ
     for (let i = 0; i < 200; i++) {
-      const { data, error } = await api.rpc('delete_my_account_step', { p_password: password });
+      const { data, error } = await api.rpc('delete_my_account_step_as', { p_expected_user: userId, p_password: password });
       if (error) {
+        if (error.code === 'PT412') return { ok: false, message: i === 0 ? CHANGED_NOT_DELETED : CHANGED_PARTIAL };
         if (error.code === '53400') return { ok: false, message: RATE_LIMITED };
         if (error.code === '55000') return { ok: false, message: COOLDOWN_MESSAGE };
         // หลังลบไปแล้วบางชุด (i > 0) แล้วถูกปฏิเสธเพราะ session/บัญชีใช้ไม่ได้ (42501): บัญชีอาจถูกลบไปแล้วแต่คำตอบสุดท้ายหายระหว่างทาง ไม่นับว่าสำเร็จ แต่บอกให้ตรวจ

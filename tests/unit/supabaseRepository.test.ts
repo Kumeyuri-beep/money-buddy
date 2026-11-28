@@ -217,7 +217,7 @@ describe('นำเข้าไฟล์สำรอง', () => {
     const { client, calls } = fakeClient(() => ({ data: { accounts: 2, bills: 1, entries: 1 } }));
     const out = await createSupabaseRepository(client, 'u').importBackup(data);
     expect(out).toEqual({ accounts: 2, entries: 1, bills: 1 });
-    expect(calls.map((c) => c.kind + ':' + c.name)).toEqual(['rpc:import_ledger']);
+    expect(calls.map((c) => c.kind + ':' + c.name)).toEqual(['rpc:import_ledger_as']);
     const sent = (calls[0]?.args as { p_data: { accounts: unknown[]; entries: unknown[]; bills: { lastPaidMonth?: string }[]; settings: unknown } }).p_data;
     expect(sent.accounts).toHaveLength(2);
     expect(sent.entries).toHaveLength(1);
@@ -248,9 +248,9 @@ describe('นำเข้าแบบแบ่งก้อน (เกิน 1,50
   type Args = { p_data?: { accounts: unknown[]; bills: unknown[]; entries: { id: string }[]; settings: unknown }; p_total_entries?: number; p_entries?: { id: string }[] };
   const ok = (call: { name: string; args?: unknown }) => {
     const a = (call.args ?? {}) as Args;
-    if (call.name === 'import_ledger_begin') return { data: { accounts: 2, bills: 1, entries: a.p_data?.entries.length ?? 0, done: false } };
-    if (call.name === 'import_ledger_append') return { data: { entries: a.p_entries?.length ?? 0, done: false } };
-    if (call.name === 'import_ledger_abort') return { data: 'done' };
+    if (call.name === 'import_ledger_begin_as') return { data: { accounts: 2, bills: 1, entries: a.p_data?.entries.length ?? 0, done: false } };
+    if (call.name === 'import_ledger_append_as') return { data: { entries: a.p_entries?.length ?? 0, done: false } };
+    if (call.name === 'import_ledger_abort_as') return { data: 'done' };
     return { data: true };
   };
 
@@ -259,7 +259,7 @@ describe('นำเข้าแบบแบ่งก้อน (เกิน 1,50
     const progress: [number, number][] = [];
     const out = await createSupabaseRepository(client, 'u').importBackup(many(1600), (done, total) => progress.push([done, total]));
     expect(out).toEqual({ accounts: 2, entries: 1600, bills: 1 });
-    expect(calls.map((c) => c.name)).toEqual(['import_ledger_begin', 'import_ledger_append', 'import_ledger_append', 'import_ledger_append']);
+    expect(calls.map((c) => c.name)).toEqual(['import_ledger_begin_as', 'import_ledger_append_as', 'import_ledger_append_as', 'import_ledger_append_as']);
     const begin = calls[0]!.args as Args;
     expect(begin.p_total_entries).toBe(1600);
     expect(begin.p_data!.accounts).toHaveLength(2);
@@ -275,7 +275,7 @@ describe('นำเข้าแบบแบ่งก้อน (เกิน 1,50
   it('ไม่เกิน 1,500 รายการ: ยังใช้ import_ledger คำสั่งเดียวเหมือนเดิม (อะตอมมิก)', async () => {
     const { client, calls } = fakeClient(() => ({ data: { accounts: 2, bills: 1, entries: 1500 } }));
     await createSupabaseRepository(client, 'u').importBackup(many(1500));
-    expect(calls.map((c) => c.name)).toEqual(['import_ledger']);
+    expect(calls.map((c) => c.name)).toEqual(['import_ledger_as']);
   });
 
   it('รายการไม่ถึง 1,500 แต่บรรทัดรวมเกิน 20,000 ต่อคำสั่ง: ต้องแบ่งก้อนด้วย (ไม่ให้ import_ledger คำสั่งเดียวถูกปฏิเสธ) และแต่ละก้อนไม่เกิน 20,000 บรรทัด', async () => {
@@ -283,7 +283,7 @@ describe('นำเข้าแบบแบ่งก้อน (เกิน 1,50
     wide.entries = wide.entries.map((e) => ({ ...e, lines: Array.from({ length: 30 }, (_, j) => ({ accountId: j % 2 ? 'b' : 'a', amount: j % 2 ? -1 : 1 })) }));
     const { client, calls } = fakeClient(ok);
     await createSupabaseRepository(client, 'u').importBackup(wide);
-    expect(calls[0]!.name).toBe('import_ledger_begin');
+    expect(calls[0]!.name).toBe('import_ledger_begin_as');
     expect(calls.length).toBeGreaterThan(1);
     for (const c of calls) {
       const list = (c.args as Args).p_entries ?? (c.args as Args).p_data!.entries;
@@ -294,16 +294,16 @@ describe('นำเข้าแบบแบ่งก้อน (เกิน 1,50
   it('ก้อนกลางทางล้ม: สั่งล้างส่วนที่นำเข้าค้างทันที 1 ครั้ง แล้วแจ้งว่าล้างให้แล้ว (ไม่ส่งก้อนต่อ)', async () => {
     let appends = 0;
     const { client, calls } = fakeClient((call) => {
-      if (call.name === 'import_ledger_append' && ++appends === 2) return { error: { message: 'ล้มกลางทาง' } };
+      if (call.name === 'import_ledger_append_as' && ++appends === 2) return { error: { message: 'ล้มกลางทาง' } };
       return ok(call);
     });
     await expect(createSupabaseRepository(client, 'u').importBackup(many(1600))).rejects.toThrow(/ล้างส่วนที่นำเข้าค้างให้แล้ว/);
-    expect(calls.map((c) => c.name)).toEqual(['import_ledger_begin', 'import_ledger_append', 'import_ledger_append', 'import_ledger_abort']);
+    expect(calls.map((c) => c.name)).toEqual(['import_ledger_begin_as', 'import_ledger_append_as', 'import_ledger_append_as', 'import_ledger_abort_as']);
   });
 
   it('ล้างส่วนค้างไม่สำเร็จด้วย: แจ้งให้เปิดแอปใหม่ (แอปจะพาไปหน้าล้าง) ไม่บอกว่าล้างแล้ว', async () => {
     const { client } = fakeClient((call) => {
-      if (call.name === 'import_ledger_append' || call.name === 'import_ledger_abort') return { error: { message: 'ล้ม' } };
+      if (call.name === 'import_ledger_append_as' || call.name === 'import_ledger_abort_as') return { error: { message: 'ล้ม' } };
       return ok(call);
     });
     const err = await createSupabaseRepository(client, 'u').importBackup(many(1600)).catch((e: unknown) => e);
@@ -315,8 +315,8 @@ describe('นำเข้าแบบแบ่งก้อน (เกิน 1,50
   it('คำตอบก้อนสุดท้ายหายหลังบันทึก (abort ตอบ none): ห้ามบอกว่าล้างให้แล้ว · บอกให้ตรวจยอด', async () => {
     let appends = 0;
     const { client, calls } = fakeClient((call) => {
-      if (call.name === 'import_ledger_append' && ++appends === 3) return { error: { message: 'TypeError: Failed to fetch', code: '' } };
-      if (call.name === 'import_ledger_abort') return { data: 'none' };
+      if (call.name === 'import_ledger_append_as' && ++appends === 3) return { error: { message: 'TypeError: Failed to fetch', code: '' } };
+      if (call.name === 'import_ledger_abort_as') return { data: 'none' };
       return ok(call);
     });
     const message = ((await createSupabaseRepository(client, 'u').importBackup(many(1600)).catch((e: unknown) => e)) as Error).message;
@@ -324,14 +324,14 @@ describe('นำเข้าแบบแบ่งก้อน (เกิน 1,50
     expect(message).toMatch(/ตรวจยอด/);
     expect(message).not.toMatch(/ล้างส่วนที่นำเข้าค้างให้แล้ว|ลองนำเข้าใหม่ได้|Failed to fetch/);
     expect(message).not.toMatch(/ข้อมูลลงทุน/);
-    await expect(createSupabaseRepository(fakeClient((c) => (c.name === 'import_ledger_abort' ? { data: 'none' } : c.name === 'import_ledger_append' ? { error: { message: 'x' } } : ok(c))).client, 'u').importBackup(many(1600))).rejects.toBeInstanceOf(ImportUnconfirmedError);
-    expect(calls.at(-1)!.name).toBe('import_ledger_abort');
+    await expect(createSupabaseRepository(fakeClient((c) => (c.name === 'import_ledger_abort_as' ? { data: 'none' } : c.name === 'import_ledger_append_as' ? { error: { message: 'x' } } : ok(c))).client, 'u').importBackup(many(1600))).rejects.toBeInstanceOf(ImportUnconfirmedError);
+    expect(calls.at(-1)!.name).toBe('import_ledger_abort_as');
   });
 
   it('เหมือนข้างบนและไฟล์มีข้อมูลลงทุน: บอกว่าส่วนลงทุนยังไม่ได้นำเข้า (ยังไม่ได้เรียกเลย)', async () => {
     const { client, calls } = fakeClient((call) => {
-      if (call.name === 'import_ledger_append') return { error: { message: 'x', code: '' } };
-      if (call.name === 'import_ledger_abort') return { data: 'none' };
+      if (call.name === 'import_ledger_append_as') return { error: { message: 'x', code: '' } };
+      if (call.name === 'import_ledger_abort_as') return { data: 'none' };
       return ok(call);
     });
     const data = { ...many(1600), investments: { assets: [{ id: 's', name: 'สมมติ', kind: 'fund' as const, accountId: 'a' }], trades: [], prices: [] } };
@@ -342,8 +342,8 @@ describe('นำเข้าแบบแบ่งก้อน (เกิน 1,50
   it('ล้างเป็นชุด (more แล้ว done) ยังบอกว่าล้างให้แล้ว', async () => {
     const answers = ['more', 'done'];
     const { client } = fakeClient((call) => {
-      if (call.name === 'import_ledger_append') return { error: { message: 'ล้ม' } };
-      if (call.name === 'import_ledger_abort') return { data: answers.shift() };
+      if (call.name === 'import_ledger_append_as') return { error: { message: 'ล้ม' } };
+      if (call.name === 'import_ledger_abort_as') return { data: answers.shift() };
       return ok(call);
     });
     const e = await createSupabaseRepository(client, 'u').importBackup(many(1600)).catch((x: unknown) => x);
@@ -352,9 +352,9 @@ describe('นำเข้าแบบแบ่งก้อน (เกิน 1,50
   });
 
   it('begin ถูกปฏิเสธ (เช่นมีข้อมูลอยู่แล้ว): ไม่สั่งล้าง เพราะยังไม่ได้เปิดเซสชัน ข้อมูลเดิมต้องไม่ถูกแตะ', async () => {
-    const { client, calls } = fakeClient((call) => (call.name === 'import_ledger_begin' ? { error: { message: 'มีข้อมูลอยู่แล้ว นำเข้าไม่ได้ (ไม่ทับข้อมูลเดิม)', code: '23505' } } : ok(call)));
+    const { client, calls } = fakeClient((call) => (call.name === 'import_ledger_begin_as' ? { error: { message: 'มีข้อมูลอยู่แล้ว นำเข้าไม่ได้ (ไม่ทับข้อมูลเดิม)', code: '23505' } } : ok(call)));
     await expect(createSupabaseRepository(client, 'u').importBackup(many(1600))).rejects.toThrow(/มีข้อมูลอยู่แล้ว/);
-    expect(calls.map((c) => c.name)).toEqual(['import_ledger_begin']);
+    expect(calls.map((c) => c.name)).toEqual(['import_ledger_begin_as']);
   });
 
   it('ข้อมูลไม่สมดุลถูกปฏิเสธก่อนส่งแม้เป็นไฟล์ใหญ่ (ไม่เปิดเซสชันเลย)', async () => {
@@ -369,7 +369,7 @@ describe('นำเข้าแบบแบ่งก้อน (เกิน 1,50
     const answers = ['more', 'more', 'done'];
     const { client, calls } = fakeClient(() => ({ data: answers.shift() }));
     await createSupabaseRepository(client, 'u').abortUnfinishedImport();
-    expect(calls.map((c) => c.name)).toEqual(['import_ledger_abort', 'import_ledger_abort', 'import_ledger_abort']);
+    expect(calls.map((c) => c.name)).toEqual(['import_ledger_abort_as', 'import_ledger_abort_as', 'import_ledger_abort_as']);
   });
 
   it('ล้างส่วนค้างไม่มีวันจบ (more ตลอด) ต้องหยุดและแจ้งผิดพลาด ไม่วนไม่รู้จบ', async () => {
@@ -389,7 +389,7 @@ describe('นำเข้าแบบแบ่งก้อน (เกิน 1,50
     const repo = createSupabaseRepository(client, 'u');
     expect(await repo.hasUnfinishedImport()).toBe(true);
     await repo.abortUnfinishedImport();
-    expect(calls.map((c) => c.kind + ':' + c.name)).toEqual(['rpc:import_ledger_status', 'rpc:import_ledger_abort']);
+    expect(calls.map((c) => c.kind + ':' + c.name)).toEqual(['rpc:import_ledger_status', 'rpc:import_ledger_abort_as']);
   });
 });
 
@@ -407,16 +407,16 @@ describe('การป้องกันอื่น', () => {
   it('ล้างข้อมูลทั้งหมด: เรียกเฉพาะ reset_my_ledger_step พร้อมรหัสผ่าน (ไม่ลบทีละตารางเอง)', async () => {
     const { client, calls } = fakeClient(() => ({ data: 'done' }));
     await createSupabaseRepository(client, 'u', { getPasswordForReset: async () => 'pw-1' }).resetAll();
-    expect(calls.map((c) => c.kind + ':' + c.name)).toEqual(['rpc:reset_my_ledger_step']);
-    expect(calls[0]?.args).toEqual({ p_password: 'pw-1' });
+    expect(calls.map((c) => c.kind + ':' + c.name)).toEqual(['rpc:reset_my_ledger_step_as']);
+    expect(calls[0]?.args).toEqual({ p_expected_user: 'u', p_password: 'pw-1' });
   });
   it('ล้างข้อมูลเป็นชุด: more, more, done → เรียก 3 ครั้งด้วยรหัสเดิม ถามรหัสผ่านครั้งเดียว', async () => {
     const answers = ['more', 'more', 'done'];
     const { client, calls } = fakeClient(() => ({ data: answers.shift() }));
     let asked = 0;
     await createSupabaseRepository(client, 'u', { getPasswordForReset: async () => { asked += 1; return 'pw-1'; } }).resetAll();
-    expect(calls.map((c) => c.name)).toEqual(['reset_my_ledger_step', 'reset_my_ledger_step', 'reset_my_ledger_step']);
-    expect(calls.every((c) => JSON.stringify(c.args) === JSON.stringify({ p_password: 'pw-1' }))).toBe(true);
+    expect(calls.map((c) => c.name)).toEqual(['reset_my_ledger_step_as', 'reset_my_ledger_step_as', 'reset_my_ledger_step_as']);
+    expect(calls.every((c) => JSON.stringify(c.args) === JSON.stringify({ p_expected_user: 'u', p_password: 'pw-1' }))).toBe(true);
     expect(asked).toBe(1);
   });
   it('ล้างข้อมูลเป็นชุด: ชุดกลางทางล้ม/รหัสถูกเปลี่ยนกลางทาง = หยุดทันที ไม่เรียกต่อ · ไม่จบ (more ตลอด) หยุดที่ 200 ชุด · ค่าแปลก = ผิดพลาด', async () => {
@@ -511,7 +511,7 @@ describe('นำเข้าเมื่อมีหมวดเดิมค้�
     bills: [],
     settings: {},
   };
-  const NEW_RPC = 'import_ledger_investments_replacing_categories';
+  const NEW_RPC = 'import_ledger_investments_replacing_categories_as';
   const okLedger = () => fakeClient(() => ({ data: { accounts: 2, bills: 0, entries: 1 } }));
   const failMessage = async (error: { message: string; code?: string }) => {
     const { client } = fakeClient((call) => (call.name === NEW_RPC ? { error } : { data: { accounts: 2, bills: 0, entries: 1 } }));
@@ -532,15 +532,15 @@ describe('นำเข้าเมื่อมีหมวดเดิมค้�
   it('เรียก RPC ใหม่พร้อมจำนวนที่ผู้ใช้ยืนยัน แม้ไฟล์ไม่มีข้อมูลลงทุน · ไม่เรียกตัวเดิม', async () => {
     const { client, calls } = okLedger();
     await createSupabaseRepository(client, 'u').importBackup(data, undefined, { replaceCategories: 2 });
-    expect(calls.map((c) => c.name)).toEqual(['import_ledger', NEW_RPC]);
-    expect(calls[1]!.args).toEqual({ p_data: { assets: [], trades: [], prices: [] }, p_expected_categories: 2 });
+    expect(calls.map((c) => c.name)).toEqual(['import_ledger_as', NEW_RPC]);
+    expect(calls[1]!.args).toEqual({ p_expected_user: 'u', p_data: { assets: [], trades: [], prices: [] }, p_expected_categories: 2 });
   });
 
   it('จำนวนยืนยัน 0 หรือไม่ส่ง = ทางเดิมทุกอย่าง', async () => {
     for (const options of [undefined, { replaceCategories: 0 }]) {
       const { client, calls } = okLedger();
       await createSupabaseRepository(client, 'u').importBackup(data, undefined, options);
-      expect(calls.map((c) => c.name)).toEqual(['import_ledger']);
+      expect(calls.map((c) => c.name)).toEqual(['import_ledger_as']);
     }
   });
 
@@ -548,7 +548,7 @@ describe('นำเข้าเมื่อมีหมวดเดิมค้�
     const big = { ...data, entries: Array.from({ length: 1600 }, (_, i) => ({ ...data.entries[0]!, id: 'e' + i })) };
     const { client, calls } = fakeClient(() => ({ data: { entries: 500 } }));
     await createSupabaseRepository(client, 'u').importBackup(big, undefined, { replaceCategories: 1 });
-    expect(calls[0]!.name).toBe('import_ledger_begin');
+    expect(calls[0]!.name).toBe('import_ledger_begin_as');
     expect(calls.at(-1)!.name).toBe(NEW_RPC);
   });
 
@@ -578,8 +578,8 @@ describe('ขั้นข้อมูลลงทุนล้ม: ชนิด�
     settings: {},
   };
   const investments = { assets: [{ id: 's', name: 'สมมติ', kind: 'fund' as const, accountId: 'i' }], trades: [], prices: [] };
-  const OLD_RPC = 'import_ledger_investments';
-  const NEW_RPC = 'import_ledger_investments_replacing_categories';
+  const OLD_RPC = 'import_ledger_investments_as';
+  const NEW_RPC = 'import_ledger_investments_replacing_categories_as';
   const failing = (error: { message: string; code?: string }) => fakeClient((call) => (call.name === OLD_RPC || call.name === NEW_RPC ? { error } : { data: { accounts: 2, bills: 0, entries: 1 } }));
   const fail = async (data: Parameters<ReturnType<typeof createSupabaseRepository>['importBackup']>[0], error: { message: string; code?: string }, replaceCategories?: number) => {
     const options = replaceCategories === undefined ? undefined : { replaceCategories };
@@ -668,7 +668,7 @@ describe('บัญชีเปลี่ยนจากแท็บอื่น�
     const e = await createSupabaseRepository(client, 'u').importBackup({ ...ledger, investments }).catch((x: unknown) => x);
     expect(e).toBeInstanceOf(InvestmentImportError);
     expect((e as Error).message).toMatch(/บัญชีที่เข้าสู่ระบบเปลี่ยนไป/);
-    expect(calls.map((c) => c.name)).toEqual(['import_ledger']);
+    expect(calls.map((c) => c.name)).toEqual(['import_ledger_as']);
   });
   it('confirmSameAccount: ผู้ใช้เดิมผ่าน · ต่างหรือออกจากระบบ = StorageError', async () => {
     await expect(createSupabaseRepository(fakeClient(ok).client, 'u').confirmSameAccount()).resolves.toBeUndefined();
@@ -698,12 +698,12 @@ describe('บัญชีเปลี่ยนระหว่างส่งก�
     expect((e as Error).message).toMatch(CHANGED);
     expect(e).not.toBeInstanceOf(ImportUnconfirmedError);
     expect((e as Error).message).not.toMatch(/ล้างส่วนที่นำเข้าค้างให้แล้ว/);
-    expect(calls.map((c) => c.name)).toEqual(['import_ledger_begin', 'import_ledger_append']);
+    expect(calls.map((c) => c.name)).toEqual(['import_ledger_begin_as', 'import_ledger_append_as']);
   });
   it('ก้อนล้มและบัญชีเปลี่ยนก่อนล้าง: ไม่เรียก abort', async () => {
-    const { client, calls } = fakeClient((c) => (c.name === 'import_ledger_append' ? { error: { message: 'x', code: '55000' } } : ok()), ['u', 'u', 'other']);
+    const { client, calls } = fakeClient((c) => (c.name === 'import_ledger_append_as' ? { error: { message: 'x', code: '55000' } } : ok()), ['u', 'u', 'other']);
     await expect(createSupabaseRepository(client, 'u').importBackup(big)).rejects.toThrow(CHANGED);
-    expect(calls.map((c) => c.name)).toEqual(['import_ledger_begin', 'import_ledger_append']);
+    expect(calls.map((c) => c.name)).toEqual(['import_ledger_begin_as', 'import_ledger_append_as']);
   });
   it('abortUnfinishedImport: บัญชีอื่นตั้งแต่แรก = ไม่เรียกเลย · เปลี่ยนระหว่างชุด = หยุด', async () => {
     const first = fakeClient(() => ({ data: 'done' }), ['other']);
