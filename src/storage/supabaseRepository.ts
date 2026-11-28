@@ -49,7 +49,8 @@ import { runIntegrityCheck } from '../domain/ledger/integrity';
 import type { Account, AccountType, Entry, EntrySource, NewEntry } from '../domain/ledger/types';
 import { SCHEMA_VERSION } from './db';
 import { buildCashAdjustmentEntry, CashAdjustmentError } from '../domain/invest/cashAdjustment';
-import { carryCode, type NumberField } from './storageMessages';
+import { carryCode, storeMsg, type NumberField } from './storageMessages';
+import { bindExpectedUser } from './expectedUser';
 import { AccountChangedError, ImportUnconfirmedError, InvestmentImportError, type ImportOptions, type ImportProgress, type LedgerRepository } from './ledgerRepository';
 import {
   assertBillWritableWith,
@@ -84,9 +85,17 @@ const THAI = /[฀-๿]/;
 /** รหัส error ที่ฟังก์ชัน/trigger ของเราตั้งใจ raise พร้อมข้อความไทย (ข้อความอื่นของ Postgres เองไม่ส่งต่อ เพราะอาจมีค่าที่ผู้ใช้กรอกปนอยู่) */
 const OWN_CODES = new Set(['28000', '42501', '25006', '23514', 'PT409', '53400', '23503', '23505', 'P0002', '22007', '22023', '55000', '54000']);
 
+/** เซสชันไม่ใช่ผู้ใช้ที่หน้าจอตั้งใจ (ตัวห่อ _as หรือ trigger ตรวจหัวคำขอ) */
+const ACCOUNT_CHANGED_CODE = 'PT412';
+
+function accountChanged(code: 'store.accountChanged' | 'store.accountChangedPartly') {
+  return withCode(new AccountChangedError(storeMsg(code, {})), code);
+}
+
 /** แปลง error ของ PostgREST เป็น StorageError · ข้อความไทยที่ฐานข้อมูลตั้งใจส่งมาใช้ได้เลย ที่เหลือไม่โชว์รายละเอียดภายใน */
 export function storageErrorFrom(error: DbError): StorageError {
   const message = String(error.message ?? '');
+  if (error.code === ACCOUNT_CHANGED_CODE) return accountChanged('store.accountChanged');
   if (THAI.test(message) && error.code !== undefined && OWN_CODES.has(error.code)) return new StorageError(message);
   if (/bill_cycle_once/i.test(message)) return new StorageError('รอบนี้จ่ายแล้ว (อาจจ่ายจากอีกหน้าต่างหนึ่งไปก่อนแล้ว) โหลดใหม่เพื่อดูสถานะล่าสุด');
   if (error.code === '23505' || /duplicate key/i.test(message)) return storeError('store.dbDuplicate');
@@ -435,12 +444,13 @@ export interface SupabaseRepositoryOptions {
 }
 
 /** รหัสที่ private.assert_expected_user โยนเมื่อผู้ใช้ของเซสชันไม่ใช่ผู้ใช้ที่หน้าจอตั้งใจ */
-const ACCOUNT_CHANGED_CODE = 'PT412';
 const NOT_IMPORTED_ACCOUNT_CHANGED = 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงยังไม่ได้นำเข้า โหลดหน้าใหม่';
 const INVEST_ACCOUNT_CHANGED = 'นำเข้าสมุดบัญชีสำเร็จแล้ว แต่บัญชีที่เข้าสู่ระบบเปลี่ยนไป จึงยังไม่ได้ทำขั้นข้อมูลลงทุน โหลดหน้าใหม่';
 
-export function createSupabaseRepository(client: SupabaseClient, userId: string, options: SupabaseRepositoryOptions = {}): LedgerRepository {
+export function createSupabaseRepository(rawClient: SupabaseClient, userId: string, options: SupabaseRepositoryOptions = {}): LedgerRepository {
   if (typeof userId !== 'string' || userId === '') throw new StorageError('ต้องเข้าสู่ระบบก่อนใช้งานข้อมูล');
+  // ทุกคำขอข้างล่างต้องผ่าน client ตัวนี้ (แนบผู้ใช้ที่ตั้งใจให้ฐานข้อมูลตรวจ) ห้ามใช้ rawClient ตรงๆ
+  const client = bindExpectedUser(rawClient, userId);
 
   const check = (error: DbError | null | undefined): void => {
     if (error) throw storageErrorFrom(error);
@@ -963,6 +973,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       if (ins.error) {
         // ล้างบัญชีที่เพิ่งสร้างไว้ (เฉพาะบัญชีลงทุน · ไม่มีรายการอ้างอิง) ถ้าล้างไม่สำเร็จเหลือบัญชีลงทุนว่างๆ ไม่กระทบยอดเงินสด
         await client.from('accounts').delete().eq('id', accountId).eq('kind', 'investment');
+        if (ins.error.code === ACCOUNT_CHANGED_CODE) throw accountChanged('store.accountChangedPartly');
         check(ins.error);
       }
       return { id, name, kind: input.kind, accountId };
@@ -1097,6 +1108,7 @@ export function createSupabaseRepository(client: SupabaseClient, userId: string,
       const ins = await client.from('assets').insert({ id, name, kind: 'stock', account_id: accountId, instrument_currency: 'USD', ticker, exchange });
       if (ins.error) {
         await client.from('accounts').delete().eq('id', accountId).eq('kind', 'investment');
+        if (ins.error.code === ACCOUNT_CHANGED_CODE) throw accountChanged('store.accountChangedPartly');
         check(ins.error);
       }
       return { id, name, kind: 'stock', accountId, currency: 'USD', ticker, exchange } as Asset;

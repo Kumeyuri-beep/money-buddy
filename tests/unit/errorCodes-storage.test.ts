@@ -22,7 +22,8 @@ import {
 
 /** client จำลอง: ทุกคำสั่งตอบ data/error ตามที่กำหนด */
 function fakeClient(result: { data?: unknown; error?: { message?: string; code?: string } | null } = {}): SupabaseClient {
-  const proxy: Record<string, unknown> = {};
+  // หัวคำขอ x-expected-user ตรวจใน expectedUserHeader.test.ts
+  const proxy: Record<string, unknown> = { headers: new Headers(), setHeader: () => proxy };
   for (const op of ['select', 'insert', 'update', 'upsert', 'delete', 'eq', 'order', 'range', 'limit', 'maybeSingle']) proxy[op] = () => proxy;
   proxy.then = (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) =>
     Promise.resolve({ data: result.data ?? null, error: result.error ?? null, count: null }).then(resolve, reject);
@@ -142,7 +143,7 @@ describe('รหัส + อังกฤษ ของ storage', () => {
     ['store.assetIdInvalid', {}], ['store.assetNameLength', { max: 200 }], ['store.assetKindInvalid', {}], ['store.walletIdInvalid', {}], ['store.walletNameLength', { max: 200 }],
     ['store.usdAccountIdInvalid', {}], ['store.usdAccountNameLength', { max: 200 }], ['store.stockNameLength', { max: 200 }], ['store.tickerLength', { max: 20 }],
     ['store.exchangeUnsupported', {}], ['store.assetNotFound', {}], ['store.usdOnly', {}], ['store.fxRateRequired', {}], ['store.fxExchangeNotFound', {}],
-    ['store.tradeNotFound', {}], ['store.dataChanged', {}], ['store.tradeNoRetype', {}], ['store.tradeDeleteFailed', {}], ['store.fxRateInvalid', {}], ['store.priceInvalid', {}], ['store.settingsConflict', {}], ['store.localInvestUnsupported', {}],
+    ['store.tradeNotFound', {}], ['store.dataChanged', {}], ['store.tradeNoRetype', {}], ['store.tradeDeleteFailed', {}], ['store.fxRateInvalid', {}], ['store.priceInvalid', {}], ['store.settingsConflict', {}], ['store.localInvestUnsupported', {}], ['store.accountChanged', {}], ['store.accountChangedPartly', {}],
     ['store.categoryCount', {}], ['store.categoryId', {}], ['store.categoryName', {}], ['store.categorySort', {}], ['store.categoryTarget', {}], ['store.categoryDuplicateId', {}], ['store.categoryDuplicateName', {}], ['store.categoryTargetTotal', {}],
     ...(['fee', 'withholding', 'unitPrice', 'tradeValue', 'fxRate', 'thbExchanged', 'usdExchanged', 'price', 'lineAmount', 'billAmount'] as const).map((field): [string, P] => ['store.badNumber', { field }]),
   ];

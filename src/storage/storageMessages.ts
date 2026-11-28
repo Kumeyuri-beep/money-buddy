@@ -103,6 +103,15 @@ export const storeMsg = defineMessages({
     th: () => 'ราคาต้องเป็นจำนวนเต็ม micro-baht ที่มากกว่า 0',
     en: () => 'The price must be a whole number of micro-baht greater than 0.',
   },
+  // ฐานข้อมูลตอบ PT412: เซสชันเปลี่ยนเป็นบัญชีอื่น (สลับบัญชีจากแท็บอื่น)
+  'store.accountChanged': {
+    th: () => 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป คำสั่งนี้ยังไม่ได้บันทึก โหลดหน้าใหม่',
+    en: () => 'The signed-in account has changed. This action was not saved. Reload the page.',
+  },
+  'store.accountChangedPartly': {
+    th: () => 'บัญชีที่เข้าสู่ระบบเปลี่ยนไป การเพิ่มสินทรัพย์ทำไม่ครบ อาจมีบัญชีว่างค้างในบัญชีเดิม โหลดหน้าใหม่',
+    en: () => 'The signed-in account has changed. The asset was not fully added and an empty account may remain in the previous account. Reload the page.',
+  },
   // ค่าตั้งค่า (ตั้งค่าพอร์ต / แผนซื้อประจำ) และที่เก็บในเครื่อง
   'store.settingsConflict': {
     th: () => 'ค่าตั้งค่าถูกแก้จากแท็บหรืออุปกรณ์อื่นแล้ว โหลดค่าล่าสุดแล้ว ลองบันทึกอีกครั้ง',

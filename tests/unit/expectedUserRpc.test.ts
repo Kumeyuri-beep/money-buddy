@@ -25,7 +25,8 @@ function client(respond: (call: Call) => Answer) {
       const call = { name, args };
       calls.push(call);
       const r = respond(call);
-      return Promise.resolve({ data: r.data ?? null, error: r.error ?? null });
+      const answer = Promise.resolve({ data: r.data ?? null, error: r.error ?? null });
+      return Object.assign(answer, { setHeader: () => answer }); // หัวคำขอ x-expected-user ตรวจใน expectedUserHeader.test.ts
     },
   };
   return { client: value as unknown as SupabaseClient, calls };

@@ -26,7 +26,8 @@ function fakeClient(respond: Responder, sessionUsers: (string | null)[] = ['u'])
   const calls: Call[] = [];
   let asked = 0;
   const builder = (call: Call) => {
-    const proxy: Record<string, unknown> = {};
+    // หัวคำขอ x-expected-user ตรวจใน expectedUserHeader.test.ts
+    const proxy: Record<string, unknown> = { headers: new Headers(), setHeader: () => proxy };
     const chain = (op: string) => (...args: unknown[]) => {
       call.ops.push(op);
       if (op === 'insert' || op === 'update' || op === 'upsert') call.args = args[0];
